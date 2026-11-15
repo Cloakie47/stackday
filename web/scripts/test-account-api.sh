@@ -89,6 +89,9 @@ check "second check-in same day is harmless" "$(req "$TMP/b" POST /api/attendanc
 req "$TMP/b" GET "/api/attendance?days=14" >/dev/null
 check "employee sees one check-in" "$(field "len(d['mine'])" < "$TMP/out")" "1"
 req "$TMP/a" GET "/api/attendance?days=14" >/dev/null
+check "employer cannot see check-ins before the member accepts" "$(field "len(d['team'].get('$B_L', []))" < "$TMP/out")" "0"
+check "member accepts the team invitation" "$(req "$TMP/b" POST /api/memberships "{\"employer\":\"$A_ADDR\",\"action\":\"accept\"}")" "200"
+req "$TMP/a" GET "/api/attendance?days=14" >/dev/null
 check "employer sees the team member's check-in" "$(field "len(d['team'].get('$B_L', []))" < "$TMP/out")" "1"
 
 # clean up the test rows
