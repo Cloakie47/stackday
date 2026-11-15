@@ -6,19 +6,29 @@ import type { ReactNode } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { CHAIN_ID } from "@/lib/contracts";
 import { shortAddr } from "@/lib/format";
-import { useNames } from "@/lib/useAccount";
+import { useAccountState, useNames, type Role } from "@/lib/useAccount";
 import { useViewer } from "./providers";
 import { Button, cx } from "./ui";
 
-const NAV = [
+type NavItem = { href: string; label: string; icon: string; hideFor?: Role[] };
+
+// Each account type sees the pages that matter to it. Until someone has chosen (or when the
+// account database is off) everything is shown.
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
-  { href: "/pay", label: "Get paid", icon: "M12 3v18M7 8h7.5a2.5 2.5 0 010 5H9.5a2.5 2.5 0 000 5H17" },
+  { href: "/employer", label: "Run payroll", icon: "M4 20v-2a5 5 0 0110 0v2M9 9a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6M20 20v-2a4 4 0 00-3-3.9", hideFor: ["individual", "employee"] },
+  { href: "/pay", label: "Get paid", icon: "M12 3v18M7 8h7.5a2.5 2.5 0 010 5H9.5a2.5 2.5 0 000 5H17", hideFor: ["individual"] },
   { href: "/invest", label: "Invest", icon: "M4 19V5M4 19h16M8 15l4-5 3 3 5-7" },
   { href: "/borrow", label: "Borrow", icon: "M4 9h16v10H4zM8 9V6a4 4 0 018 0v3M12 13v2" },
   { href: "/risk", label: "Risk", icon: "M12 3l9 16H3zM12 10v4M12 17h.01" },
-  { href: "/employer", label: "Run payroll", icon: "M4 20v-2a5 5 0 0110 0v2M9 9a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6M20 20v-2a4 4 0 00-3-3.9" },
   { href: "/demo", label: "Demo panel", icon: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4" },
 ];
+
+const ROLE_LABEL: Record<Role, string> = {
+  individual: "Individual account",
+  owner: "Business account · owner",
+  employee: "Business account · team member",
+};
 
 function Icon({ d }: { d: string }) {
   return (
@@ -92,6 +102,9 @@ export function TestnetBanner() {
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const account = useAccountState();
+  const role = account.role;
+  const nav = NAV.filter((item) => !role || !item.hideFor?.includes(role));
 
   return (
     <div className="min-h-dvh lg:pl-64">
@@ -101,7 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <Logo light />
         </div>
         <nav className="mt-8 flex flex-1 flex-col gap-1" aria-label="Main">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -117,6 +130,19 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        {role && account.me && (
+          <Link
+            href="/start"
+            className="mb-4 block rounded-xl border border-white/10 px-3 py-2.5 transition-colors duration-200 hover:bg-white/5"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/50">{ROLE_LABEL[role]}</div>
+            <div className="mt-1 truncate text-sm font-medium text-canvas">{(role === "owner" ? account.me.business?.name : null) ?? (account.me.profile.username ? `@${account.me.profile.username}` : "Your account")}</div>
+            <div className="mt-0.5 flex items-center justify-between font-mono text-[11px] text-canvas/50">
+              {account.me.profile.uid}
+              <span className="font-sans font-semibold text-brand-soft">Switch</span>
+            </div>
+          </Link>
+        )}
         <p className="px-3 text-[11px] leading-relaxed text-canvas/40">
           Salary maxxing on Base. Hackathon demo, not audited, test network only.
         </p>
@@ -136,7 +162,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         {/* Mobile and tablet navigation */}
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2.5 lg:hidden" aria-label="Main">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -149,8 +175,29 @@ export function Shell({ children }: { children: ReactNode }) {
               {item.label}
             </Link>
           ))}
+          {role && (
+            <Link href="/start" className="whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold text-muted hover:bg-sunken hover:text-ink">
+              Account
+            </Link>
+          )}
         </nav>
       </header>
+
+      {account.needsSetup && (
+        <div className="border-b border-line bg-brand-soft">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
+            <p className="text-sm text-brand-dark">
+              <strong>One step left.</strong> Choose an Individual or a Business account to get your Stackday ID.
+            </p>
+            <Link
+              href="/start"
+              className="inline-flex min-h-9 items-center rounded-full bg-brand px-4 text-[13px] font-semibold text-white transition-transform duration-200 active:scale-[0.97]"
+            >
+              Finish setting up
+            </Link>
+          </div>
+        </div>
+      )}
 
       <main key={pathname} className="stagger mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-8 sm:py-10">
         {children}

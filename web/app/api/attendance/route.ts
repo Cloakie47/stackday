@@ -13,7 +13,12 @@ export async function GET(request: Request) {
   const days = Math.min(60, Math.max(1, Number(new URL(request.url).searchParams.get("days") ?? 14)));
   const since = new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10);
 
-  const team = await db().from("employees").select("employee_wallet").eq("employer_wallet", wallet);
+  // Only people who accepted being on this team. Adding someone does not expose their check-ins.
+  const team = await db()
+    .from("employees")
+    .select("employee_wallet")
+    .eq("employer_wallet", wallet)
+    .eq("status", "accepted");
   if (team.error) return json({ error: "Could not load attendance." }, 500);
   const wallets = Array.from(new Set([wallet, ...(team.data ?? []).map((e) => e.employee_wallet)]));
 

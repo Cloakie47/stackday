@@ -37,3 +37,46 @@ create index if not exists attendance_day_idx on attendance (day);
 alter table profiles   enable row level security;
 alter table employees  enable row level security;
 alter table attendance enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Account flow (anchor parts 2 to 6), added November 15, 2026.
+-- Safe to run again: every statement checks before it changes anything.
+-- ---------------------------------------------------------------------------
+
+-- Every wallet gets a profile with a unique ID on first sign-in. The name becomes optional.
+alter table profiles alter column username drop not null;
+alter table profiles add column if not exists uid text;
+alter table profiles add column if not exists account_type text;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_uid_key') then
+    alter table profiles add constraint profiles_uid_key unique (uid);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_uid_format') then
+    alter table profiles add constraint profiles_uid_format check (uid ~ '^SD-[0-9A-Z]{8}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_account_type_check') then
+    alter table profiles add constraint profiles_account_type_check
+      check (account_type is null or account_type in ('individual', 'business'));
+  end if;
+end $$;
+
+-- A business profile. One per owner wallet.
+create table if not exists businesses (
+  owner_wallet  text primary key check (owner_wallet = lower(owner_wallet) and owner_wallet ~ '^0x[0-9a-f]{40}$'),
+  name          text not null check (char_length(name) between 2 and 60),
+  description   text not null default '' check (char_length(description) <= 400),
+  created_at    timestamptz not null default now()
+);
+alter table businesses enable row level security;
+
+-- Being on a team is an invitation until the person accepts it.
+-- The business can pay an invited person (that happens on-chain and needs no consent),
+-- but it only sees that person's attendance after they accept.
+alter table employees add column if not exists status text not null default 'invited';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'employees_status_check') then
+    alter table employees add constraint employees_status_check check (status in ('invited', 'accepted'));
+  end if;
+end $$;
+create index if not exists employees_employee_idx on employees (employee_wallet);
