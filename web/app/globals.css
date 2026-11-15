@@ -1,47 +1,188 @@
 @import "tailwindcss";
 
 /*
-  Stackday design tokens.
-  Warm paper canvas, near-black ink, one action colour (Base blue) and one growth colour (green).
-  Serif display type for headlines and big money figures, Geist for everything else.
+  Stackday design system.
+
+  Base-native: crisp blue on cool, clean surfaces, confident type, subtle depth.
+  Every colour is a semantic token that flips between light and dark, so pages never hard-code a theme.
+
+  How the theme is chosen:
+    1. By default the site follows the operating system (prefers-color-scheme).
+    2. The theme switch sets data-theme="light" or "dark" on <html> to override it.
+
+  Colour roles (use the role, not the hue):
+    canvas        page background
+    surface       cards, inputs, sheets
+    sunken        wells, tracks, segmented controls, skeletons
+    ink           primary text and high-emphasis fills (selected chips, ink buttons)
+    ink-soft      secondary text with more weight than muted
+    muted         labels, help text, captions (AA on canvas and surface)
+    line          hairlines and dividers
+    line-strong   input borders, disabled fills
+    brand         Base blue. Primary buttons and brand fills only (white text on it passes AA)
+    brand-strong  hover and pressed state of brand fills
+    brand-soft    tinted background for info notices and selected states
+    brand-ink     blue text: links, and text on brand-soft (AA in both themes)
+    grow/warn/danger (+ -soft)  status colours, text on their soft background passes AA
 */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --canvas: #f5f7fb;
+  --surface: #ffffff;
+  --sunken: #edf1f7;
+  --ink: #0a0b0d;
+  --ink-soft: #30343c;
+  --muted: #5a606c;
+  --line: #e1e6ee;
+  --line-strong: #c9d1dd;
+
+  --brand: #0052ff;
+  --brand-strong: #0041cc;
+  --brand-soft: #e7eeff;
+  --brand-ink: #0040cc;
+
+  --grow: #05784a;
+  --grow-soft: #e0f4ea;
+  --warn: #8f5300;
+  --warn-soft: #fff1d6;
+  --danger: #c0212d;
+  --danger-soft: #fde6e7;
+
+  --shadow-color: 220 40% 20%;
+  --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.06);
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.05), 0 2px 6px hsl(var(--shadow-color) / 0.05);
+  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.04), 0 8px 24px -6px hsl(var(--shadow-color) / 0.1);
+  --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.04), 0 24px 48px -12px hsl(var(--shadow-color) / 0.18);
+  --shadow-brand: 0 8px 24px -8px rgb(0 82 255 / 0.55);
+
+  --glass: rgb(245 247 251 / 0.8);
+  color-scheme: light;
+}
+
+/* Dark values, written twice: once for "follow the system", once for the explicit override. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0a0b0d;
+    --surface: #131519;
+    --sunken: #1b1e24;
+    --ink: #f3f5f9;
+    --ink-soft: #cdd2db;
+    --muted: #969dab;
+    --line: #23272e;
+    --line-strong: #363c46;
+
+    --brand: #1f5fff;
+    --brand-strong: #3a74ff;
+    --brand-soft: #0f1f45;
+    --brand-ink: #8fb1ff;
+
+    --grow: #3ccf8e;
+    --grow-soft: #0c2a1e;
+    --warn: #f3b33d;
+    --warn-soft: #2e2208;
+    --danger: #ff7076;
+    --danger-soft: #34141a;
+
+    --shadow-color: 220 60% 2%;
+    --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.4);
+    --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.5), 0 2px 6px hsl(var(--shadow-color) / 0.3);
+    --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.4), 0 8px 24px -6px hsl(var(--shadow-color) / 0.6);
+    --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.4), 0 24px 48px -12px hsl(var(--shadow-color) / 0.8);
+    --shadow-brand: 0 8px 28px -8px rgb(31 95 255 / 0.7);
+
+    --glass: rgb(10 11 13 / 0.75);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #0a0b0d;
+  --surface: #131519;
+  --sunken: #1b1e24;
+  --ink: #f3f5f9;
+  --ink-soft: #cdd2db;
+  --muted: #969dab;
+  --line: #23272e;
+  --line-strong: #363c46;
+
+  --brand: #1f5fff;
+  --brand-strong: #3a74ff;
+  --brand-soft: #0f1f45;
+  --brand-ink: #8fb1ff;
+
+  --grow: #3ccf8e;
+  --grow-soft: #0c2a1e;
+  --warn: #f3b33d;
+  --warn-soft: #2e2208;
+  --danger: #ff7076;
+  --danger-soft: #34141a;
+
+  --shadow-color: 220 60% 2%;
+  --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.4);
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.5), 0 2px 6px hsl(var(--shadow-color) / 0.3);
+  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.4), 0 8px 24px -6px hsl(var(--shadow-color) / 0.6);
+  --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.4), 0 24px 48px -12px hsl(var(--shadow-color) / 0.8);
+  --shadow-brand: 0 8px 28px -8px rgb(31 95 255 / 0.7);
+
+  --glass: rgb(10 11 13 / 0.75);
+  color-scheme: dark;
+}
+
 @theme inline {
+  /* Type. Display: Funnel Display (headlines, big money). UI: Geist. Data: Geist Mono (addresses only). */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-display: var(--font-display), ui-serif, Georgia, serif;
+  --font-display: var(--font-funnel-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 
-  --color-canvas: #f4f1ea;
-  --color-surface: #fffdf9;
-  --color-sunken: #ebe6dc;
-  --color-ink: #16130f;
-  --color-ink-soft: #3a342c;
-  --color-muted: #736b60;
-  --color-line: #e2dbce;
-  --color-line-strong: #cfc6b6;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
 
-  --color-brand: #0052ff;
-  --color-brand-dark: #003fc7;
-  --color-brand-soft: #e3ebff;
-  --color-grow: #0b7a4b;
-  --color-grow-soft: #dff3e8;
-  --color-warn: #a35a00;
-  --color-warn-soft: #fbeed5;
-  --color-danger: #b3261e;
-  --color-danger-soft: #fbe4e1;
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  /* Older name, kept so existing pages keep compiling. Means blue text. */
+  --color-brand-dark: var(--brand-ink);
 
-  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --color-grow: var(--grow);
+  --color-grow-soft: var(--grow-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-brand: var(--shadow-brand);
+
+  /* Motion. Enter/exit: ease-out. Moving on screen: ease-in-out. UI stays under 300ms. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Older names, kept for existing pages. */
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
 
-  --animate-rise: rise 0.55s var(--ease-out-quint) both;
-  --animate-fade: fade 0.4s ease-out both;
-  --animate-pop: pop 0.28s var(--ease-out-quint) both;
+  --animate-rise: rise 0.42s var(--ease-out) both;
+  --animate-fade: fade 0.3s ease-out both;
+  --animate-pop: pop 0.22s var(--ease-out) both;
   --animate-shimmer: shimmer 1.4s linear infinite;
-  --animate-spin-slow: spin 0.9s linear infinite;
+  --animate-spin-slow: spin 0.7s linear infinite;
 
   @keyframes rise {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(6px);
     }
     to {
       opacity: 1;
@@ -59,7 +200,7 @@
   @keyframes pop {
     from {
       opacity: 0;
-      transform: scale(0.96) translateY(4px);
+      transform: scale(0.97) translateY(3px);
     }
     to {
       opacity: 1;
@@ -76,62 +217,200 @@
   }
 }
 
+/*
+  Spacing scale: Tailwind's 4px grid. Page gutters 16px (phone) / 32px (tablet up).
+  Section rhythm: 24px between cards in the app, 96 to 128px between landing sections.
+  Radius: 9999px for controls (buttons, chips, pills), 16px for inputs and notices,
+  24px for cards, 32px for hero panels.
+*/
+
 html {
-  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  background: var(--canvas);
 }
 
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  background: var(--canvas);
+  color: var(--ink);
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 ::selection {
-  background: var(--color-brand);
+  background: var(--brand);
   color: white;
 }
 
-/* Sections on a page rise in one after another. */
+/* Controls respond on press and never get their label selected on long-press. */
+button,
+a,
+[role="button"],
+summary {
+  touch-action: manipulation;
+}
+button,
+[role="button"],
+[role="tab"],
+[role="radio"],
+summary {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iOS zooms the page into inputs under 16px. */
+input,
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
+select {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+input[type="range"] {
+  accent-color: var(--brand);
+}
+
+/* Keyboard focus is always visible: a crisp blue ring with a gap, in both themes. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+.feature :focus-visible {
+  outline-color: white;
+}
+
+/* Skip link: hidden until focused by keyboard. */
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 0.75rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 9999px;
+  background: var(--ink);
+  color: var(--canvas);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 160ms var(--ease-out);
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+/*
+  Feature surface: the deep Base-blue panel used for the one hero number on a page.
+  It redefines the tokens inside it, so anything written with ink, canvas, muted or line still reads correctly.
+*/
+.feature {
+  --canvas: #ffffff;
+  --ink: #ffffff;
+  --ink-soft: rgb(255 255 255 / 0.86);
+  --muted: rgb(255 255 255 / 0.68);
+  --line: rgb(255 255 255 / 0.14);
+  --line-strong: rgb(255 255 255 / 0.28);
+  --surface: rgb(255 255 255 / 0.08);
+  --sunken: rgb(255 255 255 / 0.1);
+  --brand-soft: rgb(255 255 255 / 0.16);
+  --brand-ink: #c7d8ff;
+  color: #ffffff;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(31 95 255 / 0.6) 0%, rgb(31 95 255 / 0) 55%),
+    radial-gradient(80% 120% at 0% 100%, rgb(0 82 255 / 0.28) 0%, rgb(0 82 255 / 0) 60%),
+    linear-gradient(180deg, #0b1633 0%, #050a18 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    var(--shadow-lg);
+}
+
+/* Glass bars (sticky headers, the phone tab bar). */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
+}
+
+/* Sections on an app page fade up in a short cascade, once, when the page opens. */
 .stagger > * {
   animation: var(--animate-rise);
 }
 .stagger > *:nth-child(2) {
-  animation-delay: 60ms;
+  animation-delay: 40ms;
 }
 .stagger > *:nth-child(3) {
-  animation-delay: 120ms;
+  animation-delay: 80ms;
 }
 .stagger > *:nth-child(4) {
-  animation-delay: 180ms;
+  animation-delay: 120ms;
 }
-.stagger > *:nth-child(5) {
-  animation-delay: 240ms;
-}
-.stagger > *:nth-child(n + 6) {
-  animation-delay: 300ms;
+.stagger > *:nth-child(n + 5) {
+  animation-delay: 160ms;
 }
 
 .skeleton {
   border-radius: 0.5rem;
-  background: linear-gradient(90deg, var(--color-sunken) 25%, #f3efe7 37%, var(--color-sunken) 63%);
+  background: linear-gradient(90deg, var(--sunken) 25%, var(--line) 37%, var(--sunken) 63%);
   background-size: 400% 100%;
   animation: var(--animate-shimmer);
   color: transparent;
 }
 
-input[type="range"] {
-  accent-color: var(--color-brand);
+/* Native <dialog> used as a bottom sheet on phones. */
+dialog.sheet {
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 32rem;
+  max-height: 85dvh;
+  border: 0;
+  padding: 0;
+  border-radius: 1.75rem 1.75rem 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+  overscroll-behavior: contain;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    transform 320ms var(--ease-drawer),
+    opacity 200ms ease-out,
+    overlay 320ms allow-discrete,
+    display 320ms allow-discrete;
+}
+dialog.sheet:not([open]) {
+  opacity: 0;
+  transform: translateY(100%);
+}
+@starting-style {
+  dialog.sheet[open] {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+dialog.sheet::backdrop {
+  background: rgb(5 10 24 / 0.45);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
 }
 
-/* Keyboard focus is always visible. */
-:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
-  border-radius: 0.5rem;
-}
-
+/* Reduced motion: keep fades that explain change, drop movement. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
