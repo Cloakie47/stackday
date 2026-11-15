@@ -1,14 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { configured } from "@/lib/server/backend";
+import { originAllowed } from "@/lib/server/origin-check";
 import { limit } from "@/lib/server/rate-limit";
 import { dbRateLimitStore } from "@/lib/server/rate-limit-store";
 
 /**
- * Runs before every /api request: rate limiting per visitor address (see lib/server/rate-limit.ts).
+ * Runs before every /api request: an origin check on data changes, then rate limiting per visitor
+ * address (see lib/server/origin-check.ts and lib/server/rate-limit.ts).
  * Without the account database nothing is limited, because every /api route that writes
  * anything needs that database and answers "not connected" anyway.
  */
 export async function proxy(request: NextRequest) {
+  // Refuse data changes sent from another website's page (see lib/server/origin-check.ts).
+  if (!originAllowed({ method: request.method, origin: request.headers.get("origin"), host: request.nextUrl.host })) {
+    return NextResponse.json({ error: "This request came from another website." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
   if (!configured()) return NextResponse.next();
   const decision = await limit({
     method: request.method,

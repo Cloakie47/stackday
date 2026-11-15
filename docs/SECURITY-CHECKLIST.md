@@ -318,9 +318,11 @@ On Base Sepolia the mock tokens, mock prices and mock swap have an owner, on pur
 
 ## Fix list, in order
 
-1. Sign-in message: add site domain, chain id and a single-use server nonce. **NOT DONE**
-2. Rate limiting on all API routes, using the hosting provider's trusted client IP. **NOT DONE**
-3. Security headers in `web/next.config.ts` (frame-ancestors, Content-Security-Policy, nosniff). **NOT DONE**
-4. Dependency audit: review and update the 27 reported issues. **NOT DONE**
-5. Origin check on POST and DELETE requests. **NOT DONE**
+Updated November 16, 2026.
+
+1. Sign-in message: add site domain, chain id and a single-use server nonce. **DONE** in pull request #6 (Sign-In with Ethereum). Each code works once, expires after 10 minutes and is used up atomically before the signature check. Tested end to end against the live database.
+2. Rate limiting on all API routes, using the hosting provider's trusted client IP. **DONE** in pull request #9. The visitor address comes only from Vercel's `x-real-ip`, counts are shared through the database and stored as a keyed hash, and the site keeps working if the counter is unreachable. The counter table is in the live database.
+3. Security headers in `web/next.config.ts` (frame-ancestors, Content-Security-Policy, nosniff). **DONE** in pull request #5.
+4. Dependency audit: review and update the 27 reported issues. **REVIEWED, NOT FIXED.** All 27 (10 moderate, 17 high) come through optional wallet connectors bundled with wagmi 2 (WalletConnect, Reown, MetaMask SDK, Coinbase CDP SDK) and the libraries they pull in (ws, zod, uuid, decode-uri-component). Stackday only imports the `injected` connector (and `mock` for local tests), so that code is not used. `npm audit fix` without breaking changes fixes none of them; the only fix is upgrading to wagmi 3, a breaking change. Decision: leave it until after the December 5 deadline, then upgrade to wagmi 3 and re-run `npm audit --omit=dev`.
+5. Origin check on POST and DELETE requests. **DONE** (`web/lib/server/origin-check.ts`, called from `web/proxy.ts`). Data changes whose Origin header names another site get 403. Requests without an Origin are allowed, because browsers always send one on these methods.
 6. Attendance: do not show an employer the check-ins of a wallet that has not accepted being on their team. **DONE** in the account flow pull request: team members start as "invited" and only accepted members' check-ins are visible.
