@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useViewer } from "@/components/providers";
 import {
   AddressLink,
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui";
 import { assetByToken } from "@/lib/contracts";
 import { fmtAsset, fmtHealth, fmtPct, fmtPrice, fmtUsdc, intervalLabel, until } from "@/lib/format";
-import { useLastDays, saveUsername, useAttendance, useNames, useSession } from "@/lib/useAccount";
+import { answerInvite, saveUsername, useAccountState, useAttendance, useLastDays, useNames } from "@/lib/useAccount";
 import { usePortfolio, type Portfolio } from "@/lib/usePortfolio";
 
 function useNow() {
@@ -34,16 +35,79 @@ function useNow() {
   return now;
 }
 
+function Invitations() {
+  const account = useAccountState();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<string>();
+  const [error, setError] = useState<string>();
+  const teams = account.me?.memberships ?? [];
+  const names = useNames(teams.map((t) => t.employer));
+  if (teams.length === 0) return null;
+
+  async function answer(employer: string, action: "accept" | "decline") {
+    setBusy(employer);
+    setError(undefined);
+    try {
+      await answerInvite(employer, action);
+      await queryClient.invalidateQueries();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save your answer.");
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  return (
+    <Card title="Your teams">
+      <div className="divide-y divide-line">
+        {teams.map((t) => (
+          <div key={t.employer} className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">
+                {t.businessName ?? names.display(t.employer)}
+                {t.role && <span className="font-normal text-muted"> · {t.role}</span>}
+              </div>
+              <div className="text-xs text-muted">
+                {t.status === "invited"
+                  ? "Added you to their team. They can already pay you. If you accept, they can also see the days you check in."
+                  : "You are on this team. They can see the days you check in."}
+              </div>
+            </div>
+            {t.status === "invited" ? (
+              <div className="flex gap-2">
+                <Button size="sm" disabled={busy === t.employer} onClick={() => answer(t.employer, "accept")}>
+                  Accept
+                </Button>
+                <Button size="sm" variant="secondary" disabled={busy === t.employer} onClick={() => answer(t.employer, "decline")}>
+                  Decline
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="ghost" disabled={busy === t.employer} onClick={() => answer(t.employer, "decline")}>
+                Leave
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+    </Card>
+  );
+}
+
 function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
-  const session = useSession();
+  const account = useAccountState();
+  const session = account.session;
   const names = useNames([wallet]);
   const attendance = useAttendance(session.configured && session.signedIn);
   const [name, setName] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
   const current = names.nameOf(wallet);
   const days = useLastDays(14);
   const checkedToday = attendance.data?.mine.includes(attendance.data.today) ?? false;
+  const uid = account.me?.profile.uid ?? names.idOf(wallet);
 
   if (!session.configured)
     return (
@@ -70,8 +134,38 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
     }
   }
 
+  async function copyId() {
+    if (!uid) return;
+    await navigator.clipboard.writeText(uid).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const idRow = uid && (
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sunken/70 px-4 py-3">
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Your Stackday ID</div>
+        <div className="mt-0.5 font-mono text-lg font-semibold tracking-wide">{uid}</div>
+        <div className="text-xs text-muted">Give this to a business so it can find you and add you to its team.</div>
+      </div>
+      <Button size="sm" variant="secondary" onClick={copyId}>
+        {copied ? "Copied" : "Copy ID"}
+      </Button>
+    </div>
+  );
+
   return (
-    <Card title="Your account">
+    <Card
+      title="Your account"
+      action={
+        account.role ? (
+          <Link href="/start" className="text-xs font-semibold text-brand underline">
+            {account.role === "individual" ? "Individual" : account.role === "owner" ? "Business owner" : "Team member"} · switch
+          </Link>
+        ) : undefined
+      }
+    >
+      {idRow}
       {!session.signedIn ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-md text-sm leading-relaxed text-muted">
@@ -80,7 +174,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                 This wallet is <strong className="text-ink">@{current}</strong>. Sign in to change it or check in.
               </>
             ) : (
-              "Sign in to pick a unique name for this wallet and to check in for work. Signing in is one free signature, not a transaction."
+              "Sign in to get your Stackday ID, pick a name and check in for work. Signing in is one free signature, not a transaction."
             )}
           </p>
           <Button variant="ink" disabled={!canAct || session.busy} onClick={session.signIn}>
@@ -134,7 +228,9 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                 />
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted">A record for your employer. It does not change what you are paid.</p>
+            <p className="mt-2 text-xs text-muted">
+              A record for the teams you have accepted. It does not change what you are paid.
+            </p>
           </div>
         </div>
       )}
@@ -375,6 +471,8 @@ export default function DashboardPage() {
           </div>
         </Card>
       )}
+
+      <Invitations />
 
       <Account canAct={viewer.canAct} wallet={viewer.address} />
     </>

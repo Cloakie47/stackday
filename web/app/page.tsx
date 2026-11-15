@@ -149,11 +149,11 @@ export default function Home() {
                 instead of selling.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
-                <Link href="/dashboard" className={buttonClass("primary", "lg", "shadow-brand")}>
-                  Open the app
+                <Link href="/start" className={buttonClass("primary", "lg", "shadow-brand")}>
+                  Get started
                 </Link>
-                <Link href="/employer" className={buttonClass("secondary", "lg")}>
-                  I run payroll
+                <Link href="/dashboard" className={buttonClass("secondary", "lg")}>
+                  I have an account
                 </Link>
               </div>
               <p className="mt-6 text-sm text-muted">

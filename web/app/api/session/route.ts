@@ -1,6 +1,15 @@
 import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
-import { clearCookie, configured, isWallet, json, notConfigured, sessionCookie, sessionWallet } from "@/lib/server/backend";
+import {
+  clearCookie,
+  configured,
+  ensureProfile,
+  isWallet,
+  json,
+  notConfigured,
+  sessionCookie,
+  sessionWallet,
+} from "@/lib/server/backend";
 import { signInMessage } from "@/lib/signin";
 
 const chain = createPublicClient({
@@ -34,7 +43,13 @@ export async function POST(request: Request) {
     .catch(() => false);
   if (!ok) return json({ error: "The signature does not match this wallet." }, 401);
 
-  return json({ configured: true, address: address.toLowerCase() }, 200, { "Set-Cookie": sessionCookie(address) });
+  // First sign-in creates the wallet's profile and its unique ID.
+  const profile = await ensureProfile(address.toLowerCase()).catch(() => null);
+  if (!profile) return json({ error: "Could not set up your profile. Try again." }, 500);
+
+  return json({ configured: true, address: address.toLowerCase(), uid: profile.uid }, 200, {
+    "Set-Cookie": sessionCookie(address),
+  });
 }
 
 export async function DELETE() {
