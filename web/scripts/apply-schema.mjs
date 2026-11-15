@@ -16,11 +16,14 @@ const client = new pg.Client({ connectionString: url.replace(/([?&])sslmode=[^&]
 try {
   await client.connect();
   await client.query(sql);
+  // Every table in the public schema must have row level security on, and the core tables must exist.
   const { rows } = await client.query(
-    "select c.relname as table, c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('profiles','employees','attendance') order by 1",
+    "select c.relname as table, c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' order by 1",
   );
   for (const r of rows) console.log(`table ${r.table}: row level security ${r.rls ? "ON" : "OFF"}`);
-  if (rows.length !== 3 || rows.some((r) => !r.rls)) throw new Error("schema check failed");
+  const names = new Set(rows.map((r) => r.table));
+  const missing = ["profiles", "employees", "attendance", "sign_in_nonces"].filter((t) => !names.has(t));
+  if (missing.length || rows.some((r) => !r.rls)) throw new Error(`schema check failed${missing.length ? `: missing ${missing.join(", ")}` : ""}`);
   console.log("Schema applied.");
 } catch (e) {
   console.error("Could not apply the schema:", e.message);

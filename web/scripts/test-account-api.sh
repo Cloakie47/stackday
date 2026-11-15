@@ -16,13 +16,28 @@ read -r B_ADDR B_KEY <<<"$(newwallet)"
 A_L=$(echo "$A_ADDR" | tr 'A-Z' 'a-z'); B_L=$(echo "$B_ADDR" | tr 'A-Z' 'a-z')
 NAME="t_$(date +%s | tail -c 9)"
 
+HOST="$(python -c "import sys,urllib.parse;print(urllib.parse.urlsplit(sys.argv[1]).netloc)" "$BASE")"
+SIGNIN_TS="$(cd "$(dirname "$0")/.." && pwd)/lib/signin.ts"
+
+nonce() { curl -s -X POST "$BASE/api/session/nonce" | field "d['nonce']"; }
+# Builds the exact Sign-In with Ethereum text the site uses (lib/signin.ts). Args: address nonce [domain]
+siwe() {
+  node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --input-type=module -e '
+    import { pathToFileURL } from "node:url";
+    const [file, address, nonce, domain] = process.argv.slice(1);
+    const { buildSignInMessage } = await import(pathToFileURL(file).href);
+    process.stdout.write(buildSignInMessage({ address, domain, uri: "http://" + domain, nonce, issuedAt: new Date() }));
+  ' "$SIGNIN_TS" "$1" "$2" "${3:-$HOST}"
+}
+post_signin() { # message signature jar -> http code
+  python -c "import json,sys;print(json.dumps({'message':sys.argv[1],'signature':sys.argv[2]}))" "$1" "$2" > "$TMP/body"
+  curl -s -o "$TMP/out" -w '%{http_code}' -c "$3" -H 'content-type: application/json' --data-binary @"$TMP/body" "$BASE/api/session"
+}
 signin() { # addr key jar
-  local issued msg sig
-  issued=$(python -c "import datetime;print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'))")
-  msg=$(printf 'Stackday sign-in\n\nSign this message to prove you own this wallet. It costs nothing and sends no transaction.\n\nWallet: %s\nIssued: %s' "$(echo "$1" | tr 'A-Z' 'a-z')" "$issued")
+  local msg sig
+  msg=$(siwe "$1" "$(nonce)")
   sig=$(cast wallet sign --private-key "$2" "$msg")
-  curl -s -o "$TMP/out" -w '%{http_code}' -c "$3" -H 'content-type: application/json' \
-    -d "{\"address\":\"$1\",\"issuedAt\":\"$issued\",\"signature\":\"$sig\"}" "$BASE/api/session"
+  post_signin "$msg" "$sig" "$3"
 }
 req() { # jar method path [body]
   curl -s -o "$TMP/out" -w '%{http_code}' -b "$1" -X "$2" -H 'content-type: application/json' ${4:+-d "$4"} "$BASE$3"
@@ -32,10 +47,18 @@ check "database is connected" "$(curl -s "$BASE/api/session" | field "d['configu
 check "no session before sign-in" "$(req /dev/null GET /api/employees)" "401"
 
 # a signature from the wrong wallet is rejected
-issued=$(python -c "import datetime;print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'))")
-msg=$(printf 'Stackday sign-in\n\nSign this message to prove you own this wallet. It costs nothing and sends no transaction.\n\nWallet: %s\nIssued: %s' "$A_L" "$issued")
-badsig=$(cast wallet sign --private-key "$B_KEY" "$msg")
-check "someone else's signature is rejected" "$(curl -s -o /dev/null -w '%{http_code}' -H 'content-type: application/json' -d "{\"address\":\"$A_ADDR\",\"issuedAt\":\"$issued\",\"signature\":\"$badsig\"}" "$BASE/api/session")" "401"
+msg=$(siwe "$A_ADDR" "$(nonce)")
+check "someone else's signature is rejected" "$(post_signin "$msg" "$(cast wallet sign --private-key "$B_KEY" "$msg")" /dev/null)" "401"
+
+# a message made for another site is rejected
+msg=$(siwe "$A_ADDR" "$(nonce)" "stackday-phish.example")
+check "message for another site is rejected" "$(post_signin "$msg" "$(cast wallet sign --private-key "$A_KEY" "$msg")" /dev/null)" "401"
+
+# replay: the same signed request only works once
+msg=$(siwe "$A_ADDR" "$(nonce)")
+sig=$(cast wallet sign --private-key "$A_KEY" "$msg")
+check "first use of a signed request works" "$(post_signin "$msg" "$sig" /dev/null)" "200"
+check "replaying the same signed request is rejected" "$(post_signin "$msg" "$sig" /dev/null)" "400"
 
 check "employer signs in" "$(signin "$A_ADDR" "$A_KEY" "$TMP/a")" "200"
 check "employee signs in" "$(signin "$B_ADDR" "$B_KEY" "$TMP/b")" "200"

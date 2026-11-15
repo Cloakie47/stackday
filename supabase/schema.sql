@@ -15,6 +15,16 @@ create table if not exists profiles (
   created_at  timestamptz not null default now()
 );
 
+-- Single-use sign-in codes (nonces). The server creates one for every sign-in attempt and
+-- deletes it the moment it is used, so a captured signature cannot be sent again.
+-- Unused codes expire after 10 minutes and are cleared out when new ones are made.
+create table if not exists sign_in_nonces (
+  nonce       text primary key check (nonce ~ '^[a-f0-9]{32}$'),
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+alter table sign_in_nonces enable row level security;
+
 create table if not exists employees (
   employer_wallet  text not null check (employer_wallet = lower(employer_wallet)),
   employee_wallet  text not null check (employee_wallet = lower(employee_wallet) and employee_wallet ~ '^0x[0-9a-f]{40}$'),
