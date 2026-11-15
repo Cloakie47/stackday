@@ -3,7 +3,7 @@
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Empty, Field, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Empty, Field, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, routerAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until } from "@/lib/format";
@@ -134,10 +134,10 @@ export default function InvestPage() {
 
       {!me && <Notice>Connect your wallet (top right) to invest.</Notice>}
 
-      <Card title="Choose what to buy" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
+      <Card title="Choose what to buy">
         <AssetPicker positions={p.positions} value={symbol} onChange={setSymbol} />
         <p className="mt-3 text-xs text-muted">
-          Mock {asset.realTicker}. In your vault: {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet:{" "}
+          In your vault: {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet:{" "}
           {fmtUsdc(p.walletUsdc)} USDC.
         </p>
 
@@ -225,7 +225,7 @@ export default function InvestPage() {
         )}
       </Card>
 
-      <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock venue on testnet</MockBadge>}>
+      <Card title="Earn interest on idle USDC">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           Lend idle vault USDC to earn interest. Not guaranteed. <LearnMore href="/docs#earn" />
         </p>
