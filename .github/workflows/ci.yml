@@ -38,3 +38,5 @@ jobs:
       # The build type-checks the app. (Running tsc on its own first fails, because Next.js
       # generates some of its types during the build.)
       - run: npm run build
+      # Unit tests for the web code: Node's own test runner, no extra packages (needs Node 22.18 or later).
+      - run: npm test
