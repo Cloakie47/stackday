@@ -145,7 +145,9 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
       <div>
         <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Your Stackday ID</div>
         <div className="mt-0.5 font-mono text-lg font-semibold tracking-wide">{uid}</div>
-        <div className="text-xs text-muted">Give this to a business so it can find you and add you to its team.</div>
+        <div className="text-xs text-muted">
+          {account.mode === "personal" ? "Your unique ID on Stackday." : "Give this to a business so it can find you and add you to its team."}
+        </div>
       </div>
       <Button size="sm" variant="secondary" onClick={copyId}>
         {copied ? "Copied" : "Copy ID"}
@@ -242,7 +244,10 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
   const names = useNames(p.schedulesPayingMe.map((s) => s.employer));
   const recurring = p.positions.filter((x) => x.recurring);
   const ruleAsset = assetByToken(p.emergencyRule?.asset);
-  const nothing = p.sipPlan.length === 0 && recurring.length === 0 && !p.emergencyRule && p.schedulesPayingMe.length === 0;
+  // Personal is plain investing: salary plans, payroll schedules and the salary-based emergency rule stay in Business.
+  const salaryPlans = !personal;
+  const nothing =
+    recurring.length === 0 && (!salaryPlans || (p.sipPlan.length === 0 && !p.emergencyRule && p.schedulesPayingMe.length === 0));
 
   return (
     <Card title="Your plans">
@@ -268,7 +273,7 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
         </Empty>
       ) : (
         <div className="divide-y divide-line">
-          {p.schedulesPayingMe.map((s) => (
+          {salaryPlans && p.schedulesPayingMe.map((s) => (
             <div key={`s${s.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
               <div>
                 <div className="text-sm font-semibold">
@@ -281,7 +286,7 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
               <div className="text-sm font-semibold tabular-nums">{fmtUsdc(s.mine)} USDC</div>
             </div>
           ))}
-          {p.sipPlan.length > 0 && (
+          {salaryPlans && p.sipPlan.length > 0 && (
             <div className="py-3.5 first:pt-0 last:pb-0">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Every payday, automatically</div>
@@ -317,7 +322,7 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
               </Link>
             </div>
           ))}
-          {p.emergencyRule && ruleAsset && (
+          {salaryPlans && p.emergencyRule && ruleAsset && (
             <div className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
               <div>
                 <div className="text-sm font-semibold">Emergency rule on your {ruleAsset.name} loan</div>
@@ -418,7 +423,9 @@ export default function DashboardPage() {
         }
       >
         {held.length === 0 ? (
-          <Empty>Nothing in your vault yet. Your first SIP share or purchase creates it.</Empty>
+          <Empty>
+            {businessMode ? "Nothing in your vault yet. Your first share of pay or purchase creates it." : "Nothing in your vault yet. Your first purchase creates it."}
+          </Empty>
         ) : (
           <>
             <SplitBar

@@ -3,6 +3,7 @@
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
+import { useAccountState } from "@/lib/useAccount";
 import {
   AddressLink,
   AssetIcon,
@@ -33,6 +34,7 @@ function status(health: number) {
 }
 
 export default function RiskPage() {
+  const personal = useAccountState().mode === "personal";
   const viewer = useViewer();
   const p = usePortfolio(viewer.address);
   const [symbol, setSymbol] = useState(ASSETS[0].symbol);
@@ -153,8 +155,14 @@ export default function RiskPage() {
         <Card title="Repayment options">
           <ul className="space-y-2.5 text-sm leading-relaxed text-ink">
             <li>Repay any amount on the Borrow page. No penalty.</li>
-            <li>Each payday share into this asset adds collateral.</li>
-            <li>The emergency rule sends more salary to collateral when health is low.</li>
+            {personal ? (
+              <li>Each recurring buy of this asset adds collateral, so the loan gets safer over time.</li>
+            ) : (
+              <>
+                <li>Each payday share into this asset adds collateral.</li>
+                <li>The emergency rule sends more salary to collateral when health is low.</li>
+              </>
+            )}
           </ul>
         </Card>
       </div>
@@ -225,16 +233,16 @@ export default function RiskPage() {
             <h3 className="text-sm font-semibold text-grow">Still works during a pause</h3>
             <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
               <li>Repaying your loan (it only moves USDC)</li>
-              <li>Claiming salary: that asset&apos;s share is skipped and paid in USDC</li>
+              {!personal && <li>Claiming salary: that asset&apos;s share is skipped and paid in USDC</li>}
               <li>Borrowing more against collateral already posted</li>
             </ul>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-danger">Does not work during a pause</h3>
             <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
-              <li>Adding collateral, so payday cannot make the loan safer</li>
+              <li>Adding collateral, so {personal ? "new buys" : "payday"} cannot make the loan safer</li>
               <li>Withdrawing the asset</li>
-              <li>Buying it with a SIP share or a recurring plan</li>
+              <li>Buying it {personal ? "with a recurring plan" : "with a share of pay or a recurring plan"}</li>
             </ul>
           </div>
         </div>
