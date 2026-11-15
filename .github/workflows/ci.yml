@@ -35,5 +35,6 @@ jobs:
           cache-dependency-path: web/package-lock.json
       # The lock file is written by npm 11 (Node 24). Fall back to a normal install if it drifts.
       - run: npm ci || npm install
-      - run: npx tsc --noEmit
+      # The build type-checks the app. (Running tsc on its own first fails, because Next.js
+      # generates some of its types during the build.)
       - run: npm run build

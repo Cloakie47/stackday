@@ -83,5 +83,5 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - Start every session with `git pull` on main and check open pull requests and issues so you do not duplicate work in progress.
 - Only the founder publishes the live site and changes the official testnet deployment. If you are not the founder's session: do not run `vercel --prod`, do not overwrite deployments/base-sepolia.json (use DEPLOYMENTS_FILE for your own copy), do not touch the live database.
 - Contract changes need an agreed issue first, because they force a redeploy.
-- CI (.github/workflows/ci.yml) runs `forge test` and the web type-check and build on every pull request.
+- CI (.github/workflows/ci.yml) runs `forge test` and the web build (which type-checks) on every pull request. Do not add a bare `tsc` step before the build: Next.js generates types such as LayoutProps during the build.
 - Revenue model, team workflow and feedback loop are described in README.md. Only the SIP fee is built.
