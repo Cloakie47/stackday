@@ -90,3 +90,37 @@ do $$ begin
   end if;
 end $$;
 create index if not exists employees_employee_idx on employees (employee_wallet);
+
+-- Rate limiting for the API routes. One row per (key, window): the key is a route group plus a
+-- keyed hash of the visitor's address (the address itself is never stored). The server calls
+-- rate_limit_hit for each request; old windows are cleared out now and then.
+create table if not exists rate_limits (
+  key           text not null check (char_length(key) <= 80),
+  window_start  timestamptz not null,
+  hits          integer not null default 0,
+  primary key (key, window_start)
+);
+alter table rate_limits enable row level security;
+
+create or replace function rate_limit_hit(p_key text, p_window_seconds integer)
+returns integer
+language plpgsql
+set search_path = public
+as $$
+declare
+  w timestamptz := to_timestamp(floor(extract(epoch from now()) / p_window_seconds) * p_window_seconds);
+  n integer;
+begin
+  insert into rate_limits (key, window_start, hits) values (p_key, w, 1)
+  on conflict (key, window_start) do update set hits = rate_limits.hits + 1
+  returning hits into n;
+  if random() < 0.01 then
+    delete from rate_limits where window_start < now() - interval '1 day';
+  end if;
+  return n;
+end;
+$$;
+
+-- Only the server (service role) may call it. The browser's public key cannot.
+revoke all on function rate_limit_hit(text, integer) from public, anon, authenticated;
+grant execute on function rate_limit_hit(text, integer) to service_role;

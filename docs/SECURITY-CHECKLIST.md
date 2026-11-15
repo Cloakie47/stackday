@@ -37,7 +37,7 @@ Meaning of the four statuses:
 | 8 | JWT alg confusion | No. No JWT library | Not applicable |
 | 9 | Request smuggling | Only at the hosting level | Covered by the hosting provider |
 | 10 | Cache poisoning | Yes | Covered |
-| 11 | Spoofed IP header | Yes, because there is no rate limiting at all | GAP |
+| 11 | Spoofed IP header | Yes, because there is no rate limiting at all | Covered (gg/rate-limit) |
 | 12 | Views bypass RLS | Yes, as a rule for the future | Covered |
 | 13 | Math.random tokens | Yes | Covered |
 | 14 | Timing attack | Yes | Covered |
@@ -172,6 +172,8 @@ The damage is limited to the off-chain account: name, team list, attendance. It 
 - Fill the database with team rows. One employer can add any number.
 
 **Check to do:** Fix: add rate limiting on all four API routes, strictest on sign-in and on choosing a name. Use Vercel's firewall rules or the client IP that Vercel itself provides. Never trust a header the client can set. Test after the fix: send 100 quick requests with a fake X-Forwarded-For header. They must still be blocked.
+
+**Fixed in `gg/rate-limit`:** `web/proxy.ts` runs before every `/api` request and counts requests per visitor address and route group in fixed one-minute windows: sign-in 10, sign-in code 20, choosing a name 5, team changes 30, check-in 10, other writes 30, reads 120. Over the limit the answer is 429 with `Retry-After`. The address comes only from `x-real-ip`, which Vercel sets itself (its docs: it overwrites X-Forwarded-For "to prevent IP spoofing"); client-writable headers are ignored, and off Vercel every request shares one bucket. Counts live in the `rate_limits` table through the `rate_limit_hit` function (service role only), keyed by a keyed hash of the address, never the address itself. If the counter cannot be reached the request goes through and the error is logged. Tests: `web/lib/server/rate-limit.test.ts`, including 100 requests with a fake X-Forwarded-For, of which only 10 pass.
 
 ### 12. Views bypass RLS
 
