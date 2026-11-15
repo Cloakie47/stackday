@@ -1,7 +1,6 @@
-# Stackday: product description and proposed new anchor
+# Stackday: the anchor and product description
 
-Status: DRAFT for the founder to approve. Written November 15, 2026.
-Until it is approved, the anchor in docs/BRIEF.md and CLAUDE.md stays the one in force.
+Status: APPROVED by the founder on November 15, 2026. This is the anchor in force. It replaces the earlier, narrower paragraph (kept at the end of docs/BRIEF.md for the record).
 
 ## 1. Product description (what Stackday is today, plus the requested updates)
 
@@ -28,7 +27,7 @@ What Stackday is not: it runs no lending pool and no pooled fund, it holds nobod
 
 How it earns: a fixed 0.25 percent fee on USDC going into assets, set in the contract and impossible to change. A per-employee subscription for businesses is planned.
 
-## 2. Proposed new anchor
+## 2. The anchor
 
 This is the paragraph the build is checked against, followed by the numbered parts a reviewer can tick off.
 
@@ -58,14 +57,18 @@ This is the paragraph the build is checked against, followed by the numbered par
 
 Supporting parts that stay required: one risk screen with a stress test, honest labels on everything mocked, the fixed fee, attendance as a record only, and the safety checks in docs/SECURITY-CHECKLIST.md.
 
-## 3. Open questions for the founder
+## 3. Working assumptions
 
-A. "Business should be able to find": the sentence in the request stops there. This draft assumes it means a business can find and add employees by their unique ID or name, instead of pasting a wallet address. If it meant something else (for example people finding a business to join), say so.
+The founder approved the anchor as drafted without answering the open questions, so the draft's assumptions stand until the founder says otherwise. Each one is easy to change later.
 
-B. Themes is a second product inside the first. To buy by theme it needs a news and sentiment source and an AI model. To rebalance it needs selling, which the contracts cannot do yet: today they only buy. Because the vault must stay under its owner's control, a rebalance should be a proposal the owner approves (or a rule the owner sets in advance with limits), never something Stackday does on its own. There are 20 days to the deadline and the account flow in parts 2 to 6 is not built either. Recommended: build the account flow first, then Themes as "suggest a split by theme, the user confirms the buys", and leave automatic rebalancing as a stated next step. Suggesting specific investments to a person can also count as investment advice in many places, so the wording must stay "information, not advice" and the compliance responsibility is the team's.
+A. "A business can find people" means: a business finds and adds employees by their unique ID or name, instead of pasting a wallet address.
 
-C. Individual versus Business: can one wallet be both (for example a business owner who also invests personally)? This draft assumes yes: the choice sets the default dashboard and can be switched.
+B. Themes is built in steps. First version: the person picks themes, the app suggests a split of tokenized stocks, and the person confirms the buys. Rebalancing needs selling, which the contracts cannot do yet, so "proposes rebalances" starts as a suggestion the person acts on. Nothing is ever moved without the vault owner's approval. Wording stays "information, not advice", and compliance is the team's responsibility.
 
-D. Who counts as an employee: this draft assumes a wallet is an employee of a business when that business has added it to its team or to a payday. No approval step by the employee.
+C. One wallet can be both an Individual and a Business account. The choice sets the default dashboard and can be switched.
 
-E. Bitcoin and Ether: this draft makes them part of the anchor, in brackets after stocks. The hackathon is about tokenized stocks, so they stay secondary.
+D. A wallet is an employee of a business when that business has added it to its team or to a payday. NOTE: the security review (docs/SECURITY-CHECKLIST.md, fix 6) found that adding someone without their agreement lets the business see that person's attendance dates. Recommended change: the person accepts before their attendance is visible. Not yet decided by the founder.
+
+E. Bitcoin and Ether tokens are part of the anchor but secondary. The competition is about tokenized stocks.
+
+Build order agreed in docs/START-HERE.md: account flow first (parts 2 to 6), then the security fixes, then Themes.
