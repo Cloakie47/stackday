@@ -1,10 +1,10 @@
 # Themes: research and plan
 
-Status: proposal, waiting on founder approval of the wider anchor (PR #1). Nothing here is built. Do not build from this folder until the anchor in docs/ANCHOR-DRAFT.md is approved and the founder confirms the Themes scope (open decision 2 in docs/START-HERE.md).
+Status: proposal for the founder to confirm. The wider anchor is approved (docs/ANCHOR.md), and its working assumption B is exactly this first version: the person picks themes, the app suggests a split, the person confirms the buys, and rebalancing starts as a suggestion. The numbers below are still proposals.
 
 ## What this folder is
 
-Background for the planned Themes layer: "A Themes layer reads market news and sentiment, suggests tokenized stocks by the themes a person cares about, and proposes rebalances from time to time" (docs/ANCHOR-DRAFT.md).
+Background for the planned Themes layer: "A Themes layer reads market news and sentiment, suggests tokenized stocks by the themes a person cares about, and proposes rebalances from time to time" (docs/ANCHOR.md).
 
 It is a short summary of research done by growthmindsetgg on November 15, 2026, outside this repo. It gives the founder's AI assistant and ours the same context: the competition rules that shape Themes, the portfolio rules, and the product concept. The anchor in force is still the one in docs/BRIEF.md and CLAUDE.md.
 
