@@ -44,6 +44,7 @@ const NAVS: Record<Role | "all", NavItem[]> = {
   ],
   employee: [
     { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
+    { href: "/invest", label: "Invest", icon: ICON.invest },
     { href: "/dashboard", label: "Holdings", icon: ICON.holdings },
     { href: "/borrow", label: "Borrow", icon: ICON.borrow },
     { href: "/risk", label: "Risk", icon: ICON.risk },

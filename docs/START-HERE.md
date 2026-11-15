@@ -62,7 +62,6 @@ What is real and what is mocked on testnet:
 
 ## 4. What is not built
 
-- Account flow (Individual or Business, unique IDs, business profiles, routing by role, finding people) is built in the "account flow" pull request, waiting to be merged.
 - The Themes layer (news and sentiment, stocks by theme, rebalancing). Selling is not possible in the contracts yet: they only buy.
 - Aave, for borrowing or for interest.
 - Confidential salaries.

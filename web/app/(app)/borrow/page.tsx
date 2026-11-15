@@ -4,6 +4,7 @@ import { LearnMore } from "@/components/learn-more";
 import Link from "next/link";
 import { useState } from "react";
 import { useViewer } from "@/components/providers";
+import { useAccountState } from "@/lib/useAccount";
 import {
   AssetIcon,
   Button,
@@ -26,6 +27,7 @@ import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 
 export default function BorrowPage() {
+  const personal = useAccountState().mode === "personal";
   const viewer = useViewer();
   const p = usePortfolio(viewer.address);
   const tx = useTx();
@@ -222,6 +224,7 @@ export default function BorrowPage() {
 
       <RiskNote />
 
+      {!personal && (
       <Card title="Emergency rule">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           If this loan&apos;s health is at or below your threshold on payday, this share of the salary goes to its
@@ -266,6 +269,7 @@ export default function BorrowPage() {
           )}
         </div>
       </Card>
+      )}
     </>
   );
 }
