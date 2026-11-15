@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { ASSET_LOGOS } from "@/lib/asset-logos";
 import { EXPLORER, type Asset } from "@/lib/contracts";
 import type { TxState } from "@/lib/useTx";
 import { LearnMore } from "./learn-more";
@@ -280,6 +281,16 @@ export function Chip({
 }
 
 export function AssetIcon({ asset, size = 36 }: { asset: Asset; size?: number }) {
+  const logo = ASSET_LOGOS[asset.icon];
+  // Bitcoin's logo is already a coin, so it is drawn as it is. The others sit white on their brand colour.
+  if (logo && asset.icon === "BTC") {
+    return (
+      <svg aria-hidden viewBox="0 0 24 24" width={size} height={size} className="shrink-0" style={{ color: asset.color }}>
+        <circle cx="12" cy="12" r="10" fill="white" />
+        <path d={logo} fill="currentColor" />
+      </svg>
+    );
+  }
   return (
     <span
       aria-hidden
@@ -287,13 +298,19 @@ export function AssetIcon({ asset, size = 36 }: { asset: Asset; size?: number })
       style={{
         width: size,
         height: size,
-        background: `linear-gradient(160deg, color-mix(in srgb, ${asset.color} 80%, white), ${asset.color})`,
+        background: asset.color,
         boxShadow: "inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 0 0 1px var(--line)",
         fontSize: size * (asset.icon.length > 3 ? 0.25 : 0.3),
         letterSpacing: "-0.02em",
       }}
     >
-      {asset.icon}
+      {logo ? (
+        <svg viewBox="0 0 24 24" width={size * 0.56} height={size * 0.56} fill="currentColor">
+          <path d={logo} />
+        </svg>
+      ) : (
+        asset.icon
+      )}
     </span>
   );
 }
