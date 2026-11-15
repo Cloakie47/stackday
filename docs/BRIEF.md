@@ -6,11 +6,11 @@ Tagline: Stackday, salary maxxing on Base.
 
 Working style: I am a non-coder working on Windows with PowerShell, so give me exact commands to run, explain choices in plain language, and keep answers short.
 
-## PRODUCT: Stackday (canonical description, set by the founder on November 13, 2026)
+## PRODUCT: Stackday (anchor approved by the founder on November 15, 2026)
 
-A payroll platform for teams paid in USDC on Base that turns every payday into an investment. Employers pay salaries, employees claim to any wallet they choose, and before claiming they can send a share of their salary, once or on every payday, into Coinbase tokenized stocks held in a vault only they control. The position grows through automatically reinvested dividends, and idle USDC can earn interest on Morpho or Aave. When cash is needed, the employee borrows USDC against their stocks through the existing Morpho and Aave markets instead of selling, and because every payday adds more collateral, the loan gets safer as the weeks go by. Confidential salary payments are planned as the next step.
+Stackday is a payroll and investing app on Base. After connecting a wallet on the landing page, each person chooses an Individual or a Business account and gets a profile with a unique ID. Businesses fund a USDC treasury and pay their team once or on a schedule, and employees claim to any wallet they choose. Before claiming, an employee can send a share of their salary, once or on every payday, into Coinbase tokenized stocks (and Bitcoin or Ether tokens) held in a vault only they control. Individuals without an employer invest the same way, on a regular schedule from their own wallet. Positions grow through automatically reinvested dividends, and idle USDC can earn interest on Morpho or Aave. When cash is needed, the person borrows USDC against their holdings through the existing Morpho and Aave markets instead of selling, and because every payday adds more collateral, the loan gets safer as the weeks go by. A Themes layer reads market news and sentiment, suggests tokenized stocks by the themes a person cares about, and proposes rebalances from time to time. Confidential salary payments are planned as the next step.
 
-This paragraph is the entire project idea. Everything built must trace back to a sentence in it. The checklist that maps each sentence to what is built lives in docs/PLAN.md, section "Core idea checklist".
+This paragraph is the entire project idea. Everything built must trace back to a sentence in it. The numbered parts, their status and the working assumptions are in docs/ANCHOR.md. The history of what was built against the earlier anchor is in docs/PLAN.md.
 
 Confidentiality reference for the next step: https://docs.fairblock.network/ct/how-it-works/compliance
 
@@ -86,3 +86,9 @@ UNKNOWN, to find out: whether stock tokens, their price feeds, and Morpho exist 
 4. Frontend (employer page, employee page, risk screen), deployed on Vercel.
 5. Demo flow and hardening (demo panel, judge sequence, security review, honesty pass).
 6. Submission pack (README, video script, X posts, form answers). No em dashes in the writing.
+
+## EARLIER ANCHOR (November 13 to 15, 2026, replaced)
+
+Kept for the record. The first three deployments and docs/PLAN.md sections 1 to 16 were checked against this paragraph.
+
+A payroll platform for teams paid in USDC on Base that turns every payday into an investment. Employers pay salaries, employees claim to any wallet they choose, and before claiming they can send a share of their salary, once or on every payday, into Coinbase tokenized stocks held in a vault only they control. The position grows through automatically reinvested dividends, and idle USDC can earn interest on Morpho or Aave. When cash is needed, the employee borrows USDC against their stocks through the existing Morpho and Aave markets instead of selling, and because every payday adds more collateral, the loan gets safer as the weeks go by. Confidential salary payments are planned as the next step.

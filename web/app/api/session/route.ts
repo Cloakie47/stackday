@@ -4,6 +4,7 @@ import {
   clearCookie,
   configured,
   dbNonceStore,
+  ensureProfile,
   json,
   notConfigured,
   sessionCookie,
@@ -43,7 +44,13 @@ export async function POST(request: Request) {
   });
   if (!result.ok) return json({ error: result.error }, result.status);
 
-  return json({ configured: true, address: result.address }, 200, { "Set-Cookie": sessionCookie(result.address) });
+  // First sign-in creates the wallet's profile and its unique ID.
+  const profile = await ensureProfile(result.address).catch(() => null);
+  if (!profile) return json({ error: "Could not set up your profile. Try again." }, 500);
+
+  return json({ configured: true, address: result.address, uid: profile.uid }, 200, {
+    "Set-Cookie": sessionCookie(result.address),
+  });
 }
 
 export async function DELETE() {

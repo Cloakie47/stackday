@@ -22,7 +22,7 @@ try {
   );
   for (const r of rows) console.log(`table ${r.table}: row level security ${r.rls ? "ON" : "OFF"}`);
   const names = new Set(rows.map((r) => r.table));
-  const missing = ["profiles", "employees", "attendance", "sign_in_nonces"].filter((t) => !names.has(t));
+  const missing = ["profiles", "employees", "attendance", "businesses", "sign_in_nonces"].filter((t) => !names.has(t));
   if (missing.length || rows.some((r) => !r.rls)) throw new Error(`schema check failed${missing.length ? `: missing ${missing.join(", ")}` : ""}`);
   console.log("Schema applied.");
 } catch (e) {

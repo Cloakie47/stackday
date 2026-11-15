@@ -62,26 +62,42 @@ export function useSession() {
   return { configured: session.data?.configured ?? false, loading: session.isLoading, signedIn, signIn, busy, error };
 }
 
-/** Unique names for a set of wallets. Falls back to a shortened address. */
+/**
+ * Display names for a set of wallets: the business name if the wallet owns a business, else the
+ * person's chosen name, else a shortened address. Also exposes each wallet's unique ID.
+ */
 export function useNames(wallets: (string | undefined)[]) {
   const list = Array.from(new Set(wallets.filter((w): w is string => !!w).map((w) => w.toLowerCase()))).sort();
-  const q = useQuery({
-    queryKey: ["names", list.join(",")],
-    queryFn: () => api<{ configured: boolean; profiles: Record<string, string> }>(`/api/profile?wallets=${list.join(",")}`),
+  const key = list.join(",");
+  const people = useQuery({
+    queryKey: ["names", key],
+    queryFn: () =>
+      api<{ configured: boolean; profiles: Record<string, string>; ids: Record<string, string> }>(`/api/profile?wallets=${key}`),
     enabled: list.length > 0,
     staleTime: 60_000,
   });
-  const profiles = q.data?.profiles ?? {};
+  const firms = useQuery({
+    queryKey: ["businesses", key],
+    queryFn: () =>
+      api<{ configured: boolean; businesses: Record<string, { name: string; description: string }> }>(`/api/business?wallets=${key}`),
+    enabled: list.length > 0,
+    staleTime: 60_000,
+  });
+  const profiles = people.data?.profiles ?? {};
+  const ids = people.data?.ids ?? {};
+  const businesses = firms.data?.businesses ?? {};
   const nameOf = (wallet?: string) => (wallet ? profiles[wallet.toLowerCase()] : undefined);
-  const display = (wallet?: string) => nameOf(wallet) ?? shortAddr(wallet);
-  return { nameOf, display, configured: q.data?.configured ?? false };
+  const idOf = (wallet?: string) => (wallet ? ids[wallet.toLowerCase()] : undefined);
+  const businessOf = (wallet?: string) => (wallet ? businesses[wallet.toLowerCase()] : undefined);
+  const display = (wallet?: string) => businessOf(wallet)?.name ?? (nameOf(wallet) ? `@${nameOf(wallet)}` : shortAddr(wallet));
+  return { nameOf, idOf, businessOf, display, configured: people.data?.configured ?? false };
 }
 
 export async function saveUsername(username: string) {
   return api<{ username: string }>("/api/profile", { method: "POST", body: JSON.stringify({ username }) });
 }
 
-export type TeamMember = { wallet: string; name: string; role: string; salary: string };
+export type TeamMember = { wallet: string; name: string; role: string; salary: string; status?: "invited" | "accepted" };
 
 /**
  * An employer's team list. Saved in the account database when it is connected and the employer
@@ -104,14 +120,15 @@ export function useTeam(employer: string | undefined, useDatabase: boolean) {
   const remote = useQuery({
     queryKey: ["team", employer?.toLowerCase()],
     queryFn: async () => {
-      const r = await api<{ employees: { employee_wallet: string; name: string; role: string; salary_usdc: number }[] }>(
-        "/api/employees",
-      );
+      const r = await api<{
+        employees: { employee_wallet: string; name: string; role: string; salary_usdc: number; status: "invited" | "accepted" }[];
+      }>("/api/employees");
       return r.employees.map((e) => ({
         wallet: e.employee_wallet,
         name: e.name,
         role: e.role,
         salary: String(Number(e.salary_usdc)),
+        status: e.status,
       }));
     },
     enabled: !!employer && useDatabase,
@@ -173,3 +190,56 @@ export function useLastDays(n: number) {
   }, [n]);
   return days;
 }
+
+// ------------------------------------------------------------------ account type, business, invitations
+
+export type Me = {
+  profile: { wallet: string; uid: string; username: string | null; account_type: "individual" | "business" | null };
+  business: { name: string; description: string } | null;
+  memberships: { employer: string; businessName: string | null; role: string; status: "invited" | "accepted" }[];
+};
+
+export type Role = "individual" | "owner" | "employee";
+
+/**
+ * Who the connected wallet is on Stackday.
+ * - `ready` is false until we know (so screens do not flash the wrong thing).
+ * - `needsSetup` is true when the wallet is connected but has not signed in or not chosen an account type.
+ * - Without the account database everything stays open and `role` is undefined.
+ */
+export function useAccountState() {
+  const { address, isConnected } = useAccount();
+  const session = useSession();
+  const me = useQuery({
+    queryKey: ["me", address?.toLowerCase()],
+    queryFn: () => api<Me>("/api/me"),
+    enabled: session.configured && session.signedIn,
+    staleTime: 15_000,
+  });
+  const type = me.data?.profile.account_type ?? null;
+  const role: Role | undefined =
+    type === "individual" ? "individual" : type === "business" ? (me.data?.business ? "owner" : "employee") : undefined;
+  const ready = !session.loading && (!session.signedIn || !me.isLoading);
+  return {
+    address,
+    isConnected,
+    session,
+    me: me.data,
+    role,
+    ready,
+    needsSetup: isConnected && session.configured && ready && (!session.signedIn || !type),
+  };
+}
+
+export const saveAccountType = (accountType: "individual" | "business") =>
+  api<{ accountType: string }>("/api/me", { method: "POST", body: JSON.stringify({ accountType }) });
+
+export const saveBusiness = (name: string, description: string) =>
+  api<{ name: string; description: string }>("/api/business", { method: "POST", body: JSON.stringify({ name, description }) });
+
+export type Person = { wallet: string; uid: string | null; username: string | null };
+
+export const searchPeople = (q: string) => api<{ people: Person[]; hint?: string }>(`/api/people?q=${encodeURIComponent(q)}`);
+
+export const answerInvite = (employer: string, action: "accept" | "decline") =>
+  api<{ ok: boolean }>("/api/memberships", { method: "POST", body: JSON.stringify({ employer, action }) });

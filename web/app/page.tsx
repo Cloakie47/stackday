@@ -95,16 +95,16 @@ export default function Home() {
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
-                href="/dashboard"
+                href="/start"
                 className="inline-flex min-h-12 items-center rounded-full bg-brand px-7 text-[15px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-brand-dark active:scale-[0.97]"
               >
-                Open my dashboard
+                Get started
               </Link>
               <Link
-                href="/employer"
+                href="/dashboard"
                 className="inline-flex min-h-12 items-center rounded-full border border-white/20 px-7 text-[15px] font-semibold text-canvas transition-[background-color,transform] duration-200 hover:bg-white/10 active:scale-[0.97]"
               >
-                I run payroll
+                I already have an account
               </Link>
             </div>
           </div>
