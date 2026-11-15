@@ -6,3 +6,4 @@ export * from "./catalog.ts";
 export * from "./policy.ts";
 export * from "./basket.ts";
 export * from "./legs.ts";
+export * from "./rebalance.ts";
