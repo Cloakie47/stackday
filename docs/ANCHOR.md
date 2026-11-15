@@ -38,11 +38,11 @@ This is the paragraph the build is checked against, followed by the numbered par
 | # | Part of the anchor | Status today |
 |---|---|---|
 | 1 | Landing page is the start of the platform | Built |
-| 2 | Start, connect wallet, then choose Individual or Business | NOT built. Today every page is open to any connected wallet with no account type |
-| 3 | A profile with a unique ID is created in Supabase for each new user | PARTLY. The database is connected and each wallet can pick a unique name. There is no automatic unique ID and no profile created on first visit |
-| 4 | New business adds business name and description | NOT built |
-| 5 | Business account shows the owner dashboard or the employee dashboard depending on who the person is | PARTLY. Both dashboards exist (Run payroll, and Dashboard with Get paid) but the app does not route people by role |
-| 6 | A business can find people (see open question A) | NOT built. Today the owner pastes a wallet address |
+| 2 | Start, connect wallet, then choose Individual or Business | Built (pull request "account flow"). /start: connect, sign in, choose Individual, Business owner or Business team member. Pages stay open to anyone, but the navigation follows the choice |
+| 3 | A profile with a unique ID is created in Supabase for each new user | Built. First sign-in creates the profile with an ID like SD-7K3F9Q2M. The chosen name is now optional |
+| 4 | New business adds business name and description | Built. On /start and editable on Run payroll. Employees see the business name instead of a wallet address |
+| 5 | Business account shows the owner dashboard or the employee dashboard depending on who the person is | Built. Owners land on Run payroll, team members and individuals on the Dashboard, and the navigation hides what does not apply |
+| 6 | A business can find people (see open question A) | Built. Search by Stackday ID, name or wallet address. The person is invited and must accept before the business sees their attendance |
 | 7 | Businesses fund a treasury and pay once or on a schedule | Built, tested, shown on testnet |
 | 8 | Employees claim to any wallet, with a share into assets, once or every payday | Built, tested, shown on testnet |
 | 9 | Coinbase tokenized stocks, plus Bitcoin and Ether tokens | Built with mock tokens on testnet. The same code is tested with the real AAPLc token on a copy of Base mainnet. BTC and ETH have no mainnet test yet |
@@ -67,7 +67,7 @@ B. Themes is built in steps. First version: the person picks themes, the app sug
 
 C. One wallet can be both an Individual and a Business account. The choice sets the default dashboard and can be switched.
 
-D. A wallet is an employee of a business when that business has added it to its team or to a payday. NOTE: the security review (docs/SECURITY-CHECKLIST.md, fix 6) found that adding someone without their agreement lets the business see that person's attendance dates. Recommended change: the person accepts before their attendance is visible. Not yet decided by the founder.
+D. A wallet is an employee of a business when that business has added it to its team or to a payday. UPDATE November 15: built with an accept step, see below. Original note: the security review (docs/SECURITY-CHECKLIST.md, fix 6) found that adding someone without their agreement lets the business see that person's attendance dates. Recommended change: the person accepts before their attendance is visible. Not yet decided by the founder.
 
 E. Bitcoin and Ether tokens are part of the anchor but secondary. The competition is about tokenized stocks.
 

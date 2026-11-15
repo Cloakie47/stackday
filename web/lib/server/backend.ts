@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -81,3 +81,36 @@ export const isWallet = (s: unknown): s is string => typeof s === "string" && /^
 
 /** Today's date in UTC as YYYY-MM-DD. */
 export const today = () => new Date().toISOString().slice(0, 10);
+
+const UID_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no 0, 1, I or O: easy to read aloud and type
+
+function newUid() {
+  let out = "SD-";
+  for (let i = 0; i < 8; i++) out += UID_ALPHABET[randomInt(UID_ALPHABET.length)];
+  return out;
+}
+
+export type Profile = { wallet: string; uid: string; username: string | null; account_type: "individual" | "business" | null };
+
+/**
+ * Returns the wallet's profile, creating it with a fresh unique ID the first time.
+ * Called at sign-in, so every signed-in wallet has a profile.
+ */
+export async function ensureProfile(wallet: string): Promise<Profile> {
+  const found = await db().from("profiles").select("wallet, uid, username, account_type").eq("wallet", wallet).maybeSingle();
+  if (found.error) throw new Error("profile lookup failed");
+  if (found.data?.uid) return found.data as Profile;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const uid = newUid();
+    const res = found.data
+      ? await db().from("profiles").update({ uid }).eq("wallet", wallet).select("wallet, uid, username, account_type").single()
+      : await db().from("profiles").insert({ wallet, uid }).select("wallet, uid, username, account_type").single();
+    if (!res.error) return res.data as Profile;
+    if (res.error.code !== "23505") throw new Error("profile create failed");
+    // 23505 is a uniqueness clash: either the ID is taken (try another) or the row was just created by a parallel request.
+    const again = await db().from("profiles").select("wallet, uid, username, account_type").eq("wallet", wallet).maybeSingle();
+    if (again.data?.uid) return again.data as Profile;
+  }
+  throw new Error("could not allocate a unique id");
+}

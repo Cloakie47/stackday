@@ -62,11 +62,7 @@ What is real and what is mocked on testnet:
 
 ## 4. What is not built
 
-- Choosing Individual or Business after connecting a wallet.
-- An automatic unique ID and profile for every new user.
-- Business name and description.
-- Sending people to the owner or employee dashboard by role.
-- A business finding and adding people (today the owner pastes a wallet address).
+- Account flow (Individual or Business, unique IDs, business profiles, routing by role, finding people) is built in the "account flow" pull request, waiting to be merged.
 - The Themes layer (news and sentiment, stocks by theme, rebalancing). Selling is not possible in the contracts yet: they only buy.
 - Aave, for borrowing or for interest.
 - Confidential salaries.
