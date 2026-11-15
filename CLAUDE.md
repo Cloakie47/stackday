@@ -75,3 +75,13 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - When click-testing on anvil, its clock only advances on a transaction: run `cast rpc evm_mine` before testing anything time-based.
 - docs/START-HERE.md is the overview and plan for contributors: keep its status tables current. docs/ANCHOR-DRAFT.md is a proposed wider anchor awaiting founder approval: do not build from it or replace the core idea above until the founder approves. docs/SECURITY-CHECKLIST.md holds the security fix list.
 - The Supabase database is connected on the live site (keys supplied by Vercel's Supabase integration: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET as the session secret fallback). Test with `bash web/scripts/test-account-api.sh <base-url>`, then clean up with web/scripts/cleanup-test-rows.mjs.
+
+## Team workflow (two contributors, each with their own Claude)
+
+- GitHub repo Cloakie47/stackday is the source of truth. Contributors: Cloakie47 (founder) and growthmindsetgg.
+- Never commit or push directly to main. Branch as `<name>/<topic>`, open a pull request, wait for the other person's review and for CI to pass.
+- Start every session with `git pull` on main and check open pull requests and issues so you do not duplicate work in progress.
+- Only the founder publishes the live site and changes the official testnet deployment. If you are not the founder's session: do not run `vercel --prod`, do not overwrite deployments/base-sepolia.json (use DEPLOYMENTS_FILE for your own copy), do not touch the live database.
+- Contract changes need an agreed issue first, because they force a redeploy.
+- CI (.github/workflows/ci.yml) runs `forge test` and the web type-check and build on every pull request.
+- Revenue model, team workflow and feedback loop are described in README.md. Only the SIP fee is built.

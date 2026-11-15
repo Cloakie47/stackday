@@ -21,6 +21,32 @@ Status: contracts are deployed on Base Sepolia (testnet) and the web app is live
 - A dashboard shows holdings, plans and loans. A risk screen shows cost, limits, liquidation price and a stress test.
 - Optional account database (Supabase): a unique name per wallet, saved team lists, and a daily attendance check-in.
 
+## Revenue model
+
+Status: only the first line is built. The rest is the plan, to be confirmed by the founder. The figures are illustrations to show the size of each stream, not forecasts.
+
+| Stream | Who pays | How it works | Status |
+|---|---|---|---|
+| 1. SIP fee | The person investing | 0.25 percent of the USDC that goes into assets, on payday investing and on direct buys. Fixed in the contract, cannot be changed, never charged on salary paid out | Built and live |
+| 2. Business subscription | The employer | A monthly price per employee for running payroll through Stackday, billed off-chain or in USDC. Needs no contract change | Planned. Expected to be the main income |
+| 3. Borrowing fee | The borrower | A small one-time fee when a loan is opened (for example 0.25 percent of the amount borrowed), taken from the borrowed USDC before it is sent out. Never taken from the vault. Fixed at deployment like the SIP fee | Not built. Needs a contract change and a redeploy |
+| 4. Lending income | Lenders, through a share of interest | Stackday curates its own USDC vault on Morpho that lends against tokenized stocks, and keeps a share of the interest it earns (for example 10 percent). Lenders can be anyone, including employers with idle treasury | Not built. A larger project with real risk management duties |
+| 5. Interest share on idle USDC | The saver | A share of the interest that vault USDC earns. Comes for free if stream 4 exists, because idle USDC would go into Stackday's own vault | Not built |
+| 6. Themes plan | The individual | A monthly price for the Themes layer (suggestions by theme, rebalance proposals) | Not built, depends on Themes |
+
+Rough sizes, to compare the streams. Take a business with 20 employees paid 3,000 USDC a month, each investing 15 percent:
+
+- SIP fee: 9,000 USDC a month goes into assets, so the fee is about 22 USDC a month.
+- Subscription at 4 USDC per employee: 80 USDC a month.
+- Borrowing fee: if 6 of them borrow 2,000 USDC once, about 30 USDC in total, one time.
+- Lending income: for every 1,000,000 USDC lent at 6 percent interest, a 10 percent share is about 6,000 USDC a year.
+
+What this shows: the SIP fee alone is small. Subscriptions pay for the payroll side, and lending income is what grows with the money on the platform.
+
+Recommended order: keep 1, add 2 next (no contract work), then 3 if we want income from borrowing before the deadline, and treat 4 and 5 as the long-term engine after the competition.
+
+Rules for any fee: fixed when the contract is deployed, visible on the site before the person confirms, never taken out of a vault, and never a way for anyone to change it later. Earning from lending and borrowing also makes Stackday look more like a lending business to regulators, which is the team's responsibility to check.
+
 ## Run the tests (PowerShell)
 
 Local tests (real Morpho code, mock asset tokens, mock price feeds, mock exchange), 69 tests:
@@ -198,6 +224,61 @@ To connect it:
 The service_role key is a secret. Never commit it and never paste it into a chat.
 
 How it is protected: every table has row level security on with no public policies, so browsers cannot read or write the database directly. The site's server does, and only after checking a signature from the wallet (a free signature, not a transaction). An employer can only see and change their own team list. Attendance is a record for the employer to look at and does not change anyone's pay.
+
+## Working together
+
+Two people build Stackday, each with their own AI coding assistant: the founder (Cloakie47) and a contributor (growthmindsetgg). GitHub is the single source of truth. Whatever is on the `main` branch is the real product.
+
+### The loop
+
+1. Pick one task. Tasks live in GitHub Issues. Assign it to yourself so the other person does not start the same thing.
+2. Get the latest code: `git pull` on `main`.
+3. Make a branch named after you and the task, for example `gg/sign-in-nonce` or `cloakie/landing-copy`.
+4. Build it. Run the checks: `forge test` for contracts, and `npm run build` inside `web` for the site.
+5. Push the branch and open a pull request. Say what changed, what was tested and what was not.
+6. The automatic checks run on the pull request. The other person reads it and approves.
+7. Merge into `main`. Delete the branch.
+8. The founder publishes the site from `main`.
+
+Never push straight to `main`. Small pull requests, merged often, are better than one large one: two assistants editing the same files for days will collide.
+
+### Who does what
+
+| Area | Lead |
+|---|---|
+| Product decisions, the anchor, what is in or out | Founder |
+| Publishing the live site, the testnet deployment, the database | Founder (they hold the accounts and keys) |
+| Design feedback, wording, the submission video and posts | Founder |
+| Building features, contracts, research, security fixes | Contributor, with the founder building alongside on separate tasks |
+| Reviewing each other's pull requests | Both |
+
+Split work by area so two people are not in the same files: for example one on `src/` and `test/`, the other on `web/`.
+
+### Shared things and how not to break them
+
+- The live site: only published from `main`, by the founder. Do not publish from a branch.
+- The testnet deployment: `deployments/base-sepolia.json` is the official one that the live site uses. Do not overwrite it. To deploy your own copy for testing, write to a different file: set `DEPLOYMENTS_FILE=deployments/local-yourname.json` before running the deploy script.
+- The demo panel: its price and pause switches only work for the wallet that deployed the mocks. A contributor who needs them deploys their own copy as above.
+- The database: there is one live database. Most work does not need it. For database work, create your own free Supabase project, run `supabase/schema.sql` in it, and put its keys in your own `web/.env.local`.
+- Secrets: every person uses their own test wallet and their own keys. Keys are never shared in chat, in issues, in pull requests or in git.
+- Contract changes mean a new deployment, new addresses and a site update. Agree on them in an issue first, and do them one at a time.
+
+### The docs each assistant should read first
+
+`docs/START-HERE.md`, then `CLAUDE.md` (the rules), then `docs/ANCHOR-DRAFT.md` and `docs/SECURITY-CHECKLIST.md`.
+
+## Feedback loop
+
+The plan is to get a working product in front of team members as early as possible, collect what they say, and keep upgrading it.
+
+1. Ship early. Anything merged to `main` and working goes onto the live site, even if it is rough.
+2. Ask team members to try it. They need a browser wallet on Base Sepolia with test USDC from https://faucet.circle.com. People who only want to look can open any page with `?view=` and a wallet address.
+3. Collect feedback in one place: a GitHub Issue with the label `feedback`, one issue per point, in the person's own words, with the page and what they expected.
+4. Triage twice a week. Each item becomes one of: fix now, later, or not doing (with the reason).
+5. Fix, publish, and tell the person who reported it.
+6. Keep a short list of what changed, so testers know what to look at again.
+
+What we ask testers: could you do the thing without help, did anything confuse or worry you, did the risk screen make the risk clear, and would you actually send part of your salary this way.
 
 ## Security review (self-review, November 14, 2026)
 

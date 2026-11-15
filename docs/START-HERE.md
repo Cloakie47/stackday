@@ -102,7 +102,7 @@ These are the founder's to make. They are written out in docs/ANCHOR-DRAFT.md se
 3. Whether one wallet can be both an Individual and a Business account.
 4. Whether an employee must accept being added to a team.
 5. Whether Bitcoin and Ether are part of the core or a side feature.
-6. Which wallet receives the fee, and subscription pricing for businesses.
+6. Which wallet receives the fee, and which revenue streams to build (see "Revenue model" in README.md).
 7. Whether to deploy anything to mainnet for the submission.
 
 ## 7. Setting up on your computer
@@ -171,6 +171,11 @@ Writing:
 - Plain language. No em dashes in anything that will be submitted.
 
 ## 9. How we work
+
+The full team workflow (branches, pull requests, who does what, shared things, the feedback loop) and the revenue model are in README.md under "Working together", "Feedback loop" and "Revenue model". The short version:
+
+- Never push straight to `main`. One task, one branch, one pull request, reviewed by the other person.
+- Do not overwrite `deployments/base-sepolia.json` and do not publish the live site from a branch.
 
 - Work in steps. Finish one, report what passes and what does not, then wait for the founder's go-ahead.
 - Every feature must map to a sentence in the anchor. If it does not, flag it as an extension in docs/PLAN.md and ask.
