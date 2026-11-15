@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 import { useViewer } from "@/components/providers";
@@ -157,7 +158,14 @@ export default function PayPage() {
 
   return (
     <>
-      <PageHeader title="Get paid" lead="Claim your salary to any wallet, and decide how much of it goes to work for you." />
+      <PageHeader
+        title="Get paid"
+        lead={
+          <>
+            Claim your salary and choose a share to invest. <LearnMore href="/docs#employees" />
+          </>
+        }
+      />
 
       {!me && <Notice>Connect your wallet (top right) to see your salary.</Notice>}
 
@@ -206,7 +214,7 @@ export default function PayPage() {
             <div>
               <h3 className="text-sm font-semibold">How much of this salary should go to work?</h3>
               <p className="mt-1 text-sm text-muted">
-                Many people start with 10% or 20%. It is entirely optional, and you can change it every payday.
+                Optional. You can change it every payday.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {PRESETS.map((preset) => (
@@ -314,17 +322,16 @@ export default function PayPage() {
 
             {p.emergencyActive && p.emergencyRule && ruleAsset && (
               <Notice tone="warn">
-                <strong>Your emergency rule is active.</strong> Your {ruleAsset.name} loan health is at or below{" "}
-                {fmtHealth(p.emergencyRule.threshold)}, so this payday at least {fmtPct(p.emergencyRule.bps)} of your salary
-                buys {ruleAsset.name} and goes straight to that loan&apos;s collateral. Your other choices are skipped this time.
+                <strong>Emergency rule active.</strong> At least {fmtPct(p.emergencyRule.bps)} of this salary buys{" "}
+                {ruleAsset.name} for that loan&apos;s collateral (health at or below {fmtHealth(p.emergencyRule.threshold)}). Other
+                choices are skipped. <LearnMore href="/docs#emergency-rule" className="text-warn decoration-warn/40" />
               </Notice>
             )}
             {legs
               .filter((l) => l.pos.transfersPaused)
               .map((l) => (
                 <Notice key={l.pos.asset.symbol} tone="warn">
-                  Transfers of {l.pos.asset.symbol} are paused right now, so that part cannot be bought. It will be paid to
-                  you in USDC instead.
+                  {l.pos.asset.symbol} transfers are paused. That part is paid to you in USDC.
                 </Notice>
               ))}
 

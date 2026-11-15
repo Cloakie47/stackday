@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import { useState } from "react";
 import { erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
@@ -75,7 +76,11 @@ export default function DemoPage() {
     <>
       <PageHeader
         title="Demo panel"
-        lead={`Switches that exist only so the stress scenarios can be shown in a few minutes. They change the mock tokens, the mock price feeds and the mock exchange. They cannot touch anyone's vault, salary or loan, and none of this exists in the real ${BRAND.name} contracts.`}
+        lead={
+          <>
+            Testnet switches to show stress scenarios. They only change mocks. <LearnMore href="/docs#demo" />
+          </>
+        }
         aside={<MockBadge>Testnet only</MockBadge>}
       />
 
@@ -189,8 +194,7 @@ export default function DemoPage() {
 
       <Card title="Quick payday">
         <p className="text-sm leading-relaxed text-muted">
-          Creates a one-off payday that pays the connected wallet from its own test USDC. Any wallet can do this: it is
-          the normal employer function, shown here as a shortcut.
+          Pays the connected wallet from its own test USDC.
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
           <Field label="Salary" inputMode="decimal" suffix="USDC" value={payday} onChange={(e) => setPayday(e.target.value)} hint={`Wallet: ${fmtUsdc(p.walletUsdc)} USDC.`} />

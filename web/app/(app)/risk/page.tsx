@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
 import {
@@ -78,7 +79,11 @@ export default function RiskPage() {
     <>
       <PageHeader
         title="Risk"
-        lead="Everything about borrowing on one page: cost, limits, liquidation risk, how to repay, and what a bad night or a frozen market would do."
+        lead={
+          <>
+            Cost, limits and stress tests for a loan. <LearnMore href="/docs#borrowing" />
+          </>
+        }
       />
 
       <RiskNote />
@@ -121,8 +126,7 @@ export default function RiskPage() {
           <Row label={`${BRAND.name} fee on borrowing`}>None</Row>
           <Row label={`${BRAND.name} fee on purchases`}>0.25%, fixed</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            Interest is set by the lending market, moves up when more people borrow, and is added to what you owe every
-            second. It goes to the market&apos;s lenders, not to {BRAND.name}.
+            Set by the market. It goes to lenders, not to {BRAND.name}.
           </p>
         </Card>
 
@@ -131,9 +135,8 @@ export default function RiskPage() {
           <Row label="Absolute maximum before liquidation">${fmtUsdc(maxDebt)}</Row>
           <Row label="USDC available in the market">${fmtUsdc(pos.liquidity)}</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            {BRAND.name} starts you at half of what the market would allow, which leaves room for a {defaultSurvives.toFixed(0)}%
-            price fall before liquidation. That lowers the risk, it does not remove it. You can raise your own limit to
-            at most 85% of the maximum. Nobody else can change it.
+            You start at half the market maximum, room for a {defaultSurvives.toFixed(0)}% fall. You can raise it to 85%.{" "}
+            <LearnMore href="/docs#limits" />
           </p>
         </Card>
 
@@ -143,18 +146,15 @@ export default function RiskPage() {
           <Row label="Price drop that triggers it">{debt > 0n ? `${dropToLiquidation.toFixed(1)}%` : "No loan"}</Row>
           <Row label="Liquidator bonus taken from your collateral">about {bonusPct.toFixed(1)}%</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            If the price falls to the liquidation price, anyone may repay part of your loan and take that value of your
-            collateral plus the bonus. You keep what is left. There is no warning period.
+            At the liquidation price, part of your collateral can be sold with no warning. <LearnMore href="/docs#health" />
           </p>
         </Card>
 
         <Card title="Repayment options">
           <ul className="space-y-2.5 text-sm leading-relaxed text-ink">
-            <li>Repay any amount at any time on the Borrow page. No schedule, no early repayment penalty.</li>
-            <li>Repay everything, then withdraw all your collateral.</li>
-            <li>Do nothing: every payday with a SIP share into this asset adds collateral, so health improves on its own.</li>
-            <li>Set the emergency rule so a risky loan pulls a bigger share of your next salary into collateral.</li>
-            <li>Anyone can repay on your behalf, for example from another wallet of yours.</li>
+            <li>Repay any amount on the Borrow page. No penalty.</li>
+            <li>Each payday share into this asset adds collateral.</li>
+            <li>The emergency rule sends more salary to collateral when health is low.</li>
           </ul>
         </Card>
       </div>
@@ -162,9 +162,8 @@ export default function RiskPage() {
       <Card title="Stress test: overnight or weekend price gap">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           {asset.kind === "stock"
-            ? "Stock markets close at night and on weekends. The price feed holds the last price while they are closed and can reopen much lower in one step, with no chance to react in between."
-            : "Crypto trades around the clock, so there is no closed market, but prices can still fall very fast."}{" "}
-          This is what a sudden fall would do to the loan above.
+            ? "Stock markets close at night and on weekends, and can reopen much lower in one step."
+            : "Crypto trades around the clock but can still fall very fast."}
         </p>
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[32rem] text-sm">
@@ -214,8 +213,7 @@ export default function RiskPage() {
 
       <Card title="Stress test: paused collateral transfers">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          The issuer of a tokenized stock can pause transfers of the token, for example during a corporate action. While
-          paused, the token cannot move at all.
+          The issuer can pause token transfers, for example during a corporate action.
         </p>
         <div className="mt-3">
           <Row label={`${asset.symbol} transfers right now`}>
@@ -242,10 +240,8 @@ export default function RiskPage() {
         </div>
         <div className="mt-5">
           <Notice tone="danger">
-            <strong>The dangerous combination:</strong> a pause during a price fall. Liquidators cannot take the collateral
-            while it is paused, so nothing happens at first. But interest keeps growing, you cannot add collateral, and
-            the moment transfers resume an unhealthy loan can be liquidated immediately. The only defence during a pause
-            is to repay USDC.
+            <strong>Worst case:</strong> a pause during a price fall. Liquidation can follow the moment transfers resume.
+            Repaying USDC still works. <LearnMore href="/docs#stress" className="text-danger decoration-danger/40" />
           </Notice>
         </div>
       </Card>
@@ -257,9 +253,7 @@ export default function RiskPage() {
           {pos.feedFrozen === undefined ? "…" : pos.feedFrozen ? <span className="text-warn">Closed, price is frozen</span> : <span className="text-grow">Open</span>}
         </Row>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          On Base mainnet stock prices come from Chainlink, which runs 24 hours on 5 days a week and holds the last close
-          on nights, weekends and holidays. A health number computed from a frozen price can look fine while the real
-          market has already moved. Treat health as stale whenever the market is closed.
+          On mainnet, stock prices freeze while markets are closed. Treat health as stale then.
         </p>
       </Card>
 
@@ -285,10 +279,8 @@ export default function RiskPage() {
           <AddressLink address={asset.adapter} />
         </Row>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          {BRAND.name} does not run a lending pool. Your vault borrows directly from this Morpho market, which {BRAND.name}
-          created on the test network with the same liquidation limit as the main real {asset.realTicker} / USDC market on
-          Base mainnet. The price it uses here comes from a mock feed that the demo operator can change. Verify any
-          address on{" "}
+          Your vault borrows directly from this Morpho market. Its price comes from a mock feed.{" "}
+          <LearnMore href="/docs#contracts">All addresses</LearnMore>. Verify on{" "}
           <a className="underline" href={EXPLORER} target="_blank" rel="noreferrer">
             BaseScan
           </a>

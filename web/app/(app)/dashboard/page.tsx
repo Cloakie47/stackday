@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
@@ -49,8 +50,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
     return (
       <Card title="Your account">
         <p className="text-sm leading-relaxed text-muted">
-          Names and attendance are stored in an account database that is not connected yet. Everything about your money
-          works without it, because salaries, vaults and loans live on-chain.
+          Names and attendance are off on this site. Your money does not depend on them.
         </p>
       </Card>
     );
@@ -80,7 +80,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                 This wallet is <strong className="text-ink">@{current}</strong>. Sign in to change it or check in.
               </>
             ) : (
-              "Sign in to pick a unique name for this wallet and to check in for work. Signing in is one free signature, not a transaction."
+              "Sign in to pick a name and check in. It is one free signature."
             )}
           </p>
           <Button variant="ink" disabled={!canAct || session.busy} onClick={session.signIn}>
@@ -97,7 +97,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                   You are <strong className="text-ink">@{current}</strong>.
                 </>
               ) : (
-                "Pick a unique name. Others will see it instead of your wallet address."
+                "Pick a unique name to show instead of your address."
               )}
             </p>
             <div className="mt-3 flex items-end gap-2">
@@ -134,7 +134,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                 />
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted">A record for your employer. It does not change what you are paid.</p>
+            <p className="mt-2 text-xs text-muted">Does not change your pay.</p>
           </div>
         </div>
       )}
@@ -248,7 +248,11 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title={name ? `Hello, ${name}` : "Dashboard"}
-        lead="Everything you hold, every plan you set, and how your loans are doing."
+        lead={
+          <>
+            Holdings, plans and loans. <LearnMore href="/docs#vault" />
+          </>
+        }
         aside={p.vault && <AddressLink address={p.vault} label="Your vault on BaseScan" />}
       />
 
@@ -278,7 +282,7 @@ export default function DashboardPage() {
             <div className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
               <Money value={viewer.address ? netWorth : 0n} />
             </div>
-            <p className="mt-3 text-sm text-muted">Assets and cash, minus what you have borrowed.</p>
+            <p className="mt-3 text-sm text-muted">Assets plus cash, minus loans.</p>
           </div>
           <div className="grid grid-cols-3 gap-4">
             {[

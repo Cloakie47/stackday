@@ -8,6 +8,7 @@ import { BRAND } from "@/lib/brand";
 import { CHAIN_ID } from "@/lib/contracts";
 import { shortAddr } from "@/lib/format";
 import { useNames } from "@/lib/useAccount";
+import { LearnMore } from "./learn-more";
 import { useViewer } from "./providers";
 import { ThemeToggle } from "./theme";
 import { Button, cx } from "./ui";
@@ -23,6 +24,7 @@ const NAV: NavItem[] = [
   { href: "/employer", label: "Run payroll", icon: "M4 20v-2a5 5 0 0110 0v2M9 9a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6M20 20v-2a4 4 0 00-3-3.9" },
   { href: "/demo", label: "Demo panel", icon: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M14 4v4M8 10v4M16 16v4" },
 ];
+const DOCS_ICON = "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5";
 /** The first four sit in the phone tab bar, the rest under "More". */
 const TABS = NAV.slice(0, 4);
 const MORE = NAV.slice(4);
@@ -116,7 +118,7 @@ export function TestnetBanner() {
   const viewer = useViewer();
   return (
     <div className="border-b border-warn/15 bg-warn-soft px-4 py-1.5 text-center text-xs font-medium text-warn">
-      Testnet demo on Base Sepolia. Asset tokens, prices and the exchange are mocks. No real money.
+      Testnet demo on Base Sepolia. Tokens and prices are mocks. No real money.
       {viewer.readOnly && <strong> Read-only view of {shortAddr(viewer.address)}.</strong>}
     </div>
   );
@@ -172,6 +174,13 @@ function MoreSheet({ isActive }: { isActive: (href: string) => boolean }) {
               </Link>
             ))}
           </nav>
+          <Link
+            href="/docs"
+            className="mt-1 flex min-h-12 items-center gap-3 rounded-2xl px-3 text-[15px] font-semibold text-ink active:bg-sunken"
+          >
+            <Icon d={DOCS_ICON} />
+            Docs
+          </Link>
           <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
             <span className="text-sm text-muted">Theme</span>
             <ThemeToggle />
@@ -215,11 +224,18 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="space-y-4 px-2">
-          <ThemeToggle />
-          <p className="text-xs leading-relaxed text-muted">
-            {BRAND.tagline}. Hackathon demo, not audited, test network only.
-          </p>
+        <div className="space-y-4">
+          <Link
+            href="/docs"
+            className="flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-muted transition-colors duration-150 hover:bg-sunken hover:text-ink"
+          >
+            <Icon d={DOCS_ICON} />
+            Docs
+          </Link>
+          <div className="px-2">
+            <ThemeToggle />
+          </div>
+          <p className="px-2 text-xs leading-relaxed text-muted">Testnet demo, not audited.</p>
         </div>
       </aside>
 
@@ -243,15 +259,10 @@ export function Shell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <footer className="mx-auto hidden max-w-5xl px-4 pb-10 text-xs leading-relaxed text-muted sm:px-8 lg:block">
-        {BRAND.name} is a hackathon demo on a test network. It is not deployed to Base mainnet and has not had an
-        independent security audit. Coinbase tokenized stocks are only available to eligible persons outside the United
-        States and carry no voting rights. Not financial advice.
+      <footer className="mx-auto max-w-5xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] text-xs leading-relaxed text-muted sm:px-8 lg:pb-10">
+        Tokenized stocks are for eligible persons outside the US. Not investment advice.{" "}
+        <LearnMore href="/docs#notices">Full notices</LearnMore>
       </footer>
-      <p className="px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] text-xs leading-relaxed text-muted lg:hidden">
-        Hackathon demo on a test network. Not audited. Tokenized stocks are for eligible persons outside the United
-        States and carry no voting rights. Not financial advice.
-      </p>
 
       {/* Phone and tablet tab bar */}
       <nav

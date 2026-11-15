@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { isAddress, type ContractFunctionParameters } from "viem";
 import { useReadContracts } from "wagmi";
@@ -148,7 +149,11 @@ export default function EmployerPage() {
     <>
       <PageHeader
         title="Run payroll"
-        lead="Fund a treasury once, set a rhythm, and paydays keep coming. Each person decides for themselves what part of their pay goes to work."
+        lead={
+          <>
+            Fund a treasury, pick a rhythm, pay your team. <LearnMore href="/docs#businesses" />
+          </>
+        }
       />
 
       {!me && <Notice>Connect your wallet (top right) to run payroll.</Notice>}
@@ -163,7 +168,7 @@ export default function EmployerPage() {
             <p className="mt-3 text-sm text-muted">
               {committed > 0n
                 ? `Covers ${(Number(p.employerBalance) / Number(committed)).toFixed(1)} more paydays of your active schedules (${fmtUsdc(committed)} USDC each).`
-                : "Paydays are paid from here. You can take unpaid money back at any time."}
+                : "Paydays are paid from here. Withdraw unused funds any time."}
             </p>
           </div>
           <div>
@@ -283,9 +288,8 @@ export default function EmployerPage() {
               Start {intervalLabel(Number(interval)).toLowerCase()} payroll
             </Button>
             <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-              Nothing is locked up front. Each payday is paid from the treasury when it is due, by whoever presses the
-              button first: you, an employee claiming their pay, or an automation service. If the treasury runs short the
-              payday simply waits until you top up. You can pause at any time.
+              A due payday waits until someone presses pay, and until the treasury covers it.{" "}
+              <LearnMore href="/docs#businesses" />
             </p>
           </>
         ) : (
@@ -364,8 +368,7 @@ export default function EmployerPage() {
               );
             })}
             <p className="pt-1 text-xs leading-relaxed text-muted">
-              Employees check in from their dashboard with one click. This is a record for you to look at. It does not
-              change anyone&apos;s pay automatically: salaries are whatever you set above.
+              A record only. It does not change pay.
             </p>
           </div>
         )}
@@ -374,8 +377,7 @@ export default function EmployerPage() {
       <Card title="Past paydays">
         <PastRuns employer={me} />
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Once a salary is in a payday it belongs to the employee. If it stays unclaimed for 180 days, for example
-          because of a mistyped address, you can take it back.
+          Unclaimed for 180 days? You can take it back.
         </p>
       </Card>
     </>
