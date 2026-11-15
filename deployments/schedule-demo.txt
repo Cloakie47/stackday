@@ -1,0 +1,8 @@
+S1. Employer approves USDC | 0x06d603db337df23fa0e9ce78d34fb2a020ef69a6b73c5c5b44b387a92322b107 0x1
+S2. Employer funds the treasury with 3 USDC | 0x1f7ea014b3a868d0b8b45a2f31d5a7c55001f7af4ee2391df3780a120bd9623d 0x1
+S3. Employer starts a recurring payroll (1 USDC, every minute on testnet) | 0x9632d14291ce36b17f84d968cdd2c00bf39bc1288e3bf2ece257c6baecc82786 0x1
+S4. First payday released from the treasury | 0x8e621029c5706f5a92fa72e19841f37dd1517d6f5bafa1b8fcc1638500c70ee6 0x1
+S5. Second payday released a minute later | 0x4f614c1e9fc40a8b68a7df37e0982ef96162d3e6daafee601694d1ca2f39506b 0x1
+S6. Employer pauses the schedule | 0x12c9bbe6b105af89d338fe11aa0d44207796d9741201f28726b3365ed8a490dc 0x1
+S7. Employer withdraws the unused treasury | 0x17a14a9b8d08edd8b641e4c3e3e5e769c18286c69375988ee9be0b136c3d7da2 0x1
+   -> claimable for the employee: 2000000 [2e6]

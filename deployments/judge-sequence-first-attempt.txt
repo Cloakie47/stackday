@@ -1,0 +1,21 @@
+0. Employee sets emergency rule (health <= 1.5 -> 50% of salary) | 0x748ea20ed540acb16b0bab825739823d6a35ee7f3ae14fbdbbb87ae6c4cecfe0 0x1
+1a. Employer approves USDC | 0x33ebb8fe16c342a6737251c744b6f84f4b99f20aa5cc412c8ca2e149fd6f032e 0x1
+1b. Employer runs payroll (5 USDC salary) | 0xac04964b2ca680ed923c00999340ccf6ee2f2067272c3c2840763b923b23c9d7 0x1
+2. DEPOSIT: employee claims, 40% SIP buys mAAPL into the vault | 0x8d6892f7f301bad07e8829f2a448ef2fbc17c318f69c51b3544a8aa604b0180c 0x1
+   -> vault 0x4E33CF86D21E2f9D2aD8B16e682fa73CCD3cDa37 holds 558823 mAAPL (8 decimals)
+3. BORROW: vault posts the stock and borrows 0.60 USDC from Morpho | 0xb334917fff59e638b79d31210141bc6c5bcd12a3991db71c490c770a7701bb44 0x1
+   -> loan health 2078121666666666666 (1e18 = liquidation line)
+4a. STRESS: overnight gap, mock price drops 30% (357 -> 249.90) | 0xf8d54d36873725dc99b90ed3e5304d3e2b6ff0df047cecde29d3a65e4b7c8ac9 0x1
+   -> loan health after the gap 1454685000000000000, emergency rule active: true
+4b. STRESS: transfers of the mock stock are paused | 0x5aba73815c2e1027c5af0e2870d5dc637a32d413760fbbd072f21ddd66010b36 0x1
+4c. Employer runs the next payroll (4 USDC) | 0x87eb0e1cb84e5350a9f9419a0d788f7c3c8bb05f9f1afb1e0b8d5f98be9c7ca0 0x1
+4d. REPAY during the pause still works (0.20 USDC) | 0x9c49635b596f73ac39784403dc578621e78b10ecf3e1dcc228ffca5e64aba783 0x1
+4e. Partial repay while transfers are paused | 0x6e565bbf6b222a0fe8fa1704e8258df202333e92cb9b1d2f2797be398c34ff95 0x1
+4f. Transfers resume | 0x36c3a16578df7c582104da354fe484a99ca9d2db9f4a9c272a70d8d64fe3f5d5 0x1
+4g. Payday with the emergency rule active: 50% of salary goes to collateral | 0x4875f3bc056d6c6c7745a723001e4061036af3dcd94137ef3159e72e5af6273b 0x1
+   -> collateral went from 558823 to 558823, loan health now 2182027500000000000
+4h. Price recovers to 357 | 0xde5df34bf14b16e0efa2235ca46b0775fc152b5407c6ffa2c56a44433533f0e2 0x1
+5. REPAY: the whole loan | 0xa90778ab76031ddd3fcd15234695cc5b6502e756f885e29ebfa1b7342a39bf62 0x1
+5b. Remove the USDC allowance | 0x9220812852909fb3a94067795eba24d75cb24311f25e5fabfd7984e0323b2123 0x1
+6. WITHDRAW: all stock back to the wallet | 0x750740a2d4637bf8f916a285f4b7175cb397ebdc5a9abbe08e5dbcecfe48fb3e 0x1
+   -> final: debt 0, collateral 0, wallet mAAPL 558823

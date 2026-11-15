@@ -1,0 +1,253 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useViewer } from "@/components/providers";
+import { AssetIcon, Button, Card, Empty, Field, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
+import { factoryAbi, routerAbi, vaultAbi } from "@/lib/abis";
+import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
+import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until } from "@/lib/format";
+import { usePortfolio, type Position } from "@/lib/usePortfolio";
+import { useTx, type Call } from "@/lib/useTx";
+
+function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4" role="radiogroup" aria-label="Asset">
+      {positions.map((pos) => {
+        const active = pos.asset.symbol === value;
+        return (
+          <button
+            key={pos.asset.symbol}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(pos.asset.symbol)}
+            className={`rounded-2xl border p-3.5 text-left transition-[border-color,transform,background-color] duration-200 active:scale-[0.98] ${
+              active ? "border-ink bg-surface" : "border-line bg-surface/60 hover:border-line-strong"
+            }`}
+          >
+            <AssetIcon asset={pos.asset} />
+            <div className="mt-2.5 text-sm font-semibold">{pos.asset.name}</div>
+            <div className="text-xs tabular-nums text-muted">${fmtPrice(pos.price)}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function InvestPage() {
+  const viewer = useViewer();
+  const p = usePortfolio(viewer.address);
+  const tx = useTx();
+  const me = viewer.address;
+  const [symbol, setSymbol] = useState(ASSETS[0].symbol);
+  const [amt, setAmt] = useState("");
+  const [perBuy, setPerBuy] = useState("");
+  const [interval, setIntervalDays] = useState("7");
+  const [earnAmt, setEarnAmt] = useState("");
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    const tick = () => setNow(Math.floor(Date.now() / 1000));
+    tick();
+    const id = setInterval(tick, 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const pos = p.positions.find((x) => x.asset.symbol === symbol) ?? p.positions[0];
+  const asset = pos.asset;
+  const amount = parseUsdc(amt);
+  const recurringAmount = parseUsdc(perBuy);
+  const plans = p.positions.filter((x) => x.recurring);
+  const net = (v: bigint) => v - (v * SIP_FEE_BPS) / 10_000n;
+  const min = (v: bigint) => (pos.price ? (assetForUsdc(net(v), pos.price, asset.decimals) * 99n) / 100n : 0n);
+
+  async function buyOnce() {
+    const calls: Call[] = [
+      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, "Allow Stackday to take the USDC")),
+      { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min(amount)] },
+    ];
+    if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
+  }
+
+  async function savePlan() {
+    const calls: Call[] = [
+      ...(await tx.withApproval(ADDR.usdc, ADDR.router, recurringAmount * 12n, "Allow up to 12 recurring buys")),
+      {
+        label: "Save your recurring plan",
+        address: ADDR.router,
+        abi: routerAbi,
+        functionName: "setPlan",
+        args: [asset.token, recurringAmount, Number(interval) * 86400, 100],
+      },
+    ];
+    if (await tx.run(calls, "Recurring plan saved. The first buy can run now.")) setPerBuy("");
+  }
+
+  const runPlan = (x: Position) =>
+    me &&
+    tx.run(
+      [{ label: `Run the ${x.asset.name} buy`, address: ADDR.router, abi: routerAbi, functionName: "executePlan", args: [me, x.asset.token] }],
+      "Recurring buy done.",
+    );
+
+  const cancelPlan = (x: Position) =>
+    tx.run(
+      [{ label: `Cancel the ${x.asset.name} plan`, address: ADDR.router, abi: routerAbi, functionName: "cancelPlan", args: [x.asset.token] }],
+      "Recurring plan cancelled.",
+    );
+
+  // ---- interest on idle USDC
+  const earn = parseUsdc(earnAmt);
+  const vault = p.vault ?? p.predictedVault;
+  const fromWallet = earn > p.vaultUsdc ? earn - p.vaultUsdc : 0n;
+
+  async function startEarning() {
+    if (!vault || !me) return;
+    const calls: Call[] = [];
+    if (!p.vault) calls.push({ label: "Create your vault", address: ADDR.factory, abi: factoryAbi, functionName: "createVault", args: [me] });
+    calls.push(...(await tx.withApproval(ADDR.usdc, vault, fromWallet, "Allow your vault to take the USDC")));
+    calls.push({ label: "Start earning interest", address: vault, abi: vaultAbi, functionName: "earn", args: [earn] });
+    if (await tx.run(calls, "Your USDC is now earning interest.")) setEarnAmt("");
+  }
+
+  const stopEarning = () =>
+    p.vault &&
+    me &&
+    tx.run(
+      [{ label: "Take all earning USDC back", address: p.vault, abi: vaultAbi, functionName: "stopEarning", args: [MAX_UINT, me] }],
+      "USDC and its interest are back in your wallet.",
+    );
+
+  return (
+    <>
+      <PageHeader
+        title="Invest"
+        lead="No employer needed. Buy into your own vault from your wallet, once or on a schedule, and put idle USDC to work."
+      />
+
+      {!me && <Notice>Connect your wallet (top right) to invest.</Notice>}
+
+      <Card title="Choose what to buy" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
+        <AssetPicker positions={p.positions} value={symbol} onChange={setSymbol} />
+        <p className="mt-3 text-xs text-muted">
+          {asset.symbol} stands in for {asset.realTicker} on this test network. In your vault now:{" "}
+          {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet: {fmtUsdc(p.walletUsdc)} USDC.
+        </p>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-line p-4">
+            <h3 className="text-sm font-semibold">Buy once</h3>
+            <div className="mt-3">
+              <Field
+                label="Amount"
+                inputMode="decimal"
+                placeholder="0.00"
+                suffix="USDC"
+                value={amt}
+                onChange={(e) => setAmt(e.target.value)}
+                hint={
+                  amount > 0n && pos.price
+                    ? `About ${fmtAsset(assetForUsdc(net(amount), pos.price, asset.decimals), asset.decimals)} ${asset.symbol} after the ${fmtPct(SIP_FEE_BPS)} fee.`
+                    : `Fee: ${fmtPct(SIP_FEE_BPS)} of the amount.`
+                }
+              />
+            </div>
+            <Button className="mt-3 w-full" disabled={!viewer.canAct || amount === 0n || amount > p.walletUsdc || tx.state.busy} onClick={buyOnce}>
+              Buy {asset.name}
+            </Button>
+            {amount > p.walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet does not hold that much USDC.</p>}
+          </div>
+
+          <div className="rounded-2xl border border-line p-4">
+            <h3 className="text-sm font-semibold">Buy on a schedule</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label="Each time" inputMode="decimal" placeholder="0.00" suffix="USDC" value={perBuy} onChange={(e) => setPerBuy(e.target.value)} />
+              <Select
+                label="How often"
+                value={interval}
+                onChange={setIntervalDays}
+                options={[
+                  { value: "1", label: "Daily" },
+                  { value: "7", label: "Weekly" },
+                  { value: "14", label: "Every 2 weeks" },
+                  { value: "30", label: "Monthly" },
+                ]}
+              />
+            </div>
+            <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
+              {pos.recurring ? `Replace the ${asset.name} plan` : `Start a ${asset.name} plan`}
+            </Button>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              You approve 12 buys up front. A due buy can be triggered by anyone, but only as your plan says: this amount,
+              this asset, into your own vault, within 1% of the reference price.
+            </p>
+          </div>
+        </div>
+        <TxStatus state={tx.state} />
+      </Card>
+
+      <Card title="Your recurring buys">
+        {plans.length === 0 ? (
+          <Empty>No recurring buys yet. You can run one per asset, side by side.</Empty>
+        ) : (
+          <div className="divide-y divide-line">
+            {plans.map((x) => {
+              const due = now > 0 && x.recurring!.nextBuyAt <= now;
+              return (
+                <div key={x.asset.symbol} className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    <AssetIcon asset={x.asset} />
+                    <div>
+                      <div className="text-sm font-semibold">
+                        {fmtUsdc(x.recurring!.usdcPerBuy)} USDC into {x.asset.name} · {intervalLabel(x.recurring!.interval)}
+                      </div>
+                      <div className="text-xs text-muted">{due ? "A buy is due now" : `Next buy ${until(x.recurring!.nextBuyAt, now)}`}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="secondary" disabled={!viewer.canAct || !due || tx.state.busy} onClick={() => runPlan(x)}>
+                      Run now
+                    </Button>
+                    <Button size="sm" variant="danger" disabled={!viewer.canAct || tx.state.busy} onClick={() => cancelPlan(x)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock venue on testnet</MockBadge>}>
+        <p className="max-w-2xl text-sm leading-relaxed text-muted">
+          USDC sitting in your vault can be lent out to earn interest. On Base mainnet this would be a Morpho vault. The
+          position stays in your vault, in your name. Interest is not guaranteed and the lending venue has its own risk.
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Stat label="Earning now" value={`$${fmtUsdc(p.earning, 4)}`} />
+          <Stat label="Idle in your vault" value={`$${fmtUsdc(p.vaultUsdc)}`} />
+          <Stat label="In your wallet" value={`$${fmtUsdc(p.walletUsdc)}`} />
+        </div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <Field
+            label="Amount to put to work"
+            inputMode="decimal"
+            placeholder="0.00"
+            suffix="USDC"
+            value={earnAmt}
+            onChange={(e) => setEarnAmt(e.target.value)}
+            hint={fromWallet > 0n ? `${fmtUsdc(fromWallet)} USDC will come from your wallet.` : "Uses USDC already in your vault first."}
+          />
+          <Button disabled={!viewer.canAct || earn === 0n || fromWallet > p.walletUsdc || tx.state.busy} onClick={startEarning}>
+            Start earning
+          </Button>
+          <Button variant="secondary" disabled={!viewer.canAct || p.earning === 0n || tx.state.busy} onClick={stopEarning}>
+            Take it all back
+          </Button>
+        </div>
+      </Card>
+    </>
+  );
+}

@@ -1,0 +1,382 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useViewer } from "@/components/providers";
+import {
+  AddressLink,
+  AssetIcon,
+  Button,
+  Card,
+  Empty,
+  Field,
+  HealthMeter,
+  MockBadge,
+  Money,
+  Notice,
+  PageHeader,
+  SplitBar,
+  Stat,
+} from "@/components/ui";
+import { assetByToken } from "@/lib/contracts";
+import { fmtAsset, fmtHealth, fmtPct, fmtPrice, fmtUsdc, intervalLabel, until } from "@/lib/format";
+import { useLastDays, saveUsername, useAttendance, useNames, useSession } from "@/lib/useAccount";
+import { usePortfolio, type Portfolio } from "@/lib/usePortfolio";
+
+function useNow() {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const tick = () => setNow(Math.floor(Date.now() / 1000));
+    tick();
+    const id = setInterval(tick, 15_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
+  const session = useSession();
+  const names = useNames([wallet]);
+  const attendance = useAttendance(session.configured && session.signedIn);
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState<{ ok: boolean; text: string }>();
+  const [saving, setSaving] = useState(false);
+  const current = names.nameOf(wallet);
+  const days = useLastDays(14);
+  const checkedToday = attendance.data?.mine.includes(attendance.data.today) ?? false;
+
+  if (!session.configured)
+    return (
+      <Card title="Your account">
+        <p className="text-sm leading-relaxed text-muted">
+          Names and attendance are stored in an account database that is not connected yet. Everything about your money
+          works without it, because salaries, vaults and loans live on-chain.
+        </p>
+      </Card>
+    );
+
+  async function save() {
+    setSaving(true);
+    setMessage(undefined);
+    try {
+      await saveUsername(name);
+      setMessage({ ok: true, text: "Name saved." });
+      setName("");
+      window.location.reload();
+    } catch (e) {
+      setMessage({ ok: false, text: e instanceof Error ? e.message : "Could not save." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card title="Your account">
+      {!session.signedIn ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-md text-sm leading-relaxed text-muted">
+            {current ? (
+              <>
+                This wallet is <strong className="text-ink">@{current}</strong>. Sign in to change it or check in.
+              </>
+            ) : (
+              "Sign in to pick a unique name for this wallet and to check in for work. Signing in is one free signature, not a transaction."
+            )}
+          </p>
+          <Button variant="ink" disabled={!canAct || session.busy} onClick={session.signIn}>
+            {session.busy ? "Check your wallet…" : "Sign in with wallet"}
+          </Button>
+          {session.error && <p className="w-full text-sm text-danger">{session.error}</p>}
+        </div>
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div>
+            <p className="text-sm text-muted">
+              {current ? (
+                <>
+                  You are <strong className="text-ink">@{current}</strong>.
+                </>
+              ) : (
+                "Pick a unique name. Others will see it instead of your wallet address."
+              )}
+            </p>
+            <div className="mt-3 flex items-end gap-2">
+              <div className="flex-1">
+                <Field
+                  label={current ? "Change name" : "Name"}
+                  placeholder="for example maya_k"
+                  value={name}
+                  onChange={(e) => setName(e.target.value.toLowerCase())}
+                  maxLength={20}
+                />
+              </div>
+              <Button variant="secondary" disabled={saving || name.length < 3} onClick={save}>
+                Save
+              </Button>
+            </div>
+            {message && <p className={`mt-2 text-sm ${message.ok ? "text-grow" : "text-danger"}`}>{message.text}</p>}
+          </div>
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-muted">Attendance, last 14 days</p>
+              <Button size="sm" variant={checkedToday ? "secondary" : "primary"} disabled={checkedToday} onClick={attendance.checkIn}>
+                {checkedToday ? "Checked in today" : "Check in for today"}
+              </Button>
+            </div>
+            <div className="mt-3 flex gap-1" role="img" aria-label="Attendance for the last 14 days">
+              {days.map((d) => (
+                <span
+                  key={d}
+                  title={d}
+                  className={`h-7 flex-1 rounded-md transition-colors duration-300 ${
+                    attendance.data?.mine.includes(d) ? "bg-grow" : "bg-sunken"
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted">A record for your employer. It does not change what you are paid.</p>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Plans({ p, now }: { p: Portfolio; now: number }) {
+  const names = useNames(p.schedulesPayingMe.map((s) => s.employer));
+  const recurring = p.positions.filter((x) => x.recurring);
+  const ruleAsset = assetByToken(p.emergencyRule?.asset);
+  const nothing = p.sipPlan.length === 0 && recurring.length === 0 && !p.emergencyRule && p.schedulesPayingMe.length === 0;
+
+  return (
+    <Card title="Your plans">
+      {nothing ? (
+        <Empty>
+          No plans yet. Set a share of every salary on{" "}
+          <Link href="/pay" className="font-semibold text-brand underline">
+            Get paid
+          </Link>
+          , or a recurring buy on{" "}
+          <Link href="/invest" className="font-semibold text-brand underline">
+            Invest
+          </Link>
+          .
+        </Empty>
+      ) : (
+        <div className="divide-y divide-line">
+          {p.schedulesPayingMe.map((s) => (
+            <div key={`s${s.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+              <div>
+                <div className="text-sm font-semibold">
+                  Salary from {names.display(s.employer)} · {intervalLabel(s.interval)}
+                </div>
+                <div className="text-xs text-muted">
+                  {s.active ? `Next payday ${until(s.nextPayAt, now)}` : "Paused by the employer"}
+                </div>
+              </div>
+              <div className="text-sm font-semibold tabular-nums">{fmtUsdc(s.mine)} USDC</div>
+            </div>
+          ))}
+          {p.sipPlan.length > 0 && (
+            <div className="py-3.5 first:pt-0 last:pb-0">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold">Every payday, automatically</div>
+                <Link href="/pay" className="text-xs font-semibold text-brand underline">
+                  Change
+                </Link>
+              </div>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {p.sipPlan.map((leg) => {
+                  const a = assetByToken(leg.asset);
+                  return a ? (
+                    <span key={a.symbol} className="inline-flex items-center gap-2 rounded-full bg-sunken py-1 pl-1 pr-3 text-[13px] font-semibold">
+                      <AssetIcon asset={a} size={22} /> {fmtPct(leg.bps)} into {a.name}
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+          {recurring.map((x) => (
+            <div key={`r${x.asset.symbol}`} className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+              <div className="flex items-center gap-3">
+                <AssetIcon asset={x.asset} size={30} />
+                <div>
+                  <div className="text-sm font-semibold">
+                    {fmtUsdc(x.recurring!.usdcPerBuy)} USDC into {x.asset.name} · {intervalLabel(x.recurring!.interval)}
+                  </div>
+                  <div className="text-xs text-muted">Recurring buy from your wallet. Next {until(x.recurring!.nextBuyAt, now)}.</div>
+                </div>
+              </div>
+              <Link href="/invest" className="text-xs font-semibold text-brand underline">
+                Manage
+              </Link>
+            </div>
+          ))}
+          {p.emergencyRule && ruleAsset && (
+            <div className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+              <div>
+                <div className="text-sm font-semibold">Emergency rule on your {ruleAsset.name} loan</div>
+                <div className="text-xs text-muted">
+                  If health is at or below {fmtHealth(p.emergencyRule.threshold)}, {fmtPct(p.emergencyRule.bps)} of the next
+                  salary goes to collateral. {p.emergencyActive ? "Active right now." : "Not triggered."}
+                </div>
+              </div>
+              <Link href="/borrow" className="text-xs font-semibold text-brand underline">
+                Change
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export default function DashboardPage() {
+  const viewer = useViewer();
+  const p = usePortfolio(viewer.address);
+  const names = useNames([viewer.address]);
+  const now = useNow();
+  const cash = p.earning + p.vaultUsdc;
+  const netWorth = p.totalAssetValue + cash - p.totalDebt;
+  const held = p.positions.filter((x) => x.idle + x.collateral > 0n);
+  const loans = p.positions.filter((x) => x.debt > 0n);
+  const name = names.nameOf(viewer.address);
+
+  return (
+    <>
+      <PageHeader
+        title={name ? `Hello, ${name}` : "Dashboard"}
+        lead="Everything you hold, every plan you set, and how your loans are doing."
+        aside={p.vault && <AddressLink address={p.vault} label="Your vault on BaseScan" />}
+      />
+
+      {!viewer.address && <Notice>Connect your wallet (top right) to see your dashboard.</Notice>}
+
+      {p.totalClaimable > 0n && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-brand p-5 text-white sm:p-6">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Salary waiting for you</div>
+            <div className="mt-1 font-display text-5xl leading-none">
+              <Money value={p.totalClaimable} />
+            </div>
+          </div>
+          <Link
+            href="/pay"
+            className="inline-flex min-h-12 items-center rounded-full bg-white px-6 text-[15px] font-semibold text-brand transition-transform duration-200 active:scale-[0.97]"
+          >
+            Claim it
+          </Link>
+        </div>
+      )}
+
+      <Card tone="ink">
+        <div className="grid gap-8 sm:grid-cols-[1.2fr_1fr] sm:items-end">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/60">Net worth in your vault</div>
+            <div className="mt-2 font-display text-6xl leading-none sm:text-7xl">
+              <Money value={viewer.address ? netWorth : 0n} />
+            </div>
+            <p className="mt-3 text-sm text-canvas/60">Assets and cash, minus what you have borrowed.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Invested", value: p.totalAssetValue },
+              { label: "Cash", value: cash },
+              { label: "Borrowed", value: p.totalDebt },
+            ].map((s) => (
+              <div key={s.label}>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/60">{s.label}</div>
+                <div className="mt-1 text-xl font-semibold tabular-nums">
+                  <Money value={s.value} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        title="Holdings"
+        badge={<MockBadge>Mock tokens</MockBadge>}
+        action={
+          <Link href="/invest" className="text-xs font-semibold text-brand underline">
+            Buy more
+          </Link>
+        }
+      >
+        {held.length === 0 ? (
+          <Empty>Nothing in your vault yet. Your first SIP share or purchase creates it.</Empty>
+        ) : (
+          <>
+            <SplitBar
+              parts={held.map((x) => ({ key: x.asset.symbol, value: Number(x.value), color: x.asset.color, label: x.asset.name }))}
+              height={12}
+            />
+            <div className="mt-5 divide-y divide-line">
+              {held.map((x) => (
+                <div key={x.asset.symbol} className="flex items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <AssetIcon asset={x.asset} />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold">
+                        {x.asset.name} <span className="font-normal text-muted">{x.asset.symbol}</span>
+                      </div>
+                      <div className="text-xs text-muted">
+                        {fmtAsset(x.idle + x.collateral, x.asset.decimals)} at ${fmtPrice(x.price)}
+                        {x.collateral > 0n && " · posted as loan collateral"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right text-sm font-semibold tabular-nums">${fmtUsdc(x.value)}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        {cash > 0n && (
+          <p className="mt-4 border-t border-line pt-4 text-sm text-muted">
+            Cash: ${fmtUsdc(p.earning)} earning interest, ${fmtUsdc(p.vaultUsdc)} idle in the vault.
+          </p>
+        )}
+      </Card>
+
+      <Plans p={p} now={now} />
+
+      {loans.length > 0 && (
+        <Card
+          title="Your loans"
+          action={
+            <Link href="/risk" className="text-xs font-semibold text-brand underline">
+              Stress test
+            </Link>
+          }
+        >
+          <div className="space-y-6">
+            {loans.map((x) => {
+              const health = x.health !== undefined ? Number(x.health / 10n ** 14n) / 10_000 : undefined;
+              return (
+                <div key={x.asset.symbol}>
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <AssetIcon asset={x.asset} size={30} />
+                      <div className="text-sm font-semibold">Borrowed against {x.asset.name}</div>
+                    </div>
+                    <div className="flex gap-6">
+                      <Stat label="Loan" value={`$${fmtUsdc(x.debt)}`} />
+                      <Stat label="Health" value={fmtHealth(x.health)} />
+                    </div>
+                  </div>
+                  <HealthMeter health={health} />
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      <Account canAct={viewer.canAct} wallet={viewer.address} />
+    </>
+  );
+}
