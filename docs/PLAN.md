@@ -303,3 +303,11 @@ Notes:
 - Contracts changed, so this is the third testnet deployment. All 24 contracts verified on Sourcify. Local suite: 69 tests pass. The judges' sequence and a recurring payroll run were repeated on the new deployment (links in README.md).
 - Clicked through on a simulated copy of the testnet: fund treasury, add team member, start a schedule, release a payday, claim with a three-asset split saved as an every-payday plan, dashboard. Not clicked: Invest, Borrow, Risk and Demo pages in the new design (same contract calls as before, new screens), and everything that needs the database.
 - Recurring payroll needs someone to press "release" when a payday is due. No automation service is set up.
+
+## 17. Since section 16 (November 14 to 15, 2026)
+
+- The Supabase database is now connected on the live site. Names, team lists and attendance work and were tested with 21 checks against the real database (web/scripts/test-account-api.sh). The public cannot read or write the tables directly. The rows in section 16 that say "NOT connected" are out of date.
+- All work is committed to a private GitHub repository: https://github.com/Cloakie47/stackday
+- docs/SECURITY-CHECKLIST.md: self-assessment against 20 common web attack types, with a fix list of six items, none done yet.
+- docs/ANCHOR-DRAFT.md: a wider anchor proposed by the founder (account types, unique IDs, business profiles, Themes). Waiting for approval. The anchor in docs/BRIEF.md stays in force until then.
+- docs/START-HERE.md: one-page overview and plan for contributors.

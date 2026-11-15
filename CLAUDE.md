@@ -73,3 +73,5 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - BTC, ETH, names, attendance and the non-payroll path are founder-requested extensions beyond the canonical paragraph. Keep them flagged as such in docs/PLAN.md.
 - Design: do not install design skills from the internet. Only reviewed catalog plugins if the founder enables them.
 - When click-testing on anvil, its clock only advances on a transaction: run `cast rpc evm_mine` before testing anything time-based.
+- docs/START-HERE.md is the overview and plan for contributors: keep its status tables current. docs/ANCHOR-DRAFT.md is a proposed wider anchor awaiting founder approval: do not build from it or replace the core idea above until the founder approves. docs/SECURITY-CHECKLIST.md holds the security fix list.
+- The Supabase database is connected on the live site (keys supplied by Vercel's Supabase integration: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET as the session secret fallback). Test with `bash web/scripts/test-account-api.sh <base-url>`, then clean up with web/scripts/cleanup-test-rows.mjs.

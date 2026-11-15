@@ -6,6 +6,8 @@ A payroll platform for teams paid in USDC on Base that turns every payday into a
 
 Live site: https://stackday-rho.vercel.app (Base Sepolia testnet demo)
 
+New here? Read docs/START-HERE.md first.
+
 Status: contracts are deployed on Base Sepolia (testnet) and the web app is live. Nothing is on Base mainnet and there has been no independent security audit. See docs/BRIEF.md for the idea and docs/PLAN.md for the plan, the core idea checklist and what is real versus mocked.
 
 ## What it does
@@ -180,6 +182,8 @@ Publish a new version of the site (from the web folder, after signing in once wi
     & "C:\Users\Cloakie\.npm-global\vercel.cmd" --prod --yes
 
 ## Account database (Supabase), optional
+
+Status: connected on the live site since November 14, 2026 (created through Vercel's Supabase integration, which supplies the keys automatically). Checked with web/scripts/test-account-api.sh: 21 of 21 checks pass.
 
 Names, saved team lists and attendance are stored in a Supabase database. Money never depends on it: salaries, vaults and loans live on-chain. Without the database the site still works and those three features switch themselves off.
 
