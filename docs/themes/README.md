@@ -23,6 +23,7 @@ The person picks the themes they care about (for example AI and chips, or big te
 
 | File | What is in it |
 |---|---|
+| [for-the-docs-page.md](for-the-docs-page.md) | Short, user-facing text for the site's `/docs#themes` section: limits, cushion, buying pace, rebalancing with new money. The Themes page links there |
 | [rules-summary.md](rules-summary.md) | Competition facts that shape Themes, and the open track question |
 | [policy.md](policy.md) | Portfolio rules: sleeves, risk levels, caps, value tilt, Smart DCA, drift bands, drawdown ladder, price checks, and the limits of today's Stackday contracts |
 | [concept.md](concept.md) | Product concept: theme catalogue, basket steps, Value and Mood scores, the AI model's narrow role, safety against prompt injection and hype, "why" cards, screens, and the "information, not advice" framing |
