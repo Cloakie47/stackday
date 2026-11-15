@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
 import { EXPLORER, type Asset } from "@/lib/contracts";
 import type { TxState } from "@/lib/useTx";
+import { LearnMore } from "./learn-more";
 import { buttonClass, cx, type ButtonSize, type ButtonVariant } from "./styles";
 
 // Class helpers live in a plain module so server components can call them too.
@@ -392,9 +393,8 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "warn" | "
 export function RiskNote() {
   return (
     <Notice tone="warn">
-      <strong>Risk note.</strong> Asset prices can fall. If you borrow and the price drops far enough, your assets can be
-      sold (liquidated) to repay the loan, and you can lose part of them. Borrowing avoids a sale but adds debt and
-      liquidation risk. Nothing here is financial advice.
+      <strong>Risk:</strong> if prices fall far enough, part of your collateral can be sold to repay a loan. Not financial
+      advice. <LearnMore href="/docs#borrowing" className="text-warn decoration-warn/40 hover:decoration-warn" />
     </Notice>
   );
 }

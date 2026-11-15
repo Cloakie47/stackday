@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Empty, Field, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
@@ -8,6 +9,7 @@ import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
   return (
@@ -64,7 +66,7 @@ export default function InvestPage() {
 
   async function buyOnce() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
       { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min(amount)] },
     ];
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
@@ -123,7 +125,11 @@ export default function InvestPage() {
     <>
       <PageHeader
         title="Invest"
-        lead="No employer needed. Buy into your own vault from your wallet, once or on a schedule, and put idle USDC to work."
+        lead={
+          <>
+            Buy into your own vault, once or on a schedule. <LearnMore href="/docs#individuals" />
+          </>
+        }
       />
 
       {!me && <Notice>Connect your wallet (top right) to invest.</Notice>}
@@ -131,8 +137,8 @@ export default function InvestPage() {
       <Card title="Choose what to buy" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
         <AssetPicker positions={p.positions} value={symbol} onChange={setSymbol} />
         <p className="mt-3 text-xs text-muted">
-          {asset.symbol} stands in for {asset.realTicker} on this test network. In your vault now:{" "}
-          {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet: {fmtUsdc(p.walletUsdc)} USDC.
+          Mock {asset.realTicker}. In your vault: {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet:{" "}
+          {fmtUsdc(p.walletUsdc)} USDC.
         </p>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -179,8 +185,7 @@ export default function InvestPage() {
               {pos.recurring ? `Replace the ${asset.name} plan` : `Start a ${asset.name} plan`}
             </Button>
             <p className="mt-2 text-xs leading-relaxed text-muted">
-              You approve 12 buys up front. A due buy can be triggered by anyone, but only as your plan says: this amount,
-              this asset, into your own vault, within 1% of the reference price.
+              You approve 12 buys up front. Each fills within 1% of the reference price.
             </p>
           </div>
         </div>
@@ -222,8 +227,7 @@ export default function InvestPage() {
 
       <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock venue on testnet</MockBadge>}>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          USDC sitting in your vault can be lent out to earn interest. On Base mainnet this would be a Morpho vault. The
-          position stays in your vault, in your name. Interest is not guaranteed and the lending venue has its own risk.
+          Lend idle vault USDC to earn interest. Not guaranteed. <LearnMore href="/docs#earn" />
         </p>
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Stat label="Earning now" value={`$${fmtUsdc(p.earning, 4)}`} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -113,8 +114,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
     return (
       <Card title="Your account">
         <p className="text-sm leading-relaxed text-muted">
-          Names and attendance are stored in an account database that is not connected yet. Everything about your money
-          works without it, because salaries, vaults and loans live on-chain.
+          Names and attendance are off on this site. Your money does not depend on them.
         </p>
       </Card>
     );
@@ -174,7 +174,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                 This wallet is <strong className="text-ink">@{current}</strong>. Sign in to change it or check in.
               </>
             ) : (
-              "Sign in to get your Stackday ID, pick a name and check in for work. Signing in is one free signature, not a transaction."
+              "Sign in to get your Stackday ID, pick a name and check in. It is one free signature."
             )}
           </p>
           <Button variant="ink" disabled={!canAct || session.busy} onClick={session.signIn}>
@@ -191,7 +191,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                   You are <strong className="text-ink">@{current}</strong>.
                 </>
               ) : (
-                "Pick a unique name. Others will see it instead of your wallet address."
+                "Pick a unique name to show instead of your address."
               )}
             </p>
             <div className="mt-3 flex items-end gap-2">
@@ -228,9 +228,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                 />
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted">
-              A record for the teams you have accepted. It does not change what you are paid.
-            </p>
+            <p className="mt-2 text-xs text-muted">Only teams you accept can see it. Does not change your pay.</p>
           </div>
         </div>
       )}
@@ -249,11 +247,11 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
       {nothing ? (
         <Empty>
           No plans yet. Set a share of every salary on{" "}
-          <Link href="/pay" className="font-semibold text-brand underline">
+          <Link href="/pay" className="font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
             Get paid
           </Link>
           , or a recurring buy on{" "}
-          <Link href="/invest" className="font-semibold text-brand underline">
+          <Link href="/invest" className="font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
             Invest
           </Link>
           .
@@ -277,7 +275,7 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
             <div className="py-3.5 first:pt-0 last:pb-0">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Every payday, automatically</div>
-                <Link href="/pay" className="text-xs font-semibold text-brand underline">
+                <Link href="/pay" className="text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
                   Change
                 </Link>
               </div>
@@ -304,7 +302,7 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
                   <div className="text-xs text-muted">Recurring buy from your wallet. Next {until(x.recurring!.nextBuyAt, now)}.</div>
                 </div>
               </div>
-              <Link href="/invest" className="text-xs font-semibold text-brand underline">
+              <Link href="/invest" className="text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
                 Manage
               </Link>
             </div>
@@ -318,7 +316,7 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
                   salary goes to collateral. {p.emergencyActive ? "Active right now." : "Not triggered."}
                 </div>
               </div>
-              <Link href="/borrow" className="text-xs font-semibold text-brand underline">
+              <Link href="/borrow" className="text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
                 Change
               </Link>
             </div>
@@ -344,23 +342,27 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title={name ? `Hello, ${name}` : "Dashboard"}
-        lead="Everything you hold, every plan you set, and how your loans are doing."
+        lead={
+          <>
+            Holdings, plans and loans. <LearnMore href="/docs#vault" />
+          </>
+        }
         aside={p.vault && <AddressLink address={p.vault} label="Your vault on BaseScan" />}
       />
 
       {!viewer.address && <Notice>Connect your wallet (top right) to see your dashboard.</Notice>}
 
       {p.totalClaimable > 0n && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-brand p-5 text-white sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-brand p-5 text-white shadow-brand sm:p-6">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Salary waiting for you</div>
-            <div className="mt-1 font-display text-5xl leading-none">
+            <div className="text-[13px] font-medium text-white/70">Salary waiting for you</div>
+            <div className="mt-1 font-display text-5xl font-semibold leading-none tracking-[-0.03em]">
               <Money value={p.totalClaimable} />
             </div>
           </div>
           <Link
             href="/pay"
-            className="inline-flex min-h-12 items-center rounded-full bg-white px-6 text-[15px] font-semibold text-brand transition-transform duration-200 active:scale-[0.97]"
+            className="inline-flex min-h-12 items-center rounded-full bg-white px-6 text-[15px] font-semibold text-[#0040cc] shadow-sm transition-[transform,background-color] duration-150 hover:bg-white/90 active:scale-[0.97] focus-visible:outline-white"
           >
             Claim it
           </Link>
@@ -370,11 +372,11 @@ export default function DashboardPage() {
       <Card tone="ink">
         <div className="grid gap-8 sm:grid-cols-[1.2fr_1fr] sm:items-end">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/60">Net worth in your vault</div>
-            <div className="mt-2 font-display text-6xl leading-none sm:text-7xl">
+            <div className="text-[13px] font-medium text-muted">Net worth in your vault</div>
+            <div className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
               <Money value={viewer.address ? netWorth : 0n} />
             </div>
-            <p className="mt-3 text-sm text-canvas/60">Assets and cash, minus what you have borrowed.</p>
+            <p className="mt-3 text-sm text-muted">Assets plus cash, minus loans.</p>
           </div>
           <div className="grid grid-cols-3 gap-4">
             {[
@@ -383,7 +385,7 @@ export default function DashboardPage() {
               { label: "Borrowed", value: p.totalDebt },
             ].map((s) => (
               <div key={s.label}>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/60">{s.label}</div>
+                <div className="text-[13px] font-medium text-muted">{s.label}</div>
                 <div className="mt-1 text-xl font-semibold tabular-nums">
                   <Money value={s.value} />
                 </div>
@@ -397,7 +399,7 @@ export default function DashboardPage() {
         title="Holdings"
         badge={<MockBadge>Mock tokens</MockBadge>}
         action={
-          <Link href="/invest" className="text-xs font-semibold text-brand underline">
+          <Link href="/invest" className="text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
             Buy more
           </Link>
         }
@@ -444,7 +446,7 @@ export default function DashboardPage() {
         <Card
           title="Your loans"
           action={
-            <Link href="/risk" className="text-xs font-semibold text-brand underline">
+            <Link href="/risk" className="text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
               Stress test
             </Link>
           }

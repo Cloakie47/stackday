@@ -1,5 +1,6 @@
 "use client";
 
+import { LearnMore } from "@/components/learn-more";
 import Link from "next/link";
 import { useState } from "react";
 import { useViewer } from "@/components/providers";
@@ -16,6 +17,7 @@ import {
   Select,
   Stat,
   TxStatus,
+  buttonClass,
 } from "@/components/ui";
 import { payrollAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, MAX_UINT, ZERO, assetByToken } from "@/lib/contracts";
@@ -113,9 +115,13 @@ export default function BorrowPage() {
     <>
       <PageHeader
         title="Borrow"
-        lead="Need cash? Borrow USDC against what you hold instead of selling it. No schedule, no forced repayment."
+        lead={
+          <>
+            Borrow USDC against what you hold. Repay any time. <LearnMore href="/docs#borrowing" />
+          </>
+        }
         aside={
-          <Link href="/risk" className="inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-semibold text-canvas transition-transform duration-200 active:scale-[0.97]">
+          <Link href="/risk" className={buttonClass("ink")}>
             Risk screen and stress test
           </Link>
         }
@@ -143,8 +149,8 @@ export default function BorrowPage() {
           <HealthMeter health={health} />
         </div>
         <p className="mt-4 text-xs text-muted">
-          In your vault: {fmtAsset(pos.idle, asset.decimals)} {asset.symbol} free, {fmtAsset(pos.collateral, asset.decimals)} posted as
-          collateral. This market&apos;s liquidation limit is {fmtPct((asset.lltv * 10_000n) / WAD)} of the collateral value.
+          In your vault: {fmtAsset(pos.idle, asset.decimals)} {asset.symbol} free, {fmtAsset(pos.collateral, asset.decimals)} posted.
+          Liquidation limit {fmtPct((asset.lltv * 10_000n) / WAD)}.
         </p>
 
         <div className="mt-6 grid gap-6 sm:grid-cols-2">
@@ -177,7 +183,7 @@ export default function BorrowPage() {
               suffix="USDC"
               value={repayAmt}
               onChange={(e) => setRepayAmt(e.target.value)}
-              hint="Repay any amount at any time. No penalty."
+              hint="Any amount, any time. No penalty."
             />
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button variant="secondary" disabled={!viewer.canAct || !vault || repay === 0n || pos.debt === 0n || tx.state.busy} onClick={() => doRepay(false)}>
@@ -200,7 +206,7 @@ export default function BorrowPage() {
             onChange={(e) => setWithdrawAmt(e.target.value)}
             hint={
               pos.debt > 0n
-                ? "With a loan open you can only withdraw what the borrow limit still allows. Repay first to withdraw everything."
+                ? "With a loan open, you can withdraw only what the limit allows."
                 : "You can withdraw everything at any time."
             }
           />
@@ -218,9 +224,8 @@ export default function BorrowPage() {
 
       <Card title="Emergency rule">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          Decide now what happens if a loan gets risky. When that loan&apos;s health is at or below your threshold on a
-          payday, at least this share of that salary buys the asset and goes straight to the loan&apos;s collateral, even if
-          you had picked less. It only acts when you claim a salary, so it is a safety habit, not instant protection.
+          If this loan&apos;s health is at or below your threshold on payday, this share of the salary goes to its
+          collateral. Acts only when a salary is claimed. <LearnMore href="/docs#emergency-rule" />
         </p>
         {rule && ruleAsset && (
           <div className="mt-4">

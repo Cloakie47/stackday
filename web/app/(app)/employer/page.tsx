@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isAddress, type ContractFunctionParameters } from "viem";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 const INTERVALS = [
   ...(MIN_SCHEDULE_INTERVAL <= 60 ? [{ value: "60", label: "Every minute (demo only)" }] : []),
@@ -273,7 +275,7 @@ export default function EmployerPage() {
 
   async function fund() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, treasury, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, treasury, `Allow ${BRAND.name} to take the USDC`)),
       { label: "Fund the treasury", address: ADDR.payroll, abi: payrollAbi, functionName: "deposit", args: [treasury] },
     ];
     if (await tx.run(calls, "Treasury funded.")) setTreasuryAmt("");
@@ -290,7 +292,7 @@ export default function EmployerPage() {
     const toDeposit = total - fromTreasury;
     const calls: Call[] = [];
     if (toDeposit > 0n) {
-      calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, "Allow Stackday to take the USDC")));
+      calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, `Allow ${BRAND.name} to take the USDC`)));
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "depositAndCreateRun", args: [toDeposit, employees, amounts] });
     } else {
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [employees, amounts] });
@@ -325,7 +327,11 @@ export default function EmployerPage() {
     <>
       <PageHeader
         title="Run payroll"
-        lead="Fund a treasury once, set a rhythm, and paydays keep coming. Each person decides for themselves what part of their pay goes to work."
+        lead={
+          <>
+            Fund a treasury, pick a rhythm, pay your team. <LearnMore href="/docs#businesses" />
+          </>
+        }
       />
 
       {!me && <Notice>Connect your wallet (top right) to run payroll.</Notice>}
@@ -333,20 +339,20 @@ export default function EmployerPage() {
       <Card tone="ink">
         <div className="grid gap-6 sm:grid-cols-[1fr_1fr] sm:items-end">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/60">Treasury</div>
-            <div className="mt-2 font-display text-6xl leading-none sm:text-7xl">
+            <div className="text-[13px] font-medium text-muted">Treasury</div>
+            <div className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
               <Money value={me ? p.employerBalance : 0n} />
             </div>
-            <p className="mt-3 text-sm text-canvas/60">
+            <p className="mt-3 text-sm text-muted">
               {committed > 0n
                 ? `Covers ${(Number(p.employerBalance) / Number(committed)).toFixed(1)} more paydays of your active schedules (${fmtUsdc(committed)} USDC each).`
-                : "Paydays are paid from here. You can take unpaid money back at any time."}
+                : "Paydays are paid from here. Withdraw unused funds any time."}
             </p>
           </div>
           <div>
             <label className="block">
               <span className="text-[13px] font-medium text-canvas/70">Add USDC (wallet: {fmtUsdc(p.walletUsdc)})</span>
-              <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 focus-within:border-brand-soft">
+              <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 transition-colors duration-150 focus-within:border-white/60">
                 <input
                   inputMode="decimal"
                   placeholder="0.00"
@@ -354,7 +360,7 @@ export default function EmployerPage() {
                   onChange={(e) => setTreasuryAmt(e.target.value)}
                   className="min-h-11 w-full min-w-0 bg-transparent px-3.5 text-base text-canvas outline-none placeholder:text-canvas/30"
                 />
-                <span className="pr-3.5 text-sm text-canvas/60">USDC</span>
+                <span className="pr-3.5 text-sm text-muted">USDC</span>
               </span>
             </label>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -387,7 +393,7 @@ export default function EmployerPage() {
       >
         <p className="mb-4 text-xs text-muted">
           {saved === "database"
-            ? "Saved to your business account. Only you can see this list. People you add are invited: you can pay them straight away, and you see their attendance once they accept."
+            ? "Saved to your business account. Only you see this list. People you add are invited: you can pay them now, and see their attendance once they accept."
             : session.configured
               ? "Saved in this browser only until you sign in."
               : "Saved in this browser only (the account database is not connected yet)."}
@@ -445,7 +451,7 @@ export default function EmployerPage() {
           </Button>
         </div>
         {me && (
-          <button className="mt-3 text-xs font-semibold text-brand underline" onClick={() => setDraft({ ...draft, wallet: me, name: draft.name || "Me (test)" })}>
+          <button className="mt-3 text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink" onClick={() => setDraft({ ...draft, wallet: me, name: draft.name || "Me (test)" })}>
             Use my own address (for testing)
           </button>
         )}
@@ -480,9 +486,8 @@ export default function EmployerPage() {
               Start {intervalLabel(Number(interval)).toLowerCase()} payroll
             </Button>
             <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-              Nothing is locked up front. Each payday is paid from the treasury when it is due, by whoever presses the
-              button first: you, an employee claiming their pay, or an automation service. If the treasury runs short the
-              payday simply waits until you top up. You can pause at any time.
+              A due payday waits until someone presses pay, and until the treasury covers it.{" "}
+              <LearnMore href="/docs#businesses" />
             </p>
           </>
         ) : (
@@ -569,8 +574,7 @@ export default function EmployerPage() {
               );
             })}
             <p className="pt-1 text-xs leading-relaxed text-muted">
-              Employees check in from their dashboard with one click. This is a record for you to look at. It does not
-              change anyone&apos;s pay automatically: salaries are whatever you set above.
+              A record only. It does not change pay.
             </p>
           </div>
         )}
@@ -579,8 +583,7 @@ export default function EmployerPage() {
       <Card title="Past paydays">
         <PastRuns employer={me} />
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Once a salary is in a payday it belongs to the employee. If it stays unclaimed for 180 days, for example
-          because of a mistyped address, you can take it back.
+          Unclaimed for 180 days? You can take it back.
         </p>
       </Card>
     </>
