@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { isAddress, type ContractFunctionParameters } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
@@ -8,7 +10,17 @@ import { Button, Card, Empty, Field, Money, Notice, PageHeader, Row, Segmented, 
 import { payrollAbi } from "@/lib/abis";
 import { ADDR, MIN_SCHEDULE_INTERVAL, type Address } from "@/lib/contracts";
 import { fmtUsdc, intervalLabel, parseUsdc, shortAddr, until } from "@/lib/format";
-import { useLastDays, useAttendance, useNames, useSession, useTeam, type TeamMember } from "@/lib/useAccount";
+import {
+  saveBusiness,
+  searchPeople,
+  useAccountState,
+  useAttendance,
+  useLastDays,
+  useNames,
+  useTeam,
+  type Person,
+  type TeamMember,
+} from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 
@@ -48,12 +60,178 @@ function PastRuns({ employer }: { employer?: string }) {
   );
 }
 
+function BusinessProfile() {
+  const account = useAccountState();
+  const queryClient = useQueryClient();
+  const business = account.me?.business;
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+
+  if (!account.session.configured || !account.session.signedIn) return null;
+
+  async function save() {
+    setSaving(true);
+    setError(undefined);
+    try {
+      await saveBusiness(name, description);
+      await queryClient.invalidateQueries();
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!business && !editing)
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-brand-soft p-5">
+        <p className="max-w-lg text-sm text-brand-dark">
+          <strong>Add your business name.</strong> Your team will see it instead of a wallet address.
+        </p>
+        <Button size="sm" onClick={() => setEditing(true)}>
+          Add business details
+        </Button>
+      </div>
+    );
+
+  return (
+    <Card
+      title={editing ? "Business details" : (business?.name ?? "Business details")}
+      action={
+        !editing ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setName(business?.name ?? "");
+              setDescription(business?.description ?? "");
+              setEditing(true);
+            }}
+          >
+            Edit
+          </Button>
+        ) : undefined
+      }
+    >
+      {!editing ? (
+        <p className="text-sm leading-relaxed text-muted">
+          {business?.description || "No description yet."}
+          {account.me && (
+            <span className="mt-2 block font-mono text-xs">Your Stackday ID: {account.me.profile.uid}</span>
+          )}
+        </p>
+      ) : (
+        <div className="grid gap-4">
+          <Field label="Business name" placeholder="Northwind Studio" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+          <Field
+            label="What does it do? (optional)"
+            placeholder="A short description your team will see."
+            value={description}
+            maxLength={400}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button variant="ink" disabled={saving || name.trim().length < 2} onClick={save}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Find a person by Stackday ID, name or wallet address, instead of pasting an address. */
+function FindPeople({ onPick, already }: { onPick: (p: Person) => void; already: string[] }) {
+  const [q, setQ] = useState("");
+  const [people, setPeople] = useState<Person[]>();
+  const [hint, setHint] = useState<string>();
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const text = q.trim();
+    if (text.length < 2) {
+      setPeople(undefined);
+      setHint(undefined);
+      return;
+    }
+    let cancelled = false;
+    setBusy(true);
+    const timer = setTimeout(async () => {
+      try {
+        const r = await searchPeople(text);
+        if (!cancelled) {
+          setPeople(r.people);
+          setHint(r.hint);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setPeople([]);
+          setHint(e instanceof Error ? e.message : "Search failed.");
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [q]);
+
+  return (
+    <div>
+      <Field
+        label="Find someone on Stackday"
+        placeholder="Stackday ID (SD-7K3F9Q2M), name, or wallet address"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        hint={busy ? "Searching…" : hint}
+      />
+      {people && people.length === 0 && !busy && !hint && (
+        <p className="mt-2 text-sm text-muted">
+          Nobody found. Ask them to open Stackday, press Get started and send you their Stackday ID.
+        </p>
+      )}
+      {people && people.length > 0 && (
+        <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line">
+          {people.map((person) => {
+            const added = already.includes(person.wallet.toLowerCase());
+            return (
+              <li key={person.wallet} className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{person.username ? `@${person.username}` : "No name chosen"}</div>
+                  <div className="font-mono text-xs text-muted">
+                    {person.uid} · {shortAddr(person.wallet)}
+                  </div>
+                </div>
+                <Button size="sm" variant="secondary" disabled={added} onClick={() => { onPick(person); setQ(""); }}>
+                  {added ? "On your team" : "Use this person"}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function EmployerPage() {
   const viewer = useViewer();
   const me = viewer.address;
   const p = usePortfolio(me);
   const tx = useTx();
-  const session = useSession();
+  const account = useAccountState();
+  const session = account.session;
   const useDatabase = session.configured && session.signedIn;
   const { team, save, remove, saved } = useTeam(me, useDatabase);
   const attendance = useAttendance(useDatabase);
@@ -195,6 +373,8 @@ export default function EmployerPage() {
         </div>
       </Card>
 
+      <BusinessProfile />
+
       <Card
         title="Team"
         action={
@@ -207,7 +387,7 @@ export default function EmployerPage() {
       >
         <p className="mb-4 text-xs text-muted">
           {saved === "database"
-            ? "Saved in the Stackday account database. Only you can see your team list."
+            ? "Saved to your business account. Only you can see this list. People you add are invited: you can pay them straight away, and you see their attendance once they accept."
             : session.configured
               ? "Saved in this browser only until you sign in."
               : "Saved in this browser only (the account database is not connected yet)."}
@@ -219,12 +399,22 @@ export default function EmployerPage() {
             {team.map((m) => (
               <div key={m.wallet} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">
-                    {m.name} {names.nameOf(m.wallet) && <span className="font-normal text-muted">@{names.nameOf(m.wallet)}</span>}
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                    <span className="truncate">{m.name}</span>
+                    {names.nameOf(m.wallet) && <span className="font-normal text-muted">@{names.nameOf(m.wallet)}</span>}
+                    {m.status && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                          m.status === "accepted" ? "bg-grow-soft text-grow" : "bg-sunken text-muted"
+                        }`}
+                      >
+                        {m.status === "accepted" ? "Accepted" : "Invited"}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted">
                     {m.role ? `${m.role} · ` : ""}
-                    <span className="font-mono">{shortAddr(m.wallet)}</span>
+                    <span className="font-mono">{names.idOf(m.wallet) ?? shortAddr(m.wallet)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -235,6 +425,14 @@ export default function EmployerPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {useDatabase && (
+          <div className="mt-5 border-t border-line pt-5">
+            <FindPeople
+              already={team.map((m) => m.wallet.toLowerCase())}
+              onPick={(person) => setDraft((d) => ({ ...d, wallet: person.wallet, name: d.name || person.username || "" }))}
+            />
           </div>
         )}
         <div className="mt-5 grid gap-3 border-t border-line pt-5 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto] lg:items-end">
@@ -348,7 +546,15 @@ export default function EmployerPage() {
           <Empty>Add team members to see their check-ins.</Empty>
         ) : (
           <div className="space-y-3">
-            {team.map((m) => {
+            {team.filter((m) => m.status !== "accepted").length > 0 && (
+              <p className="text-xs text-muted">
+                {team.filter((m) => m.status !== "accepted").length} invited {team.filter((m) => m.status !== "accepted").length === 1 ? "person has" : "people have"} not
+                accepted yet, so their check-ins are not shown.
+              </p>
+            )}
+            {team
+              .filter((m) => m.status === "accepted")
+              .map((m) => {
               const checked = attendance.data?.team[m.wallet.toLowerCase()] ?? [];
               return (
                 <div key={m.wallet} className="grid items-center gap-3 sm:grid-cols-[10rem_1fr_3rem]">
