@@ -11,6 +11,7 @@ import { fmtUsdc, intervalLabel, parseUsdc, shortAddr, until } from "@/lib/forma
 import { useLastDays, useAttendance, useNames, useSession, useTeam, type TeamMember } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 const INTERVALS = [
   ...(MIN_SCHEDULE_INTERVAL <= 60 ? [{ value: "60", label: "Every minute (demo only)" }] : []),
@@ -95,7 +96,7 @@ export default function EmployerPage() {
 
   async function fund() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, treasury, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, treasury, `Allow ${BRAND.name} to take the USDC`)),
       { label: "Fund the treasury", address: ADDR.payroll, abi: payrollAbi, functionName: "deposit", args: [treasury] },
     ];
     if (await tx.run(calls, "Treasury funded.")) setTreasuryAmt("");
@@ -112,7 +113,7 @@ export default function EmployerPage() {
     const toDeposit = total - fromTreasury;
     const calls: Call[] = [];
     if (toDeposit > 0n) {
-      calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, "Allow Stackday to take the USDC")));
+      calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, `Allow ${BRAND.name} to take the USDC`)));
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "depositAndCreateRun", args: [toDeposit, employees, amounts] });
     } else {
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [employees, amounts] });
@@ -155,11 +156,11 @@ export default function EmployerPage() {
       <Card tone="ink">
         <div className="grid gap-6 sm:grid-cols-[1fr_1fr] sm:items-end">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/60">Treasury</div>
-            <div className="mt-2 font-display text-6xl leading-none sm:text-7xl">
+            <div className="text-[13px] font-medium text-muted">Treasury</div>
+            <div className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
               <Money value={me ? p.employerBalance : 0n} />
             </div>
-            <p className="mt-3 text-sm text-canvas/60">
+            <p className="mt-3 text-sm text-muted">
               {committed > 0n
                 ? `Covers ${(Number(p.employerBalance) / Number(committed)).toFixed(1)} more paydays of your active schedules (${fmtUsdc(committed)} USDC each).`
                 : "Paydays are paid from here. You can take unpaid money back at any time."}
@@ -168,7 +169,7 @@ export default function EmployerPage() {
           <div>
             <label className="block">
               <span className="text-[13px] font-medium text-canvas/70">Add USDC (wallet: {fmtUsdc(p.walletUsdc)})</span>
-              <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 focus-within:border-brand-soft">
+              <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 transition-colors duration-150 focus-within:border-white/60">
                 <input
                   inputMode="decimal"
                   placeholder="0.00"
@@ -176,7 +177,7 @@ export default function EmployerPage() {
                   onChange={(e) => setTreasuryAmt(e.target.value)}
                   className="min-h-11 w-full min-w-0 bg-transparent px-3.5 text-base text-canvas outline-none placeholder:text-canvas/30"
                 />
-                <span className="pr-3.5 text-sm text-canvas/60">USDC</span>
+                <span className="pr-3.5 text-sm text-muted">USDC</span>
               </span>
             </label>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -207,7 +208,7 @@ export default function EmployerPage() {
       >
         <p className="mb-4 text-xs text-muted">
           {saved === "database"
-            ? "Saved in the Stackday account database. Only you can see your team list."
+            ? `Saved in the ${BRAND.name} account database. Only you can see your team list.`
             : session.configured
               ? "Saved in this browser only until you sign in."
               : "Saved in this browser only (the account database is not connected yet)."}
@@ -247,7 +248,7 @@ export default function EmployerPage() {
           </Button>
         </div>
         {me && (
-          <button className="mt-3 text-xs font-semibold text-brand underline" onClick={() => setDraft({ ...draft, wallet: me, name: draft.name || "Me (test)" })}>
+          <button className="mt-3 text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink" onClick={() => setDraft({ ...draft, wallet: me, name: draft.name || "Me (test)" })}>
             Use my own address (for testing)
           </button>
         )}

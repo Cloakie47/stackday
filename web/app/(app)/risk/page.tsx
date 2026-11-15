@@ -20,6 +20,7 @@ import {
 import { ADDR, ASSETS, EXPLORER } from "@/lib/contracts";
 import { WAD, ago, aprFromPerSecond, assetValue, fmtAsset, fmtPct, fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
+import { BRAND } from "@/lib/brand";
 
 const GAPS = [0, 10, 20, 30];
 
@@ -117,11 +118,11 @@ export default function RiskPage() {
         <Card title="Borrowing cost">
           <Row label="Interest rate now">{apr !== undefined ? `${apr.toFixed(2)}% per year` : "…"}</Row>
           <Row label="Cost of this loan at that rate">{yearlyCost !== undefined ? `about $${yearlyCost.toFixed(2)} per year` : "…"}</Row>
-          <Row label="Stackday fee on borrowing">None</Row>
-          <Row label="Stackday fee on purchases">0.25%, fixed</Row>
+          <Row label={`${BRAND.name} fee on borrowing`}>None</Row>
+          <Row label={`${BRAND.name} fee on purchases`}>0.25%, fixed</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
             Interest is set by the lending market, moves up when more people borrow, and is added to what you owe every
-            second. It goes to the market&apos;s lenders, not to Stackday.
+            second. It goes to the market&apos;s lenders, not to {BRAND.name}.
           </p>
         </Card>
 
@@ -130,7 +131,7 @@ export default function RiskPage() {
           <Row label="Absolute maximum before liquidation">${fmtUsdc(maxDebt)}</Row>
           <Row label="USDC available in the market">${fmtUsdc(pos.liquidity)}</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            Stackday starts you at half of what the market would allow, which leaves room for a {defaultSurvives.toFixed(0)}%
+            {BRAND.name} starts you at half of what the market would allow, which leaves room for a {defaultSurvives.toFixed(0)}%
             price fall before liquidation. That lowers the risk, it does not remove it. You can raise your own limit to
             at most 85% of the maximum. Nobody else can change it.
           </p>
@@ -168,7 +169,7 @@ export default function RiskPage() {
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[32rem] text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.08em] text-muted">
+              <tr className="border-b border-line text-left text-xs font-medium text-muted">
                 <th className="py-2 font-semibold">Price gap</th>
                 <th className="py-2 text-right font-semibold">New price</th>
                 <th className="py-2 text-right font-semibold">Collateral value</th>
@@ -200,7 +201,7 @@ export default function RiskPage() {
             <label htmlFor="gap" className="text-[13px] font-medium text-ink-soft">
               Try your own gap
             </label>
-            <span className="font-display text-3xl tabular-nums">Down {customGap}%</span>
+            <span className="font-display text-3xl font-semibold tracking-[-0.02em] tabular-nums">Down {customGap}%</span>
           </div>
           <input id="gap" type="range" min={0} max={80} step={1} value={customGap} onChange={(e) => setCustomGap(Number(e.target.value))} className="mt-2 w-full" />
         </div>
@@ -280,11 +281,11 @@ export default function RiskPage() {
         <Row label="Loan token">
           USDC <AddressLink address={ADDR.usdc} />
         </Row>
-        <Row label="Stackday adapter for this market">
+        <Row label={`${BRAND.name} adapter for this market`}>
           <AddressLink address={asset.adapter} />
         </Row>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Stackday does not run a lending pool. Your vault borrows directly from this Morpho market, which Stackday
+          {BRAND.name} does not run a lending pool. Your vault borrows directly from this Morpho market, which {BRAND.name}
           created on the test network with the same liquidation limit as the main real {asset.realTicker} / USDC market on
           Base mainnet. The price it uses here comes from a mock feed that the demo operator can change. Verify any
           address on{" "}

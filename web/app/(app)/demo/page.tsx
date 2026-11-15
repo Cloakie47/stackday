@@ -10,6 +10,7 @@ import { ADDR, ASSETS } from "@/lib/contracts";
 import { fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 const STORY = [
   "Run payroll: add yourself to the team, fund the treasury and start a schedule (or pay once).",
@@ -58,7 +59,7 @@ export default function DemoPage() {
     if (!viewer.address) return;
     const amount = parseUsdc(payday);
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, amount, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, amount, `Allow ${BRAND.name} to take the USDC`)),
       {
         label: "Create a payday for this wallet",
         address: ADDR.payroll,
@@ -74,7 +75,7 @@ export default function DemoPage() {
     <>
       <PageHeader
         title="Demo panel"
-        lead="Switches that exist only so the stress scenarios can be shown in a few minutes. They change the mock tokens, the mock price feeds and the mock exchange. They cannot touch anyone's vault, salary or loan, and none of this exists in the real Stackday contracts."
+        lead={`Switches that exist only so the stress scenarios can be shown in a few minutes. They change the mock tokens, the mock price feeds and the mock exchange. They cannot touch anyone's vault, salary or loan, and none of this exists in the real ${BRAND.name} contracts.`}
         aside={<MockBadge>Testnet only</MockBadge>}
       />
 

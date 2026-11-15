@@ -25,6 +25,7 @@ import { assetForUsdc, fmtAsset, fmtHealth, fmtPct, fmtUsdc, intervalLabel, unti
 import { useNames } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 type Alloc = Record<string, number>; // asset symbol -> percent of salary
 
@@ -185,8 +186,8 @@ export default function PayPage() {
           <div className="space-y-7">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Ready to claim</div>
-                <div className="mt-1.5 font-display text-6xl leading-none">
+                <div className="text-[13px] font-medium text-muted">Ready to claim</div>
+                <div className="mt-1.5 font-display text-6xl font-semibold leading-none tracking-[-0.03em]">
                   <Money value={amount} />
                 </div>
                 <div className="mt-1 text-xs text-muted">Payroll run #{claim.runId.toString()}</div>
@@ -307,7 +308,7 @@ export default function PayPage() {
                     about {fmtAsset(l.est, l.pos.asset.decimals)} {l.pos.asset.symbol}
                   </Row>
                 ))}
-                {sipUsdc > 0n && <Row label={`Stackday fee (${fmtPct(SIP_FEE_BPS)} of the invested part)`}>{fmtUsdc(feeUsdc, 4)} USDC</Row>}
+                {sipUsdc > 0n && <Row label={`${BRAND.name} fee (${fmtPct(SIP_FEE_BPS)} of the invested part)`}>{fmtUsdc(feeUsdc, 4)} USDC</Row>}
               </div>
             </div>
 

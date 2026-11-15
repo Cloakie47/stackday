@@ -8,6 +8,7 @@ import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
   return (
@@ -64,7 +65,7 @@ export default function InvestPage() {
 
   async function buyOnce() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
       { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min(amount)] },
     ];
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");

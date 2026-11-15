@@ -16,6 +16,7 @@ import {
   Select,
   Stat,
   TxStatus,
+  buttonClass,
 } from "@/components/ui";
 import { payrollAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, MAX_UINT, ZERO, assetByToken } from "@/lib/contracts";
@@ -115,7 +116,7 @@ export default function BorrowPage() {
         title="Borrow"
         lead="Need cash? Borrow USDC against what you hold instead of selling it. No schedule, no forced repayment."
         aside={
-          <Link href="/risk" className="inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-semibold text-canvas transition-transform duration-200 active:scale-[0.97]">
+          <Link href="/risk" className={buttonClass("ink")}>
             Risk screen and stress test
           </Link>
         }
