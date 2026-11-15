@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus } from "@/components/ui";
@@ -23,6 +24,15 @@ import { proposalToSipLegs, proposeNewMoney } from "@/lib/themes/rebalance";
 import { usePortfolio, type Portfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 
+/** Longer explanations live on the docs page (source text: docs/themes/for-the-docs-page.md). */
+function LearnMore() {
+  return (
+    <Link href="/docs#themes" className="text-[13px] font-semibold text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand">
+      Learn more
+    </Link>
+  );
+}
+
 /** Market mood: a hand-built, labelled snapshot (lib/themes/mood-snapshot.json), not a live feed. */
 const SNAPSHOT = validateSnapshot(snapshotJson);
 
@@ -40,10 +50,10 @@ function MoodCard({ picked }: { picked: string[] }) {
   const items = dca.tickers
     .flatMap((t) => SNAPSHOT.assets[t]?.items ?? [])
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.materiality - a.materiality)
-    .slice(0, 6);
+    .slice(0, 3);
   return (
-    <Card title="Market mood" badge={<MockBadge>Snapshot, not live</MockBadge>}>
-      <p className="max-w-3xl text-xs leading-relaxed text-muted">{SNAPSHOT.label}</p>
+    <Card title="Market mood" badge={<MockBadge>Snapshot, not live</MockBadge>} action={<LearnMore />}>
+      <p className="text-xs text-muted">{SNAPSHOT.label}</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {picked.map((id) => {
           const t = THEMES.find((x) => x.id === id)!;
@@ -58,21 +68,17 @@ function MoodCard({ picked }: { picked: string[] }) {
                 </span>
               </div>
               {risky.length > 0 && (
-                <p className="mt-1.5 text-xs text-danger">Open material event: {risky.map((x) => assetOf(x)?.name ?? x).join(", ")}. No faster buying for it.</p>
+                <p className="mt-1.5 text-xs text-danger">Open event: {risky.map((x) => assetOf(x)?.name ?? x).join(", ")}</p>
               )}
             </div>
           );
         })}
       </div>
       <div className="mt-4 rounded-2xl bg-sunken p-4">
-        <div className="text-sm font-semibold">This week&apos;s buying pace: {dca.multiplier.toFixed(2)}x your usual amount</div>
-        <p className="mt-1 text-xs leading-relaxed text-muted">
-          Mood changes how fast to buy, never what to buy. Cheap plus calm news means buy more (up to 1.5x); hype means buy less
-          (down to 0.5x, the rest stays as USDC).
-          {dca.materialRisk && ` Capped at 1x because of an open material event (${dca.riskTickers.map((x) => assetOf(x)?.name ?? x).join(", ")}).`}
-          {dca.value === 0 && " Value scores are not measured in this snapshot, so the pace only reacts to the news."} It is a suggestion; nothing changes
-          unless you change your amounts.
-        </p>
+        <div className="text-sm font-semibold">Buying pace this week: {dca.multiplier.toFixed(2)}x (suggestion)</div>
+        {dca.materialRisk && (
+          <p className="mt-1 text-xs text-muted">Capped at 1x: open event ({dca.riskTickers.map((x) => assetOf(x)?.name ?? x).join(", ")}).</p>
+        )}
       </div>
       {items.length > 0 && (
         <ul className="mt-4 divide-y divide-line">
@@ -140,12 +146,11 @@ function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: nu
 
   return (
     <Card title="5. Rebalance with new money">
-      <p className="max-w-2xl text-sm leading-relaxed text-muted">
-        Stackday never sells for you. When your vault drifts away from the split, new money (a payday share or a buy from your
-        wallet) goes to what is below target first. You see the proposal and sign it, or ignore it.
-      </p>
+      <p className="text-sm text-muted">New money tops up what is below target. Nothing is sold.</p>
       {invested === 0 ? (
-        <Notice>Nothing in your vault yet, so there is nothing to rebalance. Your first buy is simply the split above.</Notice>
+        <div className="mt-4">
+          <Notice>Nothing to rebalance yet.</Notice>
+        </div>
       ) : (
         <>
           <div className="mt-4 max-w-sm">
@@ -187,7 +192,7 @@ function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: nu
                   </li>
                 ))}
                 {proposal.cashUsd > 0.005 && (
-                  <li className="text-muted">{proposal.cashUsd.toFixed(2)} USDC is not spent (amounts too small to buy, or no room under target).</li>
+                  <li className="text-muted">{proposal.cashUsd.toFixed(2)} USDC not spent</li>
                 )}
               </ul>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -200,7 +205,6 @@ function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: nu
               </div>
             </>
           )}
-          <p className="mt-3 text-xs text-muted">Values use the reference prices shown on the site (mock prices on testnet). A holding is off target when it is more than 5 points, or more than a quarter of its target, away.</p>
         </>
       )}
       <TxStatus state={tx.state} />
@@ -258,7 +262,7 @@ function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string
       {COMING_SOON.map((name) => (
         <div key={name} className="rounded-2xl border border-dashed border-line p-4 text-left opacity-70" aria-disabled>
           <div className="text-sm font-semibold">{name}</div>
-          <p className="mt-1.5 text-xs text-muted">Unlocks when these stocks are tokenized on Base and supported here.</p>
+          <p className="mt-1.5 text-xs text-muted">When tokenized on Base</p>
         </div>
       ))}
     </div>
@@ -301,7 +305,7 @@ function PlanView({ plan }: { plan: Plan }) {
             <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: CUSHION_COLOR }} aria-hidden />
             <div>
               <div className="text-sm font-semibold">USDC cushion</div>
-              <p className="mt-1 text-xs text-muted">Kept as cash, not bought. Dry powder for cheaper weeks and a buffer for price gaps.</p>
+              <p className="mt-1 text-xs text-muted">Kept as cash, not bought</p>
             </div>
           </div>
           <span className="text-sm font-semibold tabular-nums">{fmtPct(plan.usdcBps, 1)}</span>
@@ -316,7 +320,7 @@ function PlanView({ plan }: { plan: Plan }) {
       )}
       {plan.previewOnly.length > 0 && (
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Preview only on this network (no testnet token, never bought here):{" "}
+          Preview only here:{" "}
           {plan.previewOnly.map((t) => `${assetOf(t)?.name ?? t} (${t})`).join(", ")}.
         </p>
       )}
@@ -406,17 +410,15 @@ export default function ThemesPage() {
     <>
       <PageHeader
         title="Themes"
-        lead="Pick the themes you care about and how much risk you want. Stackday suggests a split with hard limits, explains every line, and you decide whether to use it. Information, not advice."
+        lead="Pick themes and a risk level. Get a capped split you can use."
+        aside={<LearnMore />}
       />
 
-      {!viewer.address && <Notice>Connect your wallet (top right) to put a plan to work. You can explore themes without it.</Notice>}
+      {!viewer.address && <Notice>Connect a wallet to use a plan.</Notice>}
 
       <Card title="1. Pick your themes" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
         <ThemePicker picked={picked} toggle={toggle} />
-        <p className="mt-3 text-xs leading-relaxed text-muted">
-          Themes only use tokenized stocks that really exist on Base, plus Bitcoin and Ether. Dark tags can be bought on this
-          test network (as mock tokens); grey tags are a preview.
-        </p>
+        <p className="mt-3 text-xs text-muted">Dark: buyable here (mock). Grey: preview only.</p>
       </Card>
 
       <Card title="2. Your risk level">
@@ -458,12 +460,7 @@ export default function ThemesPage() {
 
           {source === "salary" ? (
             <div className="mt-5">
-              <p className="max-w-2xl text-sm leading-relaxed text-muted">
-                Save this split as your every-payday plan. Before each claim, the share you pick is bought into your own
-                vault; the rest of the salary, including the cushion part, is paid to you as USDC. Payday plans hold at most 6
-                assets.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                 {[
                   { v: "1000", l: "10% of salary" },
                   { v: "2000", l: "20% of salary" },
@@ -489,12 +486,12 @@ export default function ThemesPage() {
                 </li>
               </ul>
               {legs.dropped.length > 0 && (
-                <p className="mt-2 text-xs text-muted">Left out (only 6 fit, their part is paid as USDC): {legs.dropped.join(", ")}.</p>
+                <p className="mt-2 text-xs text-muted">Left out (max 6 assets): {legs.dropped.join(", ")}</p>
               )}
               <Button className="mt-4" disabled={!viewer.canAct || legAssets.length === 0 || samePlan || tx.state.busy} onClick={savePaydayPlan}>
                 {samePlan ? "This is already your payday plan" : "Use this split on every payday"}
               </Button>
-              <p className="mt-2 text-xs text-muted">One signature. It replaces any every-payday plan you had; you can change or turn it off on Get paid.</p>
+              <p className="mt-2 text-xs text-muted">Replaces your current payday plan.</p>
             </div>
           ) : (
             <div className="mt-5 grid gap-6 lg:grid-cols-2">
@@ -510,8 +507,8 @@ export default function ThemesPage() {
                     onChange={(e) => setAmt(e.target.value)}
                     hint={
                       once > 0n
-                        ? `${onceSplit.buys.length} buys, ${fmtUsdc(onceSplit.cash)} USDC stays in your wallet as the cushion. Fee ${fmtPct(SIP_FEE_BPS)} per buy.`
-                        : `Fee: ${fmtPct(SIP_FEE_BPS)} of each buy.`
+                        ? `${onceSplit.buys.length} buys, ${fmtUsdc(onceSplit.cash)} USDC stays in your wallet. Fee ${fmtPct(SIP_FEE_BPS)} each.`
+                        : `Fee ${fmtPct(SIP_FEE_BPS)} per buy`
                     }
                   />
                 </div>
@@ -523,7 +520,6 @@ export default function ThemesPage() {
                   Buy the split
                 </Button>
                 {once > p.walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet does not hold that much USDC.</p>}
-                <p className="mt-2 text-xs text-muted">One signature per asset (plus one approval). Each buy refuses a price more than 1% worse than the reference price.</p>
               </div>
 
               <div className="rounded-2xl border border-line p-4">
@@ -550,10 +546,9 @@ export default function ThemesPage() {
                 >
                   Start the recurring plans
                 </Button>
-                <p className="mt-2 text-xs text-muted">
-                  One recurring plan per asset ({recurringSplit.buys.map((b) => `${fmtUsdc(b.usdc)} USDC ${b.ticker}`).join(", ") || "set an amount"}).
-                  It replaces an existing plan for the same asset.
-                </p>
+                {recurringSplit.buys.length > 0 && (
+                  <p className="mt-2 text-xs text-muted">Per asset: {recurringSplit.buys.map((b) => `${fmtUsdc(b.usdc)} USDC ${b.ticker}`).join(", ")}</p>
+                )}
               </div>
             </div>
           )}
@@ -564,9 +559,8 @@ export default function ThemesPage() {
       {plan.holdings.length > 0 && viewer.address && <RebalanceCard plan={plan} p={p} share={Number(share)} />}
 
       <Notice tone="warn">
-        <strong>Information, not advice.</strong> The split comes from fixed, published rules applied to the themes and risk
-        level you chose. It is not a recommendation to buy anything. Prices can fall. Tokenized stocks are for eligible
-        people outside the United States and carry no voting rights. On this test network every asset is a mock token.
+        <strong>Information, not advice.</strong> Prices can fall. Not for people in the United States. No voting rights. Mock
+        tokens on testnet.
       </Notice>
     </>
   );
