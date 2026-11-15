@@ -32,7 +32,7 @@ Meaning of the four statuses:
 | 3 | SAML bypass | No. No SAML | Not applicable |
 | 4 | nOAuth email spoof | No. No OAuth, no emails | Not applicable |
 | 5 | GraphQL aliases | Partly. Supabase has an unused GraphQL endpoint | Covered |
-| 6 | 2FA code replay | Yes, as sign-in signature replay | GAP |
+| 6 | 2FA code replay | Yes, as sign-in signature replay | Covered (gg/sign-in-nonce) |
 | 7 | ReDoS regex | Yes, we use two patterns | Covered |
 | 8 | JWT alg confusion | No. No JWT library | Not applicable |
 | 9 | Request smuggling | Only at the hosting level | Covered by the hosting provider |
@@ -116,6 +116,8 @@ Totals: 7 Not applicable, 9 Covered, 2 Covered by the hosting provider, 2 GAP.
 The damage is limited to the off-chain account: name, team list, attendance. It can never move funds. Also note that a session lasts 7 days and cannot be cancelled from the server. Signing out only clears the cookie in that browser.
 
 **Check to do:** Fix: add the site domain, the chain id and a single-use server nonce to the signed text. This is the "Sign-In with Ethereum" pattern. The server must reject a nonce it has seen before and reject a domain that is not ours. Test after the fix: sign in, capture the request, send it again. The second try must fail.
+
+**Fixed in `gg/sign-in-nonce`:** sign-in now uses "Sign-In with Ethereum" (EIP-4361). The browser first asks `POST /api/session/nonce` for a single-use code (32 hex characters from `crypto.randomBytes`, stored in the `sign_in_nonces` table for 10 minutes). The signed text carries the site domain, chain id 84532, the code, and an expiry 10 minutes out. The server checks the domain (`SITE_DOMAIN`, or the host the request was sent to), the chain and the times, then deletes the code in one statement before checking the signature, so the same signed request can never pass twice. Tests: `web/lib/server/signin-check.test.ts` (replay, wrong site, wrong chain, expired, unknown code, wrong signer, edited text) and the replay and wrong-site checks in `web/scripts/test-account-api.sh`. The 7-day session that cannot be cancelled from the server is unchanged.
 
 ### 7. ReDoS regex
 

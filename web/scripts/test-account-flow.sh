@@ -20,14 +20,25 @@ read -r C_ADDR C_KEY <<<"$(newwallet)"   # stranger
 A_L=$(low "$A_ADDR"); B_L=$(low "$B_ADDR"); C_L=$(low "$C_ADDR")
 NAME="t_$(date +%s | tail -c 9)"
 
-# Sign in. Kept in one place because the sign-in message format is expected to change.
-signin() { # addr key jar
-  local issued msg sig
-  issued=$(python -c "import datetime;print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'))")
-  msg=$(printf 'Stackday sign-in\n\nSign this message to prove you own this wallet. It costs nothing and sends no transaction.\n\nWallet: %s\nIssued: %s' "$(low "$1")" "$issued")
+# Sign in with Sign-In with Ethereum: get a single-use nonce from the server, build the same
+# message the site builds (web/lib/signin.ts), sign it with the throwaway key, post it.
+HOST="${BASE#*://}"; HOST="${HOST%%/*}"
+SIGNIN_TS="$(cd "$(dirname "$0")/.." && pwd)/lib/signin.ts"
+nonce() { curl -s -X POST "$BASE/api/session/nonce" | field "d['nonce']"; }
+siwe() { # address nonce
+  node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --input-type=module -e '
+    import { pathToFileURL } from "node:url";
+    const [file, address, nonce, domain] = process.argv.slice(1);
+    const { buildSignInMessage } = await import(pathToFileURL(file).href);
+    process.stdout.write(buildSignInMessage({ address, domain, uri: "http://" + domain, nonce, issuedAt: new Date() }));
+  ' "$SIGNIN_TS" "$1" "$2" "$HOST"
+}
+signin() { # addr key jar -> http code
+  local msg sig
+  msg=$(siwe "$1" "$(nonce)")
   sig=$(cast wallet sign --private-key "$2" "$msg")
-  curl -s -o "$TMP/out" -w '%{http_code}' -c "$3" -H 'content-type: application/json' \
-    -d "{\"address\":\"$1\",\"issuedAt\":\"$issued\",\"signature\":\"$sig\"}" "$BASE/api/session"
+  python -c "import json,sys;print(json.dumps({'message':sys.argv[1],'signature':sys.argv[2]}))" "$msg" "$sig" > "$TMP/body"
+  curl -s -o "$TMP/out" -w '%{http_code}' -c "$3" -H 'content-type: application/json' --data-binary @"$TMP/body" "$BASE/api/session"
 }
 req() { # jar method path [body]
   curl -s -o "$TMP/out" -w '%{http_code}' -b "$1" -X "$2" -H 'content-type: application/json' ${4:+-d "$4"} "$BASE$3"

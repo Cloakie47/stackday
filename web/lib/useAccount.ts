@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
-import { signInMessage } from "./signin";
+import { buildSignInMessage } from "./signin";
 import { shortAddr } from "./format";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -38,9 +38,17 @@ export function useSession() {
     setBusy(true);
     setError(undefined);
     try {
-      const issuedAt = new Date().toISOString();
-      const signature = await signMessageAsync({ message: signInMessage(address, issuedAt) });
-      await api("/api/session", { method: "POST", body: JSON.stringify({ address, issuedAt, signature }) });
+      // A single-use code from the server, signed together with this site's name and the chain.
+      const { nonce } = await api<{ nonce: string }>("/api/session/nonce", { method: "POST" });
+      const message = buildSignInMessage({
+        address,
+        domain: window.location.host,
+        uri: window.location.origin,
+        nonce,
+        issuedAt: new Date(),
+      });
+      const signature = await signMessageAsync({ message });
+      await api("/api/session", { method: "POST", body: JSON.stringify({ message, signature }) });
       await queryClient.invalidateQueries();
       return true;
     } catch (e) {

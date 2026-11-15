@@ -3,14 +3,15 @@ import { baseSepolia } from "viem/chains";
 import {
   clearCookie,
   configured,
+  dbNonceStore,
   ensureProfile,
-  isWallet,
   json,
   notConfigured,
   sessionCookie,
   sessionWallet,
+  signInDomains,
 } from "@/lib/server/backend";
-import { signInMessage } from "@/lib/signin";
+import { checkSignIn } from "@/lib/server/signin-check";
 
 const chain = createPublicClient({
   chain: baseSepolia,
@@ -22,33 +23,33 @@ export async function GET(request: Request) {
   return json({ configured: configured(), address: sessionWallet(request) });
 }
 
-/** Sign in: the wallet signs a short message, we check the signature and set a session cookie. */
+/**
+ * Step 2 of sign-in: the wallet signed a "Sign-In with Ethereum" message holding our domain,
+ * the chain and a nonce from POST /api/session/nonce. We check all three, use up the nonce,
+ * check the signature and set a session cookie.
+ */
 export async function POST(request: Request) {
   if (!configured()) return notConfigured();
-  const body = await request.json().catch(() => null);
-  const { address, issuedAt, signature } = (body ?? {}) as Record<string, string>;
-  if (!isWallet(address) || typeof issuedAt !== "string" || typeof signature !== "string")
-    return json({ error: "Bad request." }, 400);
+  const body = ((await request.json().catch(() => null)) ?? {}) as Record<string, unknown>;
 
-  const age = Date.now() - Date.parse(issuedAt);
-  if (!(age >= -60_000 && age < 10 * 60_000)) return json({ error: "That sign-in request expired. Try again." }, 400);
-
-  // Works for normal wallets and for smart contract wallets.
-  const ok = await chain
-    .verifyMessage({
-      address: address as `0x${string}`,
-      message: signInMessage(address, issuedAt),
-      signature: signature as `0x${string}`,
-    })
-    .catch(() => false);
-  if (!ok) return json({ error: "The signature does not match this wallet." }, 401);
+  const result = await checkSignIn({
+    message: body.message,
+    signature: body.signature,
+    domains: signInDomains(request),
+    chainId: baseSepolia.id,
+    now: new Date(),
+    store: dbNonceStore,
+    // Works for normal wallets and for smart contract wallets.
+    verify: (p) => chain.verifyMessage(p),
+  });
+  if (!result.ok) return json({ error: result.error }, result.status);
 
   // First sign-in creates the wallet's profile and its unique ID.
-  const profile = await ensureProfile(address.toLowerCase()).catch(() => null);
+  const profile = await ensureProfile(result.address).catch(() => null);
   if (!profile) return json({ error: "Could not set up your profile. Try again." }, 500);
 
-  return json({ configured: true, address: address.toLowerCase(), uid: profile.uid }, 200, {
-    "Set-Cookie": sessionCookie(address),
+  return json({ configured: true, address: result.address, uid: profile.uid }, 200, {
+    "Set-Cookie": sessionCookie(result.address),
   });
 }
 
