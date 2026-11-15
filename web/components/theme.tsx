@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { cx } from "./ui";
+import { cx } from "./styles";
 
 /**
  * Light, dark, or follow the system.

@@ -45,7 +45,7 @@ Use the role, never a hex value. Every role flips between light and dark.
 
 ## Components (`web/components/ui.tsx`)
 
-`PageHeader`, `Card` (`tone="feature"` for the one hero panel; `"ink"` is an alias), `Badge`, `MockBadge`, `RealBadge`, `Money`, `Stat`, `Button` and `buttonClass()` (for links that look like buttons), `Field`, `Select`, `Segmented`, `Chip`, `AssetIcon`, `SplitBar`, `HealthMeter`, `Spinner`, `TxStatus`, `Notice`, `RiskNote`, `Row`, `AddressLink`, `Empty`, `Skeleton`.
+`PageHeader`, `Card` (`tone="feature"` for the one hero panel; `"ink"` is an alias), `Badge`, `MockBadge`, `RealBadge`, `Money`, `Stat`, `Button` and `buttonClass()` (for links that look like buttons; `buttonClass` and `cx` live in `styles.ts` so server components can call them), `Field`, `Select`, `Segmented`, `Chip`, `AssetIcon`, `SplitBar`, `HealthMeter`, `Spinner`, `TxStatus`, `Notice`, `RiskNote`, `Row`, `AddressLink`, `Empty`, `Skeleton`.
 
 Theme: `ThemeToggle` and `useTheme` in `web/components/theme.tsx`. Layout: `Shell`, `Logo`, `LogoMark`, `WalletButton`, `TestnetBanner` in `web/components/shell.tsx`.
 
