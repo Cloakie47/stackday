@@ -11,7 +11,6 @@ import {
   Chip,
   Empty,
   Field,
-  MockBadge,
   Money,
   Notice,
   PageHeader,
@@ -228,10 +227,7 @@ export default function PayPage() {
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold">What should it buy?</h3>
-                <MockBadge>Mock tokens on testnet</MockBadge>
-              </div>
+              <h3 className="text-sm font-semibold">What should it buy?</h3>
               <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
                 {p.positions.map((pos) => {
                   const pct = alloc[pos.asset.symbol] ?? 0;

@@ -98,7 +98,7 @@ export function until(timestamp: number, now: number) {
 }
 
 export function intervalLabel(seconds: number) {
-  if (seconds === 60) return "Every minute (demo)";
+  if (seconds === 60) return "Every minute";
   if (seconds === 86400) return "Daily";
   if (seconds === 604800) return "Weekly";
   if (seconds === 1209600) return "Every 2 weeks";

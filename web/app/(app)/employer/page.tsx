@@ -27,7 +27,7 @@ import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
 
 const INTERVALS = [
-  ...(MIN_SCHEDULE_INTERVAL <= 60 ? [{ value: "60", label: "Every minute (demo only)" }] : []),
+  ...(MIN_SCHEDULE_INTERVAL <= 60 ? [{ value: "60", label: "Every minute (testnet)" }] : []),
   { value: "86400", label: "Daily" },
   { value: "604800", label: "Weekly" },
   { value: "1209600", label: "Every 2 weeks" },
@@ -386,7 +386,7 @@ export default function EmployerPage() {
         action={
           session.configured && !session.signedIn && viewer.canAct ? (
             <Button size="sm" variant="secondary" disabled={session.busy} onClick={session.signIn}>
-              {session.busy ? "Check your wallet…" : "Sign in to save to the database"}
+              {session.busy ? "Check your wallet…" : "Sign in to save your team"}
             </Button>
           ) : undefined
         }
@@ -394,9 +394,7 @@ export default function EmployerPage() {
         <p className="mb-4 text-xs text-muted">
           {saved === "database"
             ? "Saved to your business account. Only you see this list. People you add are invited: you can pay them now, and see their attendance once they accept."
-            : session.configured
-              ? "Saved in this browser only until you sign in."
-              : "Saved in this browser only (the account database is not connected yet)."}
+            : "Saved on this device only until you sign in."}
         </p>
         {team.length === 0 ? (
           <Empty>No team members yet. Add the first one below.</Empty>
@@ -450,11 +448,6 @@ export default function EmployerPage() {
             Add
           </Button>
         </div>
-        {me && (
-          <button className="mt-3 text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink" onClick={() => setDraft({ ...draft, wallet: me, name: draft.name || "Me (test)" })}>
-            Use my own address (for testing)
-          </button>
-        )}
         {teamError && <p className="mt-2 text-sm text-danger">{teamError}</p>}
       </Card>
 
@@ -544,7 +537,7 @@ export default function EmployerPage() {
 
       <Card title="Attendance, last 14 days">
         {!session.configured ? (
-          <Empty>Attendance needs the account database, which is not connected yet.</Empty>
+          <Empty>Attendance is not available right now.</Empty>
         ) : !session.signedIn ? (
           <Empty>Sign in (in the Team section above) to see your team&apos;s check-ins.</Empty>
         ) : team.length === 0 ? (

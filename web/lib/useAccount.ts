@@ -192,16 +192,60 @@ export type Me = {
 };
 
 export type Role = "individual" | "owner" | "employee";
+/** The two interfaces. Personal = investing for yourself. Business = running payroll or being paid by one. */
+export type Mode = "personal" | "business";
+
+const MODE_KEY = (address: string) => `stackday-mode-${address.toLowerCase()}`;
+const MODE_EVENT = "stackday-mode";
+
+/** The mode remembered on this device, used when the account database is off or before it answers. */
+function useLocalMode(address: string | undefined) {
+  const [mode, setMode] = useState<Mode | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const read = () => {
+      try {
+        const v = address ? window.localStorage.getItem(MODE_KEY(address)) : null;
+        setMode(v === "personal" || v === "business" ? v : null);
+      } catch {
+        setMode(null);
+      }
+      setLoaded(true);
+    };
+    read();
+    window.addEventListener(MODE_EVENT, read);
+    return () => window.removeEventListener(MODE_EVENT, read);
+  }, [address]);
+  return { mode, loaded };
+}
+
+export function rememberMode(address: string | undefined, mode: Mode) {
+  if (!address) return;
+  try {
+    window.localStorage.setItem(MODE_KEY(address), mode);
+  } catch {
+    /* private window: the choice simply is not remembered on this device */
+  }
+  window.dispatchEvent(new Event(MODE_EVENT));
+}
+
+/** Where each mode opens. */
+export function homeFor(mode: Mode | undefined, role: Role | undefined) {
+  if (mode === "business") return role === "owner" ? "/employer" : "/pay";
+  return "/dashboard";
+}
 
 /**
- * Who the connected wallet is on Stackday.
+ * Who the connected wallet is on Stackday, and which interface it uses.
  * - `ready` is false until we know (so screens do not flash the wrong thing).
- * - `needsSetup` is true when the wallet is connected but has not signed in or not chosen an account type.
- * - Without the account database everything stays open and `role` is undefined.
+ * - `needsSetup` is true when a connected wallet has not picked Personal or Business yet.
+ *   The app sends it to /start: the choice is required.
+ * - With the account database the choice is saved to the profile. Without it, on this device.
  */
 export function useAccountState() {
   const { address, isConnected } = useAccount();
   const session = useSession();
+  const local = useLocalMode(address);
   const me = useQuery({
     queryKey: ["me", address?.toLowerCase()],
     queryFn: () => api<Me>("/api/me"),
@@ -209,18 +253,38 @@ export function useAccountState() {
     staleTime: 15_000,
   });
   const type = me.data?.profile.account_type ?? null;
+  const saved: Mode | null = type === "individual" ? "personal" : type === "business" ? "business" : null;
+  const mode: Mode | undefined = saved ?? local.mode ?? undefined;
   const role: Role | undefined =
-    type === "individual" ? "individual" : type === "business" ? (me.data?.business ? "owner" : "employee") : undefined;
-  const ready = !session.loading && (!session.signedIn || !me.isLoading);
+    mode === "personal" ? "individual" : mode === "business" ? (me.data?.business ? "owner" : "employee") : undefined;
+  const ready = local.loaded && !session.loading && (!session.signedIn || !me.isLoading);
+  const database = session.configured;
   return {
     address,
     isConnected,
     session,
     me: me.data,
+    mode,
     role,
     ready,
-    needsSetup: isConnected && session.configured && ready && (!session.signedIn || !type),
+    needsSetup: isConnected && ready && (database ? !session.signedIn || !saved : !local.mode),
   };
+}
+
+/** Switch interface. Saves to the profile when signed in, and always on this device. */
+export function useSwitchMode() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (address: string | undefined, mode: Mode, signedIn: boolean) => {
+      rememberMode(address, mode);
+      if (signedIn) {
+        await saveAccountType(mode === "personal" ? "individual" : "business");
+        // The saved choice wins over this device's, so wait for the fresh profile before moving on.
+        await queryClient.refetchQueries({ queryKey: ["me"] });
+      }
+    },
+    [queryClient],
+  );
 }
 
 export const saveAccountType = (accountType: "individual" | "business") =>

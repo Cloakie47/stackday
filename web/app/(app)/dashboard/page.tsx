@@ -13,7 +13,6 @@ import {
   Empty,
   Field,
   HealthMeter,
-  MockBadge,
   Money,
   Notice,
   PageHeader,
@@ -114,7 +113,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
     return (
       <Card title="Your account">
         <p className="text-sm leading-relaxed text-muted">
-          Names and attendance are off on this site. Your money does not depend on them.
+          Sign-in is not available right now. Your money does not depend on it.
         </p>
       </Card>
     );
@@ -160,7 +159,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
       action={
         account.role ? (
           <Link href="/start" className="text-xs font-semibold text-brand underline">
-            {account.role === "individual" ? "Individual" : account.role === "owner" ? "Business owner" : "Team member"} · switch
+            {account.role === "individual" ? "Personal" : account.role === "owner" ? "Business owner" : "Team member"} · change
           </Link>
         ) : undefined
       }
@@ -210,6 +209,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
             </div>
             {message && <p className={`mt-2 text-sm ${message.ok ? "text-grow" : "text-danger"}`}>{message.text}</p>}
           </div>
+          {account.mode !== "personal" && (
           <div>
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-muted">Attendance, last 14 days</p>
@@ -230,6 +230,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
             </div>
             <p className="mt-2 text-xs text-muted">Only teams you accept can see it. Does not change your pay.</p>
           </div>
+          )}
         </div>
       )}
     </Card>
@@ -237,6 +238,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
 }
 
 function Plans({ p, now }: { p: Portfolio; now: number }) {
+  const personal = useAccountState().mode === "personal";
   const names = useNames(p.schedulesPayingMe.map((s) => s.employer));
   const recurring = p.positions.filter((x) => x.recurring);
   const ruleAsset = assetByToken(p.emergencyRule?.asset);
@@ -246,15 +248,23 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
     <Card title="Your plans">
       {nothing ? (
         <Empty>
-          No plans yet. Set a share of every salary on{" "}
-          <Link href="/pay" className="font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
-            Get paid
-          </Link>
-          , or a recurring buy on{" "}
-          <Link href="/invest" className="font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
-            Invest
-          </Link>
-          .
+          {personal ? (
+            <>
+              No plans yet. Start a recurring buy on{" "}
+              <Link href="/invest" className="font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
+                Invest
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              No plans yet. Set a share of every salary on{" "}
+              <Link href="/pay" className="font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
+                My pay
+              </Link>
+              .
+            </>
+          )}
         </Empty>
       ) : (
         <div className="divide-y divide-line">
@@ -328,6 +338,9 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
 }
 
 export default function DashboardPage() {
+  // Business team members see this page as Holdings; Personal users as Home.
+  const { mode } = useAccountState();
+  const businessMode = mode !== "personal";
   const viewer = useViewer();
   const p = usePortfolio(viewer.address);
   const names = useNames([viewer.address]);
@@ -341,10 +354,11 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
-        title={name ? `Hello, ${name}` : "Dashboard"}
+        title={name ? `Hello, ${name}` : businessMode ? "Holdings" : "Home"}
         lead={
           <>
-            Holdings, plans and loans. <LearnMore href="/docs#vault" />
+            {businessMode ? "What your pay has bought, and any loans against it." : "Your investments, plans and loans."}{" "}
+            <LearnMore href="/docs#vault" />
           </>
         }
         aside={p.vault && <AddressLink address={p.vault} label="Your vault on BaseScan" />}
@@ -352,7 +366,7 @@ export default function DashboardPage() {
 
       {!viewer.address && <Notice>Connect your wallet (top right) to see your dashboard.</Notice>}
 
-      {p.totalClaimable > 0n && (
+      {businessMode && p.totalClaimable > 0n && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-brand p-5 text-white shadow-brand sm:p-6">
           <div>
             <div className="text-[13px] font-medium text-white/70">Salary waiting for you</div>
@@ -397,7 +411,6 @@ export default function DashboardPage() {
 
       <Card
         title="Holdings"
-        badge={<MockBadge>Mock tokens</MockBadge>}
         action={
           <Link href="/invest" className="text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
             Buy more
@@ -474,7 +487,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <Invitations />
+      {businessMode && <Invitations />}
 
       <Account canAct={viewer.canAct} wallet={viewer.address} />
     </>
