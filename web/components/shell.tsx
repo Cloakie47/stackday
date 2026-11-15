@@ -7,27 +7,82 @@ import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { BRAND } from "@/lib/brand";
 import { CHAIN_ID } from "@/lib/contracts";
 import { shortAddr } from "@/lib/format";
-import { useNames } from "@/lib/useAccount";
+import { useAccountState, useNames, type Role } from "@/lib/useAccount";
 import { LearnMore } from "./learn-more";
 import { useViewer } from "./providers";
 import { ThemeToggle } from "./theme";
 import { Button, cx } from "./ui";
 
-type NavItem = { href: string; label: string; short?: string; icon: string };
+type NavItem = { href: string; label: string; short?: string; icon: string; hideFor?: Role[] };
 
+// Each account type sees the pages that matter to it. Until someone has chosen (or when the
+// account database is off) everything is shown. Pages stay reachable by address.
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "Home", icon: "M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5M10 20v-5h4v5" },
-  { href: "/pay", label: "Get paid", icon: "M12 3v18M16.5 7.5h-6.25a2.75 2.75 0 000 5.5h3.5a2.75 2.75 0 010 5.5H7.5" },
+  { href: "/pay", label: "Get paid", hideFor: ["individual"], icon: "M12 3v18M16.5 7.5h-6.25a2.75 2.75 0 000 5.5h3.5a2.75 2.75 0 010 5.5H7.5" },
   { href: "/invest", label: "Invest", icon: "M4 19V5M4 19h16M8 15l4-5 3 3 5-7" },
   { href: "/borrow", label: "Borrow", icon: "M4 9h16v10H4zM8 9V6a4 4 0 018 0v3M12 13v2" },
   { href: "/risk", label: "Risk", icon: "M12 3l9 16H3zM12 10v4M12 17h.01" },
-  { href: "/employer", label: "Run payroll", icon: "M4 20v-2a5 5 0 0110 0v2M9 9a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6M20 20v-2a4 4 0 00-3-3.9" },
+  { href: "/employer", label: "Run payroll", hideFor: ["individual", "employee"], icon: "M4 20v-2a5 5 0 0110 0v2M9 9a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6M20 20v-2a4 4 0 00-3-3.9" },
   { href: "/demo", label: "Demo panel", icon: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M14 4v4M8 10v4M16 16v4" },
 ];
 const DOCS_ICON = "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5";
-/** The first four sit in the phone tab bar, the rest under "More". */
-const TABS = NAV.slice(0, 4);
-const MORE = NAV.slice(4);
+
+const ROLE_LABEL: Record<Role, string> = {
+  individual: "Individual account",
+  owner: "Business account · owner",
+  employee: "Business account · team member",
+};
+
+/** The nav for this account type. The first four sit in the phone tab bar, the rest under "More". */
+function navFor(role: Role | undefined) {
+  const items = NAV.filter((item) => !role || !item.hideFor?.includes(role));
+  // Business owners mostly run payroll, so it earns a tab on phones.
+  const ordered = role === "owner" ? [items[0], ...items.filter((i) => i.href === "/employer"), ...items.slice(1).filter((i) => i.href !== "/employer")] : items;
+  return { items: ordered, tabs: ordered.slice(0, 4), more: ordered.slice(4) };
+}
+
+/** Role, name and Stackday ID, linking to /start to switch. */
+function AccountChip({ className = "" }: { className?: string }) {
+  const account = useAccountState();
+  const { role, me } = account;
+  if (!role || !me) return null;
+  const name = (role === "owner" ? me.business?.name : null) ?? (me.profile.username ? `@${me.profile.username}` : "Your account");
+  return (
+    <Link
+      href="/start"
+      className={cx("block rounded-2xl border border-line px-3 py-2.5 transition-colors duration-150 hover:bg-sunken", className)}
+    >
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">{ROLE_LABEL[role]}</div>
+      <div className="mt-1 truncate text-sm font-semibold text-ink">{name}</div>
+      <div className="mt-0.5 flex items-center justify-between font-mono text-[11px] text-muted">
+        {me.profile.uid}
+        <span className="font-sans font-semibold text-brand-ink">Switch</span>
+      </div>
+    </Link>
+  );
+}
+
+/** Shown to a connected wallet that has not finished /start yet. */
+function SetupBanner() {
+  const account = useAccountState();
+  if (!account.needsSetup) return null;
+  return (
+    <div className="border-b border-line bg-brand-soft">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
+        <p className="text-sm text-brand-ink">
+          <strong>One step left.</strong> Choose an Individual or a Business account to get your Stackday ID.
+        </p>
+        <Link
+          href="/start"
+          className="inline-flex min-h-9 items-center rounded-full bg-brand px-4 text-[13px] font-semibold text-white transition-transform duration-150 active:scale-[0.97]"
+        >
+          Finish setting up
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function Icon({ d, className = "h-[18px] w-[18px]" }: { d: string; className?: string }) {
   return (
@@ -125,10 +180,10 @@ export function TestnetBanner() {
 }
 
 /** "More" on phones: a native <dialog> bottom sheet, so focus trapping and Escape come for free. */
-function MoreSheet({ isActive }: { isActive: (href: string) => boolean }) {
+function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; more: NavItem[] }) {
   const ref = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
-  const moreActive = MORE.some((m) => isActive(m.href));
+  const moreActive = more.some((m) => isActive(m.href)) || isActive("/start");
 
   useEffect(() => {
     ref.current?.close();
@@ -159,7 +214,7 @@ function MoreSheet({ isActive }: { isActive: (href: string) => boolean }) {
         <div className="px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-3">
           <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" aria-hidden />
           <nav aria-label="More pages" className="grid gap-1">
-            {MORE.map((item) => (
+            {more.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -181,6 +236,7 @@ function MoreSheet({ isActive }: { isActive: (href: string) => boolean }) {
             <Icon d={DOCS_ICON} />
             Docs
           </Link>
+          <AccountChip className="mt-4" />
           <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
             <span className="text-sm text-muted">Theme</span>
             <ThemeToggle />
@@ -200,6 +256,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const current = NAV.find((n) => isActive(n.href));
+  const { role } = useAccountState();
+  const { items, tabs, more } = navFor(role);
 
   return (
     <div className="min-h-dvh lg:pl-64">
@@ -209,7 +267,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <Logo />
         </div>
         <nav className="mt-9 flex flex-1 flex-col gap-0.5" aria-label="Main">
-          {NAV.map((item) => (
+          {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -224,6 +282,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        <AccountChip className="mb-4" />
         <div className="space-y-4">
           <Link
             href="/docs"
@@ -251,6 +310,8 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      <SetupBanner />
+
       <main
         id="main"
         key={pathname}
@@ -269,7 +330,7 @@ export function Shell({ children }: { children: ReactNode }) {
         aria-label="Main"
         className="glass fixed inset-x-0 bottom-0 z-20 flex border-t border-line px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] pt-1.5 lg:hidden"
       >
-        {TABS.map((item) => (
+        {tabs.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -283,7 +344,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {item.short ?? item.label}
           </Link>
         ))}
-        <MoreSheet isActive={isActive} />
+        <MoreSheet isActive={isActive} more={more} />
       </nav>
     </div>
   );

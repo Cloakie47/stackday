@@ -8,7 +8,7 @@ Live site: https://stackday-rho.vercel.app (Base Sepolia testnet demo)
 
 New here? Read docs/START-HERE.md first.
 
-Status: contracts are deployed on Base Sepolia (testnet) and the web app is live. Nothing is on Base mainnet and there has been no independent security audit. See docs/BRIEF.md for the idea and docs/PLAN.md for the plan, the core idea checklist and what is real versus mocked.
+Status: contracts are deployed on Base Sepolia (testnet) and the web app is live. Nothing is on Base mainnet and there has been no independent security audit. See docs/ANCHOR.md for what we are building and the status of each part, and docs/PLAN.md for the history.
 
 ## What it does
 
@@ -265,7 +265,7 @@ Split work by area so two people are not in the same files: for example one on `
 
 ### The docs each assistant should read first
 
-`docs/START-HERE.md`, then `CLAUDE.md` (the rules), then `docs/ANCHOR-DRAFT.md` and `docs/SECURITY-CHECKLIST.md`.
+`docs/START-HERE.md`, then `CLAUDE.md` (the rules), then `docs/ANCHOR.md` (what we are building and what is left) and `docs/SECURITY-CHECKLIST.md`.
 
 ## Feedback loop
 

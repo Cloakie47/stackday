@@ -7,11 +7,13 @@ export async function GET(request: Request) {
   if (!employer) return needSignIn();
   const { data, error } = await db()
     .from("employees")
-    .select("employee_wallet, name, role, salary_usdc")
+    .select("employee_wallet, name, role, salary_usdc, status")
     .eq("employer_wallet", employer)
     .order("created_at", { ascending: true });
   if (error) return json({ error: "Could not load the team." }, 500);
   return json({ employees: data ?? [] });
+  // Note: a new member starts as "invited". The business can pay them straight away, but it only
+  // sees their attendance once they accept (see /api/memberships and /api/attendance).
 }
 
 /** Add or update one team member. */
