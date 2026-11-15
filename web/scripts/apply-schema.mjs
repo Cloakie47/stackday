@@ -17,10 +17,10 @@ try {
   await client.connect();
   await client.query(sql);
   const { rows } = await client.query(
-    "select c.relname as table, c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('profiles','employees','attendance') order by 1",
+    "select c.relname as table, c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('profiles','employees','attendance','businesses') order by 1",
   );
   for (const r of rows) console.log(`table ${r.table}: row level security ${r.rls ? "ON" : "OFF"}`);
-  if (rows.length !== 3 || rows.some((r) => !r.rls)) throw new Error("schema check failed");
+  if (rows.length !== 4 || rows.some((r) => !r.rls)) throw new Error("schema check failed");
   console.log("Schema applied.");
 } catch (e) {
   console.error("Could not apply the schema:", e.message);
