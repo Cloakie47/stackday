@@ -29,14 +29,16 @@ export function originOf(url: string): string | null {
 }
 
 export function contentSecurityPolicy({ isDev, rpcUrl }: HeaderOptions): string {
-  const connect = new Set(["'self'", DEFAULT_RPC_URL]);
+  // Fairblock private pay: its SDK records each request with Fairblock's own service.
+  const connect = new Set(["'self'", DEFAULT_RPC_URL, "https://stabletrust-backend-api.fairblock.network"]);
   const rpc = originOf(rpcUrl);
   if (rpc) connect.add(rpc);
   if (isDev) connect.add("ws://localhost:*").add("ws://127.0.0.1:*");
 
   const directives = [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+    // wasm-unsafe-eval lets the Fairblock proof engine (WebAssembly) run; it does not allow eval of text.
+    `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",

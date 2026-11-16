@@ -1,5 +1,6 @@
 "use client";
 
+import { PrivatePay } from "@/components/private-pay";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
@@ -378,6 +379,7 @@ export default function PayPage() {
           </div>
         </Card>
       )}
+      <PrivatePay address={me} canAct={viewer.canAct} role="member" />
     </>
   );
 }

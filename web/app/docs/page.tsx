@@ -32,6 +32,7 @@ const SECTIONS: DocsSection[] = [
   { id: "vault", label: "Your vault and fees" },
   { id: "themes", label: "Themes and risk rules" },
   { id: "borrowing", label: "Borrowing and health" },
+  { id: "private-pay", label: "Private pay" },
   { id: "testnet", label: "Testnet: real and mocked" },
   { id: "contracts", label: "Contract addresses" },
   { id: "security", label: "Security and risks" },
@@ -402,6 +403,25 @@ export default function DocsPage() {
                   "Interest is set by the market, changes with demand, and is added to what you owe every second.",
                 ]}
               />
+            </Section>
+
+            <Section id="private-pay" title="Private pay">
+              <p>
+                Private pay hides salary amounts on chain using Fairblock&apos;s confidential transfers (StableTrust). It is
+                real on Base Sepolia, not mocked, and Fairblock also runs it on Base mainnet.
+              </p>
+              <p>
+                An employer moves USDC into a private balance, then pays each person an amount that is encrypted on chain.
+                Only the sender and the receiver can read it; each decrypts in their own browser with keys made from one
+                wallet signature. Wallet addresses still show. The receiver withdraws to their wallet whenever they like and
+                can then invest a share. Fairblock&apos;s network confirms each step, which can take a few minutes, and charges a
+                small fee on withdrawals.
+              </p>
+              <p>
+                Private pay runs beside {BRAND.name}&apos;s payroll contract, not inside it, because the keys live in each
+                person&apos;s browser and a contract cannot send a private payment on its own. {BRAND.name} never holds this money.
+                Amounts move in whole cents.
+              </p>
             </Section>
 
             <Section id="testnet" title="Testnet: real and mocked">

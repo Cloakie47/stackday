@@ -12,8 +12,8 @@ test("production headers block framing, sniffing and outside scripts", () => {
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /object-src 'none'/);
   assert.match(csp, /base-uri 'self'/);
-  assert.match(csp, /script-src 'self' 'unsafe-inline'(;|$)/);
-  assert.doesNotMatch(csp, /unsafe-eval/);
+  assert.match(csp, /script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'(;|$)/);
+  assert.doesNotMatch(csp, /'unsafe-eval'/);
   assert.equal(get(h, "X-Frame-Options"), "DENY");
   assert.equal(get(h, "X-Content-Type-Options"), "nosniff");
   assert.equal(get(h, "Referrer-Policy"), "strict-origin-when-cross-origin");
@@ -21,9 +21,9 @@ test("production headers block framing, sniffing and outside scripts", () => {
 });
 
 test("the browser may reach the chain RPC, including a custom one", () => {
-  assert.match(contentSecurityPolicy(prod), /connect-src 'self' https:\/\/sepolia\.base\.org(;|$)/);
+  assert.match(contentSecurityPolicy(prod), /connect-src 'self' https:\/\/sepolia\.base\.org https:\/\/stabletrust-backend-api\.fairblock\.network(;|$)/);
   const custom = contentSecurityPolicy({ isDev: false, rpcUrl: "https://rpc.example.org/v1/abc?key=1" });
-  assert.match(custom, /connect-src 'self' https:\/\/sepolia\.base\.org https:\/\/rpc\.example\.org;/);
+  assert.match(custom, /connect-src 'self' https:\/\/sepolia\.base\.org https:\/\/stabletrust-backend-api\.fairblock\.network https:\/\/rpc\.example\.org;/);
   // A key in the RPC path or query never ends up in the header.
   assert.doesNotMatch(custom, /abc|key=1/);
 });

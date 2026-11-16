@@ -46,6 +46,7 @@ Built, tested and live on testnet:
 | Payroll | Employer treasury, pay once or on a schedule (daily, weekly, 2 weeks, monthly), claim to any wallet | src/Payroll.sol |
 | Payday investing | A share of each salary into one or several assets, once or every payday | src/Payroll.sol |
 | Vault | One vault per person, no admin, no pooled money | src/EmployeeVault.sol, src/VaultFactory.sol |
+| Private pay | Employer pays an encrypted amount, person withdraws, through Fairblock StableTrust (real on Base Sepolia, beside Payroll) | web/lib/confidential.ts, web/components/private-pay.tsx |
 | Borrowing | Lock collateral as one basket of any assets, then borrow, repay, unlock, withdraw through real Morpho markets. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
@@ -64,7 +65,7 @@ What is real and what is mocked on testnet:
 
 - The Themes layer (news and sentiment, stocks by theme, rebalancing). Selling is not possible in the contracts yet: they only buy.
 - Aave, for borrowing or for interest.
-- Confidential salaries.
+- Confidential salaries inside the Payroll contract (a testnet preview runs beside it through Fairblock).
 - An automation service to release paydays. Today someone presses a button when a payday is due.
 - The six security fixes in docs/SECURITY-CHECKLIST.md.
 - The submission pack (README polish, video script, X posts, form answers).

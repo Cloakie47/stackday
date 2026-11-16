@@ -53,7 +53,7 @@ This is the paragraph the build is checked against, followed by the numbered par
 | 14 | Borrow against holdings through Morpho and Aave instead of selling | Built on Morpho. Aave NOT built. Collateral basket on the Borrow page: lock any mix of assets first (one total, one limit), then borrow; each borrow and repay is split across the Morpho markets so every part has the same health. Each asset is still its own market and can be liquidated on its own; the page says so |
 | 15 | Every payday adds collateral, the loan gets safer | Built, tested |
 | 16 | Themes: news and sentiment, stocks by theme, rebalancing | NOT built (see open question B) |
-| 17 | Confidential salaries | Next step, not built |
+| 17 | Confidential salaries | Testnet preview built (founder approved November 16, 2026): Private pay card on the Payroll and My pay pages using Fairblock StableTrust confidential transfers, real on Base Sepolia (contract 0xb6cdAE7ccfEE03e351694c63436D5c5c073aEF84, also live on Base mainnet). Employer moves USDC into a private balance and pays each person an encrypted amount; the person withdraws and can then invest. Runs beside the Payroll contract, not inside it (keys live in each browser). Proof script: web/scripts/fairblock-e2e.mjs |
 
 Supporting parts that stay required: one risk screen with a stress test, honest labels on everything mocked, the fixed fee, attendance as a record only, and the safety checks in docs/SECURITY-CHECKLIST.md.
 

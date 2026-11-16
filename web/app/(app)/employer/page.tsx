@@ -1,5 +1,6 @@
 "use client";
 
+import { PrivatePay } from "@/components/private-pay";
 import Link from "next/link";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
@@ -572,6 +573,8 @@ export default function EmployerPage() {
           </div>
         )}
       </Card>
+
+      <PrivatePay address={me} canAct={viewer.canAct} role="employer" team={team.filter((m) => isAddress(m.wallet)).map((m) => ({ wallet: m.wallet, name: m.name }))} />
 
       <Card title="Past paydays">
         <PastRuns employer={me} />
