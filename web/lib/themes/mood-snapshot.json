@@ -1,0 +1,354 @@
+{
+  "kind": "snapshot",
+  "asOf": "2026-11-15",
+  "label": "Snapshot for the demo, built by hand on November 15, 2026 from public headlines. Not live data, not investment advice.",
+  "method": "Built by hand on November 15, 2026. For each of the 14 catalog tickers we searched the web for recent, publicly reported news (company results releases, SEC EDGAR filings and news sites, dated October 21 to November 12, 2026) and opened every page we cite; each evidence quote is copied from that page and is at most 25 words. Each article was scored by hand with the same strict schema the model will use (event type, direction -1 to 1, materiality 0 to 1, confidence 0 to 1, opinion or not). Market commentary is marked as opinion, so its materiality counts at most 0.2. Mood per asset is aggregateMood in web/lib/themes/mood.ts at the asOf date: sum(direction x materiality x confidence x source trust x e^(-age / 3 days)) / sum(weights), clamped to -1..1. Source trust: SEC EDGAR filings 1.0, press-release and news wires 0.9, other sites and company newsrooms 0.6, social 0.3. materialRisk is materialRiskFlag: a negative item with materiality 0.7 or more, confirmed by an SEC filing or by 2 independent sources, within 14 days of asOf. valueScore is 0 for every asset: no verified price history (52-week high, 200-day average) is wired in yet, so no value reading is guessed. hype is false for every asset: no mention-volume spike or Fear and Greed reading above 80 was measured. Moods and flags are frozen at this date and will go stale. Not live data, not investment advice.",
+  "assets": {
+    "AAPLc": {
+      "valueScore": 0,
+      "mood": 0.5,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "AAPLc",
+          "event_type": "earnings",
+          "direction": 0.5,
+          "materiality": 0.6,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "The Company posted quarterly revenue of $114.5 billion, up 12 percent year over year.",
+          "title": "Apple reports fourth quarter results",
+          "source": "Apple Newsroom",
+          "url": "https://www.apple.com/newsroom/2026/11/apple-reports-fourth-quarter-results/",
+          "publishedAt": "2026-11-02"
+        }
+      ]
+    },
+    "AMZNc": {
+      "valueScore": 0,
+      "mood": 0.5,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "AMZNc",
+          "event_type": "earnings",
+          "direction": 0.5,
+          "materiality": 0.6,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "AWS segment sales increased 39% year-over-year to $46.0 billion.",
+          "title": "Amazon Q3 2026 earnings report: Read the release",
+          "source": "About Amazon",
+          "url": "https://www.aboutamazon.com/news/company-news/amazon-earnings-q3-2026-report",
+          "publishedAt": "2026-10-29"
+        }
+      ]
+    },
+    "GOOGLc": {
+      "valueScore": 0,
+      "mood": 0.5,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "GOOGLc",
+          "event_type": "earnings",
+          "direction": 0.5,
+          "materiality": 0.6,
+          "confidence": 0.85,
+          "is_opinion": false,
+          "evidence_quote": "Google Cloud revenues grew 103%, powered by huge demand for our AI infrastructure and AI solutions.",
+          "title": "Alphabet reports Q3 2026 revenue of $127.6 billion",
+          "source": "9to5Google",
+          "url": "https://9to5google.com/2026/10/28/alphabet-q3-2/",
+          "publishedAt": "2026-10-28"
+        }
+      ]
+    },
+    "METAc": {
+      "valueScore": 0,
+      "mood": 0,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "METAc",
+          "event_type": "earnings",
+          "direction": 0.4,
+          "materiality": 0.6,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "Revenue was $64.60 billion, an increase of 26% year-over-year on both a reported and constant currency basis.",
+          "title": "Meta Reports Third Quarter 2026 Results",
+          "source": "Meta Investor Relations (PR Newswire)",
+          "url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Third-Quarter-2026-Results/default.aspx",
+          "publishedAt": "2026-10-21"
+        },
+        {
+          "ticker": "METAc",
+          "event_type": "legal",
+          "direction": -0.4,
+          "materiality": 0.6,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "We are raising our expense outlook to incorporate the $9.9 billion charge related to legal proceedings recognized in the third quarter.",
+          "title": "Meta Reports Third Quarter 2026 Results",
+          "source": "Meta Investor Relations (PR Newswire)",
+          "url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Third-Quarter-2026-Results/default.aspx",
+          "publishedAt": "2026-10-21"
+        }
+      ]
+    },
+    "MSFTc": {
+      "valueScore": 0,
+      "mood": 0.5,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "MSFTc",
+          "event_type": "earnings",
+          "direction": 0.5,
+          "materiality": 0.6,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "Revenue was $92.3 billion and increased 19%",
+          "title": "Microsoft Announces First Quarter Results",
+          "source": "Microsoft Investor Relations",
+          "url": "https://www.microsoft.com/en-us/investor/earnings/fy-2027-q1/press-release-webcast",
+          "publishedAt": "2026-10-28"
+        }
+      ]
+    },
+    "NVDAc": {
+      "valueScore": 0,
+      "mood": -0.6,
+      "hype": false,
+      "materialRisk": true,
+      "items": [
+        {
+          "ticker": "NVDAc",
+          "event_type": "legal",
+          "direction": -0.6,
+          "materiality": 0.7,
+          "confidence": 0.8,
+          "is_opinion": false,
+          "evidence_quote": "Nvidia stock tumbled in early trading after the company launched an internal investigation into whether CEO Jensen Huang had been targeted",
+          "title": "Nvidia shares slump amid investigation into CEO Jensen Huang",
+          "source": "Al Jazeera",
+          "url": "https://www.aljazeera.com/economy/2026/11/9/nvidia-shares-slump-amid-investigation-into-ceo-jensen-huang",
+          "publishedAt": "2026-11-09"
+        },
+        {
+          "ticker": "NVDAc",
+          "event_type": "other",
+          "direction": -0.6,
+          "materiality": 0.7,
+          "confidence": 0.7,
+          "is_opinion": false,
+          "evidence_quote": "shares fell 8.2% in after-hours trading on Wednesday after The Wall Street Journal reported that the company's board is preparing to oust CEO Jensen Huang",
+          "title": "Nvidia shares fall 8% after hours as its board is reportedly preparing to oust CEO Jensen Huang",
+          "source": "Stock Analysis",
+          "url": "https://stockanalysis.com/news/nvidia-board-prepares-to-oust-jensen-huang/",
+          "publishedAt": "2026-11-11"
+        },
+        {
+          "ticker": "NVDAc",
+          "event_type": "other",
+          "direction": -0.6,
+          "materiality": 0.85,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "Jensen Huang has resigned as President, Chief Executive Officer, and a member of the Board, effective immediately.",
+          "title": "NVIDIA Announces CEO Transition (Form 8-K exhibit)",
+          "source": "SEC EDGAR",
+          "url": "https://www.sec.gov/Archives/edgar/data/0001045810/000104581026000082/nvidiaannouncesceotransiti.htm",
+          "publishedAt": "2026-11-12"
+        }
+      ]
+    },
+    "INTCc": {
+      "valueScore": 0,
+      "mood": 0.254,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "INTCc",
+          "event_type": "earnings",
+          "direction": 0.5,
+          "materiality": 0.6,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "Third-quarter revenue was $16.5 billion, up 21% year-over-year (YoY).",
+          "title": "Intel Reports Third-Quarter 2026 Financial Results (Form 8-K exhibit)",
+          "source": "SEC EDGAR",
+          "url": "https://www.sec.gov/Archives/edgar/data/0000050863/000005086326000188/q326earningsrelease.htm",
+          "publishedAt": "2026-10-29"
+        },
+        {
+          "ticker": "INTCc",
+          "event_type": "guidance",
+          "direction": -0.3,
+          "materiality": 0.5,
+          "confidence": 0.8,
+          "is_opinion": false,
+          "evidence_quote": "we see the PC slowdown continuing at least through the first half of next year",
+          "title": "Intel Reports Third-Quarter 2026 Financial Results",
+          "source": "Intel Investor Relations",
+          "url": "https://www.intc.com/news-events/press-releases/detail/1786/intel-reports-third-quarter-2026-financial-results",
+          "publishedAt": "2026-10-29"
+        }
+      ]
+    },
+    "SNDKc": {
+      "valueScore": 0,
+      "mood": 0.6,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "SNDKc",
+          "event_type": "earnings",
+          "direction": 0.6,
+          "materiality": 0.6,
+          "confidence": 0.9,
+          "is_opinion": false,
+          "evidence_quote": "Fiscal first quarter revenue was $11.0 billion, up 23% sequentially",
+          "title": "Sandisk Reports Fiscal First Quarter 2027 Financial Results",
+          "source": "Business Wire (via Finviz)",
+          "url": "https://finviz.com/news/412099/sandisk-reports-fiscal-first-quarter-2027-financial-results",
+          "publishedAt": "2026-10-29"
+        }
+      ]
+    },
+    "TSLAc": {
+      "valueScore": 0,
+      "mood": -0.2,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "TSLAc",
+          "event_type": "earnings",
+          "direction": -0.2,
+          "materiality": 0.5,
+          "confidence": 0.8,
+          "is_opinion": false,
+          "evidence_quote": "On a GAAP basis, net income dropped 43% to $787 million, or $0.22 per share.",
+          "title": "Tesla (TSLA) releases Q3 2026 financial results: margins rebound, profit still falls",
+          "source": "Electrek",
+          "url": "https://electrek.co/2026/10/21/tesla-tsla-q3-2026-financial-results/",
+          "publishedAt": "2026-10-21"
+        }
+      ]
+    },
+    "SPCXc": {
+      "valueScore": 0,
+      "mood": -0.3,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "SPCXc",
+          "event_type": "regulation",
+          "direction": -0.3,
+          "materiality": 0.4,
+          "confidence": 0.7,
+          "is_opinion": false,
+          "evidence_quote": "Shares of the rocket, satellite, and AI company fell about 13% through two trading sessions following Tuesday's sweeping midterm victory for the Democratic Party.",
+          "title": "Why SpaceX Stock Is Up Today",
+          "source": "The Motley Fool",
+          "url": "https://www.fool.com/investing/2026/11/06/why-spacex-stock-is-up-today/",
+          "publishedAt": "2026-11-06"
+        }
+      ]
+    },
+    "MSTRc": {
+      "valueScore": 0,
+      "mood": 0.3,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "MSTRc",
+          "event_type": "earnings",
+          "direction": 0.3,
+          "materiality": 0.4,
+          "confidence": 0.7,
+          "is_opinion": false,
+          "evidence_quote": "The Bitcoin treasury company reported $44.75 in diluted earnings per share, driven by a $20.9 billion gain on digital assets",
+          "title": "Strategy reports $19.5B Q3 profit on Bitcoin gains as MSTR slips 2.5% after hours",
+          "source": "Crypto Briefing",
+          "url": "https://cryptobriefing.com/bitcoin-gains-q3-strategy-insights/",
+          "publishedAt": "2026-10-29"
+        }
+      ]
+    },
+    "CRCLc": {
+      "valueScore": 0,
+      "mood": 0.3,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "CRCLc",
+          "event_type": "earnings",
+          "direction": 0.3,
+          "materiality": 0.5,
+          "confidence": 0.85,
+          "is_opinion": false,
+          "evidence_quote": "Average USDC in circulation of $73.3 billion increased 8% year-over-year",
+          "title": "Circle Reports Third Quarter 2026 Results",
+          "source": "Business Wire (via FinancialContent)",
+          "url": "https://www.financialcontent.com/article/bizwire-2026-11-4-circle-reports-third-quarter-2026-results",
+          "publishedAt": "2026-11-04"
+        }
+      ]
+    },
+    "cbBTC": {
+      "valueScore": 0,
+      "mood": -0.4,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "cbBTC",
+          "event_type": "macro",
+          "direction": -0.4,
+          "materiality": 0.4,
+          "confidence": 0.7,
+          "is_opinion": false,
+          "evidence_quote": "US spot Bitcoin ETFs lost $1.28 billion over the week, their largest weekly exit in 19 weeks.",
+          "title": "Bitcoin Weekly: Midterms, Chip Rout and ETF Outflows",
+          "source": "PandaForecast",
+          "url": "https://pandaforecast.com/crypto-news/bitcoin-midterm-bounce-chip-rout-liquidations-etf-outflows/",
+          "publishedAt": "2026-11-07"
+        }
+      ]
+    },
+    "WETH": {
+      "valueScore": 0,
+      "mood": -0.4,
+      "hype": false,
+      "materialRisk": false,
+      "items": [
+        {
+          "ticker": "WETH",
+          "event_type": "macro",
+          "direction": -0.4,
+          "materiality": 0.4,
+          "confidence": 0.7,
+          "is_opinion": true,
+          "evidence_quote": "Ethereum came under renewed pressure as Waller's hawkish remarks and a 0.3% Core CPI reading triggered a hawkish repricing",
+          "title": "Ethereum extends losses as Fed's Waller puts a larger rate hike on the table and US CPI remains hot",
+          "source": "investingLive",
+          "url": "https://investinglive.com/cryptocurrency/ethereum-extends-losses-as-fed-s-waller-puts-a-larger-rate-hike-on-the-table-and-us-cpi-remains-hot/",
+          "publishedAt": "2026-11-11"
+        }
+      ]
+    }
+  }
+}
