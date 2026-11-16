@@ -57,7 +57,7 @@ export const THEMES: Theme[] = [
   {
     id: "big-tech",
     name: "Big tech core",
-    thesis: "The largest US tech companies, as a steady core.",
+    thesis: "The largest US tech companies.",
     tickers: ["AAPLc", "AMZNc", "GOOGLc", "MSFTc", "METAc"],
   },
   {
