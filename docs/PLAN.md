@@ -309,5 +309,14 @@ Notes:
 - The Supabase database is now connected on the live site. Names, team lists and attendance work and were tested with 21 checks against the real database (web/scripts/test-account-api.sh). The public cannot read or write the tables directly. The rows in section 16 that say "NOT connected" are out of date.
 - All work is committed to a private GitHub repository: https://github.com/Cloakie47/stackday
 - docs/SECURITY-CHECKLIST.md: self-assessment against 20 common web attack types, with a fix list of six items, none done yet.
-- docs/ANCHOR-DRAFT.md: a wider anchor proposed by the founder (account types, unique IDs, business profiles, Themes). Waiting for approval. The anchor in docs/BRIEF.md stays in force until then.
+- docs/ANCHOR.md (first written as ANCHOR-DRAFT.md): a wider anchor proposed by the founder (account types, unique IDs, business profiles, Themes).
 - docs/START-HERE.md: one-page overview and plan for contributors.
+
+## 18. New anchor approved (November 15, 2026)
+
+- The founder approved the wider anchor as drafted. It is now the anchor in force: docs/ANCHOR.md, with the paragraph repeated in docs/BRIEF.md and CLAUDE.md. The earlier paragraph is kept at the end of docs/BRIEF.md.
+- Sections 1 to 17 of this file were checked against the earlier anchor. From here on, the status table to keep current is the one in docs/ANCHOR.md section 2.
+- What the new anchor makes core that was an extension before: Bitcoin and Ether tokens, investing without an employer, unique IDs and profiles.
+- What it adds that is not built: Individual or Business choice, automatic unique ID and profile, business name and description, role-based dashboards, finding people, Themes.
+- The founder did not answer the draft's open questions, so its assumptions stand as working assumptions (docs/ANCHOR.md section 3). One of them, whether an employee must accept being added to a team, has a security recommendation attached.
+- Next: the account flow (anchor parts 2 to 6), then the security fix list, then Themes.

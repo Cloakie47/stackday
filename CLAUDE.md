@@ -1,12 +1,12 @@
 # Stackday
 
-Payroll on Base that turns payday into tokenized stock investing, with borrowing against the stocks. Hackathon entry for Base "Stocks Maxxing", Track 3, idea 3.3 (stock-backed loans). Deadline December 5, 2026. Full brief: docs/BRIEF.md. Plan: docs/PLAN.md.
+Payroll and investing on Base: payday turns into tokenized stock investing, with borrowing against the holdings. Hackathon entry for Base "Stocks Maxxing", Track 3, idea 3.3 (stock-backed loans). Deadline December 5, 2026. Full brief: docs/BRIEF.md. Plan: docs/PLAN.md.
 
-## Core idea (canonical, do not drift from it)
+## Core idea (the anchor, approved by the founder on November 15, 2026, do not drift from it)
 
-A payroll platform for teams paid in USDC on Base that turns every payday into an investment. Employers pay salaries, employees claim to any wallet they choose, and before claiming they can send a share of their salary, once or on every payday, into Coinbase tokenized stocks held in a vault only they control. The position grows through automatically reinvested dividends, and idle USDC can earn interest on Morpho or Aave. When cash is needed, the employee borrows USDC against their stocks through the existing Morpho and Aave markets instead of selling, and because every payday adds more collateral, the loan gets safer as the weeks go by. Confidential salary payments are planned as the next step (reference: https://docs.fairblock.network/ct/how-it-works/compliance).
+Stackday is a payroll and investing app on Base. After connecting a wallet on the landing page, each person chooses an Individual or a Business account and gets a profile with a unique ID. Businesses fund a USDC treasury and pay their team once or on a schedule, and employees claim to any wallet they choose. Before claiming, an employee can send a share of their salary, once or on every payday, into Coinbase tokenized stocks (and Bitcoin or Ether tokens) held in a vault only they control. Individuals without an employer invest the same way, on a regular schedule from their own wallet. Positions grow through automatically reinvested dividends, and idle USDC can earn interest on Morpho or Aave. When cash is needed, the person borrows USDC against their holdings through the existing Morpho and Aave markets instead of selling, and because every payday adds more collateral, the loan gets safer as the weeks go by. A Themes layer reads market news and sentiment, suggests tokenized stocks by the themes a person cares about, and proposes rebalances from time to time. Confidential salary payments are planned as the next step. (Confidentiality reference: https://docs.fairblock.network/ct/how-it-works/compliance)
 
-A manager will verify the build against this paragraph. Every contract, screen and feature must map to a sentence in it. Keep the "Core idea checklist" in docs/PLAN.md up to date whenever something is built, changed or dropped, and do not add features that do not trace back to it.
+A manager will verify the build against this paragraph. Every contract, screen and feature must map to a sentence in it. The numbered parts, their status and the working assumptions are in docs/ANCHOR.md: keep that status table up to date whenever something is built, changed or dropped, and do not add features that do not trace back to the anchor.
 
 ## Working with the user
 
@@ -21,6 +21,7 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - We do NOT build a lending protocol. Borrowing goes through an existing market (Morpho on Base first choice).
 - No forced repayment. Repay is manual. SIP share is optional (one time or every payday).
 - Emergency rule: if the loan is near liquidation, the whole next SIP share goes to collateral.
+- New buys are never locked as collateral automatically (founder decision, issue #29). The person locks them; only the opt-in emergency rule locks by itself.
 - Withdraw any time after repaying the loan against the position.
 - Lending venues: Morpho first, Aave second, both behind the same lending adapter interface.
 - Idle USDC yield: founder decided it is USDC in the employee own vault that earns (not unclaimed salary). Built behind IYieldAdapter.
@@ -63,17 +64,17 @@ A manager will verify the build against this paragraph. Every contract, screen a
 
 - src/Payroll.sol: employer treasury, one-off runs, recurring schedules (createSchedule, runSchedule), claim, multi-asset SIP plans, emergency rule
 - src/EmployeeVault.sol, src/VaultFactory.sol: one ownerless vault per employee (also holds idle USDC earning interest: earn, stopEarning)
-- src/SipRouter.sol: SIP for non-payroll users (one-time buys, and one recurring plan per asset, into their own vault). Founder-requested extension beyond the canonical paragraph
+- src/SipRouter.sol: SIP for Individuals without an employer (one-time buys, and one recurring plan per asset, into their own vault)
 - src/adapters: MorphoLendingAdapter (real), SlipstreamSwapAdapter (real, mainnet), ERC4626YieldAdapter (Morpho vaults), ChainlinkPriceAdapter, FeedOracle
 - src/mocks/Mocks.sol: testnet-only mocks (these do have an owner, on purpose)
 - test/fixtures: real Morpho and interest rate model bytecode copied from Base
 - web/: Next.js app. lib/usePortfolio.ts loads everything for one address, lib/useTx.ts sends transactions (simulates first, adds 60 percent gas), app/employer, app/employee, app/risk are the pages. Read web/AGENTS.md before changing Next.js code: this Next.js version differs from older ones.
 - web/app/api + web/lib/server/backend.ts + supabase/schema.sql: optional account database (Supabase) for unique names, team lists and attendance. Server-only secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SESSION_SECRET. Sign-in is a wallet signature checked on the server. The site must keep working when these are not set. Never ask for these keys in chat.
-- Assets: "stock" in contract names means any supported asset. Testnet has mAAPL, mNVDA (8 decimals, 62.5 percent limit) and mcbBTC (8), mWETH (18) at 86 percent. The site reads the list from web/lib/deployment.json. Never assume 8 decimals: use the asset's own.
-- BTC, ETH, names, attendance and the non-payroll path are founder-requested extensions beyond the canonical paragraph. Keep them flagged as such in docs/PLAN.md.
+- Assets: "stock" in contract names means any supported asset. Testnet has seven stocks, mAAPL, mNVDA, mTSLA, mMSFT, mAMZN, mGOOGL, mMETA (8 decimals, 62.5 percent limit), and mcbBTC (8), mWETH (18) at 86 percent. Coinbase lists no index funds or ETFs as tokenized stocks (checked November 16, 2026). The site reads the list from web/lib/deployment.json. Never assume 8 decimals: use the asset's own.
+- BTC and ETH tokens, unique IDs and profiles, and investing without an employer are part of the anchor since November 15, 2026. Attendance is a supporting feature, not in the anchor paragraph.
 - Design: do not install design skills from the internet. Only reviewed catalog plugins if the founder enables them.
 - When click-testing on anvil, its clock only advances on a transaction: run `cast rpc evm_mine` before testing anything time-based.
-- docs/START-HERE.md is the overview and plan for contributors: keep its status tables current. docs/ANCHOR-DRAFT.md is a proposed wider anchor awaiting founder approval: do not build from it or replace the core idea above until the founder approves. docs/SECURITY-CHECKLIST.md holds the security fix list.
+- docs/START-HERE.md is the overview and plan for contributors: keep its status tables current. docs/ANCHOR.md is the approved anchor with its parts, status and working assumptions. docs/SECURITY-CHECKLIST.md holds the security fix list.
 - The Supabase database is connected on the live site (keys supplied by Vercel's Supabase integration: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET as the session secret fallback). Test with `bash web/scripts/test-account-api.sh <base-url>`, then clean up with web/scripts/cleanup-test-rows.mjs.
 
 ## Team workflow (two contributors, each with their own Claude)

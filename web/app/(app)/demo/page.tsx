@@ -1,20 +1,23 @@
 "use client";
 
+import { AssetSelect } from "@/components/asset-select";
+import { LearnMore } from "@/components/learn-more";
 import { useState } from "react";
 import { erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
-import { AddressLink, AssetIcon, Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Row, TxStatus } from "@/components/ui";
+import { AddressLink, Button, Card, Field, MockBadge, Notice, PageHeader, Row, TxStatus } from "@/components/ui";
 import { mockFeedAbi, mockStockAbi, mockSwapAbi, payrollAbi } from "@/lib/abis";
 import { ADDR, ASSETS } from "@/lib/contracts";
 import { fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 const STORY = [
-  "Run payroll: add yourself to the team, fund the treasury and start a schedule (or pay once).",
-  "Get paid: claim with 10% or 20% going to work. The assets land in your vault (deposit).",
-  "Borrow: take a USDC loan against one of them.",
+  "Payroll: add yourself to the team, fund the treasury and start a schedule (or pay once).",
+  "My pay: claim with 10% or 20% going to work. The assets land in your vault (deposit).",
+  "Borrow: lock some of them, then borrow USDC against them.",
   "Here: drop that asset's price 30%. Open Risk and watch loan health fall.",
   "Here: pause transfers. On Borrow, repaying still works but withdrawing does not.",
   "Here: resume transfers and recover the price.",
@@ -58,7 +61,7 @@ export default function DemoPage() {
     if (!viewer.address) return;
     const amount = parseUsdc(payday);
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, amount, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, amount, `Allow ${BRAND.name} to take the USDC`)),
       {
         label: "Create a payday for this wallet",
         address: ADDR.payroll,
@@ -67,14 +70,18 @@ export default function DemoPage() {
         args: [amount, [viewer.address], [amount]],
       },
     ];
-    await tx.run(calls, "New payday created. Claim it on Get paid.");
+    await tx.run(calls, "New payday created. Claim it on My pay.");
   }
 
   return (
     <>
       <PageHeader
         title="Demo panel"
-        lead="Switches that exist only so the stress scenarios can be shown in a few minutes. They change the mock tokens, the mock price feeds and the mock exchange. They cannot touch anyone's vault, salary or loan, and none of this exists in the real Stackday contracts."
+        lead={
+          <>
+            Testnet switches to show stress scenarios. They only change mocks. <LearnMore href="/docs#demo" />
+          </>
+        }
         aside={<MockBadge>Testnet only</MockBadge>}
       />
 
@@ -99,13 +106,7 @@ export default function DemoPage() {
       </Card>
 
       <Card title="Market switches" badge={<MockBadge />}>
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Asset">
-          {p.positions.map((x) => (
-            <Chip key={x.asset.symbol} active={x.asset.symbol === symbol} onClick={() => setSymbol(x.asset.symbol)}>
-              <AssetIcon asset={x.asset} size={20} /> {x.asset.name}
-            </Chip>
-          ))}
-        </div>
+        <AssetSelect label="Asset" assets={p.positions.map((x) => x.asset)} value={symbol} onChange={setSymbol} />
         <div className="mt-4">
           <Row label="Price now">${fmtPrice(pos.price)}</Row>
           <Row label="Starting price">${fmtPrice(asset.startPrice)}</Row>
@@ -188,8 +189,7 @@ export default function DemoPage() {
 
       <Card title="Quick payday">
         <p className="text-sm leading-relaxed text-muted">
-          Creates a one-off payday that pays the connected wallet from its own test USDC. Any wallet can do this: it is
-          the normal employer function, shown here as a shortcut.
+          Pays the connected wallet from its own test USDC.
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
           <Field label="Salary" inputMode="decimal" suffix="USDC" value={payday} onChange={(e) => setPayday(e.target.value)} hint={`Wallet: ${fmtUsdc(p.walletUsdc)} USDC.`} />

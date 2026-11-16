@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { isAddress, type ContractFunctionParameters } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
@@ -8,12 +11,23 @@ import { Button, Card, Empty, Field, Money, Notice, PageHeader, Row, Segmented, 
 import { payrollAbi } from "@/lib/abis";
 import { ADDR, MIN_SCHEDULE_INTERVAL, type Address } from "@/lib/contracts";
 import { fmtUsdc, intervalLabel, parseUsdc, shortAddr, until } from "@/lib/format";
-import { useLastDays, useAttendance, useNames, useSession, useTeam, type TeamMember } from "@/lib/useAccount";
+import {
+  saveBusiness,
+  searchPeople,
+  useAccountState,
+  useAttendance,
+  useLastDays,
+  useNames,
+  useTeam,
+  type Person,
+  type TeamMember,
+} from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 const INTERVALS = [
-  ...(MIN_SCHEDULE_INTERVAL <= 60 ? [{ value: "60", label: "Every minute (demo only)" }] : []),
+  ...(MIN_SCHEDULE_INTERVAL <= 60 ? [{ value: "60", label: "Every minute (testnet)" }] : []),
   { value: "86400", label: "Daily" },
   { value: "604800", label: "Weekly" },
   { value: "1209600", label: "Every 2 weeks" },
@@ -48,12 +62,178 @@ function PastRuns({ employer }: { employer?: string }) {
   );
 }
 
+function BusinessProfile() {
+  const account = useAccountState();
+  const queryClient = useQueryClient();
+  const business = account.me?.business;
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+
+  if (!account.session.configured || !account.session.signedIn) return null;
+
+  async function save() {
+    setSaving(true);
+    setError(undefined);
+    try {
+      await saveBusiness(name, description);
+      await queryClient.invalidateQueries();
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!business && !editing)
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-brand-soft p-5">
+        <p className="max-w-lg text-sm text-brand-dark">
+          <strong>Add your business name.</strong> Your team will see it instead of a wallet address.
+        </p>
+        <Button size="sm" onClick={() => setEditing(true)}>
+          Add business details
+        </Button>
+      </div>
+    );
+
+  return (
+    <Card
+      title={editing ? "Business details" : (business?.name ?? "Business details")}
+      action={
+        !editing ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setName(business?.name ?? "");
+              setDescription(business?.description ?? "");
+              setEditing(true);
+            }}
+          >
+            Edit
+          </Button>
+        ) : undefined
+      }
+    >
+      {!editing ? (
+        <p className="text-sm leading-relaxed text-muted">
+          {business?.description || "No description yet."}
+          {account.me && (
+            <span className="mt-2 block font-mono text-xs">Your Stackday ID: {account.me.profile.uid}</span>
+          )}
+        </p>
+      ) : (
+        <div className="grid gap-4">
+          <Field label="Business name" placeholder="Northwind Studio" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+          <Field
+            label="What does it do? (optional)"
+            placeholder="A short description your team will see."
+            value={description}
+            maxLength={400}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button variant="ink" disabled={saving || name.trim().length < 2} onClick={save}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Find a person by Stackday ID, name or wallet address, instead of pasting an address. */
+function FindPeople({ onPick, already }: { onPick: (p: Person) => void; already: string[] }) {
+  const [q, setQ] = useState("");
+  const [people, setPeople] = useState<Person[]>();
+  const [hint, setHint] = useState<string>();
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const text = q.trim();
+    if (text.length < 2) {
+      setPeople(undefined);
+      setHint(undefined);
+      return;
+    }
+    let cancelled = false;
+    setBusy(true);
+    const timer = setTimeout(async () => {
+      try {
+        const r = await searchPeople(text);
+        if (!cancelled) {
+          setPeople(r.people);
+          setHint(r.hint);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setPeople([]);
+          setHint(e instanceof Error ? e.message : "Search failed.");
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [q]);
+
+  return (
+    <div>
+      <Field
+        label="Find someone on Stackday"
+        placeholder="Stackday ID (SD-7K3F9Q2M), name, or wallet address"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        hint={busy ? "Searching…" : hint}
+      />
+      {people && people.length === 0 && !busy && !hint && (
+        <p className="mt-2 text-sm text-muted">
+          Nobody found. Ask them to open Stackday, press Get started and send you their Stackday ID.
+        </p>
+      )}
+      {people && people.length > 0 && (
+        <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line">
+          {people.map((person) => {
+            const added = already.includes(person.wallet.toLowerCase());
+            return (
+              <li key={person.wallet} className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{person.username ? `@${person.username}` : "No name chosen"}</div>
+                  <div className="font-mono text-xs text-muted">
+                    {person.uid} · {shortAddr(person.wallet)}
+                  </div>
+                </div>
+                <Button size="sm" variant="secondary" disabled={added} onClick={() => { onPick(person); setQ(""); }}>
+                  {added ? "On your team" : "Use this person"}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function EmployerPage() {
   const viewer = useViewer();
   const me = viewer.address;
   const p = usePortfolio(me);
   const tx = useTx();
-  const session = useSession();
+  const account = useAccountState();
+  const session = account.session;
   const useDatabase = session.configured && session.signedIn;
   const { team, save, remove, saved } = useTeam(me, useDatabase);
   const attendance = useAttendance(useDatabase);
@@ -95,7 +275,7 @@ export default function EmployerPage() {
 
   async function fund() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, treasury, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, treasury, `Allow ${BRAND.name} to take the USDC`)),
       { label: "Fund the treasury", address: ADDR.payroll, abi: payrollAbi, functionName: "deposit", args: [treasury] },
     ];
     if (await tx.run(calls, "Treasury funded.")) setTreasuryAmt("");
@@ -112,7 +292,7 @@ export default function EmployerPage() {
     const toDeposit = total - fromTreasury;
     const calls: Call[] = [];
     if (toDeposit > 0n) {
-      calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, "Allow Stackday to take the USDC")));
+      calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, `Allow ${BRAND.name} to take the USDC`)));
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "depositAndCreateRun", args: [toDeposit, employees, amounts] });
     } else {
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [employees, amounts] });
@@ -146,8 +326,12 @@ export default function EmployerPage() {
   return (
     <>
       <PageHeader
-        title="Run payroll"
-        lead="Fund a treasury once, set a rhythm, and paydays keep coming. Each person decides for themselves what part of their pay goes to work."
+        title="Payroll"
+        lead={
+          <>
+            Fund a treasury, pick a rhythm, pay your team. <LearnMore href="/docs#businesses" />
+          </>
+        }
       />
 
       {!me && <Notice>Connect your wallet (top right) to run payroll.</Notice>}
@@ -155,20 +339,34 @@ export default function EmployerPage() {
       <Card tone="ink">
         <div className="grid gap-6 sm:grid-cols-[1fr_1fr] sm:items-end">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-canvas/60">Treasury</div>
-            <div className="mt-2 font-display text-6xl leading-none sm:text-7xl">
+            <div className="text-[13px] font-medium text-muted">Treasury</div>
+            <div className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
               <Money value={me ? p.employerBalance : 0n} />
             </div>
-            <p className="mt-3 text-sm text-canvas/60">
+            <p className="mt-3 text-sm text-muted">
               {committed > 0n
                 ? `Covers ${(Number(p.employerBalance) / Number(committed)).toFixed(1)} more paydays of your active schedules (${fmtUsdc(committed)} USDC each).`
-                : "Paydays are paid from here. You can take unpaid money back at any time."}
+                : "Paydays are paid from here. Withdraw unused funds any time."}
             </p>
           </div>
           <div>
             <label className="block">
-              <span className="text-[13px] font-medium text-canvas/70">Add USDC (wallet: {fmtUsdc(p.walletUsdc)})</span>
-              <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 focus-within:border-brand-soft">
+              <span className="text-[13px] font-medium text-canvas/70">
+                Add USDC (wallet:{" "}
+                <button
+                  type="button"
+                  title="Use this amount"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setTreasuryAmt(fmtUsdc(p.walletUsdc).replace(/,/g, ""));
+                  }}
+                  className="font-semibold text-canvas underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                >
+                  {fmtUsdc(p.walletUsdc)}
+                </button>
+                )
+              </span>
+              <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 transition-colors duration-150 focus-within:border-white/60">
                 <input
                   inputMode="decimal"
                   placeholder="0.00"
@@ -176,7 +374,7 @@ export default function EmployerPage() {
                   onChange={(e) => setTreasuryAmt(e.target.value)}
                   className="min-h-11 w-full min-w-0 bg-transparent px-3.5 text-base text-canvas outline-none placeholder:text-canvas/30"
                 />
-                <span className="pr-3.5 text-sm text-canvas/60">USDC</span>
+                <span className="pr-3.5 text-sm text-muted">USDC</span>
               </span>
             </label>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -195,22 +393,22 @@ export default function EmployerPage() {
         </div>
       </Card>
 
+      <BusinessProfile />
+
       <Card
         title="Team"
         action={
           session.configured && !session.signedIn && viewer.canAct ? (
             <Button size="sm" variant="secondary" disabled={session.busy} onClick={session.signIn}>
-              {session.busy ? "Check your wallet…" : "Sign in to save to the database"}
+              {session.busy ? "Check your wallet…" : "Sign in to save your team"}
             </Button>
           ) : undefined
         }
       >
         <p className="mb-4 text-xs text-muted">
           {saved === "database"
-            ? "Saved in the Stackday account database. Only you can see your team list."
-            : session.configured
-              ? "Saved in this browser only until you sign in."
-              : "Saved in this browser only (the account database is not connected yet)."}
+            ? "Saved to your business account. Only you see this list. People you add are invited: you can pay them now, and see their attendance once they accept."
+            : "Saved on this device only until you sign in."}
         </p>
         {team.length === 0 ? (
           <Empty>No team members yet. Add the first one below.</Empty>
@@ -219,12 +417,22 @@ export default function EmployerPage() {
             {team.map((m) => (
               <div key={m.wallet} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">
-                    {m.name} {names.nameOf(m.wallet) && <span className="font-normal text-muted">@{names.nameOf(m.wallet)}</span>}
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                    <span className="truncate">{m.name}</span>
+                    {names.nameOf(m.wallet) && <span className="font-normal text-muted">@{names.nameOf(m.wallet)}</span>}
+                    {m.status && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                          m.status === "accepted" ? "bg-grow-soft text-grow" : "bg-sunken text-muted"
+                        }`}
+                      >
+                        {m.status === "accepted" ? "Accepted" : "Invited"}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted">
                     {m.role ? `${m.role} · ` : ""}
-                    <span className="font-mono">{shortAddr(m.wallet)}</span>
+                    <span className="font-mono">{names.idOf(m.wallet) ?? shortAddr(m.wallet)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -237,6 +445,14 @@ export default function EmployerPage() {
             ))}
           </div>
         )}
+        {useDatabase && (
+          <div className="mt-5 border-t border-line pt-5">
+            <FindPeople
+              already={team.map((m) => m.wallet.toLowerCase())}
+              onPick={(person) => setDraft((d) => ({ ...d, wallet: person.wallet, name: d.name || person.username || "" }))}
+            />
+          </div>
+        )}
         <div className="mt-5 grid gap-3 border-t border-line pt-5 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto] lg:items-end">
           <Field label="Wallet address" placeholder="0x…" value={draft.wallet} onChange={(e) => setDraft({ ...draft, wallet: e.target.value })} />
           <Field label="Name" placeholder="Maya K." value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
@@ -246,11 +462,6 @@ export default function EmployerPage() {
             Add
           </Button>
         </div>
-        {me && (
-          <button className="mt-3 text-xs font-semibold text-brand underline" onClick={() => setDraft({ ...draft, wallet: me, name: draft.name || "Me (test)" })}>
-            Use my own address (for testing)
-          </button>
-        )}
         {teamError && <p className="mt-2 text-sm text-danger">{teamError}</p>}
       </Card>
 
@@ -282,9 +493,8 @@ export default function EmployerPage() {
               Start {intervalLabel(Number(interval)).toLowerCase()} payroll
             </Button>
             <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-              Nothing is locked up front. Each payday is paid from the treasury when it is due, by whoever presses the
-              button first: you, an employee claiming their pay, or an automation service. If the treasury runs short the
-              payday simply waits until you top up. You can pause at any time.
+              A due payday waits until someone presses pay, and until the treasury covers it.{" "}
+              <LearnMore href="/docs#businesses" />
             </p>
           </>
         ) : (
@@ -341,14 +551,22 @@ export default function EmployerPage() {
 
       <Card title="Attendance, last 14 days">
         {!session.configured ? (
-          <Empty>Attendance needs the account database, which is not connected yet.</Empty>
+          <Empty>Attendance is not available right now.</Empty>
         ) : !session.signedIn ? (
           <Empty>Sign in (in the Team section above) to see your team&apos;s check-ins.</Empty>
         ) : team.length === 0 ? (
           <Empty>Add team members to see their check-ins.</Empty>
         ) : (
           <div className="space-y-3">
-            {team.map((m) => {
+            {team.filter((m) => m.status !== "accepted").length > 0 && (
+              <p className="text-xs text-muted">
+                {team.filter((m) => m.status !== "accepted").length} invited {team.filter((m) => m.status !== "accepted").length === 1 ? "person has" : "people have"} not
+                accepted yet, so their check-ins are not shown.
+              </p>
+            )}
+            {team
+              .filter((m) => m.status === "accepted")
+              .map((m) => {
               const checked = attendance.data?.team[m.wallet.toLowerCase()] ?? [];
               return (
                 <div key={m.wallet} className="grid items-center gap-3 sm:grid-cols-[10rem_1fr_3rem]">
@@ -363,8 +581,7 @@ export default function EmployerPage() {
               );
             })}
             <p className="pt-1 text-xs leading-relaxed text-muted">
-              Employees check in from their dashboard with one click. This is a record for you to look at. It does not
-              change anyone&apos;s pay automatically: salaries are whatever you set above.
+              A record only. It does not change pay.
             </p>
           </div>
         )}
@@ -373,8 +590,7 @@ export default function EmployerPage() {
       <Card title="Past paydays">
         <PastRuns employer={me} />
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Once a salary is in a payday it belongs to the employee. If it stays unclaimed for 180 days, for example
-          because of a mistyped address, you can take it back.
+          Unclaimed for 180 days? You can take it back.
         </p>
       </Card>
     </>

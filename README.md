@@ -2,13 +2,13 @@
 
 Stackday, salary maxxing on Base.
 
-A payroll platform for teams paid in USDC on Base that turns every payday into an investment. Built for the Base Stocks Maxxing competition, Track 3.
+A payroll and investing app on Base. Teams paid in USDC can send a share of every payday into tokenized stocks, cbBTC or Ether, and anyone can invest on a schedule from their own wallet, then borrow against what they hold instead of selling. Built for the Base Stocks Maxxing competition, Track 3. Next step: confidential salary payments (a testnet preview with Fairblock is in progress).
 
 Live site: https://stackday-rho.vercel.app (Base Sepolia testnet demo)
 
 New here? Read docs/START-HERE.md first.
 
-Status: contracts are deployed on Base Sepolia (testnet) and the web app is live. Nothing is on Base mainnet and there has been no independent security audit. See docs/BRIEF.md for the idea and docs/PLAN.md for the plan, the core idea checklist and what is real versus mocked.
+Status: contracts are deployed on Base Sepolia (testnet) and the web app is live. Nothing is on Base mainnet and there has been no independent security audit. See docs/ANCHOR.md for what we are building and the status of each part, and docs/PLAN.md for the history.
 
 ## What it does
 
@@ -16,7 +16,7 @@ Status: contracts are deployed on Base Sepolia (testnet) and the web app is live
 - Employees claim each salary to any wallet. Before claiming they choose a share (the site suggests 10 or 20 percent) and what it buys: tokenized stocks, Bitcoin or Ether tokens. Once, or as a standing plan for every payday.
 - What they buy lands in a vault only they control. One vault per person, no admin, no pooled money.
 - Idle USDC in the vault can earn interest.
-- They can borrow USDC against what they hold through an existing Morpho market instead of selling. Every payday adds collateral, so the loan gets safer over time.
+- They can borrow USDC against what they hold through an existing Morpho market instead of selling. New buys stay free in the vault until the person locks them; locking each payday's buy makes the loan safer over time. Only the opt-in emergency rule locks a payday share automatically.
 - People without an employer can use the same vault, with one-time or recurring buys from their own wallet.
 - A dashboard shows holdings, plans and loans. A risk screen shows cost, limits, liquidation price and a stress test.
 - Optional account database (Supabase): a unique name per wallet, saved team lists, and a daily attendance check-in.
@@ -69,9 +69,11 @@ Test files sit next to the code they test, named `*.test.ts`, and import it with
 
 Everything in src/mocks is a mock for testnet and tests only: the asset tokens (stocks, BTC, ETH), their price feeds, the exchange, the interest venue and USDC (local tests only). The mocks have an owner so stress scenarios can be triggered. Payroll, SipRouter, VaultFactory, EmployeeVault and the adapters have no owner. The mock tokens pay no dividends.
 
+Price charts (Invest page and Holdings) show REAL market prices of the real assets (for example Apple on Nasdaq, BTC/USD on Coinbase), drawn by TradingView's free widgets. They are for reference only: buys, loans and health on testnet use the mock price feeds above, and the page says so next to every chart.
+
 ## Live on Base Sepolia (testnet)
 
-Deployed November 14, 2026 (third deployment: adds recurring payroll, multi-asset plans, BTC and ETH). Machine-readable copy: deployments/base-sepolia.json. Earlier deployments are retired and kept in deployments/base-sepolia-v1-retired.json and deployments/base-sepolia-v2-retired.json.
+Deployed November 16, 2026 (sixth deployment: one-signature vault actions, new buys never locked automatically; nine assets). Machine-readable copy: deployments/base-sepolia.json. Earlier deployments are retired and kept in deployments/base-sepolia-v1-retired.json to deployments/base-sepolia-v5-retired.json.
 
 Source code of every contract below is verified on Sourcify: https://repo.sourcify.dev/84532/ADDRESS
 
@@ -79,20 +81,30 @@ Stackday contracts (real, no owner):
 
 | Contract | Address |
 |---|---|
-| Payroll | 0xe1F3EcaC366CDEf2365eC6523B6bfcF3684a0578 |
-| SipRouter | 0xB5e3Fe767395387AfE3B93aB18e8969eDAE9e45E |
-| VaultFactory | 0x48A0d35aEf432d27e75DdEb23C8B78fab4AA31c4 |
-| EmployeeVault (code every vault uses) | 0xc2FFBCBCCB33C0debDC2CBE445798d4E26943c1c |
-| Price adapter | 0xdaf2CA6e19E244d7b190ece8aef43aA6Cd0b1963 |
-| Interest adapter (ERC-4626) | 0xBc1E45d00B7229101041A2d701294D41F79Fe363 |
-| Morpho lending adapter, mAAPL | 0xD44e5Dc0bfeB9c36e958e3b280566A0069c0a2E3 |
-| Morpho lending adapter, mNVDA | 0x0681ff6802Ff4c4cB629FD7A9fe3e67F599f512e |
-| Morpho lending adapter, mcbBTC | 0x4e12D58548a3d54962F1ECc00fad315664B3f490 |
-| Morpho lending adapter, mWETH | 0xb356F755CB9B282eBcFF9e78C42CDE0B800694de |
-| Price oracle for Morpho, mAAPL | 0x905A6702f7d56FFEE68265F0559AF0Ebb5EcB644 |
-| Price oracle for Morpho, mNVDA | 0xA2Fda51fD7091D12d66047496B43202231e85cd1 |
-| Price oracle for Morpho, mcbBTC | 0x1945C9CDD637Da456439295584EE3e7FfFf05629 |
-| Price oracle for Morpho, mWETH | 0x7F9cD9Dc4f58013C2909F34Ff3C1CBB99504C880 |
+| Payroll | 0x31E0551c6B872Ca944ad8225690CeE04635B5F54 |
+| SipRouter | 0xB6d2252d21a1B5cC96c87dC18E1065bDe4CDCfB6 |
+| VaultFactory | 0x82187dB3063287c1ae979c42cE49249A34f40a7a |
+| EmployeeVault (code every vault uses) | 0xf831568016B02986D7A8D7784F420f99a4102a10 |
+| Price adapter | 0x89fC8343C27179B573A2BbeC036A07348A384c5A |
+| Interest adapter (ERC-4626) | 0xA9B3f063acA507F646e2209e65Df67d497EFF40E |
+| Morpho lending adapter, mAAPL | 0x2A2BA87291a2e167925a26533d17a62011F0D505 |
+| Morpho lending adapter, mNVDA | 0x333b9e5BB67Cf1C200aD481EeF5A1B1F02c3C270 |
+| Morpho lending adapter, mcbBTC | 0x468fc76d9c2eF7d912D2747E449dc38deaEE932f |
+| Morpho lending adapter, mWETH | 0x0085d8b5Fe8Bae52aFfFF597048C98d612d97317 |
+| Morpho lending adapter, mTSLA | 0xA9B10CDD664c2B81D5b09e6739ee7e4a5Da77091 |
+| Morpho lending adapter, mMSFT | 0xF18301AC54F1058712e1773Db4283E9bc4499a59 |
+| Morpho lending adapter, mAMZN | 0xa430De4f222c9DE96f71EC1f4EC5c7d9185749A3 |
+| Morpho lending adapter, mGOOGL | 0xb541643505d4d370755FC481BF24D8DF7Da30b11 |
+| Morpho lending adapter, mMETA | 0xfFb0B581552bD42a7C8DAd1d313Fa84291e98969 |
+| Price oracle for Morpho, mAAPL | 0x96e88d8B228f039a29bA98A207dbE4aFa4de3c78 |
+| Price oracle for Morpho, mNVDA | 0x74b89303e06E37571F6d0BC08815DeE674e82378 |
+| Price oracle for Morpho, mcbBTC | 0x76784CE0DBaF12Eab586a3A067878A6784f65D74 |
+| Price oracle for Morpho, mWETH | 0x0C682Ab25C478b30F136C982ccE672212F497C22 |
+| Price oracle for Morpho, mTSLA | 0xaBFf7Dd1cd681201bBE765Bd3e929e62a4521B9C |
+| Price oracle for Morpho, mMSFT | 0xF64Ad85E22Cf420E5698608994a946f1964951De |
+| Price oracle for Morpho, mAMZN | 0x1E6F9120BD3059e4126d81105DAa0847ea1Aa5f4 |
+| Price oracle for Morpho, mGOOGL | 0x5a58dd19fa61538E8884764641a8b0a86287Ae9D |
+| Price oracle for Morpho, mMETA | 0xCB466cbfaE4243B150Cf1E7d68F4251E57729D98 |
 
 Existing protocols used as they are (real):
 
@@ -106,31 +118,48 @@ The exact lending markets (Morpho, USDC loan, created by the Stackday deploy scr
 
 | Market | Liquidation limit | Morpho market id |
 |---|---|---|
-| mAAPL / USDC | 62.5% | 0x15429515ee7a6afc2fdbcc5264ed95fd6debc5fcaee3cacbb477d4f9733462af |
-| mNVDA / USDC | 62.5% | 0x3e27181ff067c80cfadccb4487db9c0341ffbb42d8d9bff61ee8759ffff0ed5b |
-| mcbBTC / USDC | 86.0% | 0xff9faaacaec24d75def896a194a7259a18463c4002e0948f81aa05a8ca085db6 |
-| mWETH / USDC | 86.0% | 0x896c7a6f1ebeadcf6f7144c097ce5aac3c35411dd7d8712be5aea4d5f2a44a11 |
+| mAAPL / USDC | 62.5% | 0xe62a83925482fb7b0551edd579aeea0010c40203e64a24c17de006c21dd2f00e |
+| mNVDA / USDC | 62.5% | 0x80baa546d9ab44607d87486cf7f199bb1c18c72b7215e8a8e4d444d364f27d19 |
+| mcbBTC / USDC | 86.0% | 0x2ac7558763f1a2a714d0dad97b3ea4f8c9f674507d0e49948601d337b28d138e |
+| mWETH / USDC | 86.0% | 0x4fccf4c07de7450597d3097a048a4d33644d84cf3ae2f56e3126ccfc8750bf96 |
+| mTSLA / USDC | 62.5% | 0xa369ca6e457d09a7833b5b9b4c232b5a3739d433ef479f169c4464527a43824e |
+| mMSFT / USDC | 62.5% | 0x8847bcdc6fca4b6828ca904a93eda01e840f64d6a3d376c0ee37fba5955c47b0 |
+| mAMZN / USDC | 62.5% | 0xf9cb7c1f7621dff802ee0293169e21e35e9088c626fb697631a5e1d87cfe6c6c |
+| mGOOGL / USDC | 62.5% | 0x08826b2ade88f66f4a5445f75968e7eaa2086e11244a2e96b04de277ed3846f3 |
+| mMETA / USDC | 62.5% | 0x89f07cb4d07621aa807c20897c87b59ca3a0dede818faf8c78deda74f90935c5 |
 
 MOCKS (testnet stand-ins, owned by the demo wallet so stress scenarios can be triggered):
 
 | Mock | Address |
 |---|---|
-| mAAPL mock token, stands in for AAPLc (Apple stock) | 0xF7F2c440f1b3181594D70BF31f119FdD1E34b59c |
-| mAAPL mock price feed | 0xcC41390FEc5c9baBbf86191eA3414733b4CE20e1 |
-| mNVDA mock token, stands in for NVDAc (NVIDIA stock) | 0x6239669a5810A04B14BF8aFbdeaBC411B592b01c |
-| mNVDA mock price feed | 0x47d6282280AE8C27CACea214E6889b707819f3FA |
-| mcbBTC mock token, stands in for cbBTC (Bitcoin) | 0xA5dD627C590b693b0433043e3A0e35D649D6D89D |
-| mcbBTC mock price feed | 0xe4be89A1612a69C5B15710e5350EA95401281f76 |
-| mWETH mock token, stands in for WETH (Ether) | 0x61Df7BAEFaDA02A58f40BC5535789bDDe1CCCa10 |
-| mWETH mock price feed | 0x60F074dB5033081FF05630f8410eBab90cebD220 |
-| Mock exchange | 0x44FD1F34b7f1F5ec0fe08F6fF5858105c06B3376 |
-| Mock interest vault | 0x6b4a23bcF0F5343428AA912c9e07E1d19Bf84c71 |
+| mAAPL mock token, stands in for AAPLc (Apple stock) | 0x1d523357c6AEd52b16b025b2Cfda07d9F3614A1a |
+| mAAPL mock price feed | 0x697476e69cB4a4bEdCf792Dc5a8524CFcC3C9603 |
+| mNVDA mock token, stands in for NVDAc (NVIDIA stock) | 0xF470348e58CEb81411045DA93564793Cfa13bd0d |
+| mNVDA mock price feed | 0x66a423c7de5e0A1110f09Fbd75Ce1238DE712770 |
+| mcbBTC mock token, stands in for cbBTC (Coinbase Wrapped BTC) | 0x6FD2c0348D0821A9d043ffcF9B670a9c3E022d72 |
+| mcbBTC mock price feed | 0x81Bf8669684205361Eb60075479A17faB449Ab19 |
+| mWETH mock token, stands in for WETH (Ether) | 0xBf6811BEdc3d7a4136f534b62eB9622080bd92d5 |
+| mWETH mock price feed | 0x27ae57EaBC847C42f2117115d7D238E093Ed3f1B |
+| mTSLA mock token, stands in for TSLAc (Tesla stock) | 0x1bC75Aafcd815966e6B042A6F5B23d06DfFbd66D |
+| mTSLA mock price feed | 0xf29882d45254883f32C7FA6F265FD41aE926EDD1 |
+| mMSFT mock token, stands in for MSFTc (Microsoft stock) | 0x798d3E47036E7c503c49a9954C8E7A4aCC703B9E |
+| mMSFT mock price feed | 0x8773544534b5b5A872bE15A98c49771310B0974c |
+| mAMZN mock token, stands in for AMZNc (Amazon stock) | 0xe78FaB788BEda85fDC76D9C27B3CAe23D072D453 |
+| mAMZN mock price feed | 0xE78Fb935cd4B0fbB4ac9440808De7a01Ed2D0D98 |
+| mGOOGL mock token, stands in for GOOGLc (Alphabet stock) | 0xb269Df994D8eE2D9a9B615908dBe80Bd294d8FBe |
+| mGOOGL mock price feed | 0x7d6167071195E9880BDaFCD8a6336323390eDfd8 |
+| mMETA mock token, stands in for METAc (Meta stock) | 0xA67e6d4e47862837eCd5Aa72e9D7d7Aea9776BEF |
+| mMETA mock price feed | 0xb1ba9F968D64F350b4FC8fB472Cd82234F903fcC |
+| Mock exchange | 0x2f8f203f47d3763A1f0BDec7ab573B6221076997 |
+| Mock interest vault | 0x9dA0d9010D2798a42c707C0343e7ccC03078C747 |
 
 SIP fee: 0.25 percent, fixed. Fee wallet on testnet: the demo wallet 0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df. Shortest payroll rhythm on testnet: 60 seconds (so a schedule can be shown in a demo). On mainnet it would be 1 day.
 
 ### The judges' sequence on testnet (November 14, 2026)
 
-Deposit, borrow, repay, withdraw, with a stress scenario, in the mAAPL / USDC market on Morpho named above. One test wallet played employer, employee and demo operator. Raw output: deployments/judge-sequence.txt.
+Run on the previous (third) deployment, addresses in deployments/base-sepolia-v3-retired.json. The contracts were redeployed on November 16 (more assets, then manual locking), and the end to end script (payday, claim into mAAPL, borrow from Morpho, repay, withdraw) passed again on the new deployment.
+
+Deposit, borrow, repay, withdraw, with a stress scenario, in the mAAPL / USDC market on Morpho. One test wallet played employer, employee and demo operator. Raw output: deployments/judge-sequence.txt.
 
 | Step | Transaction |
 |---|---|
@@ -188,12 +217,12 @@ The web app lives in the `web` folder (Next.js, TypeScript, wagmi, viem, Tailwin
 Pages:
 
 - Home: what Stackday is, what is real and what is mocked, the risk note.
-- Dashboard: net worth in your vault, holdings, your plans (recurring salary, every-payday plan, recurring buys, emergency rule), loans, your name and attendance check-in.
-- Get paid: release a due payday, claim to any address, choose a share (0, 10, 20 percent or custom) and split it across assets, once or every payday.
+- Home: net worth in your vault, holdings, your plans (recurring salary, payday plan, recurring buys, emergency rule), loans, your name and attendance check-in.
+- My pay: release a due payday, claim to any address, choose a share (0, 10, 20 percent or custom) and split it across assets, once or every payday.
 - Invest: buy once or on a schedule without an employer, one plan per asset. Earn interest on idle USDC.
 - Borrow: borrow, repay, withdraw, and the emergency rule.
 - Risk: borrowing cost, borrow limit, loan health, liquidation price, repayment options, a stress test for 10, 20 and 30 percent gaps (plus your own), what paused collateral transfers do, price freshness, and the exact Morpho market used.
-- Run payroll: treasury, team list, pay once or start a schedule, pause and resume, attendance, past paydays.
+- Payroll: treasury, team list, pay once or start a schedule, pause and resume, attendance, past paydays.
 - Demo panel (testnet only): price drop, market closed and reopened lower, paused transfers, price recovery, quick payday. Only the demo wallet that owns the mocks can use the market switches.
 
 Run it on your computer (PowerShell):
@@ -271,7 +300,7 @@ Split work by area so two people are not in the same files: for example one on `
 
 ### The docs each assistant should read first
 
-`docs/START-HERE.md`, then `CLAUDE.md` (the rules), then `docs/ANCHOR-DRAFT.md` and `docs/SECURITY-CHECKLIST.md`.
+`docs/START-HERE.md`, then `CLAUDE.md` (the rules), then `docs/ANCHOR.md` (what we are building and what is left) and `docs/SECURITY-CHECKLIST.md`.
 
 ## Feedback loop
 
