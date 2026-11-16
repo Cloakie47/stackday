@@ -1,5 +1,6 @@
 "use client";
 
+import { PriceChart } from "@/components/price-chart";
 import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
@@ -127,6 +128,7 @@ export default function InvestPage() {
           In your vault: {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet:{" "}
           {fmtUsdc(p.walletUsdc)} USDC.
         </p>
+        <PriceChart key={asset.symbol} asset={asset} testnetPrice={pos.price} />
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-line p-4">
