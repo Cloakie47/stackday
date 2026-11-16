@@ -204,19 +204,26 @@ export type Role = "individual" | "owner" | "employee";
 export type Mode = "personal" | "business";
 
 const MODE_KEY = (address: string) => `stackday-mode-${address.toLowerCase()}`;
+/** Which side of a business this wallet chose: "owner" or "employee". Saved explicitly, never guessed. */
+const ROLE_KEY = (address: string) => `stackday-business-role-${address.toLowerCase()}`;
+type BusinessRole = "owner" | "employee";
 const MODE_EVENT = "stackday-mode";
 
 /** The mode remembered on this device, used when the account database is off or before it answers. */
 function useLocalMode(address: string | undefined) {
   const [mode, setMode] = useState<Mode | null>(null);
+  const [businessRole, setBusinessRole] = useState<BusinessRole | null>(null);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     const read = () => {
       try {
         const v = address ? window.localStorage.getItem(MODE_KEY(address)) : null;
         setMode(v === "personal" || v === "business" ? v : null);
+        const r = address ? window.localStorage.getItem(ROLE_KEY(address)) : null;
+        setBusinessRole(r === "owner" || r === "employee" ? r : null);
       } catch {
         setMode(null);
+        setBusinessRole(null);
       }
       setLoaded(true);
     };
@@ -224,13 +231,14 @@ function useLocalMode(address: string | undefined) {
     window.addEventListener(MODE_EVENT, read);
     return () => window.removeEventListener(MODE_EVENT, read);
   }, [address]);
-  return { mode, loaded };
+  return { mode, businessRole, loaded };
 }
 
-export function rememberMode(address: string | undefined, mode: Mode) {
+export function rememberMode(address: string | undefined, mode: Mode, businessRole?: BusinessRole) {
   if (!address) return;
   try {
     window.localStorage.setItem(MODE_KEY(address), mode);
+    if (businessRole) window.localStorage.setItem(ROLE_KEY(address), businessRole);
   } catch {
     /* private window: the choice simply is not remembered on this device */
   }
@@ -246,9 +254,12 @@ export function homeFor(mode: Mode | undefined, role: Role | undefined) {
 /**
  * Who the connected wallet is on Stackday, and which interface it uses.
  * - `ready` is false until we know (so screens do not flash the wrong thing).
- * - `needsSetup` is true when a connected wallet has not picked Personal or Business yet.
- *   The app sends it to /start: the choice is required.
- * - With the account database the choice is saved to the profile. Without it, on this device.
+ * - `needsSetup` is true only when a connected wallet has never picked Personal or Business, on
+ *   the profile or on this device. An expired sign-in no longer sends people back to /start: the
+ *   choice remembered on this device is used, and sign-in is asked for only where it is needed.
+ * - The business side (owner or team member) is saved as chosen, never guessed from whether the
+ *   wallet once created a business. On a new device with no saved choice, a wallet with a business
+ *   profile opens as the owner.
  */
 export function useAccountState() {
   const { address, isConnected } = useAccount();
@@ -262,11 +273,11 @@ export function useAccountState() {
   });
   const type = me.data?.profile.account_type ?? null;
   const saved: Mode | null = type === "individual" ? "personal" : type === "business" ? "business" : null;
-  const mode: Mode | undefined = saved ?? local.mode ?? undefined;
+  // The choice made on this device wins; the profile fills in on a new device.
+  const mode: Mode | undefined = local.mode ?? saved ?? undefined;
   const role: Role | undefined =
-    mode === "personal" ? "individual" : mode === "business" ? (me.data?.business ? "owner" : "employee") : undefined;
+    mode === "personal" ? "individual" : mode === "business" ? (local.businessRole ?? (me.data?.business ? "owner" : "employee")) : undefined;
   const ready = local.loaded && !session.loading && (!session.signedIn || !me.isLoading);
-  const database = session.configured;
   return {
     address,
     isConnected,
@@ -275,7 +286,7 @@ export function useAccountState() {
     mode,
     role,
     ready,
-    needsSetup: isConnected && ready && (database ? !session.signedIn || !saved : !local.mode),
+    needsSetup: isConnected && ready && !mode,
   };
 }
 

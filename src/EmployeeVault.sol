@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {Multicall} from "@openzeppelin/contracts/utils/Multicall.sol";
 import {ILendingAdapter, IYieldAdapter} from "./interfaces/IAdapters.sol";
 
 interface IVaultFactory {
@@ -16,7 +17,10 @@ interface IVaultFactory {
 /// at the lending market. Only the employee (owner) can borrow, withdraw collateral or
 /// take anything out. There is no admin, no upgrade path and no pooled money.
 /// Anyone may put value IN (deposit stock, repay debt), nobody but the owner can take value OUT.
-contract EmployeeVault is ReentrancyGuardTransient {
+/// @dev Multicall (OpenZeppelin) lets the owner do several actions in one transaction, for example
+/// lock four assets and borrow against them with one signature. Every inner call keeps its own checks
+/// (owner only, borrow cap, reentrancy guard) and the whole batch is undone if any part fails.
+contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     using SafeERC20 for IERC20;
 
     uint16 public constant DEFAULT_BORROW_CAP_BPS = 5000; // borrow up to 50% of the liquidation limit
