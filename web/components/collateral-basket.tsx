@@ -12,7 +12,7 @@ import { useTx, type Call } from "@/lib/useTx";
 
 /**
  * Approximate yearly dividend of the real share each token tracks, in basis points. Tokenized stocks
- * reinvest dividends into the token, so locked tokens keep earning them. Bitcoin and Ether pay none.
+ * reinvest dividends into the token, so locked tokens keep earning them. cbBTC and Ether pay none.
  * The testnet mock tokens pay no dividends at all; the UI says so.
  */
 const DIVIDEND_BPS: Record<string, number> = { mAAPL: 40, mNVDA: 2, mcbBTC: 0, mWETH: 0 };
@@ -332,9 +332,9 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
         <Stat label="Net a year" value={`${earnings.net < 0n ? "-" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`} hint="At today's prices, before price moves" />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted">
-        Dividends use each real share&apos;s approximate yearly dividend (Apple about 0.4%, NVIDIA about 0.02%). Bitcoin and Ether pay none. Mocked on testnet:
+        Dividends use each real share&apos;s approximate yearly dividend (Apple about 0.4%, NVIDIA about 0.02%). cbBTC and Ether pay none. Mocked on testnet:
         the test tokens pay no dividends, so this figure shows what the real tokens would earn. Every payday share you lock adds collateral and makes
-        the loan safer. Liquidation limits: stocks {Number((positions[0]?.asset.lltv ?? 0n) * 1000n / WAD) / 10}%, Bitcoin and Ether{" "}
+        the loan safer. Liquidation limits: stocks {Number((positions[0]?.asset.lltv ?? 0n) * 1000n / WAD) / 10}%, cbBTC and Ether{" "}
         {Number((positions.find((x) => x.asset.kind === "crypto")?.asset.lltv ?? 0n) * 1000n / WAD) / 10}%.
       </p>
     </Card>

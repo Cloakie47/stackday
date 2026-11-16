@@ -1,5 +1,6 @@
 "use client";
 
+import { AssetSelect } from "@/components/asset-select";
 import { CollateralBasket } from "@/components/collateral-basket";
 import { LearnMore } from "@/components/learn-more";
 import Link from "next/link";
@@ -7,10 +8,8 @@ import { useState } from "react";
 import { useViewer } from "@/components/providers";
 import { useAccountState } from "@/lib/useAccount";
 import {
-  AssetIcon,
   Button,
   Card,
-  Chip,
   Field,
   HealthMeter,
   Notice,
@@ -136,14 +135,16 @@ export default function BorrowPage() {
       {me && <CollateralBasket p={p} />}
 
       <h2 className="pt-2 font-display text-2xl font-semibold tracking-tight">One asset at a time</h2>
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Asset to borrow against">
-        {p.positions.map((x) => (
-          <Chip key={x.asset.symbol} active={x.asset.symbol === symbol} onClick={() => setSymbol(x.asset.symbol)}>
-            <AssetIcon asset={x.asset} size={20} /> {x.asset.name}
-            {x.debt > 0n && <span className="h-1.5 w-1.5 rounded-full bg-warn" aria-label="has a loan" />}
-          </Chip>
-        ))}
-      </div>
+      <AssetSelect
+        label="Asset"
+        assets={p.positions.map((x) => x.asset)}
+        value={symbol}
+        onChange={setSymbol}
+        detail={(a) => {
+          const debt = p.positions.find((x) => x.asset.symbol === a.symbol)?.debt ?? 0n;
+          return debt > 0n ? <span className="text-warn">Loan ${fmtUsdc(debt)}</span> : null;
+        }}
+      />
 
       <Card title={`Your ${asset.name} loan`}>
         <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">

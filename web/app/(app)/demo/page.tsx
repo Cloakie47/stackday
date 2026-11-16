@@ -1,11 +1,12 @@
 "use client";
 
+import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useState } from "react";
 import { erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
-import { AddressLink, AssetIcon, Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Row, TxStatus } from "@/components/ui";
+import { AddressLink, Button, Card, Field, MockBadge, Notice, PageHeader, Row, TxStatus } from "@/components/ui";
 import { mockFeedAbi, mockStockAbi, mockSwapAbi, payrollAbi } from "@/lib/abis";
 import { ADDR, ASSETS } from "@/lib/contracts";
 import { fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
@@ -105,13 +106,7 @@ export default function DemoPage() {
       </Card>
 
       <Card title="Market switches" badge={<MockBadge />}>
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Asset">
-          {p.positions.map((x) => (
-            <Chip key={x.asset.symbol} active={x.asset.symbol === symbol} onClick={() => setSymbol(x.asset.symbol)}>
-              <AssetIcon asset={x.asset} size={20} /> {x.asset.name}
-            </Chip>
-          ))}
-        </div>
+        <AssetSelect label="Asset" assets={p.positions.map((x) => x.asset)} value={symbol} onChange={setSymbol} />
         <div className="mt-4">
           <Row label="Price now">${fmtPrice(pos.price)}</Row>
           <Row label="Starting price">${fmtPrice(asset.startPrice)}</Row>

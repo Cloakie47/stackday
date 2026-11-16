@@ -1,14 +1,13 @@
 "use client";
 
+import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { useAccountState } from "@/lib/useAccount";
 import {
   AddressLink,
-  AssetIcon,
   Card,
-  Chip,
   Field,
   HealthMeter,
   MockBadge,
@@ -90,13 +89,7 @@ export default function RiskPage() {
 
       <RiskNote />
 
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Collateral asset">
-        {p.positions.map((x) => (
-          <Chip key={x.asset.symbol} active={x.asset.symbol === symbol} onClick={() => setSymbol(x.asset.symbol)}>
-            <AssetIcon asset={x.asset} size={20} /> {x.asset.name}
-          </Chip>
-        ))}
-      </div>
+      <AssetSelect label="Collateral asset" assets={p.positions.map((x) => x.asset)} value={symbol} onChange={setSymbol} />
 
       <Card title="The loan">
         <p className="text-sm text-muted">

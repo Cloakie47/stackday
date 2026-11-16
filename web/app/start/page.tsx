@@ -15,7 +15,7 @@ const MODES: { id: Mode; title: string; text: string; points: string[] }[] = [
     id: "personal",
     title: "Personal",
     text: "Invest for yourself. No employer needed.",
-    points: ["Buy tokenized stocks, Bitcoin or Ether on a schedule", "Everything sits in a vault only you control", "Borrow against it instead of selling"],
+    points: ["Buy tokenized stocks, cbBTC or Ether on a schedule", "Everything sits in a vault only you control", "Borrow against it instead of selling"],
   },
   {
     id: "business",
