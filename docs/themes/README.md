@@ -23,6 +23,7 @@ The person picks the themes they care about (for example AI and chips, or big te
 
 | File | What is in it |
 |---|---|
+| [weekly-plan.md](weekly-plan.md) | **For approval (issue #22).** The weekly research and rebalance plan: news sources, the weekly job and its protection, model scoring and cost, storage, what the person sees each week, honesty, build steps and open questions |
 | [for-the-docs-page.md](for-the-docs-page.md) | Short, user-facing text for the site's `/docs#themes` section: limits, cushion, buying pace, rebalancing with new money. The Themes page links there |
 | [rules-summary.md](rules-summary.md) | Competition facts that shape Themes, and the open track question |
 | [policy.md](policy.md) | Portfolio rules: sleeves, risk levels, caps, value tilt, Smart DCA, drift bands, drawdown ladder, price checks, and the limits of today's Stackday contracts |

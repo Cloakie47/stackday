@@ -112,7 +112,7 @@ What today's contracts allow, and what that means for the policy.
 
 | Constraint | Effect on Themes v1 |
 |---|---|
-| Only 4 testnet assets: mAAPL, mNVDA, mcbBTC, mWETH (mocks) | Only 2 stocks. With a 15 percent single-stock cap the stock sleeve can hold at most 30 percent, so the Balanced targets cannot be met on testnet. Options: redeploy with more mock assets (founder decision, changes addresses), or show the real 12-name catalogue as preview only and label it clearly |
+| 9 testnet assets since the November 16 redeploy: mAAPL, mNVDA, mTSLA, mMSFT, mAMZN, mGOOGL, mMETA, mcbBTC, mWETH (mocks) | 7 stocks, so the stock sleeve can be met on testnet. INTCc, SNDKc, SPCXc, MSTRc and CRCLc have no mock and show as preview only, labelled clearly |
 | Payroll plans hold at most 6 assets (`MAX_ALLOCATIONS = 6`) | A theme basket must fit in 6 holdings per payday. The engine picks the 6 that close the most drift |
 | SipRouter has one recurring plan per asset (`setPlan`, `cancelPlan`) | An individual's basket is several plans, one per asset, plus one-time `invest` calls |
 | Contracts can only buy (no sell path in the swap adapter) | Rebalancing is new money only: the next payday share or recurring buy goes to underweight holdings. Real selling needs a contract change, an agreed issue and a redeploy |
