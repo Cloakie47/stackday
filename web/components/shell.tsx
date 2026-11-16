@@ -15,6 +15,37 @@ import { Button, cx } from "./ui";
 
 type NavItem = { href: string; label: string; short?: string; icon: string };
 
+/** Copy text to the clipboard and say "Copied" for a moment. */
+function useCopy() {
+  const [copied, setCopied] = useState<string | null>(null);
+  async function copy(key: string, text: string) {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      // Clipboard API blocked (no permission, embedded view): fall back to a hidden text field.
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      el.remove();
+    }
+    if (!ok) return;
+    setCopied(key);
+    setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
+  }
+  return { copied, copy };
+}
+
 const ICON = {
   home: "M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5M10 20v-5h4v5",
   pay: "M12 3v18M16.5 7.5h-6.25a2.75 2.75 0 000 5.5h3.5a2.75 2.75 0 010 5.5H7.5",
@@ -137,14 +168,32 @@ function AccountChip({ className = "" }: { className?: string }) {
   if (!role || !me) return null;
   const name = (role === "owner" ? me.business?.name : null) ?? (me.profile.username ? `@${me.profile.username}` : "Your account");
   return (
-    <Link href="/start" className={cx("block rounded-2xl border border-line px-3 py-2.5 transition-colors duration-150 hover:bg-sunken", className)}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">{ROLE_LABEL[role]}</div>
-      <div className="mt-1 truncate text-sm font-semibold text-ink">{name}</div>
-      <div className="mt-0.5 flex items-center justify-between font-mono text-[11px] text-muted">
-        {me.profile.uid}
-        <span className="font-sans font-semibold text-brand-ink">Account</span>
-      </div>
-    </Link>
+    <div className={cx("rounded-2xl border border-line px-3 py-2.5", className)}>
+      <Link href="/start" className="block rounded-lg transition-colors duration-150 hover:text-brand-ink">
+        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+          {ROLE_LABEL[role]}
+          <span className="normal-case tracking-normal text-brand-ink">Account</span>
+        </div>
+        <div className="mt-1 truncate text-sm font-semibold text-ink">{name}</div>
+      </Link>
+      <CopyId uid={me.profile.uid} />
+    </div>
+  );
+}
+
+function CopyId({ uid }: { uid: string }) {
+  const { copied, copy } = useCopy();
+  return (
+    <button
+      type="button"
+      onClick={() => copy("id", uid)}
+      title="Copy your Stackday ID"
+      aria-label={`Copy your Stackday ID ${uid}`}
+      className="mt-0.5 flex w-full items-center justify-between rounded-md font-mono text-[11px] text-muted transition-colors duration-150 hover:text-ink"
+    >
+      {uid}
+      <span className="font-sans font-semibold text-brand-ink">{copied ? "Copied" : "Copy"}</span>
+    </button>
   );
 }
 
@@ -218,7 +267,6 @@ export function Logo({ light = false }: { light?: boolean }) {
 export function WalletButton({ light = false }: { light?: boolean }) {
   const { address, chainId, isConnected } = useAccount();
   const { connectors, connect, isPending, error } = useConnect();
-  const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const { display } = useNames([address]);
 
@@ -228,24 +276,7 @@ export function WalletButton({ light = false }: { light?: boolean }) {
         Switch to Base Sepolia
       </Button>
     );
-  if (isConnected)
-    return (
-      <button
-        onClick={() => disconnect()}
-        title="Disconnect"
-        aria-label={`Connected as ${display(address)}. Disconnect`}
-        className={cx(
-          "inline-flex min-h-9 max-w-48 items-center gap-2 rounded-full border px-3 text-[13px] font-semibold transition-[background-color,border-color] duration-150 active:scale-[0.97]",
-          light ? "border-white/25 text-white hover:bg-white/10" : "border-line-strong bg-surface text-ink shadow-xs hover:bg-sunken",
-        )}
-      >
-        <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
-          <span className="absolute inset-0 rounded-full bg-grow" />
-          <span className="absolute -inset-1 rounded-full bg-grow/25" />
-        </span>
-        <span className="truncate">{display(address)}</span>
-      </button>
-    );
+  if (isConnected && address) return <WalletMenu address={address} label={display(address)} light={light} />;
   const connector = connectors[0];
   return (
     <div className="text-right">
@@ -256,6 +287,97 @@ export function WalletButton({ light = false }: { light?: boolean }) {
         <p className="mt-1 max-w-48 text-xs text-danger" role="alert">
           No wallet found. Install a browser wallet.
         </p>
+      )}
+    </div>
+  );
+}
+
+/** The connected wallet: copy the address or ID, switch interface, or disconnect. */
+function WalletMenu({ address, label, light }: { address: string; label: string; light: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { disconnect } = useDisconnect();
+  const account = useAccountState();
+  const router = useRouter();
+  const switchMode = useSwitchMode();
+  const { copied, copy } = useCopy();
+  const uid = account.me?.profile.uid;
+  const other: Mode | null = account.mode === "personal" ? "business" : account.mode === "business" ? "personal" : null;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  async function switchTo(next: Mode) {
+    setOpen(false);
+    await switchMode(address, next, account.session.signedIn);
+    router.push(homeFor(next, next === "personal" ? "individual" : account.businessRole));
+  }
+
+  const item =
+    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-ink transition-colors duration-150 hover:bg-sunken";
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Connected as ${label}. Open wallet menu`}
+        className={cx(
+          "inline-flex min-h-9 max-w-48 items-center gap-2 rounded-full border px-3 text-[13px] font-semibold transition-[background-color,border-color] duration-150 active:scale-[0.97]",
+          light ? "border-white/25 text-white hover:bg-white/10" : "border-line-strong bg-surface text-ink shadow-xs hover:bg-sunken",
+        )}
+      >
+        <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
+          <span className="absolute inset-0 rounded-full bg-grow" />
+          <span className="absolute -inset-1 rounded-full bg-grow/25" />
+        </span>
+        <span className="truncate">{label}</span>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
+          <div className="px-3 pb-2 pt-1.5 font-mono text-[11px] text-muted">{shortAddr(address)}</div>
+          <button type="button" role="menuitem" className={item} onClick={() => copy("addr", address)}>
+            Copy wallet address
+            <span className="text-xs font-medium text-brand-ink">{copied === "addr" ? "Copied" : ""}</span>
+          </button>
+          {uid && (
+            <button type="button" role="menuitem" className={item} onClick={() => copy("id", uid)}>
+              <span>
+                Copy Stackday ID <span className="font-mono text-xs font-normal text-muted">{uid}</span>
+              </span>
+              <span className="text-xs font-medium text-brand-ink">{copied === "id" ? "Copied" : ""}</span>
+            </button>
+          )}
+          {other && (
+            <button type="button" role="menuitem" className={item} onClick={() => switchTo(other)}>
+              Switch to {MODE_LABEL[other]}
+            </button>
+          )}
+          <div className="my-1 border-t border-line" />
+          <button
+            type="button"
+            role="menuitem"
+            className={cx(item, "text-danger")}
+            onClick={() => {
+              setOpen(false);
+              disconnect();
+            }}
+          >
+            Disconnect
+          </button>
+        </div>
       )}
     </div>
   );

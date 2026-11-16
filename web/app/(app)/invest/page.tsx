@@ -144,8 +144,8 @@ export default function InvestPage() {
                 hint={
                   <>
                     {amount > 0n && pos.price
-                      ? `About ${fmtAsset(assetForUsdc(amount, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}. No fee.`
-                      : "No fee on one-time buys."}{" "}
+                      ? `About ${fmtAsset(assetForUsdc(amount, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}. `
+                      : ""}
                     Wallet:{" "}
                     <FillAmount onFill={() => setAmt(usdcInput(p.walletUsdc))} label="Use all USDC in your wallet">
                       ${fmtUsdc(p.walletUsdc)}
@@ -179,7 +179,6 @@ export default function InvestPage() {
                         <FillAmount onFill={() => setPerBuy(v)}>${v}</FillAmount>
                       </span>
                     ))}
-                    . Fee: {fmtPct(SIP_FEE_BPS)} of each buy.
                   </>
                 }
               />
@@ -198,6 +197,7 @@ export default function InvestPage() {
             <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
               {pos.recurring ? "Replace the recurring buy" : "Start a recurring buy"}
             </Button>
+            <p className="mt-2 text-xs text-muted">{fmtPct(SIP_FEE_BPS)} fee on each recurring buy.</p>
           </div>
         </div>
         <TxStatus state={tx.state} />
