@@ -32,12 +32,12 @@ Meaning of the four statuses:
 | 3 | SAML bypass | No. No SAML | Not applicable |
 | 4 | nOAuth email spoof | No. No OAuth, no emails | Not applicable |
 | 5 | GraphQL aliases | Partly. Supabase has an unused GraphQL endpoint | Covered |
-| 6 | 2FA code replay | Yes, as sign-in signature replay | GAP |
+| 6 | 2FA code replay | Yes, as sign-in signature replay | Covered (gg/sign-in-nonce) |
 | 7 | ReDoS regex | Yes, we use two patterns | Covered |
 | 8 | JWT alg confusion | No. No JWT library | Not applicable |
 | 9 | Request smuggling | Only at the hosting level | Covered by the hosting provider |
 | 10 | Cache poisoning | Yes | Covered |
-| 11 | Spoofed IP header | Yes, because there is no rate limiting at all | GAP |
+| 11 | Spoofed IP header | Yes, because there is no rate limiting at all | Covered (gg/rate-limit) |
 | 12 | Views bypass RLS | Yes, as a rule for the future | Covered |
 | 13 | Math.random tokens | Yes | Covered |
 | 14 | Timing attack | Yes | Covered |
@@ -117,6 +117,8 @@ The damage is limited to the off-chain account: name, team list, attendance. It 
 
 **Check to do:** Fix: add the site domain, the chain id and a single-use server nonce to the signed text. This is the "Sign-In with Ethereum" pattern. The server must reject a nonce it has seen before and reject a domain that is not ours. Test after the fix: sign in, capture the request, send it again. The second try must fail.
 
+**Fixed in `gg/sign-in-nonce`:** sign-in now uses "Sign-In with Ethereum" (EIP-4361). The browser first asks `POST /api/session/nonce` for a single-use code (32 hex characters from `crypto.randomBytes`, stored in the `sign_in_nonces` table for 10 minutes). The signed text carries the site domain, chain id 84532, the code, and an expiry 10 minutes out. The server checks the domain (`SITE_DOMAIN`, or the host the request was sent to), the chain and the times, then deletes the code in one statement before checking the signature, so the same signed request can never pass twice. Tests: `web/lib/server/signin-check.test.ts` (replay, wrong site, wrong chain, expired, unknown code, wrong signer, edited text) and the replay and wrong-site checks in `web/scripts/test-account-api.sh`. The 7-day session that cannot be cancelled from the server is unchanged.
+
 ### 7. ReDoS regex
 
 **The attack:** A badly written text pattern can take minutes to check one crafted input. One request then freezes the server.
@@ -170,6 +172,8 @@ The damage is limited to the off-chain account: name, team list, attendance. It 
 - Fill the database with team rows. One employer can add any number.
 
 **Check to do:** Fix: add rate limiting on all four API routes, strictest on sign-in and on choosing a name. Use Vercel's firewall rules or the client IP that Vercel itself provides. Never trust a header the client can set. Test after the fix: send 100 quick requests with a fake X-Forwarded-For header. They must still be blocked.
+
+**Fixed in `gg/rate-limit`:** `web/proxy.ts` runs before every `/api` request and counts requests per visitor address and route group in fixed one-minute windows: sign-in 10, sign-in code 20, choosing a name 5, team changes 30, check-in 10, other writes 30, reads 120. Over the limit the answer is 429 with `Retry-After`. The address comes only from `x-real-ip`, which Vercel sets itself (its docs: it overwrites X-Forwarded-For "to prevent IP spoofing"); client-writable headers are ignored, and off Vercel every request shares one bucket. Counts live in the `rate_limits` table through the `rate_limit_hit` function (service role only), keyed by a keyed hash of the address, never the address itself. If the counter cannot be reached the request goes through and the error is logged. Tests: `web/lib/server/rate-limit.test.ts`, including 100 requests with a fake X-Forwarded-For, of which only 10 pass.
 
 ### 12. Views bypass RLS
 
@@ -314,9 +318,12 @@ On Base Sepolia the mock tokens, mock prices and mock swap have an owner, on pur
 
 ## Fix list, in order
 
-1. Sign-in message: add site domain, chain id and a single-use server nonce. **NOT DONE**
-2. Rate limiting on all API routes, using the hosting provider's trusted client IP. **NOT DONE**
-3. Security headers in `web/next.config.ts` (frame-ancestors, Content-Security-Policy, nosniff). **NOT DONE**
-4. Dependency audit: review and update the 27 reported issues. **NOT DONE**
-5. Origin check on POST and DELETE requests. **NOT DONE**
-6. Attendance: do not show an employer the check-ins of a wallet that has not accepted being on their team. **NOT DONE** (found during this review)
+Updated November 16, 2026.
+
+1. Sign-in message: add site domain, chain id and a single-use server nonce. **DONE** in pull request #6 (Sign-In with Ethereum). Each code works once, expires after 10 minutes and is used up atomically before the signature check. Tested end to end against the live database.
+2. Rate limiting on all API routes, using the hosting provider's trusted client IP. **DONE** in pull request #9. The visitor address comes only from Vercel's `x-real-ip`, counts are shared through the database and stored as a keyed hash, and the site keeps working if the counter is unreachable. The counter table is in the live database.
+3. Security headers in `web/next.config.ts` (frame-ancestors, Content-Security-Policy, nosniff). **DONE** in pull request #5.
+4. Dependency audit: review and update the 27 reported issues. **REVIEWED, NOT FIXED.** All 27 (10 moderate, 17 high) come through optional wallet connectors bundled with wagmi 2 (WalletConnect, Reown, MetaMask SDK, Coinbase CDP SDK) and the libraries they pull in (ws, zod, uuid, decode-uri-component). Stackday only imports the `injected` connector (and `mock` for local tests), so that code is not used. `npm audit fix` without breaking changes fixes none of them; the only fix is upgrading to wagmi 3, a breaking change. Decision: leave it until after the December 5 deadline, then upgrade to wagmi 3 and re-run `npm audit --omit=dev`.
+5. Origin check on POST and DELETE requests. **DONE** (`web/lib/server/origin-check.ts`, called from `web/proxy.ts`). Data changes whose Origin header names another site get 403. Requests without an Origin are allowed, because browsers always send one on these methods.
+6. Attendance: do not show an employer the check-ins of a wallet that has not accepted being on their team. **DONE** in the account flow pull request: team members start as "invited" and only accepted members' check-ins are visible.
+7. Price charts load TradingView's widget code (November 16, 2026). **ACCEPTED, NARROW.** The Content-Security-Policy now allows scripts only from `widgets.tradingview-widget.com` and `www.tradingview-widget.com`, frames from TradingView's own hosts, and data and images from `*.tradingview.com`. The widgets run in shadow roots and only draw charts; they get no wallet access and no account data. They load lazily, only on pages that show a chart. If TradingView is down, the chart shows a message and buying still works. Tests: `web/lib/security-headers.test.ts`.

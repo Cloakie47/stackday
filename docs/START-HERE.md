@@ -1,6 +1,6 @@
 # Stackday: start here
 
-For anyone joining the project. Last updated November 15, 2026.
+For anyone joining the project. Last updated November 15, 2026 (anchor approved).
 Read this first. It tells you what Stackday is, what exists, what is left, and where everything lives.
 
 ## 1. What we are building
@@ -18,15 +18,14 @@ It is our entry for the Base "Stocks Maxxing" competition, Track 3 (Programmable
 
 Everything we build must trace back to one paragraph, called the anchor. A reviewer checks the build against it.
 
-- The anchor in force today is in docs/BRIEF.md.
-- A new, wider anchor is drafted in docs/ANCHOR-DRAFT.md. It adds account types (Individual or Business), unique IDs, business profiles and a "Themes" layer. It is WAITING FOR THE FOUNDER'S APPROVAL. Do not build from it until it is approved.
+The anchor was widened and approved by the founder on November 15, 2026. It is in docs/ANCHOR.md, with its numbered parts, what is built for each, and the working assumptions. In short it adds, on top of payroll, payday investing, the vault and borrowing: account types (Individual or Business), a unique ID and profile for every user, business profiles, role-based dashboards, finding people, and a Themes layer.
 
 ## 2. Where everything is
 
 | What you want | Where |
 |---|---|
-| The idea and competition brief | docs/BRIEF.md |
-| The new anchor, product description, open questions | docs/ANCHOR-DRAFT.md |
+| The competition brief and original working rules | docs/BRIEF.md |
+| The anchor, product description, status of each part, working assumptions | docs/ANCHOR.md |
 | Full history of decisions, phase by phase | docs/PLAN.md (a running log, long) |
 | Security self-assessment and fix list | docs/SECURITY-CHECKLIST.md |
 | Deployed addresses, transaction links, how to run | README.md |
@@ -47,11 +46,11 @@ Built, tested and live on testnet:
 | Payroll | Employer treasury, pay once or on a schedule (daily, weekly, 2 weeks, monthly), claim to any wallet | src/Payroll.sol |
 | Payday investing | A share of each salary into one or several assets, once or every payday | src/Payroll.sol |
 | Vault | One vault per person, no admin, no pooled money | src/EmployeeVault.sol, src/VaultFactory.sol |
-| Borrowing | Borrow, repay, withdraw through a real Morpho market. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
+| Borrowing | Lock collateral as one basket of any assets, then borrow, repay, unlock, withdraw through real Morpho markets. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
 | Revenue | Fixed 0.25 percent fee on USDC going into assets | Payroll and SipRouter |
-| Web app | Landing, Dashboard, Get paid, Invest, Borrow, Risk, Run payroll, Demo panel | web/app |
+| Web app | Landing, Start (Personal or Business), Home, My pay, Invest (with real price chart), Borrow (collateral basket), Risk, Payroll, Docs, Testnet tools | web/app |
 | Account database | Unique name per wallet, saved team lists, attendance check-in. Connected on the live site | web/app/api, supabase/schema.sql |
 
 Tests: 69 local tests pass. Separate tests run the same code against the real AAPLc token, a real Aerodrome pool and the real Morpho market on a private copy of Base mainnet.
@@ -63,11 +62,6 @@ What is real and what is mocked on testnet:
 
 ## 4. What is not built
 
-- Choosing Individual or Business after connecting a wallet.
-- An automatic unique ID and profile for every new user.
-- Business name and description.
-- Sending people to the owner or employee dashboard by role.
-- A business finding and adding people (today the owner pastes a wallet address).
 - The Themes layer (news and sentiment, stocks by theme, rebalancing). Selling is not possible in the contracts yet: they only buy.
 - Aave, for borrowing or for interest.
 - Confidential salaries.
@@ -81,10 +75,9 @@ What is real and what is mocked on testnet:
 
 | When | Work | Depends on |
 |---|---|---|
-| Now | Founder approves or edits the new anchor and answers its open questions | Founder |
-| Nov 16 to 19 | Account flow: Individual or Business choice, unique ID and profile on first sign-in, business name and description, routing to the owner or employee dashboard, finding people by ID with the person accepting | Anchor approved |
+| Nov 16 to 19 | Account flow: Individual or Business choice, unique ID and profile on first sign-in, business name and description, routing to the owner or employee dashboard, finding people by ID with the person accepting | Nothing |
 | Nov 20 to 21 | Security fix list: sign-in message with site name and single-use code, rate limiting, security headers, dependency review, origin check, attendance consent | Nothing |
-| Nov 22 to 26 | Themes, first version: the person picks themes, the app suggests a split, the person confirms the buys. No automatic rebalancing | Anchor approved, founder decision on scope |
+| Nov 22 to 26 | Themes, first version: the person picks themes, the app suggests a split, the person confirms the buys. No automatic rebalancing | Account flow done |
 | Nov 27 to 30 | Test every page on the live site with a real browser wallet. Fix what breaks. Bring README and docs/PLAN.md up to date | Nothing |
 | Dec 1 to 2 | Submission pack: README, 2 to 3 minute video script, X posts, form answers. Decide whether to do a small mainnet deployment (costs real money, founder must approve) | Everything above |
 | Dec 3 to 5 | Record the video, post, submit. No new features | Nothing |
@@ -95,7 +88,7 @@ Later, after the competition: Aave adapter, confidential salaries, an automation
 
 ## 6. Decisions still open
 
-These are the founder's to make. They are written out in docs/ANCHOR-DRAFT.md section 3.
+These are the founder's to make. Until they are answered, the working assumptions in docs/ANCHOR.md section 3 apply.
 
 1. What "a business should be able to find" means exactly.
 2. How much of Themes to build before the deadline.

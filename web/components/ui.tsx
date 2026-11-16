@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { ASSET_LOGOS } from "@/lib/asset-logos";
 import { EXPLORER, type Asset } from "@/lib/contracts";
 import type { TxState } from "@/lib/useTx";
+import { LearnMore } from "./learn-more";
+import { buttonClass, cx, type ButtonSize, type ButtonVariant } from "./styles";
 
-export function cx(...parts: (string | false | null | undefined)[]) {
-  return parts.filter(Boolean).join(" ");
-}
+// Class helpers live in a plain module so server components can call them too.
+export { buttonClass, cx, type ButtonSize, type ButtonVariant } from "./styles";
 
 export function PageHeader({ title, lead, aside }: { title: string; lead?: ReactNode; aside?: ReactNode }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="font-display text-4xl leading-none tracking-tight text-ink sm:text-5xl">{title}</h1>
+        <h1 className="font-display text-[2rem] font-semibold leading-[1.05] tracking-[-0.02em] text-ink sm:text-[2.75rem]">{title}</h1>
         {lead && <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">{lead}</p>}
       </div>
       {aside}
@@ -33,13 +35,14 @@ export function Card({
   action?: ReactNode;
   children: ReactNode;
   className?: string;
-  tone?: "surface" | "ink";
+  /** "feature" (alias "ink") is the deep blue hero panel. Use it once per page, for the main number. */
+  tone?: "surface" | "ink" | "feature";
 }) {
   return (
     <section
       className={cx(
-        "rounded-3xl border p-5 sm:p-6",
-        tone === "ink" ? "border-ink bg-ink text-canvas" : "border-line bg-surface",
+        "rounded-3xl p-5 sm:p-6",
+        tone === "surface" ? "border border-line bg-surface shadow-xs" : "feature",
         className,
       )}
     >
@@ -60,15 +63,28 @@ export function Card({
 /** Marks anything that is a testnet stand-in, so nothing mocked passes as real. */
 export function MockBadge({ children = "Mock" }: { children?: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-warn">
-      {children}
-    </span>
+    <Badge tone="warn">{children}</Badge>
   );
 }
 
 export function RealBadge({ children = "Real" }: { children?: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-grow-soft px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-grow">
+    <Badge tone="grow">{children}</Badge>
+  );
+}
+
+/** A small status pill with a dot. Sentence case, never all caps. */
+export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "brand" | "grow" | "warn" | "danger"; children: ReactNode }) {
+  const styles = {
+    neutral: "bg-sunken text-ink-soft",
+    brand: "bg-brand-soft text-brand-ink",
+    grow: "bg-grow-soft text-grow",
+    warn: "bg-warn-soft text-warn",
+    danger: "bg-danger-soft text-danger",
+  }[tone];
+  return (
+    <span className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold", styles)}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
       {children}
     </span>
   );
@@ -82,17 +98,13 @@ export function Money({ value, decimals = 2, prefix = "$" }: { value: bigint | u
 
   useEffect(() => {
     if (target === undefined) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      setShown(target);
-      from.current = target;
-      return;
-    }
+    // With reduced motion the figure jumps straight to its value (a 0 ms count).
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 600;
     const start = from.current;
     const t0 = performance.now();
     let raf = 0;
     const step = (t: number) => {
-      const k = Math.min(1, (t - t0) / 600);
+      const k = duration === 0 ? 1 : Math.min(1, (t - t0) / duration);
       const eased = 1 - Math.pow(1 - k, 4);
       setShown(start + (target - start) * eased);
       if (k < 1) raf = requestAnimationFrame(step);
@@ -124,11 +136,11 @@ export function Stat({
 }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</div>
+      <div className="text-[13px] font-medium text-muted">{label}</div>
       <div
         className={cx(
           "mt-1.5 truncate tabular-nums text-ink",
-          big ? "font-display text-5xl leading-none sm:text-6xl" : "text-2xl font-semibold tracking-tight",
+          big ? "font-display text-5xl font-semibold leading-none tracking-[-0.03em] sm:text-6xl" : "text-2xl font-semibold tracking-tight",
         )}
       >
         {value}
@@ -143,28 +155,22 @@ export function Button({
   size = "md",
   className = "",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "ink" | "secondary" | "ghost" | "danger";
-  size?: "sm" | "md" | "lg";
-}) {
-  const styles = {
-    primary: "bg-brand text-white hover:bg-brand-dark disabled:bg-line-strong disabled:text-surface",
-    ink: "bg-ink text-canvas hover:bg-ink-soft disabled:bg-line-strong disabled:text-surface",
-    secondary: "border border-line-strong bg-surface text-ink hover:border-ink disabled:text-line-strong disabled:hover:border-line-strong",
-    ghost: "text-ink hover:bg-sunken disabled:text-line-strong",
-    danger: "border border-danger/30 bg-surface text-danger hover:bg-danger-soft disabled:border-line disabled:text-line-strong",
-  }[variant];
-  const sizes = { sm: "min-h-9 px-3 text-[13px]", md: "min-h-11 px-4 text-sm", lg: "min-h-12 px-6 text-[15px]" }[size];
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize }) {
+  return <button {...props} className={buttonClass(variant, size, className)} />;
+}
+
+/** An amount shown next to a field; clicking it puts that amount in the field. */
+export function FillAmount({ onFill, children, label }: { onFill: () => void; children: ReactNode; label?: string }) {
   return (
     <button
-      {...props}
-      className={cx(
-        "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,border-color,transform,color] duration-200 ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:active:scale-100",
-        styles,
-        sizes,
-        className,
-      )}
-    />
+      type="button"
+      onClick={onFill}
+      aria-label={label}
+      title="Use this amount"
+      className="font-semibold text-brand underline decoration-dotted underline-offset-2 transition-colors hover:decoration-solid"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -177,10 +183,10 @@ export function Field({
   return (
     <label className="block min-w-0">
       <span className="text-[13px] font-medium text-ink-soft">{label}</span>
-      <span className="mt-1.5 flex items-center rounded-2xl border border-line-strong bg-surface transition-[border-color,box-shadow] duration-200 focus-within:border-brand focus-within:shadow-[0_0_0_4px_var(--color-brand-soft)]">
+      <span className="mt-1.5 flex items-center rounded-2xl border border-line-strong bg-surface transition-[border-color,box-shadow] duration-150 focus-within:border-brand focus-within:shadow-[0_0_0_4px_var(--color-brand-soft)]">
         <input
           {...props}
-          className="min-h-11 w-full min-w-0 rounded-2xl bg-transparent px-3.5 text-base text-ink outline-none placeholder:text-line-strong"
+          className="min-h-11 w-full min-w-0 rounded-2xl bg-transparent px-3.5 text-base text-ink outline-none placeholder:text-muted/60"
         />
         {suffix && <span className="whitespace-nowrap pr-3.5 text-sm text-muted">{suffix}</span>}
       </span>
@@ -206,7 +212,7 @@ export function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 min-h-11 w-full rounded-2xl border border-line-strong bg-surface px-3 text-base text-ink outline-none transition-[border-color,box-shadow] duration-200 focus:border-brand focus:shadow-[0_0_0_4px_var(--color-brand-soft)]"
+        className="mt-1.5 min-h-11 w-full rounded-2xl border border-line-strong bg-surface px-3 text-base text-ink outline-none transition-[border-color,box-shadow] duration-150 focus:border-brand focus:shadow-[0_0_0_4px_var(--color-brand-soft)]"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -224,11 +230,18 @@ export function Segmented<T extends string>({
   onChange,
   options,
   label,
+  ariaLabel,
+  compact = false,
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: { value: T; label: string }[];
+  /** `ariaLabel` names an option for screen readers when its text is ambiguous (1m vs 1M). */
+  options: { value: T; label: string; ariaLabel?: string }[];
   label?: string;
+  /** Names the group when there is no visible label. */
+  ariaLabel?: string;
+  /** Tighter segments for many short options (chart timeframes) so labels never truncate on phones. */
+  compact?: boolean;
 }) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   return (
@@ -236,13 +249,13 @@ export function Segmented<T extends string>({
       {label && <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">{label}</span>}
       <div
         role="radiogroup"
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
         className="relative grid rounded-full bg-sunken p-1"
         style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
       >
         <span
           aria-hidden
-          className="absolute inset-y-1 rounded-full bg-surface shadow-sm transition-transform duration-300 ease-[var(--ease-out-quint)]"
+          className="absolute inset-y-1 rounded-full bg-surface shadow-sm transition-transform duration-[250ms] ease-[var(--ease-out)] dark:bg-line-strong"
           style={{
             width: `calc((100% - 0.5rem) / ${options.length})`,
             left: "0.25rem",
@@ -255,9 +268,11 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={o.value === value}
+            aria-label={o.ariaLabel}
             onClick={() => onChange(o.value)}
             className={cx(
-              "relative z-10 min-h-9 truncate rounded-full px-3 text-[13px] font-semibold transition-colors duration-200",
+              "relative z-10 min-h-9 rounded-full text-[13px] font-semibold transition-colors duration-200",
+              compact ? "px-0.5 sm:px-3" : "truncate px-3",
               o.value === value ? "text-ink" : "text-muted hover:text-ink",
             )}
           >
@@ -280,8 +295,8 @@ export function Chip({
       aria-pressed={active}
       {...props}
       className={cx(
-        "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97]",
-        active ? "border-ink bg-ink text-canvas" : "border-line-strong bg-surface text-ink hover:border-ink",
+        "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97]",
+        active ? "border-brand bg-brand-soft text-brand-ink" : "border-line-strong bg-surface text-ink hover:bg-sunken",
       )}
     >
       {children}
@@ -290,13 +305,36 @@ export function Chip({
 }
 
 export function AssetIcon({ asset, size = 36 }: { asset: Asset; size?: number }) {
+  const logo = ASSET_LOGOS[asset.icon];
+  // Bitcoin's logo is already a coin, so it is drawn as it is. The others sit white on their brand colour.
+  if (logo && asset.icon === "BTC") {
+    return (
+      <svg aria-hidden viewBox="0 0 24 24" width={size} height={size} className="shrink-0" style={{ color: asset.color }}>
+        <circle cx="12" cy="12" r="10" fill="white" />
+        <path d={logo} fill="currentColor" />
+      </svg>
+    );
+  }
   return (
     <span
       aria-hidden
       className="inline-grid shrink-0 place-items-center rounded-full font-bold text-white"
-      style={{ width: size, height: size, background: asset.color, fontSize: size * (asset.icon.length > 3 ? 0.25 : 0.3), letterSpacing: "-0.02em" }}
+      style={{
+        width: size,
+        height: size,
+        background: asset.color,
+        boxShadow: "inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 0 0 1px var(--line)",
+        fontSize: size * (asset.icon.length > 3 ? 0.25 : 0.3),
+        letterSpacing: "-0.02em",
+      }}
     >
-      {asset.icon}
+      {logo ? (
+        <svg viewBox="0 0 24 24" width={size * 0.56} height={size * 0.56} fill="currentColor">
+          <path d={logo} />
+        </svg>
+      ) : (
+        asset.icon
+      )}
     </span>
   );
 }
@@ -359,7 +397,7 @@ export function Spinner() {
 export function TxStatus({ state }: { state: TxState }) {
   if (state.busy)
     return (
-      <p className="mt-4 flex animate-[var(--animate-pop)] items-center gap-2 rounded-2xl bg-brand-soft px-3.5 py-2.5 text-sm text-brand-dark" role="status">
+      <p className="mt-4 flex animate-[var(--animate-pop)] items-center gap-2 rounded-2xl bg-brand-soft px-3.5 py-2.5 text-sm text-brand-ink" role="status">
         <Spinner /> {state.step}. Confirm in your wallet and wait for it to finish.
       </p>
     );
@@ -385,7 +423,7 @@ export function TxStatus({ state }: { state: TxState }) {
 
 export function Notice({ tone = "info", children }: { tone?: "info" | "warn" | "danger" | "grow"; children: ReactNode }) {
   const styles = {
-    info: "bg-brand-soft text-brand-dark",
+    info: "bg-brand-soft text-brand-ink",
     warn: "bg-warn-soft text-warn",
     danger: "bg-danger-soft text-danger",
     grow: "bg-grow-soft text-grow",
@@ -396,9 +434,8 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "warn" | "
 export function RiskNote() {
   return (
     <Notice tone="warn">
-      <strong>Risk note.</strong> Asset prices can fall. If you borrow and the price drops far enough, your assets can be
-      sold (liquidated) to repay the loan, and you can lose part of them. Borrowing avoids a sale but adds debt and
-      liquidation risk. Nothing here is financial advice.
+      <strong>Risk:</strong> if prices fall far enough, part of your collateral can be sold to repay a loan. Not financial
+      advice. <LearnMore href="/docs#borrowing" className="text-warn decoration-warn/40 hover:decoration-warn" />
     </Notice>
   );
 }
@@ -415,7 +452,7 @@ export function Row({ label, children }: { label: ReactNode; children: ReactNode
 export function AddressLink({ address, label }: { address: string; label?: string }) {
   return (
     <a
-      className="font-mono text-xs text-brand underline decoration-brand/30 underline-offset-2 transition-colors hover:decoration-brand"
+      className="font-mono text-xs text-brand-ink underline decoration-brand-ink/30 underline-offset-2 transition-colors hover:decoration-brand-ink"
       href={`${EXPLORER}/address/${address}`}
       target="_blank"
       rel="noreferrer"
@@ -427,4 +464,9 @@ export function AddressLink({ address, label }: { address: string; label?: strin
 
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="rounded-2xl border border-dashed border-line-strong px-4 py-6 text-center text-sm text-muted">{children}</p>;
+}
+
+/** A grey placeholder in the shape of the content that is loading. */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <span aria-hidden className={cx("skeleton block", className)} />;
 }

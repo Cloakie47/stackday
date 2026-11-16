@@ -15,6 +15,16 @@ create table if not exists profiles (
   created_at  timestamptz not null default now()
 );
 
+-- Single-use sign-in codes (nonces). The server creates one for every sign-in attempt and
+-- deletes it the moment it is used, so a captured signature cannot be sent again.
+-- Unused codes expire after 10 minutes and are cleared out when new ones are made.
+create table if not exists sign_in_nonces (
+  nonce       text primary key check (nonce ~ '^[a-f0-9]{32}$'),
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+alter table sign_in_nonces enable row level security;
+
 create table if not exists employees (
   employer_wallet  text not null check (employer_wallet = lower(employer_wallet)),
   employee_wallet  text not null check (employee_wallet = lower(employee_wallet) and employee_wallet ~ '^0x[0-9a-f]{40}$'),
@@ -37,3 +47,80 @@ create index if not exists attendance_day_idx on attendance (day);
 alter table profiles   enable row level security;
 alter table employees  enable row level security;
 alter table attendance enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Account flow (anchor parts 2 to 6), added November 15, 2026.
+-- Safe to run again: every statement checks before it changes anything.
+-- ---------------------------------------------------------------------------
+
+-- Every wallet gets a profile with a unique ID on first sign-in. The name becomes optional.
+alter table profiles alter column username drop not null;
+alter table profiles add column if not exists uid text;
+alter table profiles add column if not exists account_type text;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_uid_key') then
+    alter table profiles add constraint profiles_uid_key unique (uid);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_uid_format') then
+    alter table profiles add constraint profiles_uid_format check (uid ~ '^SD-[0-9A-Z]{8}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_account_type_check') then
+    alter table profiles add constraint profiles_account_type_check
+      check (account_type is null or account_type in ('individual', 'business'));
+  end if;
+end $$;
+
+-- A business profile. One per owner wallet.
+create table if not exists businesses (
+  owner_wallet  text primary key check (owner_wallet = lower(owner_wallet) and owner_wallet ~ '^0x[0-9a-f]{40}$'),
+  name          text not null check (char_length(name) between 2 and 60),
+  description   text not null default '' check (char_length(description) <= 400),
+  created_at    timestamptz not null default now()
+);
+alter table businesses enable row level security;
+
+-- Being on a team is an invitation until the person accepts it.
+-- The business can pay an invited person (that happens on-chain and needs no consent),
+-- but it only sees that person's attendance after they accept.
+alter table employees add column if not exists status text not null default 'invited';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'employees_status_check') then
+    alter table employees add constraint employees_status_check check (status in ('invited', 'accepted'));
+  end if;
+end $$;
+create index if not exists employees_employee_idx on employees (employee_wallet);
+
+-- Rate limiting for the API routes. One row per (key, window): the key is a route group plus a
+-- keyed hash of the visitor's address (the address itself is never stored). The server calls
+-- rate_limit_hit for each request; old windows are cleared out now and then.
+create table if not exists rate_limits (
+  key           text not null check (char_length(key) <= 80),
+  window_start  timestamptz not null,
+  hits          integer not null default 0,
+  primary key (key, window_start)
+);
+alter table rate_limits enable row level security;
+
+create or replace function rate_limit_hit(p_key text, p_window_seconds integer)
+returns integer
+language plpgsql
+set search_path = public
+as $$
+declare
+  w timestamptz := to_timestamp(floor(extract(epoch from now()) / p_window_seconds) * p_window_seconds);
+  n integer;
+begin
+  insert into rate_limits (key, window_start, hits) values (p_key, w, 1)
+  on conflict (key, window_start) do update set hits = rate_limits.hits + 1
+  returning hits into n;
+  if random() < 0.01 then
+    delete from rate_limits where window_start < now() - interval '1 day';
+  end if;
+  return n;
+end;
+$$;
+
+-- Only the server (service role) may call it. The browser's public key cannot.
+revoke all on function rate_limit_hit(text, integer) from public, anon, authenticated;
+grant execute on function rate_limit_hit(text, integer) to service_role;

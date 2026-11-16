@@ -13,23 +13,30 @@ import {
   type RiskLevel,
 } from "./index.ts";
 
-const TESTNET = Object.keys(MOCK_FOR); // AAPLc, NVDAc, cbBTC, WETH
+// The 9 assets with a Stackday mock on Base Sepolia today: 7 stocks plus cbBTC and WETH.
+const TESTNET = Object.keys(MOCK_FOR);
 const EVERYTHING = CATALOG.map((a) => a.ticker);
 const RISKS = Object.keys(RISK_LEVELS) as RiskLevel[];
 const bpsOf = (plan: ReturnType<typeof buildPlan>, t: string) => plan.holdings.find((h) => h.ticker === t)?.bps ?? 0;
 
-test("testnet, Balanced, AI and big tech: 2 capped stocks, Bitcoin and Ether, the rest USDC", () => {
+test("the testnet mocks match the deployment list", () => {
+  assert.deepEqual(
+    Object.values(MOCK_FOR).sort(),
+    ["mAAPL", "mAMZN", "mGOOGL", "mMETA", "mMSFT", "mNVDA", "mTSLA", "mWETH", "mcbBTC"].sort(),
+  );
+});
+
+test("testnet, Balanced, AI and big tech: 6 stocks, cbBTC and WETH, every cap kept", () => {
   const themes = ["ai-chips", "big-tech"];
   const plan = buildPlan({ themes, risk: "balanced", available: TESTNET });
   assert.deepEqual(checkPlan(plan, "balanced", themes), []);
-  assert.equal(bpsOf(plan, "NVDAc"), 1500);
-  assert.equal(bpsOf(plan, "AAPLc"), 1500);
-  assert.equal(bpsOf(plan, "cbBTC"), 800);
-  assert.equal(bpsOf(plan, "WETH"), 400);
-  assert.equal(plan.usdcBps, 5800);
-  assert.ok(plan.previewOnly.includes("MSFTc"), "names without a testnet token are preview only");
-  assert.ok(plan.notes.some((n) => /Only 2 of the stocks/.test(n)));
-  assert.ok(plan.holdings.find((h) => h.ticker === "NVDAc")!.why.some((w) => /Capped at 15%/.test(w)));
+  assert.deepEqual(
+    plan.holdings.map((h) => [h.ticker, h.bps]),
+    [["NVDAc", 1220], ["GOOGLc", 926], ["METAc", 926], ["MSFTc", 926], ["cbBTC", 800], ["AAPLc", 610], ["AMZNc", 610], ["WETH", 400]],
+  );
+  assert.equal(plan.usdcBps, 3582);
+  assert.ok(plan.previewOnly.includes("INTCc"), "names without a testnet token are preview only");
+  assert.ok(plan.notes.some((n) => /No single theme may go above 40%/.test(n)));
 });
 
 test("full universe: every risk level and theme mix keeps every cap", () => {
@@ -120,9 +127,11 @@ test("payday legs: a 20 percent share is split across at most 6 assets, the rest
 test("payday legs on testnet match the plan", () => {
   const plan = buildPlan({ themes: ["ai-chips", "big-tech"], risk: "balanced", available: TESTNET });
   const legs = toSipLegs(plan, 2000);
-  assert.deepEqual(legs.tickers, ["AAPLc", "NVDAc", "cbBTC", "WETH"]);
-  assert.deepEqual(legs.bps, [300, 300, 160, 80]);
-  assert.equal(legs.cashBps, 9160);
+  // 8 holdings, only 6 fit in a payday plan: the two smallest are left out and paid as USDC.
+  assert.deepEqual(legs.tickers, ["NVDAc", "GOOGLc", "METAc", "MSFTc", "cbBTC", "AAPLc"]);
+  assert.deepEqual(legs.bps, [244, 185, 185, 185, 160, 122]);
+  assert.deepEqual(legs.dropped, ["AMZNc", "WETH"]);
+  assert.equal(legs.cashBps, 8919);
 });
 
 test("splitting a USDC amount never spends more than the amount", () => {

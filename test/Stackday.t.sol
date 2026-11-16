@@ -109,7 +109,9 @@ contract HappyPathTest is BaseTest {
         assertEq(planBps[0], 500);
     }
 
-    function test_secondPayday_improvesLoanHealth() public {
+    /// Founder decision (issue #29): a payday buy never locks itself. The owner locks it, then the
+    /// loan gets safer.
+    function test_secondPayday_staysFree_untilOwnerLocksIt() public {
         vm.prank(alice);
         payroll.setSipPlan(address(stock), 2000);
         uint256 run1 = _payday(5000 * U, 3000 * U);
@@ -127,9 +129,15 @@ contract HappyPathTest is BaseTest {
         vm.prank(alice);
         payroll.claim(run2, aliceBank, 0);
 
-        assertEq(vault.idleOf(address(stock)), 0, "new stock went straight to collateral");
+        uint256 newIdle = vault.idleOf(address(stock));
+        assertEq(newIdle, collateralBefore, "new stock stays free in the vault");
+        assertEq(vault.collateralOf(address(stock)), collateralBefore, "nothing locked automatically");
+        assertEq(vault.healthFactor(address(stock)), healthBefore, "health unchanged until the owner locks");
+
+        vm.prank(alice);
+        vault.addCollateral(address(stock), newIdle);
         assertEq(vault.collateralOf(address(stock)), collateralBefore * 2);
-        assertApproxEqRel(vault.healthFactor(address(stock)), healthBefore * 2, 1e14, "health doubled");
+        assertApproxEqRel(vault.healthFactor(address(stock)), healthBefore * 2, 1e14, "health doubled once locked");
     }
 
     function test_interestView_matchesMorphoAccrual() public {
@@ -217,13 +225,15 @@ contract RiskTest is BaseTest {
         uint256 run3 = _payday(5000 * U, 3000 * U);
         bankBefore = usdc.balanceOf(aliceBank);
         uint256 collateralBefore = vault.collateralOf(address(stock));
+        uint256 idleBefore = vault.idleOf(address(stock)); // the healthy payday's 5% stayed free
+        assertGt(idleBefore, 0, "the ordinary payday buy was not locked");
         vm.prank(alice);
         payroll.claim(run3, aliceBank, 0);
         assertEq(usdc.balanceOf(aliceBank) - bankBefore, 2500 * U, "half the salary was redirected");
         assertEq(
             vault.collateralOf(address(stock)) - collateralBefore, swapAdapter.quote(address(stock), 2500 * U)
         );
-        assertEq(vault.idleOf(address(stock)), 0);
+        assertEq(vault.idleOf(address(stock)), idleBefore, "only the emergency share was locked");
         assertGt(vault.healthFactor(address(stock)), 1.5e18, "loan is safe again");
         assertFalse(payroll.emergencyActive(alice));
     }
@@ -446,18 +456,24 @@ contract NoAdminTest is BaseTest {
     function test_payrollInternalsAreClosed() public {
         vm.prank(attacker);
         vm.expectRevert(Payroll.OnlySelf.selector);
-        payroll.executeSip(attacker, address(stock), 1, 0);
+        payroll.executeSip(attacker, address(stock), 1, 0, false);
     }
 
-    /// Anyone may add value (deposit stock, repay), which can only help the owner.
-    function test_anyoneCanAddValue_depositGoesToCollateralWhenLoanOpen() public {
+    /// Anyone may add value (deposit stock, repay), which can only help the owner. A plain deposit
+    /// stays free even with a loan open; depositStockAsCollateral locks the caller's own tokens.
+    function test_anyoneCanAddValue_depositStaysFree_explicitLockAddsCollateral() public {
         vm.prank(demoAdmin);
-        stock.mint(bob, 2 * S);
+        stock.mint(bob, 4 * S);
+        uint256 idleBefore = vault.idleOf(address(stock));
         vm.startPrank(bob);
-        stock.approve(address(vault), 2 * S);
+        stock.approve(address(vault), 4 * S);
         vault.depositStock(address(stock), 2 * S);
+        assertEq(vault.collateralOf(address(stock)), collateral, "plain deposit is not locked");
+        assertEq(vault.idleOf(address(stock)), idleBefore + 2 * S);
+        vault.depositStockAsCollateral(address(stock), 2 * S);
         vm.stopPrank();
-        assertEq(vault.collateralOf(address(stock)), collateral + 2 * S);
+        assertEq(vault.collateralOf(address(stock)), collateral + 2 * S, "explicit lock adds collateral");
+        assertEq(vault.idleOf(address(stock)), idleBefore + 2 * S, "the free part is untouched");
     }
 
     function test_unsupportedStock_rejected() public {

@@ -2,9 +2,9 @@
 
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { erc20Abi, type Abi, BaseError, ContractFunctionRevertedError } from "viem";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
-import type { Address } from "./contracts";
+import { erc20Abi, type Abi, type WalletClient, BaseError, ContractFunctionRevertedError } from "viem";
+import { useAccount, usePublicClient, useWalletClient, useWriteContract } from "wagmi";
+import { CHAIN_ID, type Address } from "./contracts";
 
 export type Call = {
   label: string;
@@ -54,15 +54,33 @@ function explain(e: unknown): string {
 }
 
 /**
- * Sends one or more transactions in order, waiting for each to confirm.
- * Every transaction is simulated first (so a failure is caught before the wallet opens) and
- * sent with 60% extra gas, because lending market interest can make the real cost higher
- * than the estimate.
+ * Sends one or more transactions.
+ * - Wallets that can sign a batch atomically (EIP-5792, for example Coinbase Smart Wallet or a
+ *   MetaMask smart account) get every step in ONE signature, all or nothing.
+ * - Other wallets get the steps one after another, each simulated first (so a failure is caught
+ *   before the wallet opens) and sent with 60% extra gas, because lending market interest can
+ *   make the real cost higher than the estimate.
+ * Pages also fold their vault steps into one multicall (lib/batch.ts), so even plain wallets sign
+ * once for the vault part.
  */
+/** True when the wallet says it can run a batch of calls atomically on this chain (EIP-5792). */
+async function canBatchAtomically(
+  walletClient: WalletClient,
+  account: Address,
+): Promise<boolean> {
+  try {
+    const caps = (await walletClient.getCapabilities({ account, chainId: CHAIN_ID })) as { atomic?: { status?: string } };
+    return caps.atomic?.status === "supported" || caps.atomic?.status === "ready";
+  } catch {
+    return false; // the wallet does not support EIP-5792: send the steps one by one
+  }
+}
+
 export function useTx() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
+  const { data: walletClient } = useWalletClient();
   const queryClient = useQueryClient();
   const [state, setState] = useState<TxState>({ busy: false });
 
@@ -74,6 +92,20 @@ export function useTx() {
       }
       let hash: `0x${string}` | undefined;
       try {
+        if (calls.length > 1 && walletClient && (await canBatchAtomically(walletClient, address))) {
+          setState({ busy: true, step: `${calls.length} steps in one signature` });
+          const { id } = await walletClient.sendCalls({
+            account: address,
+            forceAtomic: true,
+            calls: calls.map((c) => ({ to: c.address, abi: c.abi as Abi, functionName: c.functionName, args: c.args ?? [] })),
+          });
+          const result = await walletClient.waitForCallsStatus({ id, timeout: 180_000 });
+          hash = result.receipts?.at(-1)?.transactionHash;
+          if (result.status !== "success") throw new Error("The batch failed on-chain. Nothing in it was applied.");
+          await queryClient.invalidateQueries();
+          setState({ busy: false, hash, done: doneMessage });
+          return true;
+        }
         for (const call of calls) {
           setState({ busy: true, step: call.label });
           const request = {
@@ -103,7 +135,7 @@ export function useTx() {
         return false;
       }
     },
-    [address, publicClient, writeContractAsync, queryClient],
+    [address, publicClient, writeContractAsync, walletClient, queryClient],
   );
 
   /** Adds a USDC or token approval step only when the current allowance is too small. */

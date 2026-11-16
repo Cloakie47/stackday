@@ -1,0 +1,360 @@
+"use client";
+
+import { useState } from "react";
+import { useViewer } from "@/components/providers";
+import { AssetIcon, Button, Card, Field, FillAmount, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
+import { factoryAbi, vaultAbi } from "@/lib/abis";
+import { splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
+import { MAX_UINT, ADDR } from "@/lib/contracts";
+import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc, usdcInput } from "@/lib/format";
+import type { Portfolio, Position } from "@/lib/usePortfolio";
+import { vaultBatch } from "@/lib/batch";
+import { useTx, type Call } from "@/lib/useTx";
+
+/**
+ * Approximate yearly dividend of the real share each token tracks, in basis points. Tokenized stocks
+ * reinvest dividends into the token, so locked tokens keep earning them. cbBTC and Ether pay none.
+ * The testnet mock tokens pay no dividends at all; the UI says so.
+ */
+const DIVIDEND_BPS: Record<string, number> = {
+  mAAPL: 40,
+  mNVDA: 2,
+  mMSFT: 70,
+  mGOOGL: 30,
+  mMETA: 30,
+  mTSLA: 0,
+  mAMZN: 0,
+  mcbBTC: 0,
+  mWETH: 0,
+};
+
+type Tab = "lock" | "borrow" | "repay";
+
+const toNum = (v: bigint | undefined) => (v === undefined ? undefined : Number(v / 10n ** 14n) / 10_000);
+
+function legOf(pos: Position, extraValue = 0n, extraDebt = 0n): Leg {
+  const value = pos.price ? assetValue(pos.collateral, pos.price, pos.asset.decimals) : 0n;
+  return { value: value + extraValue, lltv: pos.asset.lltv, debt: pos.debt + extraDebt, liquidity: pos.liquidity };
+}
+
+/** Free tokens the person can lock: idle in the vault, then the wallet. Nothing while transfers are paused. */
+function freeOf(pos: Position) {
+  return pos.transfersPaused ? 0n : pos.idle + pos.wallet;
+}
+
+export function CollateralBasket({ p }: { p: Portfolio }) {
+  const viewer = useViewer();
+  const tx = useTx();
+  const me = viewer.address;
+  const vault = p.vault;
+  const cap = p.borrowCapBps;
+  const [tab, setTab] = useState<Tab>("lock");
+  const [lockUsd, setLockUsd] = useState<Record<string, string>>({});
+  const [borrowAmt, setBorrowAmt] = useState("");
+  const [repayAmt, setRepayAmt] = useState("");
+
+  const positions = p.positions;
+  const legs = positions.map((x) => legOf(x));
+  const now = summarize(legs, cap);
+  // True when market cash, not the borrow cap, is what stops a bigger loan.
+  const cashLimited = now.locked > 0n && now.available < (now.limit > now.debt ? now.limit - now.debt : 0n);
+  const earnings = yearly(positions.map((x, i) => ({ ...legs[i], dividendBps: DIVIDEND_BPS[x.asset.symbol] ?? 0, ratePerSecond: x.ratePerSecond })));
+
+  // ---- lock: dollars per asset to token amounts, capped by what is free
+  const lockPlan = positions.map((x) => {
+    const usd = parseUsdc(lockUsd[x.asset.symbol] ?? "");
+    const free = freeOf(x);
+    let wanted = x.price ? assetForUsdc(usd, x.price, x.asset.decimals) : 0n;
+    // Round up by the smallest unit so "$10" locks $10.00, not $9.99.
+    if (x.price && usd > 0n && assetValue(wanted, x.price, x.asset.decimals) < usd) wanted += 1n;
+    const amount = wanted > free ? free : wanted;
+    const value = x.price ? assetValue(amount, x.price, x.asset.decimals) : 0n;
+    return { pos: x, usd, amount, value, tooMuch: wanted > free + 1n };
+  });
+  const lockTotal = lockPlan.reduce((a, l) => a + l.value, 0n);
+  const afterLock = summarize(positions.map((x, i) => legOf(x, lockPlan[i].value)), cap);
+
+  // ---- borrow and repay: one amount, split across the markets
+  const borrow = parseUsdc(borrowAmt);
+  const borrowSplit = splitBorrow(borrow, legs, cap);
+  const afterBorrow = borrowSplit ? summarize(positions.map((x, i) => legOf(x, 0n, borrowSplit[i])), cap) : undefined;
+  const repayAll = repayAmt.trim() === "" ? false : parseUsdc(repayAmt) >= now.debt;
+  const repay = parseUsdc(repayAmt);
+  const repaySplit = splitRepay(repay, legs, cap);
+
+  const parts = positions
+    .map((x, i) => ({ key: x.asset.symbol, value: Number(legs[i].value), color: x.asset.color, label: x.asset.name }))
+    .filter((x) => x.value > 0);
+
+  function fillEach(dollars: string) {
+    setLockUsd(Object.fromEntries(positions.filter((x) => freeOf(x) > 0n && x.price).map((x) => [x.asset.symbol, dollars])));
+  }
+
+  function fillMax() {
+    setLockUsd(
+      Object.fromEntries(
+        positions
+          .filter((x) => freeOf(x) > 0n && x.price)
+          .map((x) => [x.asset.symbol, fmtUsdc(assetValue(freeOf(x), x.price!, x.asset.decimals)).replace(/,/g, "")]),
+      ),
+    );
+  }
+
+  async function doLock() {
+    // The vault's address is known before it exists, so a first lock can create it in the same flow.
+    const vault = p.vault ?? p.predictedVault;
+    if (!vault || !me) return;
+    const calls: Call[] = [];
+    if (!p.vault) calls.push({ label: "Create your vault", address: ADDR.factory, abi: factoryAbi, functionName: "createVault", args: [me] });
+    for (const l of lockPlan) {
+      if (l.amount === 0n) continue;
+      const a = l.pos.asset;
+      const fromIdle = l.amount < l.pos.idle ? l.amount : l.pos.idle;
+      const fromWallet = l.amount - fromIdle;
+      if (fromWallet > 0n) {
+        calls.push(...(await tx.withApproval(a.token, vault, fromWallet, `Allow your vault to take your ${a.name}`)));
+        calls.push({ label: `Move ${a.name} from your wallet into your vault`, address: vault, abi: vaultAbi, functionName: "depositStock", args: [a.token, fromWallet] });
+      }
+      // Deposits never lock themselves (issue #29), so lock everything chosen here.
+      const toLock = fromIdle + fromWallet;
+      if (toLock > 0n) calls.push({ label: `Lock ${a.name} as collateral`, address: vault, abi: vaultAbi, functionName: "addCollateral", args: [a.token, toLock] });
+    }
+    const lockLabel = `Lock $${fmtUsdc(lockTotal)} as collateral`;
+    if (await tx.run(vaultBatch(vault, calls, lockLabel), `Locked $${fmtUsdc(lockTotal)} as collateral.`)) setLockUsd({});
+  }
+
+  async function doBorrow() {
+    if (!vault || !me || !borrowSplit) return;
+    const calls: Call[] = positions
+      .map((x, i) => ({ x, amt: borrowSplit[i] }))
+      .filter(({ amt }) => amt > 0n)
+      .map(({ x, amt }) => ({ label: `Borrow $${fmtUsdc(amt)} against your ${x.asset.name}`, address: vault, abi: vaultAbi, functionName: "borrow", args: [x.asset.token, 0n, amt, me] }));
+    if (await tx.run(vaultBatch(vault, calls, "Borrow across your locked assets"), "Borrowed. The USDC is in your wallet.")) setBorrowAmt("");
+  }
+
+  async function doRepay(all: boolean) {
+    if (!vault) return;
+    const amounts = all ? positions.map((x) => x.debt) : repaySplit;
+    const total = amounts.reduce((a, b) => a + b, 0n);
+    const approve = all ? total + total / 100n + 1000n : total;
+    const calls: Call[] = [
+      ...(await tx.withApproval(ADDR.usdc, vault, approve, "Allow your vault to take the USDC")),
+      ...positions
+        .map((x, i) => ({ x, amt: amounts[i] }))
+        .filter(({ amt }) => amt > 0n)
+        .map(({ x, amt }) => ({ label: `Repay the ${x.asset.name} part`, address: vault, abi: vaultAbi, functionName: "repay", args: [x.asset.token, all ? MAX_UINT : amt] })),
+    ];
+    if (await tx.run(vaultBatch(vault, calls, all ? "Repay every loan" : "Repay your loans"), all ? "Loan fully repaid." : "Repayment made.")) setRepayAmt("");
+  }
+
+  const busy = tx.state.busy;
+  const can = viewer.canAct && !!vault;
+  const weakestPos = positions.find((x) => x.debt > 0n && x.health !== undefined && x.health === positions.filter((y) => y.debt > 0n).reduce((m, y) => (y.health! < m ? y.health! : m), MAX_UINT));
+
+  return (
+    <Card title="Collateral basket">
+      <p className="max-w-2xl text-sm leading-relaxed text-muted">
+        Lock any mix of your assets as one pot of collateral, then borrow against the total. New buys stay free in your vault until you lock them here. Locking more, for example each payday's buy, makes a loan safer.
+      </p>
+
+      <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
+        <Stat label="Locked" value={`$${fmtUsdc(now.locked)}`} hint="Collateral value now" />
+        <Stat
+          label="You can borrow"
+          value={`$${fmtUsdc(now.available)}`}
+          hint={cashLimited ? "Limited by the USDC the markets have to lend" : "Under your borrow limit"}
+        />
+        <Stat label="Loan" value={`$${fmtUsdc(now.debt)}`} />
+        <Stat label="Health" value={now.health !== undefined ? fmtHealth(now.health) : "No loan"} hint="Whole basket. Below 1.00 can be liquidated" />
+      </div>
+      {parts.length > 0 && (
+        <div className="mt-5">
+          <SplitBar parts={parts} />
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+            {positions.map((x, i) =>
+              legs[i].value > 0n ? (
+                <span key={x.asset.symbol} className="inline-flex items-center gap-1.5">
+                  <AssetIcon asset={x.asset} size={14} /> {x.asset.name} ${fmtUsdc(legs[i].value)}
+                </span>
+              ) : null,
+            )}
+          </div>
+        </div>
+      )}
+      {now.debt > 0n && (
+        <div className="mt-5">
+          <HealthMeter health={toNum(now.weakest)} />
+          <p className="mt-2 text-xs text-muted">
+            The bar shows the weakest part{weakestPos ? ` (${weakestPos.asset.name}, health ${fmtHealth(now.weakest)})` : ""}: each asset sits in its own
+            market and can be liquidated on its own if its price falls far.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-6 max-w-md">
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          label="What do you want to do?"
+          options={[
+            { value: "lock", label: "Lock" },
+            { value: "borrow", label: "Borrow" },
+            { value: "repay", label: "Repay" },
+          ]}
+        />
+      </div>
+
+      {tab === "lock" && (
+        <div className="mt-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[13px] font-medium text-ink-soft">Quick fill:</span>
+            <Button size="sm" variant="secondary" onClick={() => fillEach("1")}>$1 of each</Button>
+            <Button size="sm" variant="secondary" onClick={() => fillEach("10")}>$10 of each</Button>
+            <Button size="sm" variant="ghost" onClick={fillMax}>Everything free</Button>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {lockPlan.map((l) => {
+              const a = l.pos.asset;
+              const free = freeOf(l.pos);
+              const freeValue = l.pos.price ? assetValue(free, l.pos.price, a.decimals) : 0n;
+              return (
+                <div key={a.symbol} className="flex items-start gap-3">
+                  <span className="mt-7"><AssetIcon asset={a} size={28} /></span>
+                  <div className="min-w-0 flex-1">
+                    <Field
+                      label={a.name}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      suffix="USD"
+                      disabled={free === 0n || !l.pos.price}
+                      value={lockUsd[a.symbol] ?? ""}
+                      onChange={(e) => setLockUsd((s) => ({ ...s, [a.symbol]: e.target.value }))}
+                      hint={
+                        l.pos.transfersPaused
+                          ? "Transfers are paused, so it cannot be locked right now."
+                          : free === 0n
+                            ? "None free. Buy some on Invest."
+                            : (
+                              <>
+                                Free:{" "}
+                                <FillAmount onFill={() => setLockUsd((s) => ({ ...s, [a.symbol]: usdcInput(freeValue) }))} label={`Lock all free ${a.name}`}>
+                                  ${fmtUsdc(freeValue)}
+                                </FillAmount>{" "}
+                                ({fmtAsset(free, a.decimals)} {a.symbol}, {l.pos.idle === 0n ? "in your wallet" : l.pos.wallet === 0n ? "in your vault" : "in your vault and wallet"})
+                                {l.tooMuch ? ". Capped at what you have." : ""}
+                              </>
+                            )
+                      }
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-5 rounded-2xl bg-sunken p-4 text-sm">
+            Lock <strong>${fmtUsdc(lockTotal)}</strong>. Afterwards: <strong>${fmtUsdc(afterLock.locked)}</strong> locked, you can borrow up to{" "}
+            <strong>${fmtUsdc(afterLock.available)}</strong>.
+          </div>
+          <Button className="mt-3 w-full sm:w-auto" disabled={!viewer.canAct || !(vault ?? p.predictedVault) || lockTotal === 0n || busy} onClick={doLock}>
+            Lock ${fmtUsdc(lockTotal)} as collateral
+          </Button>
+          {!vault && <p className="mt-2 text-xs text-muted">Your vault is created in the same step.</p>}
+        </div>
+      )}
+
+      {tab === "borrow" && (
+        <div className="mt-5 max-w-xl">
+          <Field
+            label="Borrow"
+            inputMode="decimal"
+            placeholder="0.00"
+            suffix="USDC"
+            value={borrowAmt}
+            onChange={(e) => setBorrowAmt(e.target.value)}
+            hint={
+              now.locked === 0n ? (
+                "Lock collateral first."
+              ) : (
+                <>
+                  Up to <FillAmount onFill={() => setBorrowAmt(usdcInput(now.available))}>${fmtUsdc(now.available)}</FillAmount>. Uses only what you locked.
+                </>
+              )
+            }
+          />
+          {borrow > 0n && borrowSplit && afterBorrow && (
+            <div className="mt-4 rounded-2xl bg-sunken p-4 text-sm">
+              <div className="font-medium">Split so every part stays equally safe:</div>
+              <ul className="mt-2 space-y-1">
+                {positions.map((x, i) =>
+                  borrowSplit[i] > 0n ? (
+                    <li key={x.asset.symbol} className="flex items-center gap-2">
+                      <AssetIcon asset={x.asset} size={16} /> {x.asset.name}: ${fmtUsdc(borrowSplit[i])}
+                    </li>
+                  ) : null,
+                )}
+              </ul>
+              <div className="mt-2 text-muted">Health afterwards: {fmtHealth(afterBorrow.health)} for the basket, {fmtHealth(afterBorrow.weakest)} for the weakest part.</div>
+            </div>
+          )}
+          {borrow > 0n && !borrowSplit && <p className="mt-2 text-xs text-danger">That is above what you can borrow now. Lock more first.</p>}
+          <Button className="mt-3 w-full sm:w-auto" disabled={!can || !me || borrow === 0n || !borrowSplit || busy} onClick={doBorrow}>
+            Borrow
+          </Button>
+        </div>
+      )}
+
+      {tab === "repay" && (
+        <div className="mt-5 max-w-xl">
+          <Field
+            label="Repay"
+            inputMode="decimal"
+            placeholder="0.00"
+            suffix="USDC"
+            value={repayAmt}
+            onChange={(e) => setRepayAmt(e.target.value)}
+            hint={
+              now.debt > 0n ? (
+                <>
+                  Any amount, any time. No penalty. Loan:{" "}
+                  <FillAmount onFill={() => setRepayAmt(usdcInput(now.debt))}>${fmtUsdc(now.debt)}</FillAmount>
+                </>
+              ) : (
+                "Any amount, any time. No penalty."
+              )
+            }
+          />
+          {repay > 0n && !repayAll && (
+            <ul className="mt-3 space-y-1 text-sm text-muted">
+              {positions.map((x, i) =>
+                repaySplit[i] > 0n ? (
+                  <li key={x.asset.symbol} className="flex items-center gap-2">
+                    <AssetIcon asset={x.asset} size={16} /> {x.asset.name}: ${fmtUsdc(repaySplit[i])}
+                  </li>
+                ) : null,
+              )}
+            </ul>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="secondary" disabled={!can || repay === 0n || now.debt === 0n || busy} onClick={() => doRepay(repayAll)}>
+              Repay
+            </Button>
+            <Button variant="secondary" disabled={!can || now.debt === 0n || busy} onClick={() => doRepay(true)}>
+              Repay all
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <TxStatus state={tx.state} />
+
+      <div className="mt-6 grid gap-4 border-t border-line pt-6 sm:grid-cols-3">
+        <Stat label="Dividends a year" value={`+$${fmtUsdc(earnings.earn)}`} hint="Reinvested into the tokens" />
+        <Stat label="Interest a year" value={`-$${fmtUsdc(earnings.cost)}`} hint="Live Morpho rate on your loan" />
+        <Stat label="Net a year" value={`${earnings.net < 0n ? "-" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`} hint="At today's prices, before price moves" />
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        Estimated with each real share&apos;s yearly dividend. The test tokens pay none.
+      </p>
+    </Card>
+  );
+}
