@@ -489,8 +489,8 @@ export default function DashboardPage() {
         )}
         {p.totalPutIn > 0n && (
           <p className="mt-4 text-xs leading-relaxed text-muted">
-            Total invested is the USDC you put in through buys and payday shares, before fees. Assets you deposited or
-            withdrew yourself are not counted in it.
+            Total invested is the USDC you put in through buys and payday shares, before fees. It never goes down, so
+            assets you took out of the vault show up as a loss in Change.
           </p>
         )}
         {cash > 0n && (
