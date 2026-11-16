@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Field, FillAmount, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
-import { vaultAbi } from "@/lib/abis";
+import { factoryAbi, vaultAbi } from "@/lib/abis";
 import { splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
 import { MAX_UINT, ADDR } from "@/lib/contracts";
 import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc, usdcInput } from "@/lib/format";
 import type { Portfolio, Position } from "@/lib/usePortfolio";
+import { vaultBatch } from "@/lib/batch";
 import { useTx, type Call } from "@/lib/useTx";
 
 /**
@@ -100,8 +101,11 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   }
 
   async function doLock() {
-    if (!vault) return;
+    // The vault's address is known before it exists, so a first lock can create it in the same flow.
+    const vault = p.vault ?? p.predictedVault;
+    if (!vault || !me) return;
     const calls: Call[] = [];
+    if (!p.vault) calls.push({ label: "Create your vault", address: ADDR.factory, abi: factoryAbi, functionName: "createVault", args: [me] });
     for (const l of lockPlan) {
       if (l.amount === 0n) continue;
       const a = l.pos.asset;
@@ -111,11 +115,12 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
         calls.push(...(await tx.withApproval(a.token, vault, fromWallet, `Allow your vault to take your ${a.name}`)));
         calls.push({ label: `Move ${a.name} from your wallet into your vault`, address: vault, abi: vaultAbi, functionName: "depositStock", args: [a.token, fromWallet] });
       }
-      // With a loan open, depositStock already locks what it receives.
-      const toLock = fromIdle + (l.pos.debt > 0n ? 0n : fromWallet);
+      // Deposits never lock themselves (issue #29), so lock everything chosen here.
+      const toLock = fromIdle + fromWallet;
       if (toLock > 0n) calls.push({ label: `Lock ${a.name} as collateral`, address: vault, abi: vaultAbi, functionName: "addCollateral", args: [a.token, toLock] });
     }
-    if (await tx.run(calls, `Locked $${fmtUsdc(lockTotal)} as collateral.`)) setLockUsd({});
+    const lockLabel = `Lock $${fmtUsdc(lockTotal)} as collateral`;
+    if (await tx.run(vaultBatch(vault, calls, lockLabel), `Locked $${fmtUsdc(lockTotal)} as collateral.`)) setLockUsd({});
   }
 
   async function doBorrow() {
@@ -124,7 +129,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
       .map((x, i) => ({ x, amt: borrowSplit[i] }))
       .filter(({ amt }) => amt > 0n)
       .map(({ x, amt }) => ({ label: `Borrow $${fmtUsdc(amt)} against your ${x.asset.name}`, address: vault, abi: vaultAbi, functionName: "borrow", args: [x.asset.token, 0n, amt, me] }));
-    if (await tx.run(calls, "Borrowed. The USDC is in your wallet.")) setBorrowAmt("");
+    if (await tx.run(vaultBatch(vault, calls, "Borrow across your locked assets"), "Borrowed. The USDC is in your wallet.")) setBorrowAmt("");
   }
 
   async function doRepay(all: boolean) {
@@ -139,7 +144,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
         .filter(({ amt }) => amt > 0n)
         .map(({ x, amt }) => ({ label: `Repay the ${x.asset.name} part`, address: vault, abi: vaultAbi, functionName: "repay", args: [x.asset.token, all ? MAX_UINT : amt] })),
     ];
-    if (await tx.run(calls, all ? "Loan fully repaid." : "Repayment made.")) setRepayAmt("");
+    if (await tx.run(vaultBatch(vault, calls, all ? "Repay every loan" : "Repay your loans"), all ? "Loan fully repaid." : "Repayment made.")) setRepayAmt("");
   }
 
   const busy = tx.state.busy;
@@ -250,10 +255,10 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             Lock <strong>${fmtUsdc(lockTotal)}</strong>. Afterwards: <strong>${fmtUsdc(afterLock.locked)}</strong> locked, you can borrow up to{" "}
             <strong>${fmtUsdc(afterLock.available)}</strong>.
           </div>
-          <Button className="mt-3 w-full sm:w-auto" disabled={!can || lockTotal === 0n || busy} onClick={doLock}>
+          <Button className="mt-3 w-full sm:w-auto" disabled={!viewer.canAct || !(vault ?? p.predictedVault) || lockTotal === 0n || busy} onClick={doLock}>
             Lock ${fmtUsdc(lockTotal)} as collateral
           </Button>
-          {!vault && <p className="mt-2 text-xs text-muted">Your vault is created with your first purchase on Invest.</p>}
+          {!vault && <p className="mt-2 text-xs text-muted">Your vault is created in the same step.</p>}
         </div>
       )}
 

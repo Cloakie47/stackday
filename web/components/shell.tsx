@@ -89,7 +89,7 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
     try {
       await switchMode(account.address, next, account.session.signedIn);
       // A business owner opens Payroll; everyone else in Business opens My pay.
-      const nextRole: Role = next === "personal" ? "individual" : account.me?.business ? "owner" : "employee";
+      const nextRole: Role = next === "personal" ? "individual" : account.businessRole;
       router.push(homeFor(next, nextRole));
     } finally {
       setBusy(false);
@@ -351,7 +351,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const account = useAccountState();
   const { role, mode } = account;
   const showMode = !!mode && !viewer.readOnly;
-  const { items, tabs, more } = navFor(viewer.readOnly ? undefined : role);
+  const { items, tabs, more } = navFor(viewer.readOnly ? "individual" : role);
   const current = items.find((n) => isActive(n.href)) ?? ALL_PAGES.find((n) => isActive(n.href));
 
   // Choosing Personal or Business is required: a connected wallet without a choice goes to /start.

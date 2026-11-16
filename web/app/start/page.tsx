@@ -116,7 +116,7 @@ export default function StartPage() {
         if (mode === "business" && businessRole === "owner") await saveBusiness(name, description);
         else await saveAccountType(mode === "personal" ? "individual" : "business");
       }
-      rememberMode(account.address, mode);
+      rememberMode(account.address, mode, mode === "business" ? businessRole : undefined);
       await queryClient.invalidateQueries();
       router.push(homeFor(mode, mode === "personal" ? "individual" : businessRole));
     } catch (e) {
