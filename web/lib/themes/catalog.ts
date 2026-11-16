@@ -35,7 +35,7 @@ export const CATALOG: CatalogAsset[] = [
   { ticker: "SPCXc", name: "SpaceX", kind: "stock", riskOnly: true },
   { ticker: "MSTRc", name: "Strategy", kind: "stock", cryptoLike: true, riskOnly: true },
   { ticker: "CRCLc", name: "Circle", kind: "stock", cryptoLike: true },
-  { ticker: "cbBTC", name: "Bitcoin", kind: "crypto" },
+  { ticker: "cbBTC", name: "cbBTC", kind: "crypto" },
   { ticker: "WETH", name: "Ether", kind: "crypto" },
 ];
 
@@ -81,6 +81,11 @@ export const COMING_SOON = ["Clean energy", "Healthcare", "Global stocks"];
 export const MOCK_FOR: Record<string, string> = {
   AAPLc: "mAAPL",
   NVDAc: "mNVDA",
+  TSLAc: "mTSLA",
+  MSFTc: "mMSFT",
+  AMZNc: "mAMZN",
+  GOOGLc: "mGOOGL",
+  METAc: "mMETA",
   cbBTC: "mcbBTC",
   WETH: "mWETH",
 };

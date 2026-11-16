@@ -15,6 +15,7 @@ for (const [table, column] of [
   ["attendance", "employee_wallet"],
   ["employees", "employer_wallet"],
   ["employees", "employee_wallet"],
+  ["businesses", "owner_wallet"],
   ["profiles", "wallet"],
 ]) {
   const r = await client.query(`delete from ${table} where ${column} = any($1)`, [wallets]);

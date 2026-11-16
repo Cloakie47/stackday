@@ -1,37 +1,27 @@
 "use client";
 
+import { PriceChart } from "@/components/price-chart";
+import { AssetSelect } from "@/components/asset-select";
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Empty, Field, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Empty, Field, FillAmount, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, routerAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
-import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until } from "@/lib/format";
+import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until, usdcInput } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
+import { BRAND } from "@/lib/brand";
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4" role="radiogroup" aria-label="Asset">
-      {positions.map((pos) => {
-        const active = pos.asset.symbol === value;
-        return (
-          <button
-            key={pos.asset.symbol}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(pos.asset.symbol)}
-            className={`rounded-2xl border p-3.5 text-left transition-[border-color,transform,background-color] duration-200 active:scale-[0.98] ${
-              active ? "border-ink bg-surface" : "border-line bg-surface/60 hover:border-line-strong"
-            }`}
-          >
-            <AssetIcon asset={pos.asset} />
-            <div className="mt-2.5 text-sm font-semibold">{pos.asset.name}</div>
-            <div className="text-xs tabular-nums text-muted">${fmtPrice(pos.price)}</div>
-          </button>
-        );
-      })}
-    </div>
+    <AssetSelect
+      label="Asset"
+      assets={positions.map((p) => p.asset)}
+      value={value}
+      onChange={onChange}
+      detail={(a) => `$${fmtPrice(positions.find((p) => p.asset.symbol === a.symbol)?.price)}`}
+    />
   );
 }
 
@@ -64,7 +54,7 @@ export default function InvestPage() {
 
   async function buyOnce() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, "Allow Stackday to take the USDC")),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
       { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min(amount)] },
     ];
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
@@ -123,17 +113,22 @@ export default function InvestPage() {
     <>
       <PageHeader
         title="Invest"
-        lead="No employer needed. Buy into your own vault from your wallet, once or on a schedule, and put idle USDC to work."
+        lead={
+          <>
+            Buy into your own vault, once or on a schedule. <LearnMore href="/docs#individuals" />
+          </>
+        }
       />
 
       {!me && <Notice>Connect your wallet (top right) to invest.</Notice>}
 
-      <Card title="Choose what to buy" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
+      <Card title="Choose what to buy">
         <AssetPicker positions={p.positions} value={symbol} onChange={setSymbol} />
         <p className="mt-3 text-xs text-muted">
-          {asset.symbol} stands in for {asset.realTicker} on this test network. In your vault now:{" "}
-          {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet: {fmtUsdc(p.walletUsdc)} USDC.
+          In your vault: {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet:{" "}
+          {fmtUsdc(p.walletUsdc)} USDC.
         </p>
+        <PriceChart key={asset.symbol} asset={asset} testnetPrice={pos.price} />
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-line p-4">
@@ -147,9 +142,15 @@ export default function InvestPage() {
                 value={amt}
                 onChange={(e) => setAmt(e.target.value)}
                 hint={
-                  amount > 0n && pos.price
-                    ? `About ${fmtAsset(assetForUsdc(net(amount), pos.price, asset.decimals), asset.decimals)} ${asset.symbol} after the ${fmtPct(SIP_FEE_BPS)} fee.`
-                    : `Fee: ${fmtPct(SIP_FEE_BPS)} of the amount.`
+                  <>
+                    {amount > 0n && pos.price
+                      ? `About ${fmtAsset(assetForUsdc(net(amount), pos.price, asset.decimals), asset.decimals)} ${asset.symbol} after the ${fmtPct(SIP_FEE_BPS)} fee.`
+                      : `Fee: ${fmtPct(SIP_FEE_BPS)} of the amount.`}{" "}
+                    Wallet:{" "}
+                    <FillAmount onFill={() => setAmt(usdcInput(p.walletUsdc))} label="Use all USDC in your wallet">
+                      ${fmtUsdc(p.walletUsdc)}
+                    </FillAmount>
+                  </>
                 }
               />
             </div>
@@ -162,7 +163,25 @@ export default function InvestPage() {
           <div className="rounded-2xl border border-line p-4">
             <h3 className="text-sm font-semibold">Buy on a schedule</h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field label="Each time" inputMode="decimal" placeholder="0.00" suffix="USDC" value={perBuy} onChange={(e) => setPerBuy(e.target.value)} />
+              <Field
+                label="Each time"
+                inputMode="decimal"
+                placeholder="0.00"
+                suffix="USDC"
+                value={perBuy}
+                onChange={(e) => setPerBuy(e.target.value)}
+                hint={
+                  <>
+                    Quick:{" "}
+                    {["5", "10", "25", "50"].map((v, i) => (
+                      <span key={v}>
+                        {i > 0 && " · "}
+                        <FillAmount onFill={() => setPerBuy(v)}>${v}</FillAmount>
+                      </span>
+                    ))}
+                  </>
+                }
+              />
               <Select
                 label="How often"
                 value={interval}
@@ -176,11 +195,10 @@ export default function InvestPage() {
               />
             </div>
             <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
-              {pos.recurring ? `Replace the ${asset.name} plan` : `Start a ${asset.name} plan`}
+              {pos.recurring ? "Replace the recurring buy" : "Start a recurring buy"}
             </Button>
             <p className="mt-2 text-xs leading-relaxed text-muted">
-              You approve 12 buys up front. A due buy can be triggered by anyone, but only as your plan says: this amount,
-              this asset, into your own vault, within 1% of the reference price.
+              You approve 12 buys up front. Each fills within 1% of the reference price.
             </p>
           </div>
         </div>
@@ -220,10 +238,9 @@ export default function InvestPage() {
         )}
       </Card>
 
-      <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock venue on testnet</MockBadge>}>
+      <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock interest venue</MockBadge>}>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          USDC sitting in your vault can be lent out to earn interest. On Base mainnet this would be a Morpho vault. The
-          position stays in your vault, in your name. Interest is not guaranteed and the lending venue has its own risk.
+          Lend idle vault USDC to earn interest. Not guaranteed. <LearnMore href="/docs#earn" />
         </p>
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Stat label="Earning now" value={`$${fmtUsdc(p.earning, 4)}`} />
@@ -238,7 +255,19 @@ export default function InvestPage() {
             suffix="USDC"
             value={earnAmt}
             onChange={(e) => setEarnAmt(e.target.value)}
-            hint={fromWallet > 0n ? `${fmtUsdc(fromWallet)} USDC will come from your wallet.` : "Uses USDC already in your vault first."}
+            hint={
+              <>
+                {fromWallet > 0n ? `${fmtUsdc(fromWallet)} USDC will come from your wallet.` : "Uses USDC already in your vault first."}{" "}
+                {p.vaultUsdc > 0n && (
+                  <>
+                    Idle in vault:{" "}
+                    <FillAmount onFill={() => setEarnAmt(usdcInput(p.vaultUsdc))}>${fmtUsdc(p.vaultUsdc)}</FillAmount>{" "}
+                  </>
+                )}
+                Vault and wallet:{" "}
+                <FillAmount onFill={() => setEarnAmt(usdcInput(p.vaultUsdc + p.walletUsdc))}>${fmtUsdc(p.vaultUsdc + p.walletUsdc)}</FillAmount>
+              </>
+            }
           />
           <Button disabled={!viewer.canAct || earn === 0n || fromWallet > p.walletUsdc || tx.state.busy} onClick={startEarning}>
             Start earning

@@ -1,25 +1,26 @@
 "use client";
 
+import { AssetSelect } from "@/components/asset-select";
+import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
+import { useAccountState } from "@/lib/useAccount";
 import {
   AddressLink,
-  AssetIcon,
   Card,
-  Chip,
   Field,
   HealthMeter,
   MockBadge,
   Notice,
   PageHeader,
   RealBadge,
-  RiskNote,
   Row,
   Stat,
 } from "@/components/ui";
 import { ADDR, ASSETS, EXPLORER } from "@/lib/contracts";
 import { WAD, ago, aprFromPerSecond, assetValue, fmtAsset, fmtPct, fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
+import { BRAND } from "@/lib/brand";
 
 const GAPS = [0, 10, 20, 30];
 
@@ -31,6 +32,7 @@ function status(health: number) {
 }
 
 export default function RiskPage() {
+  const personal = useAccountState().mode === "personal";
   const viewer = useViewer();
   const p = usePortfolio(viewer.address);
   const [symbol, setSymbol] = useState(ASSETS[0].symbol);
@@ -77,23 +79,21 @@ export default function RiskPage() {
     <>
       <PageHeader
         title="Risk"
-        lead="Everything about borrowing on one page: cost, limits, liquidation risk, how to repay, and what a bad night or a frozen market would do."
+        lead={
+          <>
+            Cost, limits and stress tests for a loan. <LearnMore href="/docs#borrowing" />
+          </>
+        }
       />
 
-      <RiskNote />
 
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Collateral asset">
-        {p.positions.map((x) => (
-          <Chip key={x.asset.symbol} active={x.asset.symbol === symbol} onClick={() => setSymbol(x.asset.symbol)}>
-            <AssetIcon asset={x.asset} size={20} /> {x.asset.name}
-          </Chip>
-        ))}
-      </div>
+      <AssetSelect label="Collateral asset" assets={p.positions.map((x) => x.asset)} value={symbol} onChange={setSymbol} />
+      <p className="-mt-2 text-xs text-muted">A basket loan is one loan per asset. Pick each asset to see its own numbers.</p>
 
       <Card title="The loan">
         <p className="text-sm text-muted">
           {hasLoan
-            ? `Showing your real position: ${fmtAsset(pos.collateral, asset.decimals)} ${asset.symbol} posted as collateral.`
+            ? `Showing your real position: ${fmtAsset(pos.collateral, asset.decimals)} ${asset.symbol} locked as collateral.`
             : `You have no loan against ${asset.name}. The numbers below use the example you type in.`}
         </p>
         {!hasLoan && (
@@ -117,11 +117,10 @@ export default function RiskPage() {
         <Card title="Borrowing cost">
           <Row label="Interest rate now">{apr !== undefined ? `${apr.toFixed(2)}% per year` : "…"}</Row>
           <Row label="Cost of this loan at that rate">{yearlyCost !== undefined ? `about $${yearlyCost.toFixed(2)} per year` : "…"}</Row>
-          <Row label="Stackday fee on borrowing">None</Row>
-          <Row label="Stackday fee on purchases">0.25%, fixed</Row>
+          <Row label={`${BRAND.name} fee on borrowing`}>None</Row>
+          <Row label={`${BRAND.name} fee on purchases`}>0.25%, fixed</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            Interest is set by the lending market, moves up when more people borrow, and is added to what you owe every
-            second. It goes to the market&apos;s lenders, not to Stackday.
+            Set by the market. It goes to lenders, not to {BRAND.name}.
           </p>
         </Card>
 
@@ -130,9 +129,8 @@ export default function RiskPage() {
           <Row label="Absolute maximum before liquidation">${fmtUsdc(maxDebt)}</Row>
           <Row label="USDC available in the market">${fmtUsdc(pos.liquidity)}</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            Stackday starts you at half of what the market would allow, which leaves room for a {defaultSurvives.toFixed(0)}%
-            price fall before liquidation. That lowers the risk, it does not remove it. You can raise your own limit to
-            at most 85% of the maximum. Nobody else can change it.
+            You start at half the market maximum, room for a {defaultSurvives.toFixed(0)}% fall. You can raise it to 85%.{" "}
+            <LearnMore href="/docs#limits" />
           </p>
         </Card>
 
@@ -142,18 +140,21 @@ export default function RiskPage() {
           <Row label="Price drop that triggers it">{debt > 0n ? `${dropToLiquidation.toFixed(1)}%` : "No loan"}</Row>
           <Row label="Liquidator bonus taken from your collateral">about {bonusPct.toFixed(1)}%</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            If the price falls to the liquidation price, anyone may repay part of your loan and take that value of your
-            collateral plus the bonus. You keep what is left. There is no warning period.
+            At the liquidation price, part of your collateral can be sold with no warning. <LearnMore href="/docs#health" />
           </p>
         </Card>
 
         <Card title="Repayment options">
           <ul className="space-y-2.5 text-sm leading-relaxed text-ink">
-            <li>Repay any amount at any time on the Borrow page. No schedule, no early repayment penalty.</li>
-            <li>Repay everything, then withdraw all your collateral.</li>
-            <li>Do nothing: every payday with a SIP share into this asset adds collateral, so health improves on its own.</li>
-            <li>Set the emergency rule so a risky loan pulls a bigger share of your next salary into collateral.</li>
-            <li>Anyone can repay on your behalf, for example from another wallet of yours.</li>
+            <li>Repay any amount on the Borrow page. No penalty.</li>
+            {personal ? (
+              <li>Locking more of this asset, for example each recurring buy, makes the loan safer. New buys stay free until you lock them.</li>
+            ) : (
+              <>
+                <li>Locking each payday share of this asset makes the loan safer. New buys stay free until you lock them.</li>
+                <li>The emergency rule sends more salary to collateral when health is low.</li>
+              </>
+            )}
           </ul>
         </Card>
       </div>
@@ -161,14 +162,13 @@ export default function RiskPage() {
       <Card title="Stress test: overnight or weekend price gap">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           {asset.kind === "stock"
-            ? "Stock markets close at night and on weekends. The price feed holds the last price while they are closed and can reopen much lower in one step, with no chance to react in between."
-            : "Crypto trades around the clock, so there is no closed market, but prices can still fall very fast."}{" "}
-          This is what a sudden fall would do to the loan above.
+            ? "Stock markets close at night and on weekends, and can reopen much lower in one step."
+            : "Crypto trades around the clock but can still fall very fast."}
         </p>
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[32rem] text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.08em] text-muted">
+              <tr className="border-b border-line text-left text-xs font-medium text-muted">
                 <th className="py-2 font-semibold">Price gap</th>
                 <th className="py-2 text-right font-semibold">New price</th>
                 <th className="py-2 text-right font-semibold">Collateral value</th>
@@ -200,7 +200,7 @@ export default function RiskPage() {
             <label htmlFor="gap" className="text-[13px] font-medium text-ink-soft">
               Try your own gap
             </label>
-            <span className="font-display text-3xl tabular-nums">Down {customGap}%</span>
+            <span className="font-display text-3xl font-semibold tracking-[-0.02em] tabular-nums">Down {customGap}%</span>
           </div>
           <input id="gap" type="range" min={0} max={80} step={1} value={customGap} onChange={(e) => setCustomGap(Number(e.target.value))} className="mt-2 w-full" />
         </div>
@@ -213,8 +213,7 @@ export default function RiskPage() {
 
       <Card title="Stress test: paused collateral transfers">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          The issuer of a tokenized stock can pause transfers of the token, for example during a corporate action. While
-          paused, the token cannot move at all.
+          The issuer can pause token transfers, for example during a corporate action.
         </p>
         <div className="mt-3">
           <Row label={`${asset.symbol} transfers right now`}>
@@ -226,25 +225,23 @@ export default function RiskPage() {
             <h3 className="text-sm font-semibold text-grow">Still works during a pause</h3>
             <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
               <li>Repaying your loan (it only moves USDC)</li>
-              <li>Claiming salary: that asset&apos;s share is skipped and paid in USDC</li>
-              <li>Borrowing more against collateral already posted</li>
+              {!personal && <li>Claiming salary: that asset&apos;s share is skipped and paid in USDC</li>}
+              <li>Borrowing more against collateral already locked</li>
             </ul>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-danger">Does not work during a pause</h3>
             <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
-              <li>Adding collateral, so payday cannot make the loan safer</li>
+              <li>Adding collateral, so {personal ? "new buys" : "payday"} cannot make the loan safer</li>
               <li>Withdrawing the asset</li>
-              <li>Buying it with a SIP share or a recurring plan</li>
+              <li>Buying it {personal ? "with a recurring plan" : "with a share of pay or a recurring plan"}</li>
             </ul>
           </div>
         </div>
         <div className="mt-5">
           <Notice tone="danger">
-            <strong>The dangerous combination:</strong> a pause during a price fall. Liquidators cannot take the collateral
-            while it is paused, so nothing happens at first. But interest keeps growing, you cannot add collateral, and
-            the moment transfers resume an unhealthy loan can be liquidated immediately. The only defence during a pause
-            is to repay USDC.
+            <strong>Worst case:</strong> a pause during a price fall. Liquidation can follow the moment transfers resume.
+            Repaying USDC still works. <LearnMore href="/docs#stress" className="text-danger decoration-danger/40" />
           </Notice>
         </div>
       </Card>
@@ -256,9 +253,7 @@ export default function RiskPage() {
           {pos.feedFrozen === undefined ? "…" : pos.feedFrozen ? <span className="text-warn">Closed, price is frozen</span> : <span className="text-grow">Open</span>}
         </Row>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          On Base mainnet stock prices come from Chainlink, which runs 24 hours on 5 days a week and holds the last close
-          on nights, weekends and holidays. A health number computed from a frozen price can look fine while the real
-          market has already moved. Treat health as stale whenever the market is closed.
+          On mainnet, stock prices freeze while markets are closed. Treat health as stale then.
         </p>
       </Card>
 
@@ -272,7 +267,7 @@ export default function RiskPage() {
         <Row label="Market id">
           <span className="break-all font-mono text-xs">{asset.marketId}</span>
         </Row>
-        <Row label="Liquidation limit (LLTV)">{(lltv * 100).toFixed(1)}%</Row>
+        <Row label="Liquidation limit (share of collateral value you can owe)">{(lltv * 100).toFixed(1)}%</Row>
         <Row label="Interest rate model">Morpho adaptive curve</Row>
         <Row label="Collateral token">
           <AddressLink address={asset.token} />
@@ -280,14 +275,12 @@ export default function RiskPage() {
         <Row label="Loan token">
           USDC <AddressLink address={ADDR.usdc} />
         </Row>
-        <Row label="Stackday adapter for this market">
+        <Row label={`${BRAND.name} adapter for this market`}>
           <AddressLink address={asset.adapter} />
         </Row>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Stackday does not run a lending pool. Your vault borrows directly from this Morpho market, which Stackday
-          created on the test network with the same liquidation limit as the main real {asset.realTicker} / USDC market on
-          Base mainnet. The price it uses here comes from a mock feed that the demo operator can change. Verify any
-          address on{" "}
+          Your vault borrows directly from this Morpho market. Its price comes from a mock feed.{" "}
+          <LearnMore href="/docs#contracts">All addresses</LearnMore>. Verify on{" "}
           <a className="underline" href={EXPLORER} target="_blank" rel="noreferrer">
             BaseScan
           </a>

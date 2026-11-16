@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {Multicall} from "@openzeppelin/contracts/utils/Multicall.sol";
 import {ILendingAdapter, IYieldAdapter} from "./interfaces/IAdapters.sol";
 
 interface IVaultFactory {
@@ -16,7 +17,10 @@ interface IVaultFactory {
 /// at the lending market. Only the employee (owner) can borrow, withdraw collateral or
 /// take anything out. There is no admin, no upgrade path and no pooled money.
 /// Anyone may put value IN (deposit stock, repay debt), nobody but the owner can take value OUT.
-contract EmployeeVault is ReentrancyGuardTransient {
+/// @dev Multicall (OpenZeppelin) lets the owner do several actions in one transaction, for example
+/// lock four assets and borrow against them with one signature. Every inner call keeps its own checks
+/// (owner only, borrow cap, reentrancy guard) and the whole batch is undone if any part fails.
+contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     using SafeERC20 for IERC20;
 
     uint16 public constant DEFAULT_BORROW_CAP_BPS = 5000; // borrow up to 50% of the liquidation limit
@@ -69,15 +73,24 @@ contract EmployeeVault is ReentrancyGuardTransient {
 
     // ------------------------------------------------------- value in (anyone)
 
-    /// @notice Put stock into the vault. If a loan is open against this stock, the new stock is
-    /// added straight to the loan's collateral, so every payday makes the loan safer.
+    /// @notice Put stock into the vault. It stays free: nothing is locked as loan collateral unless
+    /// the owner locks it (founder decision, issue #29).
     function depositStock(address stock, uint256 amount) external nonReentrant {
+        if (amount == 0) revert ZeroAmount();
+        _adapter(stock);
+        IERC20(stock).safeTransferFrom(msg.sender, address(this), amount);
+        emit StockDeposited(stock, msg.sender, amount, false);
+    }
+
+    /// @notice Put stock into the vault and lock it as collateral for the loan against it. Anyone may
+    /// call it, because it can only add the caller's own tokens as collateral, which makes the
+    /// owner's loan safer. Payroll uses it only when the owner's opt-in emergency rule fires.
+    function depositStockAsCollateral(address stock, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
         ILendingAdapter adapter = _adapter(stock);
         IERC20(stock).safeTransferFrom(msg.sender, address(this), amount);
-        bool toCollateral = adapter.debtOf(address(this)) > 0;
-        if (toCollateral) _supply(adapter, stock, amount);
-        emit StockDeposited(stock, msg.sender, amount, toCollateral);
+        _supply(adapter, stock, amount);
+        emit StockDeposited(stock, msg.sender, amount, true);
     }
 
     /// @notice Repay the loan against `stock`. Anyone may repay. Pass type(uint256).max to repay everything.
