@@ -43,10 +43,10 @@ export type Asset = {
 };
 
 const META: Record<string, Pick<Asset, "name" | "realTicker" | "kind" | "decimals" | "startPrice" | "color" | "icon">> = {
-  mAAPL: { name: "Apple", realTicker: "AAPLc", kind: "stock", decimals: 8, startPrice: 357n * 10n ** 8n, color: "#1f2937", icon: "AAPL" },
-  mNVDA: { name: "NVIDIA", realTicker: "NVDAc", kind: "stock", decimals: 8, startPrice: 190n * 10n ** 8n, color: "#4d7c0f", icon: "NVDA" },
-  mcbBTC: { name: "Bitcoin", realTicker: "cbBTC", kind: "crypto", decimals: 8, startPrice: 100_000n * 10n ** 8n, color: "#d97706", icon: "BTC" },
-  mWETH: { name: "Ether", realTicker: "WETH", kind: "crypto", decimals: 18, startPrice: 3500n * 10n ** 8n, color: "#4f46e5", icon: "ETH" },
+  mAAPL: { name: "Apple", realTicker: "AAPLc", kind: "stock", decimals: 8, startPrice: 357n * 10n ** 8n, color: "#111111", icon: "AAPL" },
+  mNVDA: { name: "NVIDIA", realTicker: "NVDAc", kind: "stock", decimals: 8, startPrice: 190n * 10n ** 8n, color: "#76b900", icon: "NVDA" },
+  mcbBTC: { name: "Bitcoin", realTicker: "cbBTC", kind: "crypto", decimals: 8, startPrice: 100_000n * 10n ** 8n, color: "#f7931a", icon: "BTC" },
+  mWETH: { name: "Ether", realTicker: "WETH", kind: "crypto", decimals: 18, startPrice: 3500n * 10n ** 8n, color: "#627eea", icon: "ETH" },
 };
 
 /** Mock asset tokens on Base Sepolia. On Base mainnet these would be the real tokens named in `realTicker`. */
