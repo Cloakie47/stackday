@@ -18,6 +18,8 @@ const SPOKEN: Record<string, string> = {
   "5y": "5 years",
 };
 const TF_KEY = "stackday-chart-timeframe";
+const STYLE_KEY = "stackday-chart-style";
+type ChartStyle = "area" | "candles";
 
 /** What the chart actually shows, in words, for the footer. */
 function marketWords(asset: Asset, symbol: string) {
@@ -33,6 +35,7 @@ function marketWords(asset: Asset, symbol: string) {
 export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice?: bigint }) {
   const symbol = tvSymbol(asset.symbol);
   const [tf, setTf] = useState(DEFAULT_TIMEFRAME);
+  const [style, setStyle] = useState<ChartStyle>("area");
   const [state, setState] = useState<WidgetState>("waiting");
   const [retry, setRetry] = useState(0);
 
@@ -40,6 +43,8 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
     try {
       const saved = localStorage.getItem(TF_KEY);
       if (saved && TIMEFRAMES.some((t) => t.id === saved)) setTf(saved);
+      const savedStyle = localStorage.getItem(STYLE_KEY);
+      if (savedStyle === "area" || savedStyle === "candles") setStyle(savedStyle);
     } catch {
       /* private mode: keep the default */
     }
@@ -49,6 +54,15 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
     setTf(id);
     try {
       localStorage.setItem(TF_KEY, id);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function chooseStyle(s: ChartStyle) {
+    setStyle(s);
+    try {
+      localStorage.setItem(STYLE_KEY, s);
     } catch {
       /* ignore */
     }
@@ -66,14 +80,28 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
           </h3>
           <RealBadge>Real market price</RealBadge>
         </div>
-        <div className="w-full sm:w-[26rem]">
-          <Segmented
-            value={tf}
-            onChange={choose}
-            ariaLabel="Chart timeframe"
-            compact
-            options={TIMEFRAMES.map((x) => ({ value: x.id, label: x.label, ariaLabel: SPOKEN[x.id] }))}
-          />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="w-[9.5rem] shrink-0">
+            <Segmented
+              value={style}
+              onChange={chooseStyle}
+              ariaLabel="Chart style"
+              compact
+              options={[
+                { value: "area", label: "Line" },
+                { value: "candles", label: "Candles", ariaLabel: "Candlesticks" },
+              ]}
+            />
+          </div>
+          <div className="basis-full sm:basis-auto sm:w-[26rem]">
+            <Segmented
+              value={tf}
+              onChange={choose}
+              ariaLabel="Chart timeframe"
+              compact
+              options={TIMEFRAMES.map((x) => ({ value: x.id, label: x.label, ariaLabel: SPOKEN[x.id] }))}
+            />
+          </div>
         </div>
       </div>
 
@@ -97,7 +125,7 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
                 symbol,
                 interval: t.interval,
                 "time-frame": t.range || false,
-                "chart-type": "area",
+                "chart-type": style,
                 "hide-volume": true,
                 "hide-top-toolbar": true,
                 "hide-snapshot-button": true,
