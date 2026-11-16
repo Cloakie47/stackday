@@ -23,6 +23,7 @@ const ICON = {
   risk: "M12 3l9 16H3zM12 10v4M12 17h.01",
   payroll: "M4 20v-2a5 5 0 0110 0v2M9 9a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6M20 20v-2a4 4 0 00-3-3.9",
   holdings: "M4 7h16v12H4zM4 11h16M9 7V5h6v2",
+  themes: "M4 6h16M4 12h10M4 18h6",
 };
 const DOCS_ICON = "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5";
 
@@ -35,6 +36,7 @@ const NAVS: Record<Role | "all", NavItem[]> = {
   individual: [
     { href: "/dashboard", label: "Home", icon: ICON.home },
     { href: "/invest", label: "Invest", icon: ICON.invest },
+    { href: "/themes", label: "Themes", icon: ICON.themes },
     { href: "/borrow", label: "Borrow", icon: ICON.borrow },
     { href: "/risk", label: "Risk", icon: ICON.risk },
   ],
@@ -45,6 +47,7 @@ const NAVS: Record<Role | "all", NavItem[]> = {
   employee: [
     { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
     { href: "/invest", label: "Invest", icon: ICON.invest },
+    { href: "/themes", label: "Themes", icon: ICON.themes },
     { href: "/dashboard", label: "Home", icon: ICON.holdings },
     { href: "/borrow", label: "Borrow", icon: ICON.borrow },
     { href: "/risk", label: "Risk", icon: ICON.risk },
@@ -53,6 +56,7 @@ const NAVS: Record<Role | "all", NavItem[]> = {
     { href: "/dashboard", label: "Home", icon: ICON.home },
     { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
     { href: "/invest", label: "Invest", icon: ICON.invest },
+    { href: "/themes", label: "Themes", icon: ICON.themes },
     { href: "/borrow", label: "Borrow", icon: ICON.borrow },
     { href: "/risk", label: "Risk", icon: ICON.risk },
     { href: "/employer", label: "Payroll", icon: ICON.payroll },
