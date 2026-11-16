@@ -71,7 +71,7 @@ Everything in src/mocks is a mock for testnet and tests only: the asset tokens (
 
 ## Live on Base Sepolia (testnet)
 
-Deployed November 14, 2026 (third deployment: adds recurring payroll, multi-asset plans, BTC and ETH). Machine-readable copy: deployments/base-sepolia.json. Earlier deployments are retired and kept in deployments/base-sepolia-v1-retired.json and deployments/base-sepolia-v2-retired.json.
+Deployed November 16, 2026 (fourth deployment: adds Tesla, Microsoft, Amazon, Alphabet and Meta, nine assets in all). Machine-readable copy: deployments/base-sepolia.json. Earlier deployments are retired and kept in deployments/base-sepolia-v1-retired.json, deployments/base-sepolia-v2-retired.json and deployments/base-sepolia-v3-retired.json.
 
 Source code of every contract below is verified on Sourcify: https://repo.sourcify.dev/84532/ADDRESS
 
@@ -79,20 +79,30 @@ Stackday contracts (real, no owner):
 
 | Contract | Address |
 |---|---|
-| Payroll | 0xe1F3EcaC366CDEf2365eC6523B6bfcF3684a0578 |
-| SipRouter | 0xB5e3Fe767395387AfE3B93aB18e8969eDAE9e45E |
-| VaultFactory | 0x48A0d35aEf432d27e75DdEb23C8B78fab4AA31c4 |
-| EmployeeVault (code every vault uses) | 0xc2FFBCBCCB33C0debDC2CBE445798d4E26943c1c |
-| Price adapter | 0xdaf2CA6e19E244d7b190ece8aef43aA6Cd0b1963 |
-| Interest adapter (ERC-4626) | 0xBc1E45d00B7229101041A2d701294D41F79Fe363 |
-| Morpho lending adapter, mAAPL | 0xD44e5Dc0bfeB9c36e958e3b280566A0069c0a2E3 |
-| Morpho lending adapter, mNVDA | 0x0681ff6802Ff4c4cB629FD7A9fe3e67F599f512e |
-| Morpho lending adapter, mcbBTC | 0x4e12D58548a3d54962F1ECc00fad315664B3f490 |
-| Morpho lending adapter, mWETH | 0xb356F755CB9B282eBcFF9e78C42CDE0B800694de |
-| Price oracle for Morpho, mAAPL | 0x905A6702f7d56FFEE68265F0559AF0Ebb5EcB644 |
-| Price oracle for Morpho, mNVDA | 0xA2Fda51fD7091D12d66047496B43202231e85cd1 |
-| Price oracle for Morpho, mcbBTC | 0x1945C9CDD637Da456439295584EE3e7FfFf05629 |
-| Price oracle for Morpho, mWETH | 0x7F9cD9Dc4f58013C2909F34Ff3C1CBB99504C880 |
+| Payroll | 0x8c91fe6040117874D70dAA01Cc4452662bC39441 |
+| SipRouter | 0x959d769C5B4C1498F034aCa792cCBe1a7602d8Db |
+| VaultFactory | 0xc7A67eC9D873cC5E758c5beABf7C6fcc5Fb8588B |
+| EmployeeVault (code every vault uses) | 0xA60595cA65fBB4aB54FBfa249c952F185D9570c4 |
+| Price adapter | 0xBFd79dBC620308aA070e7143B8318041613c5436 |
+| Interest adapter (ERC-4626) | 0x4BDb0326AAb8E1B578a41fa1b647F186ECe1a8c6 |
+| Morpho lending adapter, mAAPL | 0xcEa213A254e504357FDA6b21F369CcC57627DBb9 |
+| Morpho lending adapter, mNVDA | 0x77b06fFefD6F323F60db17C3b2e3Be086D79bb08 |
+| Morpho lending adapter, mcbBTC | 0xbbC576464c61Bc0A8ec65c0175d32a5128055f70 |
+| Morpho lending adapter, mWETH | 0x19273F4CC68F56DF3ba6CE591f4F9f242Cea13FA |
+| Morpho lending adapter, mTSLA | 0x0feFbbb72E2649d660a90aCABf08a4E61D487599 |
+| Morpho lending adapter, mMSFT | 0x75bf9c48561E49928A1d85afd6a12a1FA2C4AA47 |
+| Morpho lending adapter, mAMZN | 0xE2bc6BB21b4Da0C1dc67A6656c2fe8b907524FC7 |
+| Morpho lending adapter, mGOOGL | 0xE7AdC1A8e568532555eaD79e1b555eE827De697C |
+| Morpho lending adapter, mMETA | 0x946E1532428135Bcf7f74c643709F235daEE2a27 |
+| Price oracle for Morpho, mAAPL | 0xE6B832d7B8C86105113b86327468951faE37e49f |
+| Price oracle for Morpho, mNVDA | 0x53e1402cF362a516978E87D368899e5a88c61E29 |
+| Price oracle for Morpho, mcbBTC | 0x26AF3619ED97Fe85B19B4Cd1a9bFC05b80A2809f |
+| Price oracle for Morpho, mWETH | 0xd503fc0E3295e924f4952A6fa3756787c926581e |
+| Price oracle for Morpho, mTSLA | 0x519856c7AC1CBc75c0a3A096221A61532e22cDFC |
+| Price oracle for Morpho, mMSFT | 0x1CC8950088CC1A401BEc59465c28FF0662b6fF9f |
+| Price oracle for Morpho, mAMZN | 0xA15132C79Af959BAb64a6f2022e97259Ab0d83Ea |
+| Price oracle for Morpho, mGOOGL | 0x7773D0dcAb2a6c2270BfbB241035F90385Ed2A88 |
+| Price oracle for Morpho, mMETA | 0xa9aFdd6D2BfA1aAe70a5BDb09847f8A02DE39a06 |
 
 Existing protocols used as they are (real):
 
@@ -106,31 +116,48 @@ The exact lending markets (Morpho, USDC loan, created by the Stackday deploy scr
 
 | Market | Liquidation limit | Morpho market id |
 |---|---|---|
-| mAAPL / USDC | 62.5% | 0x15429515ee7a6afc2fdbcc5264ed95fd6debc5fcaee3cacbb477d4f9733462af |
-| mNVDA / USDC | 62.5% | 0x3e27181ff067c80cfadccb4487db9c0341ffbb42d8d9bff61ee8759ffff0ed5b |
-| mcbBTC / USDC | 86.0% | 0xff9faaacaec24d75def896a194a7259a18463c4002e0948f81aa05a8ca085db6 |
-| mWETH / USDC | 86.0% | 0x896c7a6f1ebeadcf6f7144c097ce5aac3c35411dd7d8712be5aea4d5f2a44a11 |
+| mAAPL / USDC | 62.5% | 0xbf499c4315ffb7feb7c0f1755f3eeb231f9970a74fb5a872c63384158af4d816 |
+| mNVDA / USDC | 62.5% | 0x55bbe8f62a9b1b7332e54d3b3845f02fca59e69934aa876b4c3a1c8fb20d89ff |
+| mcbBTC / USDC | 86.0% | 0x2259136c885c1a11a6ef75ab0daffe4757455b310f9e914e7e67bf40d64c31db |
+| mWETH / USDC | 86.0% | 0x24d7b0a177bd45c093462f09b5cf1a6b1d2c40b14a3c0a6a43111daff8c4db0f |
+| mTSLA / USDC | 62.5% | 0x313d54b9b80b9e09144eda03b69a2397d046439dc47ecd6a3b3621adc28b7d30 |
+| mMSFT / USDC | 62.5% | 0xedaa8f5f9e7ae84d4dede9c8ffd4bdd357a56b8d5342f45d0e11fb9f55bcee75 |
+| mAMZN / USDC | 62.5% | 0x91938226cbb553fa4dafd846f5c6cc17425c73a854babb0bd364d221be02af78 |
+| mGOOGL / USDC | 62.5% | 0xb65583008a29009e7f4b788b4f5a2853d9393ba6ad80f030c1173cf30686a3b9 |
+| mMETA / USDC | 62.5% | 0x1d888abd1adb108790ff9b98e56682fa3b58e15a903e4325f235b52f9e73d4e3 |
 
 MOCKS (testnet stand-ins, owned by the demo wallet so stress scenarios can be triggered):
 
 | Mock | Address |
 |---|---|
-| mAAPL mock token, stands in for AAPLc (Apple stock) | 0xF7F2c440f1b3181594D70BF31f119FdD1E34b59c |
-| mAAPL mock price feed | 0xcC41390FEc5c9baBbf86191eA3414733b4CE20e1 |
-| mNVDA mock token, stands in for NVDAc (NVIDIA stock) | 0x6239669a5810A04B14BF8aFbdeaBC411B592b01c |
-| mNVDA mock price feed | 0x47d6282280AE8C27CACea214E6889b707819f3FA |
-| mcbBTC mock token, stands in for cbBTC (Bitcoin) | 0xA5dD627C590b693b0433043e3A0e35D649D6D89D |
-| mcbBTC mock price feed | 0xe4be89A1612a69C5B15710e5350EA95401281f76 |
-| mWETH mock token, stands in for WETH (Ether) | 0x61Df7BAEFaDA02A58f40BC5535789bDDe1CCCa10 |
-| mWETH mock price feed | 0x60F074dB5033081FF05630f8410eBab90cebD220 |
-| Mock exchange | 0x44FD1F34b7f1F5ec0fe08F6fF5858105c06B3376 |
-| Mock interest vault | 0x6b4a23bcF0F5343428AA912c9e07E1d19Bf84c71 |
+| mAAPL mock token, stands in for AAPLc (Apple stock) | 0xbceb525678323c4cb7dc0c9f55f5b38DdD7e1791 |
+| mAAPL mock price feed | 0xD69eb3B7FD3F7cEeBd1479445Ebe210c2635eeF1 |
+| mNVDA mock token, stands in for NVDAc (NVIDIA stock) | 0x0c9cEE604f92EC08BADD272f30A21080AAD301B9 |
+| mNVDA mock price feed | 0x81A2E9b434256e493B0C058D64C83F8d9cDF0FFa |
+| mcbBTC mock token, stands in for cbBTC (Coinbase Wrapped BTC) | 0xaB4bb73d563d76455a524c8ca5f517C0bE9E8e42 |
+| mcbBTC mock price feed | 0x84017cd17144A5a3d9Dc7cFe8d5d4D74B0c552e1 |
+| mWETH mock token, stands in for WETH (Ether) | 0x22592704429fbCD30899c5c94a67BD56f774f5E8 |
+| mWETH mock price feed | 0x341Db18c1C48b2F93fD4DebECA5E48b7D58C678d |
+| mTSLA mock token, stands in for TSLAc (Tesla stock) | 0xF5A6B5155e7FA3bBE590B8982327a2E3ee8dBe53 |
+| mTSLA mock price feed | 0x413474aA844b4C2B1d747Ef6Fb7cB9290175dB58 |
+| mMSFT mock token, stands in for MSFTc (Microsoft stock) | 0x6B35c84cdB727413bA9CeCD70dCB0709b5E0826b |
+| mMSFT mock price feed | 0xeaF9a26ca7bEe03C0555c37902fAf5f086f22788 |
+| mAMZN mock token, stands in for AMZNc (Amazon stock) | 0x6c93a72F58DCB947Fc0d83b8f1ee5E094ba64402 |
+| mAMZN mock price feed | 0x80e9D08bA0Fa71F8AbbD4e1f21383970536242b6 |
+| mGOOGL mock token, stands in for GOOGLc (Alphabet stock) | 0xd5b89bb050d800c88b0a5C004cB92EF78C42368e |
+| mGOOGL mock price feed | 0xe1F262048c7A4e1000b5e28FB3F3ead6ced2A695 |
+| mMETA mock token, stands in for METAc (Meta stock) | 0x4eA49f90f9E3A9eCf5759C508D24F9f2651A1877 |
+| mMETA mock price feed | 0x958AB22dCDdC9c5E0A32D2EBfF3343a6faD0c4Bc |
+| Mock exchange | 0x8670e9B30552eB15392b8380262af7C4b3032cb3 |
+| Mock interest vault | 0xB58bcB35c948d7d2D3Ac5204A585443B8Af59D69 |
 
 SIP fee: 0.25 percent, fixed. Fee wallet on testnet: the demo wallet 0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df. Shortest payroll rhythm on testnet: 60 seconds (so a schedule can be shown in a demo). On mainnet it would be 1 day.
 
 ### The judges' sequence on testnet (November 14, 2026)
 
-Deposit, borrow, repay, withdraw, with a stress scenario, in the mAAPL / USDC market on Morpho named above. One test wallet played employer, employee and demo operator. Raw output: deployments/judge-sequence.txt.
+Run on the previous (third) deployment, addresses in deployments/base-sepolia-v3-retired.json. The same contracts were redeployed on November 16 with more assets, and the end to end script (payday, claim into mAAPL, borrow from Morpho, repay, withdraw) passed again on the new deployment.
+
+Deposit, borrow, repay, withdraw, with a stress scenario, in the mAAPL / USDC market on Morpho. One test wallet played employer, employee and demo operator. Raw output: deployments/judge-sequence.txt.
 
 | Step | Transaction |
 |---|---|
