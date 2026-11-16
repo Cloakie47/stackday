@@ -1,5 +1,6 @@
 "use client";
 
+import { CollateralBasket } from "@/components/collateral-basket";
 import { LearnMore } from "@/components/learn-more";
 import Link from "next/link";
 import { useState } from "react";
@@ -43,7 +44,8 @@ export default function BorrowPage() {
   const asset = pos.asset;
   const vault = p.vault;
   const totalHeld = pos.idle + pos.collateral;
-  const usable = pos.transfersPaused ? pos.collateral : totalHeld;
+  // Borrowing uses only collateral the person has locked. Locking is its own step (basket above).
+  const usable = pos.collateral;
   const maxAtLiquidation = pos.price ? (assetValue(usable, pos.price, asset.decimals) * asset.lltv) / WAD : 0n;
   const borrowLimit = (maxAtLiquidation * p.borrowCapBps) / 10_000n;
   const room = borrowLimit > pos.debt ? borrowLimit - pos.debt : 0n;
@@ -66,7 +68,7 @@ export default function BorrowPage() {
           address: vault,
           abi: vaultAbi,
           functionName: "borrow",
-          args: [asset.token, pos.transfersPaused ? 0n : pos.idle, borrow, me],
+          args: [asset.token, 0n, borrow, me],
         },
       ],
       "Borrowed. The USDC is in your wallet.",
@@ -119,7 +121,7 @@ export default function BorrowPage() {
         title="Borrow"
         lead={
           <>
-            Borrow USDC against what you hold. Repay any time. <LearnMore href="/docs#borrowing" />
+            Lock collateral, then borrow USDC against it. Repay any time. <LearnMore href="/docs#borrowing" />
           </>
         }
         aside={
@@ -131,6 +133,9 @@ export default function BorrowPage() {
 
       {!me && <Notice>Connect your wallet (top right) to borrow.</Notice>}
 
+      {me && <CollateralBasket p={p} />}
+
+      <h2 className="pt-2 font-display text-2xl font-semibold tracking-tight">One asset at a time</h2>
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Asset to borrow against">
         {p.positions.map((x) => (
           <Chip key={x.asset.symbol} active={x.asset.symbol === symbol} onClick={() => setSymbol(x.asset.symbol)}>
@@ -151,7 +156,7 @@ export default function BorrowPage() {
           <HealthMeter health={health} />
         </div>
         <p className="mt-4 text-xs text-muted">
-          In your vault: {fmtAsset(pos.idle, asset.decimals)} {asset.symbol} free, {fmtAsset(pos.collateral, asset.decimals)} posted.
+          In your vault: {fmtAsset(pos.idle, asset.decimals)} {asset.symbol} free, {fmtAsset(pos.collateral, asset.decimals)} locked.
           Liquidation limit {fmtPct((asset.lltv * 10_000n) / WAD)}.
         </p>
 
@@ -165,11 +170,9 @@ export default function BorrowPage() {
               value={borrowAmt}
               onChange={(e) => setBorrowAmt(e.target.value)}
               hint={
-                pos.transfersPaused
-                  ? "Transfers are paused, so only collateral already posted counts."
-                  : pos.idle > 0n
-                    ? `Your ${fmtAsset(pos.idle, asset.decimals)} free ${asset.symbol} will be posted as collateral.`
-                    : "Uses the collateral already posted."
+                pos.collateral > 0n
+                  ? `Uses your locked ${asset.name} only.`
+                  : `Lock some ${asset.name} in the basket above first.`
               }
             />
             <Button className="mt-3 w-full" disabled={!viewer.canAct || !vault || borrow === 0n || borrow > available || tx.state.busy} onClick={doBorrow}>

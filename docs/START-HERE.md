@@ -46,7 +46,7 @@ Built, tested and live on testnet:
 | Payroll | Employer treasury, pay once or on a schedule (daily, weekly, 2 weeks, monthly), claim to any wallet | src/Payroll.sol |
 | Payday investing | A share of each salary into one or several assets, once or every payday | src/Payroll.sol |
 | Vault | One vault per person, no admin, no pooled money | src/EmployeeVault.sol, src/VaultFactory.sol |
-| Borrowing | Borrow, repay, withdraw through a real Morpho market. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
+| Borrowing | Lock collateral as one basket of any assets, then borrow, repay, unlock, withdraw through real Morpho markets. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
 | Revenue | Fixed 0.25 percent fee on USDC going into assets | Payroll and SipRouter |
