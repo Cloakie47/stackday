@@ -35,7 +35,7 @@ const STEPS = [
 const TRUST = [
   { title: "One vault per person", text: "Only your wallet can move funds out." },
   { title: "No lending pool of ours", text: "Loans come from an existing Morpho market." },
-  { title: "0.25% fee, fixed", text: "Only on USDC that buys assets. Never on salary." },
+  { title: "0.25% fee, fixed", text: "Only on recurring buys. One-time buys are free. Never on salary." },
   { title: "Testnet, not audited", text: "Mock tokens and prices are labelled everywhere." },
 ];
 

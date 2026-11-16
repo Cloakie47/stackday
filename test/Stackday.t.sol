@@ -456,7 +456,7 @@ contract NoAdminTest is BaseTest {
     function test_payrollInternalsAreClosed() public {
         vm.prank(attacker);
         vm.expectRevert(Payroll.OnlySelf.selector);
-        payroll.executeSip(attacker, address(stock), 1, 0, false);
+        payroll.executeSip(attacker, address(stock), 1, 0, false, false);
     }
 
     /// Anyone may add value (deposit stock, repay), which can only help the owner. A plain deposit

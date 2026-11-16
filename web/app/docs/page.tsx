@@ -322,8 +322,9 @@ export default function DocsPage() {
               <p>USDC in your vault can be lent to an interest vault (ERC-4626) and earns while it waits. On testnet this venue is a mock.</p>
               <H3 id="fees">Fees</H3>
               <p>
-                One fee: <strong className="text-ink">{feePct}</strong> of the USDC that goes into assets, on payday investing
-                and on direct buys. It is fixed in the contract and cannot be changed. Salary paid out is never charged, and no
+                One fee: <strong className="text-ink">{feePct}</strong> of the USDC that a recurring plan puts into assets (an
+                &quot;every payday&quot; plan, or a recurring buy). One-time buys are free. It is fixed in the contract and cannot be
+                changed. Salary paid out is never charged, and no
                 fee is ever taken from a vault. Borrowing has no {BRAND.name} fee; interest goes to the market&apos;s lenders.
               </p>
             </Section>

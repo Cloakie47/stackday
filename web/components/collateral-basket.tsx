@@ -30,6 +30,20 @@ const DIVIDEND_BPS: Record<string, number> = {
 
 type Tab = "lock" | "borrow" | "repay";
 
+/**
+ * Borrow presets as a share of the liquidation limit (what Morpho would allow before liquidating).
+ * Borrowing that share leaves the loan safe until prices fall by the rest: 25% survives a 75% drop.
+ * Degen sits above the vault's default safety cap (50%), so choosing it also raises the cap to 80%
+ * in the same signature. The vault never allows more than 85% (MAX_BORROW_CAP_BPS).
+ */
+const LEVELS = [
+  { key: "low", label: "Low risk", pct: 25n },
+  { key: "mid", label: "Mid risk", pct: 50n },
+  { key: "degen", label: "Degen", pct: 80n },
+] as const;
+type Level = (typeof LEVELS)[number]["key"];
+const DEGEN_CAP_BPS = 8000n;
+
 const toNum = (v: bigint | undefined) => (v === undefined ? undefined : Number(v / 10n ** 14n) / 10_000);
 
 function legOf(pos: Position, extraValue = 0n, extraDebt = 0n): Leg {
@@ -51,6 +65,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const [tab, setTab] = useState<Tab>("lock");
   const [lockUsd, setLockUsd] = useState<Record<string, string>>({});
   const [borrowAmt, setBorrowAmt] = useState("");
+  const [level, setLevel] = useState<Level | null>(null);
   const [repayAmt, setRepayAmt] = useState("");
 
   const positions = p.positions;
@@ -75,9 +90,22 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const afterLock = summarize(positions.map((x, i) => legOf(x, lockPlan[i].value)), cap);
 
   // ---- borrow and repay: one amount, split across the markets
+  // Degen needs a higher vault cap; it is raised in the same batch as the borrow.
+  const raiseCap = level === "degen" && cap < DEGEN_CAP_BPS;
+  const borrowCap = raiseCap ? DEGEN_CAP_BPS : cap;
+  const levelAmount = (pct: bigint) => {
+    const target = (now.maxDebt * pct) / 100n;
+    const want = target > now.debt ? target - now.debt : 0n;
+    const room = summarize(legs, pct * 100n > cap ? DEGEN_CAP_BPS : cap).available;
+    return want < room ? want : room;
+  };
+  function pickLevel(key: Level, pct: bigint) {
+    setLevel(key);
+    setBorrowAmt(usdcInput(levelAmount(pct)));
+  }
   const borrow = parseUsdc(borrowAmt);
-  const borrowSplit = splitBorrow(borrow, legs, cap);
-  const afterBorrow = borrowSplit ? summarize(positions.map((x, i) => legOf(x, 0n, borrowSplit[i])), cap) : undefined;
+  const borrowSplit = splitBorrow(borrow, legs, borrowCap);
+  const afterBorrow = borrowSplit ? summarize(positions.map((x, i) => legOf(x, 0n, borrowSplit[i])), borrowCap) : undefined;
   const repayAll = repayAmt.trim() === "" ? false : parseUsdc(repayAmt) >= now.debt;
   const repay = parseUsdc(repayAmt);
   const repaySplit = splitRepay(repay, legs, cap);
@@ -129,7 +157,12 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
       .map((x, i) => ({ x, amt: borrowSplit[i] }))
       .filter(({ amt }) => amt > 0n)
       .map(({ x, amt }) => ({ label: `Borrow $${fmtUsdc(amt)} against your ${x.asset.name}`, address: vault, abi: vaultAbi, functionName: "borrow", args: [x.asset.token, 0n, amt, me] }));
-    if (await tx.run(vaultBatch(vault, calls, "Borrow across your locked assets"), "Borrowed. The USDC is in your wallet.")) setBorrowAmt("");
+    // Owner-only setting of the person's own vault, within the contract's 85% maximum.
+    if (raiseCap) calls.unshift({ label: "Raise your vault's safety cap to 80%", address: vault, abi: vaultAbi, functionName: "setBorrowCapBps", args: [Number(DEGEN_CAP_BPS)] });
+    if (await tx.run(vaultBatch(vault, calls, "Borrow across your locked assets"), "Borrowed. The USDC is in your wallet.")) {
+      setBorrowAmt("");
+      setLevel(null);
+    }
   }
 
   async function doRepay(all: boolean) {
@@ -264,13 +297,52 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
 
       {tab === "borrow" && (
         <div className="mt-5 max-w-xl">
+          {now.locked > 0n && (
+            <div className="mb-4">
+              <div className="mb-2 text-[13px] font-medium text-muted">Pick a risk level, or type your own amount</div>
+              <div className="grid grid-cols-3 gap-2" role="group" aria-label="Risk level">
+                {LEVELS.map((l) => {
+                  const amt = levelAmount(l.pct);
+                  const reached = (now.maxDebt * l.pct) / 100n <= now.debt;
+                  const active = level === l.key;
+                  return (
+                    <button
+                      key={l.key}
+                      type="button"
+                      aria-pressed={active}
+                      disabled={reached || amt === 0n}
+                      onClick={() => pickLevel(l.key, l.pct)}
+                      className={`rounded-2xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        active ? "border-brand bg-brand/5" : "border-line hover:border-line-strong"
+                      }`}
+                    >
+                      <div className={`text-sm font-semibold ${l.key === "degen" ? "text-danger" : l.key === "mid" ? "text-warn" : "text-grow"}`}>{l.label}</div>
+                      <div className="mt-1 text-xs text-muted">
+                        {reached ? "Already past this level" : `Borrow $${fmtUsdc(amt)}`}
+                      </div>
+                      <div className="text-xs text-muted">Safe until a {Number(100n - l.pct)}% price drop</div>
+                    </button>
+                  );
+                })}
+              </div>
+              {raiseCap && (
+                <p className="mt-2 text-xs leading-relaxed text-danger">
+                  Degen raises your vault&apos;s safety cap from {Number(cap) / 100}% to 80% of the liquidation limit, in the same signature. A 20% fall in
+                  prices could get the loan liquidated.
+                </p>
+              )}
+            </div>
+          )}
           <Field
             label="Borrow"
             inputMode="decimal"
             placeholder="0.00"
             suffix="USDC"
             value={borrowAmt}
-            onChange={(e) => setBorrowAmt(e.target.value)}
+            onChange={(e) => {
+              setBorrowAmt(e.target.value);
+              setLevel(null);
+            }}
             hint={
               now.locked === 0n ? (
                 "Lock collateral first."

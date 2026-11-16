@@ -25,7 +25,7 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - Withdraw any time after repaying the loan against the position.
 - Lending venues: Morpho first, Aave second, both behind the same lending adapter interface.
 - Idle USDC yield: founder decided it is USDC in the employee own vault that earns (not unclaimed salary). Built behind IYieldAdapter.
-- Revenue: a SIP fee on USDC going into stock, immutable at deployment (planned 25 bps, code cap 100 bps), in Payroll and SipRouter. Never charge salary paid out, never reach into vaults, never add a way to change the fee. Local tests deploy with fee 0 except test/Fee.t.sol.
+- Revenue: a SIP fee on USDC that a recurring plan puts into stock (the standing payday plan, or a SipRouter recurring plan; one-time buys are free, founder decision November 16, 2026), immutable at deployment (planned 25 bps, code cap 100 bps), in Payroll and SipRouter. Never charge salary paid out, never reach into vaults, never add a way to change the fee. Local tests deploy with fee 0 except test/Fee.t.sol.
 - Out of scope for v1: own lending pool, pooled employee funds, token launch. Confidential salaries are the next step, not v1: keep a clean payout interface so Fairblock-style confidential transfers can plug in.
 
 ## Technical rules

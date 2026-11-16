@@ -19,7 +19,8 @@ import {EmployeeVault} from "./EmployeeVault.sol";
 /// Anyone may trigger a due plan (an automation service, or the user), but a trigger can only
 /// ever do what the user's plan says: that amount, that stock, into that user's own vault,
 /// at a price within the user's chosen distance from the oracle price. No owner.
-/// The only fee is a SIP fee fixed forever at deployment (at most 1%) on the USDC going into stock.
+/// The only fee is a SIP fee fixed forever at deployment (at most 1%) on the USDC a recurring plan puts
+/// into stock. One-time buys are free.
 contract SipRouter is ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
@@ -31,7 +32,7 @@ contract SipRouter is ReentrancyGuardTransient {
     VaultFactory public immutable factory;
     ISwapAdapter public immutable swapAdapter;
     IPriceAdapter public immutable priceAdapter;
-    /// @notice Platform fee on USDC going into stock, in basis points (25 = 0.25%). Cannot be changed.
+    /// @notice Platform fee on USDC a recurring plan puts into stock, in basis points (25 = 0.25%). Cannot be changed.
     uint16 public immutable sipFeeBps;
     address public immutable feeRecipient;
     /// @notice Oldest oracle price (in seconds) a recurring buy may rely on. 0 switches the check off.
@@ -50,6 +51,9 @@ contract SipRouter is ReentrancyGuardTransient {
 
     /// @notice One recurring plan per asset, so a user can run several side by side.
     mapping(address user => mapping(address asset => Plan)) public planOf;
+    /// @notice Lifetime USDC this user put into `asset` through this router (before any fee). Only ever grows:
+    /// a running total for the portfolio's "Total put in". It moves no funds.
+    mapping(address user => mapping(address asset => uint256)) public investedOf;
 
     error ZeroAmount();
     error UnsupportedStock(address stock);
@@ -86,14 +90,14 @@ contract SipRouter is ReentrancyGuardTransient {
     }
 
     /// @notice One-time buy: `usdcAmount` from the caller's wallet into `stock` in the caller's own vault.
-    /// `minStockOut` is the least stock to receive after the SIP fee.
+    /// No SIP fee. `minStockOut` is the least stock to receive.
     function invest(address stock, uint256 usdcAmount, uint256 minStockOut)
         external
         nonReentrant
         returns (uint256 stockOut)
     {
         _requireSupported(stock);
-        stockOut = _buy(msg.sender, stock, usdcAmount, minStockOut);
+        stockOut = _buy(msg.sender, stock, usdcAmount, minStockOut, false);
         emit Invested(msg.sender, stock, usdcAmount, stockOut, false);
     }
 
@@ -128,7 +132,7 @@ contract SipRouter is ReentrancyGuardTransient {
         }
         uint256 net = plan.usdcPerBuy - (uint256(plan.usdcPerBuy) * sipFeeBps) / 10_000;
         uint256 minOut = (quoteAtOracle(plan.stock, net) * (10_000 - plan.maxSlippageBps)) / 10_000;
-        stockOut = _buy(user, plan.stock, plan.usdcPerBuy, minOut);
+        stockOut = _buy(user, plan.stock, plan.usdcPerBuy, minOut, true);
         emit Invested(user, plan.stock, plan.usdcPerBuy, stockOut, true);
     }
 
@@ -140,14 +144,15 @@ contract SipRouter is ReentrancyGuardTransient {
         return Math.mulDiv(usdcAmount, stockUnit * 10 ** priceDecimals, price * usdcUnit);
     }
 
-    function _buy(address user, address stock, uint256 usdcAmount, uint256 minStockOut)
+    /// @dev Only recurring buys pay the SIP fee; a one-time buy is free (founder decision, November 16, 2026).
+    function _buy(address user, address stock, uint256 usdcAmount, uint256 minStockOut, bool chargeFee)
         internal
         returns (uint256 stockOut)
     {
         if (usdcAmount == 0) revert ZeroAmount();
         address vault = factory.createVault(user);
         usdc.safeTransferFrom(user, address(this), usdcAmount);
-        uint256 fee = (usdcAmount * sipFeeBps) / 10_000;
+        uint256 fee = chargeFee ? (usdcAmount * sipFeeBps) / 10_000 : 0;
         if (fee > 0) {
             usdc.safeTransfer(feeRecipient, fee);
             usdcAmount -= fee;
@@ -159,6 +164,7 @@ contract SipRouter is ReentrancyGuardTransient {
         usdc.forceApprove(address(swapAdapter), 0);
         stockOut = IERC20(stock).balanceOf(address(this)) - beforeBal;
         if (stockOut == 0 || stockOut < minStockOut) revert ZeroAmount();
+        investedOf[user][stock] += usdcAmount + fee;
         IERC20(stock).forceApprove(vault, stockOut);
         EmployeeVault(vault).depositStock(stock, stockOut);
     }

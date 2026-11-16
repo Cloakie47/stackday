@@ -8,7 +8,8 @@ import {SipRouter} from "../src/SipRouter.sol";
 import {EmployeeVault} from "../src/EmployeeVault.sol";
 import {IPriceAdapter} from "../src/interfaces/IAdapters.sol";
 
-/// Platform revenue: a 0.25% SIP fee, fixed at deployment, only on USDC going into stock.
+/// Platform revenue: a 0.25% SIP fee, fixed at deployment, only on USDC that a recurring plan puts into
+/// stock (the standing payday plan, or a SipRouter recurring buy). One-time buys are free.
 contract SipFeeTest is BaseTest {
     uint16 internal constant FEE_BPS = 25;
     address internal treasury = makeAddr("treasury");
@@ -40,12 +41,23 @@ contract SipFeeTest is BaseTest {
 
     function test_payroll_feeOnlyOnSipShare() public {
         uint256 runId = _feePayday(5000 * U);
-        vm.prank(alice);
-        feePayroll.claimWithSip(runId, aliceBank, address(stock), 2000, 0); // 1,000 USDC SIP
+        vm.startPrank(alice);
+        feePayroll.setSipPlan(address(stock), 2000); // every payday: 20%
+        feePayroll.claim(runId, aliceBank, 0); // 1,000 USDC SIP
+        vm.stopPrank();
         assertEq(usdc.balanceOf(aliceBank), 4000 * U, "salary paid out is never charged");
         assertEq(usdc.balanceOf(treasury), 2.5e6, "0.25% of 1,000 USDC");
         assertEq(_vault(alice).idleOf(address(stock)), swapAdapter.quote(address(stock), 997.5e6));
         assertEq(usdc.balanceOf(address(feePayroll)), 0);
+    }
+
+    function test_payroll_oneTimeChoice_noFee() public {
+        uint256 runId = _feePayday(5000 * U);
+        vm.prank(alice);
+        feePayroll.claimWithSip(runId, aliceBank, address(stock), 2000, 0); // one payday only
+        assertEq(usdc.balanceOf(aliceBank), 4000 * U);
+        assertEq(usdc.balanceOf(treasury), 0, "a one-time choice is free");
+        assertEq(_vault(alice).idleOf(address(stock)), swapAdapter.quote(address(stock), 1000 * U));
     }
 
     function test_payroll_noSip_noFee() public {
@@ -60,24 +72,51 @@ contract SipFeeTest is BaseTest {
         uint256 runId = _feePayday(5000 * U);
         vm.prank(demoAdmin);
         stock.setTransfersPaused(true);
-        vm.prank(alice);
-        feePayroll.claimWithSip(runId, aliceBank, address(stock), 2000, 0);
+        vm.startPrank(alice);
+        feePayroll.setSipPlan(address(stock), 2000);
+        feePayroll.claim(runId, aliceBank, 0);
+        vm.stopPrank();
         assertEq(usdc.balanceOf(aliceBank), 5000 * U);
         assertEq(usdc.balanceOf(treasury), 0, "no fee when no stock was bought");
     }
 
-    function test_router_feeOnOneTimeAndRecurring() public {
+    function test_router_oneTimeFree_recurringPaysFee() public {
         vm.prank(carol);
         uint256 out = feeRouter.invest(address(stock), 1000 * U, 0);
-        assertEq(out, swapAdapter.quote(address(stock), 997.5e6));
-        assertEq(usdc.balanceOf(treasury), 2.5e6);
+        assertEq(out, swapAdapter.quote(address(stock), 1000 * U), "one-time buy: no fee");
+        assertEq(usdc.balanceOf(treasury), 0);
 
         vm.prank(carol);
         feeRouter.setPlan(address(stock), uint96(400 * U), 7 days, 0); // zero tolerance still fills at oracle price
         feeRouter.executePlan(carol, address(stock));
-        assertEq(usdc.balanceOf(treasury), 3.5e6);
+        assertEq(usdc.balanceOf(treasury), 1e6, "0.25% of the 400 USDC recurring buy");
         assertEq(usdc.balanceOf(carol), 8600 * U);
         assertEq(usdc.balanceOf(address(feeRouter)), 0);
+    }
+
+    /// "Total put in" counts the USDC before the fee, for one-time and recurring buys alike.
+    function test_router_investedOf_countsEveryBuy() public {
+        vm.startPrank(carol);
+        feeRouter.invest(address(stock), 1000 * U, 0);
+        feeRouter.setPlan(address(stock), uint96(400 * U), 7 days, 0);
+        vm.stopPrank();
+        feeRouter.executePlan(carol, address(stock));
+        assertEq(feeRouter.investedOf(carol, address(stock)), 1400 * U);
+        assertEq(feeRouter.investedOf(alice, address(stock)), 0);
+    }
+
+    function test_payroll_investedOf_onlySuccessfulBuys() public {
+        uint256 runId = _feePayday(5000 * U);
+        vm.prank(alice);
+        feePayroll.claimWithSip(runId, aliceBank, address(stock), 2000, 0);
+        assertEq(feePayroll.investedOf(alice, address(stock)), 1000 * U);
+
+        runId = _feePayday(5000 * U);
+        vm.prank(demoAdmin);
+        stock.setTransfersPaused(true);
+        vm.prank(alice);
+        feePayroll.claimWithSip(runId, aliceBank, address(stock), 2000, 0);
+        assertEq(feePayroll.investedOf(alice, address(stock)), 1000 * U, "a skipped buy adds nothing");
     }
 
     function test_feeIsFixedAndCapped() public {
@@ -109,8 +148,10 @@ contract SipFeeTest is BaseTest {
         sipBps = uint16(bound(sipBps, 1, 10_000));
         uint256 amount = bound(salary, 100 * U, 500_000 * U);
         uint256 runId = _feePayday(amount);
-        vm.prank(alice);
-        feePayroll.claimWithSip(runId, aliceBank, address(stock), sipBps, 0);
+        vm.startPrank(alice);
+        feePayroll.setSipPlan(address(stock), sipBps);
+        feePayroll.claim(runId, aliceBank, 0);
+        vm.stopPrank();
         uint256 sip = (amount * sipBps) / 10_000;
         uint256 fee = (sip * FEE_BPS) / 10_000;
         if (usdc.balanceOf(aliceBank) == amount - sip) {

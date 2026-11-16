@@ -27,7 +27,7 @@ Status: only the first line is built. The rest is the plan, to be confirmed by t
 
 | Stream | Who pays | How it works | Status |
 |---|---|---|---|
-| 1. SIP fee | The person investing | 0.25 percent of the USDC that goes into assets, on payday investing and on direct buys. Fixed in the contract, cannot be changed, never charged on salary paid out | Built and live |
+| 1. SIP fee | The person investing | 0.25 percent of the USDC that a recurring plan puts into assets (an every payday plan, or a recurring buy). One-time buys are free. Fixed in the contract, cannot be changed, never charged on salary paid out | Built and live |
 | 2. Business subscription | The employer | A monthly price per employee for running payroll through Stackday, billed off-chain or in USDC. Needs no contract change | Planned. Expected to be the main income |
 | 3. Borrowing fee | The borrower | A small one-time fee when a loan is opened (for example 0.25 percent of the amount borrowed), taken from the borrowed USDC before it is sent out. Never taken from the vault. Fixed at deployment like the SIP fee | Not built. Needs a contract change and a redeploy |
 | 4. Lending income | Lenders, through a share of interest | Stackday curates its own USDC vault on Morpho that lends against tokenized stocks, and keeps a share of the interest it earns (for example 10 percent). Lenders can be anyone, including employers with idle treasury | Not built. A larger project with real risk management duties |

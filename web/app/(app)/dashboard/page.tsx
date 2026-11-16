@@ -342,6 +342,20 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
   );
 }
 
+/** Signed dollar change and percent, for "Total invested" against what it is worth now. */
+function Change({ now, putIn }: { now: bigint; putIn: bigint }) {
+  if (putIn === 0n) return <span className="text-muted">-</span>;
+  const diff = now - putIn;
+  const pct = Number((diff * 10_000n) / putIn) / 100;
+  const up = diff >= 0n;
+  return (
+    <span className={up ? "text-grow" : "text-danger"}>
+      {up ? "+" : "-"}${fmtUsdc(up ? diff : -diff)} ({up ? "+" : ""}
+      {pct.toFixed(1)}%)
+    </span>
+  );
+}
+
 export default function DashboardPage() {
   // Business team members see this page as Holdings; Personal users as Home.
   const { mode } = useAccountState();
@@ -399,7 +413,7 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: "Invested", value: p.totalAssetValue },
+              { label: "Assets", value: p.totalAssetValue },
               { label: "Cash", value: cash },
               { label: "Borrowed", value: p.totalDebt },
             ].map((s) => (
@@ -428,6 +442,18 @@ export default function DashboardPage() {
           </Empty>
         ) : (
           <>
+            {p.totalPutIn > 0n && (
+              <div className="mb-5 grid grid-cols-3 gap-4 rounded-2xl bg-sunken/70 p-4">
+                <Stat label="Total invested" value={`$${fmtUsdc(p.totalPutIn)}`} />
+                <Stat label="Worth now" value={`$${fmtUsdc(p.totalAssetValue)}`} />
+                <div>
+                  <div className="text-[13px] font-medium text-muted">Change</div>
+                  <div className="mt-1 text-sm font-semibold tabular-nums">
+                    <Change now={p.totalAssetValue} putIn={p.totalPutIn} />
+                  </div>
+                </div>
+              </div>
+            )}
             <SplitBar
               parts={held.map((x) => ({ key: x.asset.symbol, value: Number(x.value), color: x.asset.color, label: x.asset.name }))}
               height={12}
@@ -447,11 +473,25 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right text-sm font-semibold tabular-nums">${fmtUsdc(x.value)}</div>
+                  <div className="text-right tabular-nums">
+                    <div className="text-sm font-semibold">${fmtUsdc(x.value)}</div>
+                    {x.putIn > 0n && (
+                      <div className="text-xs">
+                        <span className="text-muted">put in ${fmtUsdc(x.putIn)} · </span>
+                        <Change now={x.value} putIn={x.putIn} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </>
+        )}
+        {p.totalPutIn > 0n && (
+          <p className="mt-4 text-xs leading-relaxed text-muted">
+            Total invested is the USDC you put in through buys and payday shares, before fees. Assets you deposited or
+            withdrew yourself are not counted in it.
+          </p>
         )}
         {cash > 0n && (
           <p className="mt-4 border-t border-line pt-4 text-sm text-muted">
