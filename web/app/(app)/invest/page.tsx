@@ -49,8 +49,8 @@ export default function InvestPage() {
   const amount = parseUsdc(amt);
   const recurringAmount = parseUsdc(perBuy);
   const plans = p.positions.filter((x) => x.recurring);
-  const net = (v: bigint) => v - (v * SIP_FEE_BPS) / 10_000n;
-  const min = (v: bigint) => (pos.price ? (assetForUsdc(net(v), pos.price, asset.decimals) * 99n) / 100n : 0n);
+  // A one-time buy is free; only recurring buys pay the SIP fee (SipRouter.sol).
+  const min = (v: bigint) => (pos.price ? (assetForUsdc(v, pos.price, asset.decimals) * 99n) / 100n : 0n);
 
   async function buyOnce() {
     const calls: Call[] = [
@@ -144,8 +144,8 @@ export default function InvestPage() {
                 hint={
                   <>
                     {amount > 0n && pos.price
-                      ? `About ${fmtAsset(assetForUsdc(net(amount), pos.price, asset.decimals), asset.decimals)} ${asset.symbol} after the ${fmtPct(SIP_FEE_BPS)} fee.`
-                      : `Fee: ${fmtPct(SIP_FEE_BPS)} of the amount.`}{" "}
+                      ? `About ${fmtAsset(assetForUsdc(amount, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}. No fee.`
+                      : "No fee on one-time buys."}{" "}
                     Wallet:{" "}
                     <FillAmount onFill={() => setAmt(usdcInput(p.walletUsdc))} label="Use all USDC in your wallet">
                       ${fmtUsdc(p.walletUsdc)}
@@ -179,6 +179,7 @@ export default function InvestPage() {
                         <FillAmount onFill={() => setPerBuy(v)}>${v}</FillAmount>
                       </span>
                     ))}
+                    . Fee: {fmtPct(SIP_FEE_BPS)} of each buy.
                   </>
                 }
               />
@@ -197,9 +198,6 @@ export default function InvestPage() {
             <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
               {pos.recurring ? "Replace the recurring buy" : "Start a recurring buy"}
             </Button>
-            <p className="mt-2 text-xs leading-relaxed text-muted">
-              You approve 12 buys up front. Each fills within 1% of the reference price.
-            </p>
           </div>
         </div>
         <TxStatus state={tx.state} />

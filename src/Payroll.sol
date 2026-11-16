@@ -15,7 +15,8 @@ import {EmployeeVault} from "./EmployeeVault.sol";
 /// (the SIP shares) into assets held in their own vault: tokenized stocks, and also BTC or ETH tokens.
 ///
 /// No owner and no admin. The only fee is a SIP fee fixed forever at deployment (at most 1%),
-/// charged on the USDC that goes into assets, never on salary paid out and never on vault funds.
+/// charged on the USDC that the standing "every payday" plan puts into assets (a one-time choice at
+/// claim is free), never on salary paid out and never on vault funds.
 /// Salary assigned to an employee can only be claimed by that employee (an employer can take back
 /// a salary that stayed unclaimed for 180 days).
 contract Payroll is ReentrancyGuardTransient {
@@ -76,6 +77,9 @@ contract Payroll is ReentrancyGuardTransient {
     mapping(address employer => uint256) public employerBalance;
     mapping(address employee => Allocation[]) internal _planOf;
     mapping(address employee => EmergencyRule) public emergencyRuleOf;
+    /// @notice Lifetime USDC of this employee's pay that went into `asset` (before any fee). Only ever grows:
+    /// a running total for the portfolio's "Total put in". It moves no funds.
+    mapping(address employee => mapping(address asset => uint256)) public investedOf;
 
     uint256 public scheduleCount;
     mapping(uint256 scheduleId => Schedule) internal _schedules;
@@ -278,12 +282,12 @@ contract Payroll is ReentrancyGuardTransient {
     function claim(uint256 runId, address recipient, uint256 minOut) external nonReentrant {
         uint256[] memory minOuts = new uint256[](1);
         minOuts[0] = minOut;
-        _claim(runId, recipient, _planOf[msg.sender], minOuts);
+        _claim(runId, recipient, _planOf[msg.sender], minOuts, true);
     }
 
     /// @notice Claim a salary using the standing instruction, with a minimum per SIP line.
     function claimMany(uint256 runId, address recipient, uint256[] calldata minOuts) external nonReentrant {
-        _claim(runId, recipient, _planOf[msg.sender], minOuts);
+        _claim(runId, recipient, _planOf[msg.sender], minOuts, true);
     }
 
     /// @notice Claim a salary with a one-time SIP choice in one asset (0 for none).
@@ -300,7 +304,7 @@ contract Payroll is ReentrancyGuardTransient {
             _requireSupported(asset);
             legs[0] = Allocation(asset, sipBps);
         }
-        _claim(runId, recipient, legs, minOuts);
+        _claim(runId, recipient, legs, minOuts, false);
     }
 
     /// @notice Claim a salary with a one-time SIP choice across several assets.
@@ -311,7 +315,7 @@ contract Payroll is ReentrancyGuardTransient {
         uint16[] calldata bps,
         uint256[] calldata minOuts
     ) external nonReentrant {
-        _claim(runId, recipient, _validated(assets, bps), minOuts);
+        _claim(runId, recipient, _validated(assets, bps), minOuts, false);
     }
 
     // --------------------------------------------------------------------- views
@@ -440,7 +444,15 @@ contract Payroll is ReentrancyGuardTransient {
         emit SipPlanSet(msg.sender, assets, bps);
     }
 
-    function _claim(uint256 runId, address recipient, Allocation[] memory legs, uint256[] memory minOuts) internal {
+    /// @dev `recurring` is true when the standing "every payday" plan is used. Only those buys pay the SIP
+    /// fee: a one-time choice at claim is free (founder decision, November 16, 2026).
+    function _claim(
+        uint256 runId,
+        address recipient,
+        Allocation[] memory legs,
+        uint256[] memory minOuts,
+        bool recurring
+    ) internal {
         if (recipient == address(0)) revert ZeroAddress();
         uint256 amount = claimable[runId][msg.sender];
         if (amount == 0) revert NothingToClaim();
@@ -468,8 +480,9 @@ contract Payroll is ReentrancyGuardTransient {
             uint256 minOut = i < minOuts.length ? minOuts[i] : 0;
             // The salary must never get stuck because the asset side failed (paused token, bad price,
             // exchange down). A failed SIP line is undone and that part is paid in USDC instead.
-            try this.executeSip(msg.sender, legs[i].asset, sipUsdc, minOut, emergency) returns (uint256 out) {
+            try this.executeSip(msg.sender, legs[i].asset, sipUsdc, minOut, emergency, recurring) returns (uint256 out) {
                 sipTotal += sipUsdc;
+                investedOf[msg.sender][legs[i].asset] += sipUsdc;
                 emit SipBought(runId, msg.sender, legs[i].asset, sipUsdc, out);
             } catch (bytes memory reason) {
                 emit SipSkipped(runId, msg.sender, legs[i].asset, sipUsdc, reason);
@@ -482,13 +495,17 @@ contract Payroll is ReentrancyGuardTransient {
     }
 
     /// @dev Called only by this contract (inside try/catch) so a failed SIP line is fully undone.
-    function executeSip(address employee, address stock, uint256 usdcIn, uint256 minStockOut, bool lockAsCollateral)
-        external
-        returns (uint256 stockOut)
-    {
+    function executeSip(
+        address employee,
+        address stock,
+        uint256 usdcIn,
+        uint256 minStockOut,
+        bool lockAsCollateral,
+        bool chargeFee
+    ) external returns (uint256 stockOut) {
         if (msg.sender != address(this)) revert OnlySelf();
         address vault = factory.createVault(employee);
-        uint256 fee = (usdcIn * sipFeeBps) / MAX_BPS;
+        uint256 fee = chargeFee ? (usdcIn * sipFeeBps) / MAX_BPS : 0;
         if (fee > 0) {
             usdc.safeTransfer(feeRecipient, fee);
             usdcIn -= fee;

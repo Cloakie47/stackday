@@ -24,6 +24,8 @@ export type Position = {
   ratePerSecond?: bigint;
   liquidity?: bigint;
   value: bigint; // USDC value of idle + collateral
+  /** Lifetime USDC put into this asset through buys and payday shares (before fees). Never goes down. */
+  putIn: bigint;
   /** Recurring buy plan from the wallet (no employer needed). */
   recurring?: { usdcPerBuy: bigint; interval: number; nextBuyAt: number; slippageBps: number };
 };
@@ -76,7 +78,7 @@ export function usePortfolio(user: Address | undefined) {
   const scheduleIds = Array.from(new Set([...asEmployee, ...asEmployer].map((x) => x.toString()))).map(BigInt);
   const v = hasVault ? vault! : ZERO;
 
-  const PER = 12;
+  const PER = 14;
   const assetCalls = ASSETS.flatMap((a) => [
     { address: a.feed, abi: mockFeedAbi, functionName: "latestRoundData" },
     { address: a.feed, abi: mockFeedAbi, functionName: "frozen" },
@@ -90,6 +92,8 @@ export function usePortfolio(user: Address | undefined) {
     { address: a.adapter, abi: lendingAdapterAbi, functionName: "borrowRatePerSecond" },
     { address: a.adapter, abi: lendingAdapterAbi, functionName: "availableLiquidity" },
     { address: ADDR.router, abi: routerAbi, functionName: "planOf", args: [who, a.token] },
+    { address: ADDR.router, abi: routerAbi, functionName: "investedOf", args: [who, a.token] },
+    { address: ADDR.payroll, abi: payrollAbi, functionName: "investedOf", args: [who, a.token] },
   ]);
   const vaultCalls = hasVault
     ? [
@@ -138,6 +142,7 @@ export function usePortfolio(user: Address | undefined) {
       ratePerSecond: r<bigint>(detail.data, o + 9),
       liquidity: r<bigint>(detail.data, o + 10),
       value: price ? assetValue(idle + collateral, price, asset.decimals) : 0n,
+      putIn: user ? (r<bigint>(detail.data, o + 12) ?? 0n) + (r<bigint>(detail.data, o + 13) ?? 0n) : 0n,
       recurring:
         user && plan && plan[1] > 0n
           ? { usdcPerBuy: plan[1], interval: plan[2], nextBuyAt: plan[3], slippageBps: plan[4] }
@@ -203,6 +208,8 @@ export function usePortfolio(user: Address | undefined) {
     schedulesPayingMe: schedules.filter((s) => s.mine > 0n),
     schedulesIRun: schedules.filter((s) => user && s.employer.toLowerCase() === user.toLowerCase()),
     totalAssetValue: positions.reduce((a, p) => a + p.value, 0n),
+    /** Lifetime USDC put into assets, all assets together. */
+    totalPutIn: positions.reduce((a, p) => a + p.putIn, 0n),
     totalDebt: positions.reduce((a, p) => a + p.debt, 0n),
   };
 }

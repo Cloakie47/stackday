@@ -25,7 +25,7 @@ The planned "Themes" layer: the app learns what the person is interested in (for
 
 What Stackday is not: it runs no lending pool and no pooled fund, it holds nobody's money (each vault belongs to its owner), and it launches no token.
 
-How it earns: a fixed 0.25 percent fee on USDC going into assets, set in the contract and impossible to change. A per-employee subscription for businesses is planned.
+How it earns: a fixed 0.25 percent fee on USDC that a recurring plan puts into assets (one-time buys are free), set in the contract and impossible to change. A per-employee subscription for businesses is planned.
 
 ## 2. The anchor
 
@@ -46,11 +46,11 @@ This is the paragraph the build is checked against, followed by the numbered par
 | 7 | Businesses fund a treasury and pay once or on a schedule | Built, tested, shown on testnet |
 | 8 | Employees claim to any wallet, with a share into assets, once or every payday | Built, tested, shown on testnet |
 | 9 | Coinbase tokenized stocks, plus Bitcoin and Ether tokens | Built with mock tokens on testnet. The same code is tested with the real AAPLc token on a copy of Base mainnet. BTC and ETH have no mainnet test yet |
-| 10 | A vault only they control | Built, tested |
+| 10 | A vault only they control | Built, tested. Home shows Total invested (lifetime USDC put in through buys and payday shares, kept on chain by SipRouter and Payroll), what it is worth now and the change |
 | 11 | Individuals invest regularly from their own wallet | Built, tested. The Individual account type is called Personal in the app |
 | 12 | Dividends reinvested | A property of the real tokens. The testnet mocks pay none |
 | 13 | Idle USDC earns interest on Morpho or Aave | Built for Morpho-style vaults (mock on testnet, real Morpho vault tested on a mainnet copy). Aave NOT built |
-| 14 | Borrow against holdings through Morpho and Aave instead of selling | Built on Morpho. Aave NOT built. Collateral basket on the Borrow page: lock any mix of assets first (one total, one limit), then borrow; each borrow and repay is split across the Morpho markets so every part has the same health. Each asset is still its own market and can be liquidated on its own; the page says so. Borrow and repay happen only in the basket; taking assets out is one Withdraw control that releases locked assets automatically |
+| 14 | Borrow against holdings through Morpho and Aave instead of selling | Built on Morpho. Aave NOT built. Collateral basket on the Borrow page: lock any mix of assets first (one total, one limit), then borrow; each borrow and repay is split across the Morpho markets so every part has the same health. Each asset is still its own market and can be liquidated on its own; the page says so. Borrow and repay happen only in the basket; taking assets out is one Withdraw control that releases locked assets automatically. Borrow offers three risk levels (Low 25, Mid 50, Degen 80 percent of the liquidation limit, each showing the price drop it survives); Degen raises the vault's own safety cap to 80 percent in the same signature |
 | 15 | Every payday adds collateral, the loan gets safer | Built, tested. Founder decision November 16, 2026 (issue #29): new buys are never locked automatically; the person locks them on Borrow, and only the opt-in emergency rule locks a payday share by itself. So the loan gets safer when payday buys are locked |
 | 16 | Themes: news and sentiment, stocks by theme, rebalancing | Partly built (#10 to #13, #34, merged November 16, 2026): /themes page for Personal and team members. Pick themes and a risk level, get a split with targets for new buys (Stackday cannot sell, so holdings can drift; a notice says so), put it to work from salary (one signature) or from the wallet, once or on a schedule. Market mood comes from a dated hand-built snapshot, labelled as not live. Rebalancing proposes new money only. NOT built yet: the weekly live news refresh (plan in docs/themes/weekly-plan.md, founder answers on #3; value tilt ships off). Selling (issue #35) is after the deadline |
 | 17 | Confidential salaries | Next step, not built |

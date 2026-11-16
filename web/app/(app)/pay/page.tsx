@@ -35,10 +35,13 @@ const PRESETS = [
   { pct: 20, label: "20%", hint: "Builds faster" },
 ];
 
-/** Least amount to accept for a SIP line: the reference price minus the fee, with 1% room. */
-function minOut(usdc: bigint, price: bigint | undefined, decimals: number) {
+/** The fee only applies to the "every payday" plan; a one-time choice is free (Payroll.sol). */
+const feeOn = (usdc: bigint, recurring: boolean) => (recurring ? (usdc * SIP_FEE_BPS) / 10_000n : 0n);
+
+/** Least amount to accept for a SIP line: the reference price minus any fee, with 1% room. */
+function minOut(usdc: bigint, price: bigint | undefined, decimals: number, recurring: boolean) {
   if (!price) return 0n;
-  const net = usdc - (usdc * SIP_FEE_BPS) / 10_000n;
+  const net = usdc - feeOn(usdc, recurring);
   return (assetForUsdc(net, price, decimals) * 99n) / 100n;
 }
 
@@ -74,7 +77,7 @@ export default function PayPage() {
         .filter((l) => l.pct > 0)
         .map((l) => {
           const usdc = (amount * BigInt(l.pct)) / 100n;
-          const fee = (usdc * SIP_FEE_BPS) / 10_000n;
+          const fee = feeOn(usdc, frequency === "always");
           return {
             ...l,
             usdc,
@@ -82,7 +85,7 @@ export default function PayPage() {
             est: l.pos.price ? assetForUsdc(usdc - fee, l.pos.price, l.pos.asset.decimals) : 0n,
           };
         }),
-    [p.positions, alloc, amount],
+    [p.positions, alloc, amount, frequency],
   );
   const sipUsdc = legs.reduce((a, l) => a + l.usdc, 0n);
   const feeUsdc = legs.reduce((a, l) => a + l.fee, 0n);
@@ -111,13 +114,13 @@ export default function PayPage() {
     if (!claim) return;
     const tokens = legs.map((l) => l.pos.asset.token);
     const bps = legs.map((l) => l.pct * 100);
-    let mins = legs.map((l) => minOut(l.usdc, l.pos.price, l.pos.asset.decimals));
+    let mins = legs.map((l) => minOut(l.usdc, l.pos.price, l.pos.asset.decimals, frequency === "always"));
     if (p.emergencyActive && p.emergencyRule) {
       // The contract sends the whole SIP share to the loan's asset, so only that minimum applies.
       const rule = p.emergencyRule;
       const pos = p.positions.find((x) => x.asset.token.toLowerCase() === rule.asset.toLowerCase());
       const share = BigInt(total * 100) > rule.bps ? BigInt(total * 100) : rule.bps;
-      mins = [pos ? minOut((amount * share) / 10_000n, pos.price, pos.asset.decimals) : 0n];
+      mins = [pos ? minOut((amount * share) / 10_000n, pos.price, pos.asset.decimals, frequency === "always") : 0n];
     }
     const calls: Call[] = [];
     if (frequency === "always") {
@@ -317,7 +320,12 @@ export default function PayPage() {
                     about {fmtAsset(l.est, l.pos.asset.decimals)} {l.pos.asset.symbol}
                   </Row>
                 ))}
-                {sipUsdc > 0n && <Row label={`${BRAND.name} fee (${fmtPct(SIP_FEE_BPS)} of the invested part)`}>{fmtUsdc(feeUsdc, 4)} USDC</Row>}
+                {sipUsdc > 0n &&
+                  (frequency === "always" ? (
+                    <Row label={`${BRAND.name} fee (${fmtPct(SIP_FEE_BPS)} of the invested part, every payday plan)`}>{fmtUsdc(feeUsdc, 4)} USDC</Row>
+                  ) : (
+                    <Row label={`${BRAND.name} fee`}>None for a one-time choice</Row>
+                  ))}
               </div>
             </div>
 
