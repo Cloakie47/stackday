@@ -46,6 +46,7 @@ Built, tested and live on testnet:
 | Payroll | Employer treasury, pay once or on a schedule (daily, weekly, 2 weeks, monthly), claim to any wallet | src/Payroll.sol |
 | Payday investing | A share of each salary into one or several assets, once or every payday | src/Payroll.sol |
 | Vault | One vault per person, no admin, no pooled money | src/EmployeeVault.sol, src/VaultFactory.sol |
+| Themes | /themes: pick themes and a risk level, split with targets for new buys, buy from salary or wallet, market mood from a dated snapshot, rebalance with new money only. Weekly live news refresh planned | web/lib/themes, web/app/(app)/themes |
 | Borrowing | Lock collateral as one basket of any assets, then borrow, repay, unlock, withdraw through real Morpho markets. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
@@ -62,7 +63,7 @@ What is real and what is mocked on testnet:
 
 ## 4. What is not built
 
-- The Themes layer (news and sentiment, stocks by theme, rebalancing). Selling is not possible in the contracts yet: they only buy.
+- The Themes weekly live news refresh (plan in docs/themes/weekly-plan.md). Selling is not possible in the contracts yet: they only buy (issue #35, after the deadline).
 - Aave, for borrowing or for interest.
 - Confidential salaries.
 - An automation service to release paydays. Today someone presses a button when a payday is due.
