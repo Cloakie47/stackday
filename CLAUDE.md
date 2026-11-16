@@ -21,6 +21,7 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - We do NOT build a lending protocol. Borrowing goes through an existing market (Morpho on Base first choice).
 - No forced repayment. Repay is manual. SIP share is optional (one time or every payday).
 - Emergency rule: if the loan is near liquidation, the whole next SIP share goes to collateral.
+- New buys are never locked as collateral automatically (founder decision, issue #29). The person locks them; only the opt-in emergency rule locks by itself.
 - Withdraw any time after repaying the loan against the position.
 - Lending venues: Morpho first, Aave second, both behind the same lending adapter interface.
 - Idle USDC yield: founder decided it is USDC in the employee own vault that earns (not unclaimed salary). Built behind IYieldAdapter.

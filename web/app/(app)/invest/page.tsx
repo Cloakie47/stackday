@@ -5,10 +5,10 @@ import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Empty, Field, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Empty, Field, FillAmount, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, routerAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
-import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until } from "@/lib/format";
+import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until, usdcInput } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
@@ -142,9 +142,15 @@ export default function InvestPage() {
                 value={amt}
                 onChange={(e) => setAmt(e.target.value)}
                 hint={
-                  amount > 0n && pos.price
-                    ? `About ${fmtAsset(assetForUsdc(net(amount), pos.price, asset.decimals), asset.decimals)} ${asset.symbol} after the ${fmtPct(SIP_FEE_BPS)} fee.`
-                    : `Fee: ${fmtPct(SIP_FEE_BPS)} of the amount.`
+                  <>
+                    {amount > 0n && pos.price
+                      ? `About ${fmtAsset(assetForUsdc(net(amount), pos.price, asset.decimals), asset.decimals)} ${asset.symbol} after the ${fmtPct(SIP_FEE_BPS)} fee.`
+                      : `Fee: ${fmtPct(SIP_FEE_BPS)} of the amount.`}{" "}
+                    Wallet:{" "}
+                    <FillAmount onFill={() => setAmt(usdcInput(p.walletUsdc))} label="Use all USDC in your wallet">
+                      ${fmtUsdc(p.walletUsdc)}
+                    </FillAmount>
+                  </>
                 }
               />
             </div>
@@ -157,7 +163,25 @@ export default function InvestPage() {
           <div className="rounded-2xl border border-line p-4">
             <h3 className="text-sm font-semibold">Buy on a schedule</h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field label="Each time" inputMode="decimal" placeholder="0.00" suffix="USDC" value={perBuy} onChange={(e) => setPerBuy(e.target.value)} />
+              <Field
+                label="Each time"
+                inputMode="decimal"
+                placeholder="0.00"
+                suffix="USDC"
+                value={perBuy}
+                onChange={(e) => setPerBuy(e.target.value)}
+                hint={
+                  <>
+                    Quick:{" "}
+                    {["5", "10", "25", "50"].map((v, i) => (
+                      <span key={v}>
+                        {i > 0 && " · "}
+                        <FillAmount onFill={() => setPerBuy(v)}>${v}</FillAmount>
+                      </span>
+                    ))}
+                  </>
+                }
+              />
               <Select
                 label="How often"
                 value={interval}
@@ -231,7 +255,19 @@ export default function InvestPage() {
             suffix="USDC"
             value={earnAmt}
             onChange={(e) => setEarnAmt(e.target.value)}
-            hint={fromWallet > 0n ? `${fmtUsdc(fromWallet)} USDC will come from your wallet.` : "Uses USDC already in your vault first."}
+            hint={
+              <>
+                {fromWallet > 0n ? `${fmtUsdc(fromWallet)} USDC will come from your wallet.` : "Uses USDC already in your vault first."}{" "}
+                {p.vaultUsdc > 0n && (
+                  <>
+                    Idle in vault:{" "}
+                    <FillAmount onFill={() => setEarnAmt(usdcInput(p.vaultUsdc))}>${fmtUsdc(p.vaultUsdc)}</FillAmount>{" "}
+                  </>
+                )}
+                Vault and wallet:{" "}
+                <FillAmount onFill={() => setEarnAmt(usdcInput(p.vaultUsdc + p.walletUsdc))}>${fmtUsdc(p.vaultUsdc + p.walletUsdc)}</FillAmount>
+              </>
+            }
           />
           <Button disabled={!viewer.canAct || earn === 0n || fromWallet > p.walletUsdc || tx.state.busy} onClick={startEarning}>
             Start earning

@@ -351,7 +351,21 @@ export default function EmployerPage() {
           </div>
           <div>
             <label className="block">
-              <span className="text-[13px] font-medium text-canvas/70">Add USDC (wallet: {fmtUsdc(p.walletUsdc)})</span>
+              <span className="text-[13px] font-medium text-canvas/70">
+                Add USDC (wallet:{" "}
+                <button
+                  type="button"
+                  title="Use this amount"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setTreasuryAmt(fmtUsdc(p.walletUsdc).replace(/,/g, ""));
+                  }}
+                  className="font-semibold text-canvas underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                >
+                  {fmtUsdc(p.walletUsdc)}
+                </button>
+                )
+              </span>
               <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 transition-colors duration-150 focus-within:border-white/60">
                 <input
                   inputMode="decimal"
