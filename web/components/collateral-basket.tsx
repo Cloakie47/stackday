@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Field, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Field, FillAmount, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
 import { vaultAbi } from "@/lib/abis";
 import { splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
 import { MAX_UINT, ADDR } from "@/lib/contracts";
-import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc } from "@/lib/format";
+import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc, usdcInput } from "@/lib/format";
 import type { Portfolio, Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 
@@ -149,7 +149,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   return (
     <Card title="Collateral basket">
       <p className="max-w-2xl text-sm leading-relaxed text-muted">
-        Lock any mix of your assets as one pot of collateral, then borrow against the total. While a loan is open on an asset, new buys of it (including payday shares) are locked automatically, so the loan gets safer.
+        Lock any mix of your assets as one pot of collateral, then borrow against the total. New buys stay free in your vault until you lock them here. Locking more, for example each payday's buy, makes a loan safer.
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
@@ -229,7 +229,16 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
                           ? "Transfers are paused, so it cannot be locked right now."
                           : free === 0n
                             ? "None free. Buy some on Invest."
-                            : `Free: $${fmtUsdc(freeValue)} (${fmtAsset(free, a.decimals)} ${a.symbol}, ${l.pos.idle === 0n ? "in your wallet" : l.pos.wallet === 0n ? "in your vault" : "in your vault and wallet"})${l.tooMuch ? ". Capped at what you have." : ""}`
+                            : (
+                              <>
+                                Free:{" "}
+                                <FillAmount onFill={() => setLockUsd((s) => ({ ...s, [a.symbol]: usdcInput(freeValue) }))} label={`Lock all free ${a.name}`}>
+                                  ${fmtUsdc(freeValue)}
+                                </FillAmount>{" "}
+                                ({fmtAsset(free, a.decimals)} {a.symbol}, {l.pos.idle === 0n ? "in your wallet" : l.pos.wallet === 0n ? "in your vault" : "in your vault and wallet"})
+                                {l.tooMuch ? ". Capped at what you have." : ""}
+                              </>
+                            )
                       }
                     />
                   </div>
@@ -257,7 +266,15 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             suffix="USDC"
             value={borrowAmt}
             onChange={(e) => setBorrowAmt(e.target.value)}
-            hint={now.locked === 0n ? "Lock collateral first." : `Up to $${fmtUsdc(now.available)}. Uses only what you locked.`}
+            hint={
+              now.locked === 0n ? (
+                "Lock collateral first."
+              ) : (
+                <>
+                  Up to <FillAmount onFill={() => setBorrowAmt(usdcInput(now.available))}>${fmtUsdc(now.available)}</FillAmount>. Uses only what you locked.
+                </>
+              )
+            }
           />
           {borrow > 0n && borrowSplit && afterBorrow && (
             <div className="mt-4 rounded-2xl bg-sunken p-4 text-sm">
@@ -290,7 +307,16 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             suffix="USDC"
             value={repayAmt}
             onChange={(e) => setRepayAmt(e.target.value)}
-            hint="Any amount, any time. No penalty."
+            hint={
+              now.debt > 0n ? (
+                <>
+                  Any amount, any time. No penalty. Loan:{" "}
+                  <FillAmount onFill={() => setRepayAmt(usdcInput(now.debt))}>${fmtUsdc(now.debt)}</FillAmount>
+                </>
+              ) : (
+                "Any amount, any time. No penalty."
+              )
+            }
           />
           {repay > 0n && !repayAll && (
             <ul className="mt-3 space-y-1 text-sm text-muted">

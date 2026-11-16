@@ -16,7 +16,7 @@ Status: contracts are deployed on Base Sepolia (testnet) and the web app is live
 - Employees claim each salary to any wallet. Before claiming they choose a share (the site suggests 10 or 20 percent) and what it buys: tokenized stocks, Bitcoin or Ether tokens. Once, or as a standing plan for every payday.
 - What they buy lands in a vault only they control. One vault per person, no admin, no pooled money.
 - Idle USDC in the vault can earn interest.
-- They can borrow USDC against what they hold through an existing Morpho market instead of selling. Every payday adds collateral, so the loan gets safer over time.
+- They can borrow USDC against what they hold through an existing Morpho market instead of selling. New buys stay free in the vault until the person locks them; locking each payday's buy makes the loan safer over time. Only the opt-in emergency rule locks a payday share automatically.
 - People without an employer can use the same vault, with one-time or recurring buys from their own wallet.
 - A dashboard shows holdings, plans and loans. A risk screen shows cost, limits, liquidation price and a stress test.
 - Optional account database (Supabase): a unique name per wallet, saved team lists, and a daily attendance check-in.

@@ -448,7 +448,8 @@ contract Payroll is ReentrancyGuardTransient {
         runs[runId].claimed += amount;
 
         // Emergency: the whole SIP share of this payday (at least the rule's share) goes into the
-        // asset backing the risky loan, where the vault adds it to collateral.
+        // asset backing the risky loan and is locked as its collateral. This is the only automatic
+        // lock: ordinary buys stay free in the vault until the owner locks them (issue #29).
         bool emergency = emergencyActive(msg.sender);
         if (emergency) {
             EmergencyRule memory rule = emergencyRuleOf[msg.sender];
@@ -467,7 +468,7 @@ contract Payroll is ReentrancyGuardTransient {
             uint256 minOut = i < minOuts.length ? minOuts[i] : 0;
             // The salary must never get stuck because the asset side failed (paused token, bad price,
             // exchange down). A failed SIP line is undone and that part is paid in USDC instead.
-            try this.executeSip(msg.sender, legs[i].asset, sipUsdc, minOut) returns (uint256 out) {
+            try this.executeSip(msg.sender, legs[i].asset, sipUsdc, minOut, emergency) returns (uint256 out) {
                 sipTotal += sipUsdc;
                 emit SipBought(runId, msg.sender, legs[i].asset, sipUsdc, out);
             } catch (bytes memory reason) {
@@ -481,7 +482,7 @@ contract Payroll is ReentrancyGuardTransient {
     }
 
     /// @dev Called only by this contract (inside try/catch) so a failed SIP line is fully undone.
-    function executeSip(address employee, address stock, uint256 usdcIn, uint256 minStockOut)
+    function executeSip(address employee, address stock, uint256 usdcIn, uint256 minStockOut, bool lockAsCollateral)
         external
         returns (uint256 stockOut)
     {
@@ -500,7 +501,8 @@ contract Payroll is ReentrancyGuardTransient {
         stockOut = IERC20(stock).balanceOf(address(this)) - beforeBal;
         if (stockOut == 0 || stockOut < minStockOut) revert ZeroAmount();
         IERC20(stock).forceApprove(vault, stockOut);
-        EmployeeVault(vault).depositStock(stock, stockOut);
+        if (lockAsCollateral) EmployeeVault(vault).depositStockAsCollateral(stock, stockOut);
+        else EmployeeVault(vault).depositStock(stock, stockOut);
     }
 
     function _requireSupported(address stock) internal view {

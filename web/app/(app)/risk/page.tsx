@@ -148,10 +148,10 @@ export default function RiskPage() {
           <ul className="space-y-2.5 text-sm leading-relaxed text-ink">
             <li>Repay any amount on the Borrow page. No penalty.</li>
             {personal ? (
-              <li>Each recurring buy of this asset adds collateral, so the loan gets safer over time.</li>
+              <li>Locking more of this asset, for example each recurring buy, makes the loan safer. New buys stay free until you lock them.</li>
             ) : (
               <>
-                <li>Each payday share into this asset adds collateral.</li>
+                <li>Locking each payday share of this asset makes the loan safer. New buys stay free until you lock them.</li>
                 <li>The emergency rule sends more salary to collateral when health is low.</li>
               </>
             )}

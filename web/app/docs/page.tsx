@@ -264,7 +264,7 @@ export default function DocsPage() {
                   ["Payday", "The employer funds a USDC treasury and pays once or on a schedule (daily, weekly, every 2 weeks or monthly). Each person claims to any wallet."],
                   ["Vault", "Before claiming, you pick a share (for example 10 or 20 percent) and what it buys, once or on every payday. It lands in your own vault."],
                   ["Themes", "In development. Pick themes you care about, and the app proposes a capped split for your next buys. You confirm every change."],
-                  ["Borrow", "Borrow USDC against your holdings through an existing Morpho market. Each payday adds collateral, so the loan gets safer over time."],
+                  ["Borrow", "Borrow USDC against your holdings through an existing Morpho market. New buys stay free until you lock them; lock each payday's buy and the loan gets safer over time."],
                 ].map(([t, d], i) => (
                   <li key={t} className="flex gap-4 rounded-2xl border border-line bg-surface p-4">
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand-ink">{i + 1}</span>

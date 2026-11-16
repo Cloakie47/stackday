@@ -53,6 +53,11 @@ export function assetForUsdc(usdc: bigint, price: bigint, tokenDecimals: number)
   return (usdc * 10n ** BigInt(tokenDecimals + 2)) / price;
 }
 
+/** USDC amount as plain text for an input field (no thousands commas). */
+export function usdcInput(v: bigint) {
+  return fmtUsdc(v).replace(/,/g, "");
+}
+
 export function parseUsdc(s: string): bigint {
   return parseAmount(s, USDC_DEC);
 }
