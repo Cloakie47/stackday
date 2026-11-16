@@ -58,6 +58,7 @@
   --shadow-brand: 0 8px 24px -8px rgb(0 82 255 / 0.55);
 
   --glass: rgb(245 247 251 / 0.8);
+  --chart-line: #0052ff;
   color-scheme: light;
 }
 
@@ -93,6 +94,7 @@
     --shadow-brand: 0 8px 28px -8px rgb(31 95 255 / 0.7);
 
     --glass: rgb(10 11 13 / 0.75);
+    --chart-line: #3a74ff;
     color-scheme: dark;
   }
 }
@@ -127,6 +129,7 @@
   --shadow-brand: 0 8px 28px -8px rgb(31 95 255 / 0.7);
 
   --glass: rgb(10 11 13 / 0.75);
+  --chart-line: #3a74ff;
   color-scheme: dark;
 }
 
@@ -146,6 +149,7 @@
   --color-line-strong: var(--line-strong);
 
   --color-brand: var(--brand);
+  --color-chart-line: var(--chart-line);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
   --color-brand-ink: var(--brand-ink);
@@ -466,4 +470,24 @@ dialog.sheet::backdrop {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* TradingView price widgets (real market prices). They draw inside a shadow root and read these
+   public tokens, so mapping them to ours keeps the charts on-theme in light and dark. */
+.tv-scope {
+  --tv-widget-background-color: var(--surface);
+  --tv-widget-text-color: var(--ink);
+  --tv-widget-price-text-color: var(--ink);
+  --tv-widget-accent-color: var(--chart-line);
+  --tv-widget-font-family: var(--font-sans);
+  --tv-widget-scales-font-color: var(--muted);
+  --tv-widget-popup-background-color: var(--surface);
+  --tv-widget-tooltip-text-color: var(--surface);
+  --tv-widget-tooltip-background-color: var(--ink);
+  --tv-widget-positive-color: var(--grow);
+  --tv-widget-negative-color: var(--danger);
+  --tv-widget-positive-area-top-color: color-mix(in srgb, var(--chart-line) 16%, transparent);
+  --tv-widget-positive-area-bottom-color: color-mix(in srgb, var(--chart-line) 0%, transparent);
+  --tv-widget-negative-area-top-color: color-mix(in srgb, var(--chart-line) 16%, transparent);
+  --tv-widget-negative-area-bottom-color: color-mix(in srgb, var(--chart-line) 0%, transparent);
 }

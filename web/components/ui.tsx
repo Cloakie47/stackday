@@ -215,11 +215,18 @@ export function Segmented<T extends string>({
   onChange,
   options,
   label,
+  ariaLabel,
+  compact = false,
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: { value: T; label: string }[];
+  /** `ariaLabel` names an option for screen readers when its text is ambiguous (1m vs 1M). */
+  options: { value: T; label: string; ariaLabel?: string }[];
   label?: string;
+  /** Names the group when there is no visible label. */
+  ariaLabel?: string;
+  /** Tighter segments for many short options (chart timeframes) so labels never truncate on phones. */
+  compact?: boolean;
 }) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   return (
@@ -227,7 +234,7 @@ export function Segmented<T extends string>({
       {label && <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">{label}</span>}
       <div
         role="radiogroup"
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
         className="relative grid rounded-full bg-sunken p-1"
         style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
       >
@@ -246,9 +253,11 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={o.value === value}
+            aria-label={o.ariaLabel}
             onClick={() => onChange(o.value)}
             className={cx(
-              "relative z-10 min-h-9 truncate rounded-full px-3 text-[13px] font-semibold transition-colors duration-200",
+              "relative z-10 min-h-9 rounded-full text-[13px] font-semibold transition-colors duration-200",
+              compact ? "px-0.5 sm:px-3" : "truncate px-3",
               o.value === value ? "text-ink" : "text-muted hover:text-ink",
             )}
           >

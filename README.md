@@ -69,6 +69,8 @@ Test files sit next to the code they test, named `*.test.ts`, and import it with
 
 Everything in src/mocks is a mock for testnet and tests only: the asset tokens (stocks, BTC, ETH), their price feeds, the exchange, the interest venue and USDC (local tests only). The mocks have an owner so stress scenarios can be triggered. Payroll, SipRouter, VaultFactory, EmployeeVault and the adapters have no owner. The mock tokens pay no dividends.
 
+Price charts (Invest page and Holdings) show REAL market prices of the real assets (for example Apple on Nasdaq, BTC/USD on Coinbase), drawn by TradingView's free widgets. They are for reference only: buys, loans and health on testnet use the mock price feeds above, and the page says so next to every chart.
+
 ## Live on Base Sepolia (testnet)
 
 Deployed November 16, 2026 (fourth deployment: adds Tesla, Microsoft, Amazon, Alphabet and Meta, nine assets in all). Machine-readable copy: deployments/base-sepolia.json. Earlier deployments are retired and kept in deployments/base-sepolia-v1-retired.json, deployments/base-sepolia-v2-retired.json and deployments/base-sepolia-v3-retired.json.
