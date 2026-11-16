@@ -6,7 +6,6 @@ import {
   buildPlan,
   CATALOG,
   drift,
-  MOCK_FOR,
   needsProposal,
   proposalToSipLegs,
   proposeNewMoney,
@@ -17,7 +16,8 @@ import {
   type RiskLevel,
 } from "./index.ts";
 
-const TESTNET = Object.keys(MOCK_FOR); // AAPLc, NVDAc, cbBTC, WETH
+// A fixed 4-asset list (the first testnet deployment), so these numbers do not move when the deployment grows.
+const TESTNET = ["AAPLc", "NVDAc", "cbBTC", "WETH"];
 const EVERYTHING = CATALOG.map((a) => a.ticker);
 const RISKS = Object.keys(RISK_LEVELS) as RiskLevel[];
 
@@ -144,7 +144,7 @@ test("at most 6 assets: the largest buys win, the rest stays as cash", () => {
   const p = proposeNewMoney({ plan, holdingsUsd: {}, cashUsd: 0, newMoneyUsd: 1000 });
   assert.deepEqual(p.buys.map((b) => b.ticker), ["NVDAc", "AAPLc", "MSFTc", "AMZNc", "GOOGLc", "METAc"]);
   assert.equal(p.cashUsd, 90 + 80 + 80);
-  assert.ok(p.why.some((w) => /Only 6 assets fit in one plan, so the parts for Bitcoin, Ether stay as USDC/.test(w)));
+  assert.ok(p.why.some((w) => /Only 6 assets fit in one plan, so the parts for cbBTC, Ether stay as USDC/.test(w)));
   const three = proposeNewMoney({ plan, holdingsUsd: {}, cashUsd: 0, newMoneyUsd: 1000, maxLegs: 3 });
   assert.equal(three.buys.length, 3);
   const legs = proposalToSipLegs(proposeNewMoney({ plan, holdingsUsd: {}, cashUsd: 0, newMoneyUsd: 1000, maxLegs: 8 }), 2000);
