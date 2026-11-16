@@ -14,7 +14,6 @@ import {
   Notice,
   PageHeader,
   RealBadge,
-  RiskNote,
   Row,
   Stat,
 } from "@/components/ui";
@@ -87,14 +86,14 @@ export default function RiskPage() {
         }
       />
 
-      <RiskNote />
 
       <AssetSelect label="Collateral asset" assets={p.positions.map((x) => x.asset)} value={symbol} onChange={setSymbol} />
+      <p className="-mt-2 text-xs text-muted">A basket loan is one loan per asset. Pick each asset to see its own numbers.</p>
 
       <Card title="The loan">
         <p className="text-sm text-muted">
           {hasLoan
-            ? `Showing your real position: ${fmtAsset(pos.collateral, asset.decimals)} ${asset.symbol} posted as collateral.`
+            ? `Showing your real position: ${fmtAsset(pos.collateral, asset.decimals)} ${asset.symbol} locked as collateral.`
             : `You have no loan against ${asset.name}. The numbers below use the example you type in.`}
         </p>
         {!hasLoan && (
@@ -227,7 +226,7 @@ export default function RiskPage() {
             <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
               <li>Repaying your loan (it only moves USDC)</li>
               {!personal && <li>Claiming salary: that asset&apos;s share is skipped and paid in USDC</li>}
-              <li>Borrowing more against collateral already posted</li>
+              <li>Borrowing more against collateral already locked</li>
             </ul>
           </div>
           <div>
@@ -268,7 +267,7 @@ export default function RiskPage() {
         <Row label="Market id">
           <span className="break-all font-mono text-xs">{asset.marketId}</span>
         </Row>
-        <Row label="Liquidation limit (LLTV)">{(lltv * 100).toFixed(1)}%</Row>
+        <Row label="Liquidation limit (share of collateral value you can owe)">{(lltv * 100).toFixed(1)}%</Row>
         <Row label="Interest rate model">Morpho adaptive curve</Row>
         <Row label="Collateral token">
           <AddressLink address={asset.token} />

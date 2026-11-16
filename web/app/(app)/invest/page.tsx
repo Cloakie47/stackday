@@ -5,7 +5,7 @@ import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Empty, Field, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Empty, Field, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, routerAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until } from "@/lib/format";
@@ -171,7 +171,7 @@ export default function InvestPage() {
               />
             </div>
             <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
-              {pos.recurring ? `Replace the ${asset.name} plan` : `Start a ${asset.name} plan`}
+              {pos.recurring ? "Replace the recurring buy" : "Start a recurring buy"}
             </Button>
             <p className="mt-2 text-xs leading-relaxed text-muted">
               You approve 12 buys up front. Each fills within 1% of the reference price.
@@ -214,7 +214,7 @@ export default function InvestPage() {
         )}
       </Card>
 
-      <Card title="Earn interest on idle USDC">
+      <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock interest venue</MockBadge>}>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           Lend idle vault USDC to earn interest. Not guaranteed. <LearnMore href="/docs#earn" />
         </p>

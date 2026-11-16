@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Field, HealthMeter, Notice, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Field, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
 import { vaultAbi } from "@/lib/abis";
 import { splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
 import { MAX_UINT, ADDR } from "@/lib/contracts";
-import { WAD, assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc } from "@/lib/format";
+import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc } from "@/lib/format";
 import type { Portfolio, Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 
@@ -27,7 +27,7 @@ const DIVIDEND_BPS: Record<string, number> = {
   mWETH: 0,
 };
 
-type Tab = "lock" | "borrow" | "repay" | "unlock";
+type Tab = "lock" | "borrow" | "repay";
 
 const toNum = (v: bigint | undefined) => (v === undefined ? undefined : Number(v / 10n ** 14n) / 10_000);
 
@@ -55,6 +55,8 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const positions = p.positions;
   const legs = positions.map((x) => legOf(x));
   const now = summarize(legs, cap);
+  // True when market cash, not the borrow cap, is what stops a bigger loan.
+  const cashLimited = now.locked > 0n && now.available < (now.limit > now.debt ? now.limit - now.debt : 0n);
   const earnings = yearly(positions.map((x, i) => ({ ...legs[i], dividendBps: DIVIDEND_BPS[x.asset.symbol] ?? 0, ratePerSecond: x.ratePerSecond })));
 
   // ---- lock: dollars per asset to token amounts, capped by what is free
@@ -140,14 +142,6 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
     if (await tx.run(calls, all ? "Loan fully repaid." : "Repayment made.")) setRepayAmt("");
   }
 
-  async function doUnlockAll() {
-    if (!vault) return;
-    const calls: Call[] = positions
-      .filter((x) => x.collateral > 0n && !x.transfersPaused)
-      .map((x) => ({ label: `Unlock your ${x.asset.name}`, address: vault, abi: vaultAbi, functionName: "removeCollateral", args: [x.asset.token, x.collateral] }));
-    await tx.run(calls, "Unlocked. The assets are free in your vault again.");
-  }
-
   const busy = tx.state.busy;
   const can = viewer.canAct && !!vault;
   const weakestPos = positions.find((x) => x.debt > 0n && x.health !== undefined && x.health === positions.filter((y) => y.debt > 0n).reduce((m, y) => (y.health! < m ? y.health! : m), MAX_UINT));
@@ -155,12 +149,16 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   return (
     <Card title="Collateral basket">
       <p className="max-w-2xl text-sm leading-relaxed text-muted">
-        Lock any mix of your assets as one pot of collateral, then borrow against the total. Locking first means nothing is put at risk until you choose.
+        Lock any mix of your assets as one pot of collateral, then borrow against the total. While a loan is open on an asset, new buys of it (including payday shares) are locked automatically, so the loan gets safer.
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
         <Stat label="Locked" value={`$${fmtUsdc(now.locked)}`} hint="Collateral value now" />
-        <Stat label="You can borrow" value={`$${fmtUsdc(now.available)}`} hint="Under your borrow limit" />
+        <Stat
+          label="You can borrow"
+          value={`$${fmtUsdc(now.available)}`}
+          hint={cashLimited ? "Limited by the USDC the markets have to lend" : "Under your borrow limit"}
+        />
         <Stat label="Loan" value={`$${fmtUsdc(now.debt)}`} />
         <Stat label="Health" value={now.health !== undefined ? fmtHealth(now.health) : "No loan"} hint="Whole basket. Below 1.00 can be liquidated" />
       </div>
@@ -197,7 +195,6 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             { value: "lock", label: "Lock" },
             { value: "borrow", label: "Borrow" },
             { value: "repay", label: "Repay" },
-            { value: "unlock", label: "Unlock" },
           ]}
         />
       </div>
@@ -232,7 +229,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
                           ? "Transfers are paused, so it cannot be locked right now."
                           : free === 0n
                             ? "None free. Buy some on Invest."
-                            : `Free: $${fmtUsdc(freeValue)} (${fmtAsset(free, a.decimals)} ${a.symbol})${l.tooMuch ? ". Capped at what you have." : ""}`
+                            : `Free: $${fmtUsdc(freeValue)} (${fmtAsset(free, a.decimals)} ${a.symbol}, ${l.pos.idle === 0n ? "in your wallet" : l.pos.wallet === 0n ? "in your vault" : "in your vault and wallet"})${l.tooMuch ? ". Capped at what you have." : ""}`
                       }
                     />
                   </div>
@@ -293,7 +290,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             suffix="USDC"
             value={repayAmt}
             onChange={(e) => setRepayAmt(e.target.value)}
-            hint="Any amount, any time. No penalty. The most stretched parts are paid first."
+            hint="Any amount, any time. No penalty."
           />
           {repay > 0n && !repayAll && (
             <ul className="mt-3 space-y-1 text-sm text-muted">
@@ -317,23 +314,6 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
         </div>
       )}
 
-      {tab === "unlock" && (
-        <div className="mt-5 max-w-xl">
-          {now.locked === 0n ? (
-            <Notice>Nothing is locked.</Notice>
-          ) : now.debt > 0n ? (
-            <Notice>Repay the loan to unlock everything. With a loan open, you can still take out part of one asset under &quot;One asset at a time&quot; below.</Notice>
-          ) : (
-            <>
-              <p className="text-sm text-muted">No loan is open, so everything can go back to free in your vault, ready to withdraw.</p>
-              <Button className="mt-3" variant="secondary" disabled={!can || busy} onClick={doUnlockAll}>
-                Unlock all ${fmtUsdc(now.locked)}
-              </Button>
-            </>
-          )}
-        </div>
-      )}
-
       <TxStatus state={tx.state} />
 
       <div className="mt-6 grid gap-4 border-t border-line pt-6 sm:grid-cols-3">
@@ -342,10 +322,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
         <Stat label="Net a year" value={`${earnings.net < 0n ? "-" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`} hint="At today's prices, before price moves" />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted">
-        Dividends use each real share&apos;s approximate yearly dividend (for example Microsoft about 0.7%, Apple about 0.4%, Alphabet and Meta about 0.3%). Tesla, Amazon, cbBTC and Ether pay none. Mocked on testnet:
-        the test tokens pay no dividends, so this figure shows what the real tokens would earn. Every payday share you lock adds collateral and makes
-        the loan safer. Liquidation limits: stocks {Number((positions[0]?.asset.lltv ?? 0n) * 1000n / WAD) / 10}%, cbBTC and Ether{" "}
-        {Number((positions.find((x) => x.asset.kind === "crypto")?.asset.lltv ?? 0n) * 1000n / WAD) / 10}%.
+        Estimated with each real share&apos;s yearly dividend. The test tokens pay none.
       </p>
     </Card>
   );

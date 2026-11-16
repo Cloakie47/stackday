@@ -4,8 +4,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AssetIcon, cx } from "@/components/ui";
 import type { Asset } from "@/lib/contracts";
 
-/** Second line under the name: the ticker, or a short description when the name already is the ticker. */
-const subtitle = (a: Asset) => (a.realTicker !== a.name ? a.realTicker : a.kind === "crypto" ? "Coinbase Wrapped BTC" : a.realTicker);
+/** Second line under the name: the real token this testnet mock stands in for. */
+const subtitle = (a: Asset) => `Test token, stands in for ${a.realTicker}`;
 
 const GROUPS: { kind: Asset["kind"]; label: string }[] = [
   { kind: "stock", label: "Stocks" },

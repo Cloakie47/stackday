@@ -21,7 +21,7 @@ const STEPS = [
   },
   {
     title: "Themes",
-    text: "Pick themes, get a capped split for the next payday. You confirm every change.",
+    text: "Coming next: pick themes and get a suggested split for your next buy. You confirm every change.",
     icon: "M12 3l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.4l-5.3 2.9 1.1-5.9L3.4 9.3l6-.8z",
     soon: true,
   },
