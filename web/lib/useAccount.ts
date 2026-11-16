@@ -275,8 +275,9 @@ export function useAccountState() {
   const saved: Mode | null = type === "individual" ? "personal" : type === "business" ? "business" : null;
   // The choice made on this device wins; the profile fills in on a new device.
   const mode: Mode | undefined = local.mode ?? saved ?? undefined;
-  const role: Role | undefined =
-    mode === "personal" ? "individual" : mode === "business" ? (local.businessRole ?? (me.data?.business ? "owner" : "employee")) : undefined;
+  // The business side as chosen; only a wallet with no saved choice falls back to its business profile.
+  const businessRole: "owner" | "employee" = local.businessRole ?? (me.data?.business ? "owner" : "employee");
+  const role: Role | undefined = mode === "personal" ? "individual" : mode === "business" ? businessRole : undefined;
   const ready = local.loaded && !session.loading && (!session.signedIn || !me.isLoading);
   return {
     address,
@@ -285,6 +286,7 @@ export function useAccountState() {
     me: me.data,
     mode,
     role,
+    businessRole,
     ready,
     needsSetup: isConnected && ready && !mode,
   };

@@ -89,7 +89,7 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
     try {
       await switchMode(account.address, next, account.session.signedIn);
       // A business owner opens Payroll; everyone else in Business opens My pay.
-      const nextRole: Role = next === "personal" ? "individual" : account.me?.business ? "owner" : "employee";
+      const nextRole: Role = next === "personal" ? "individual" : account.businessRole;
       router.push(homeFor(next, nextRole));
     } finally {
       setBusy(false);

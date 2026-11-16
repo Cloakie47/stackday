@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Field, FillAmount, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
-import { vaultAbi } from "@/lib/abis";
+import { factoryAbi, vaultAbi } from "@/lib/abis";
 import { splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
 import { MAX_UINT, ADDR } from "@/lib/contracts";
 import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc, usdcInput } from "@/lib/format";
@@ -101,8 +101,11 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   }
 
   async function doLock() {
-    if (!vault) return;
+    // The vault's address is known before it exists, so a first lock can create it in the same flow.
+    const vault = p.vault ?? p.predictedVault;
+    if (!vault || !me) return;
     const calls: Call[] = [];
+    if (!p.vault) calls.push({ label: "Create your vault", address: ADDR.factory, abi: factoryAbi, functionName: "createVault", args: [me] });
     for (const l of lockPlan) {
       if (l.amount === 0n) continue;
       const a = l.pos.asset;
@@ -252,10 +255,10 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             Lock <strong>${fmtUsdc(lockTotal)}</strong>. Afterwards: <strong>${fmtUsdc(afterLock.locked)}</strong> locked, you can borrow up to{" "}
             <strong>${fmtUsdc(afterLock.available)}</strong>.
           </div>
-          <Button className="mt-3 w-full sm:w-auto" disabled={!can || lockTotal === 0n || busy} onClick={doLock}>
+          <Button className="mt-3 w-full sm:w-auto" disabled={!viewer.canAct || !(vault ?? p.predictedVault) || lockTotal === 0n || busy} onClick={doLock}>
             Lock ${fmtUsdc(lockTotal)} as collateral
           </Button>
-          {!vault && <p className="mt-2 text-xs text-muted">Your vault is created with your first purchase on Invest.</p>}
+          {!vault && <p className="mt-2 text-xs text-muted">Your vault is created in the same step.</p>}
         </div>
       )}
 
