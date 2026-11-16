@@ -100,7 +100,8 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   // ---- borrow and repay: one amount, split across the markets
   const highCap = cap > HIGH_CAP_BPS ? cap : HIGH_CAP_BPS;
   const highRoom = summarize(legs, highCap).available;
-  // Each level: what it really borrows (market cash can cut it short) and the fall it really survives.
+  // Each level: its full size (max borrow, loan-to-value, the fall it survives) and what the market's
+  // cash allows right now. Clicking fills in what can actually be borrowed.
   const levelInfo = LEVELS.map((l) => {
     const target = (now.maxDebt * l.pct) / 100n;
     const want = target > now.debt ? target - now.debt : 0n;
@@ -108,10 +109,16 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
     const amount = want < room ? want : room;
     const split = amount > 0n ? splitBorrow(amount, legs, highCap) : undefined;
     const after = split ? summarize(positions.map((x, i) => legOf(x, 0n, split[i])), highCap) : undefined;
-    return { ...l, amount, reached: want <= 10_000n, cashShort: room < want, drop: dropOf(after?.weakest) };
+    return {
+      ...l,
+      want,
+      amount,
+      ltv: now.locked > 0n ? Number((target * 1000n) / now.locked) / 10 : 0,
+      reached: want <= 10_000n,
+      cashShort: room + 10_000n < want,
+      drop: dropOf(after?.weakest),
+    };
   });
-  // When market cash cuts two levels to the same amount, keep only the safer one.
-  const sameAsSafer = levelInfo.map((l, i) => i > 0 && !l.reached && l.amount <= levelInfo[i - 1].amount + 10_000n);
   function pickLevel(key: Level, amount: bigint) {
     setLevel(key);
     setBorrowAmt(usdcInput(amount));
@@ -318,32 +325,44 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             <div className="mb-4">
               <div className="mb-2 text-[13px] font-medium text-muted">Pick a risk level, or type your own amount</div>
               <div className="grid grid-cols-3 gap-2" role="group" aria-label="Risk level">
-                {levelInfo.map((l, i) => {
+                {levelInfo.map((l) => {
                   const active = level === l.key;
-                  const same = sameAsSafer[i];
                   return (
                     <button
                       key={l.key}
                       type="button"
                       aria-pressed={active}
-                      disabled={l.reached || same || l.amount === 0n}
+                      disabled={l.reached || l.amount === 0n}
                       onClick={() => pickLevel(l.key, l.amount)}
                       className={`rounded-2xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                         active ? "border-brand bg-brand/5" : "border-line hover:border-line-strong"
                       }`}
                     >
                       <div className={`text-sm font-semibold ${l.tone}`}>{l.label}</div>
-                      <div className="mt-1 text-xs text-muted">
-                        {l.reached ? "Already past this level" : same ? `Same as ${levelInfo[i - 1].label}` : `Borrow $${fmtUsdc(l.amount)}`}
-                      </div>
-                      {!l.reached && !same && l.amount > 0n && <div className="text-xs text-muted">Safe until a {l.drop}% price drop</div>}
+                      {l.reached ? (
+                        <div className="mt-1 text-xs text-muted">Already past this level</div>
+                      ) : (
+                        <>
+                          <div className="mt-1 text-base font-semibold tabular-nums text-ink">${fmtUsdc(l.want)}</div>
+                          <div className="text-[11px] text-muted">max borrow</div>
+                          <div className="mt-2 text-xs text-muted">
+                            Risk: {l.ltv.toFixed(0)}% of value ({Number(l.pct)}% of limit)
+                          </div>
+                          <div className="text-xs text-muted">Safe until a {100 - Number(l.pct)}% drop</div>
+                          {l.cashShort && (
+                            <div className="mt-1.5 text-xs text-warn">
+                              Market can lend ${fmtUsdc(l.amount)} now{l.amount > 0n ? ` (safe until ${l.drop}%)` : ""}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </button>
                   );
                 })}
               </div>
               {levelInfo.some((l) => l.cashShort && !l.reached) && (
                 <p className="mt-2 text-xs leading-relaxed text-muted">
-                  The lending markets have only ${fmtUsdc(highRoom)} to lend right now, so some levels borrow less than their share.
+                  The lending markets have only ${fmtUsdc(highRoom)} to lend right now. Picking a level fills in what can be borrowed today.
                 </p>
               )}
               {level === "high" && (
