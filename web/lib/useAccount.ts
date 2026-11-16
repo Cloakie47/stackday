@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
-import { signInMessage } from "./signin";
+import { buildSignInMessage } from "./signin";
 import { shortAddr } from "./format";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -38,9 +38,17 @@ export function useSession() {
     setBusy(true);
     setError(undefined);
     try {
-      const issuedAt = new Date().toISOString();
-      const signature = await signMessageAsync({ message: signInMessage(address, issuedAt) });
-      await api("/api/session", { method: "POST", body: JSON.stringify({ address, issuedAt, signature }) });
+      // A single-use code from the server, signed together with this site's name and the chain.
+      const { nonce } = await api<{ nonce: string }>("/api/session/nonce", { method: "POST" });
+      const message = buildSignInMessage({
+        address,
+        domain: window.location.host,
+        uri: window.location.origin,
+        nonce,
+        issuedAt: new Date(),
+      });
+      const signature = await signMessageAsync({ message });
+      await api("/api/session", { method: "POST", body: JSON.stringify({ message, signature }) });
       await queryClient.invalidateQueries();
       return true;
     } catch (e) {
@@ -54,26 +62,42 @@ export function useSession() {
   return { configured: session.data?.configured ?? false, loading: session.isLoading, signedIn, signIn, busy, error };
 }
 
-/** Unique names for a set of wallets. Falls back to a shortened address. */
+/**
+ * Display names for a set of wallets: the business name if the wallet owns a business, else the
+ * person's chosen name, else a shortened address. Also exposes each wallet's unique ID.
+ */
 export function useNames(wallets: (string | undefined)[]) {
   const list = Array.from(new Set(wallets.filter((w): w is string => !!w).map((w) => w.toLowerCase()))).sort();
-  const q = useQuery({
-    queryKey: ["names", list.join(",")],
-    queryFn: () => api<{ configured: boolean; profiles: Record<string, string> }>(`/api/profile?wallets=${list.join(",")}`),
+  const key = list.join(",");
+  const people = useQuery({
+    queryKey: ["names", key],
+    queryFn: () =>
+      api<{ configured: boolean; profiles: Record<string, string>; ids: Record<string, string> }>(`/api/profile?wallets=${key}`),
     enabled: list.length > 0,
     staleTime: 60_000,
   });
-  const profiles = q.data?.profiles ?? {};
+  const firms = useQuery({
+    queryKey: ["businesses", key],
+    queryFn: () =>
+      api<{ configured: boolean; businesses: Record<string, { name: string; description: string }> }>(`/api/business?wallets=${key}`),
+    enabled: list.length > 0,
+    staleTime: 60_000,
+  });
+  const profiles = people.data?.profiles ?? {};
+  const ids = people.data?.ids ?? {};
+  const businesses = firms.data?.businesses ?? {};
   const nameOf = (wallet?: string) => (wallet ? profiles[wallet.toLowerCase()] : undefined);
-  const display = (wallet?: string) => nameOf(wallet) ?? shortAddr(wallet);
-  return { nameOf, display, configured: q.data?.configured ?? false };
+  const idOf = (wallet?: string) => (wallet ? ids[wallet.toLowerCase()] : undefined);
+  const businessOf = (wallet?: string) => (wallet ? businesses[wallet.toLowerCase()] : undefined);
+  const display = (wallet?: string) => businessOf(wallet)?.name ?? (nameOf(wallet) ? `@${nameOf(wallet)}` : shortAddr(wallet));
+  return { nameOf, idOf, businessOf, display, configured: people.data?.configured ?? false };
 }
 
 export async function saveUsername(username: string) {
   return api<{ username: string }>("/api/profile", { method: "POST", body: JSON.stringify({ username }) });
 }
 
-export type TeamMember = { wallet: string; name: string; role: string; salary: string };
+export type TeamMember = { wallet: string; name: string; role: string; salary: string; status?: "invited" | "accepted" };
 
 /**
  * An employer's team list. Saved in the account database when it is connected and the employer
@@ -96,14 +120,15 @@ export function useTeam(employer: string | undefined, useDatabase: boolean) {
   const remote = useQuery({
     queryKey: ["team", employer?.toLowerCase()],
     queryFn: async () => {
-      const r = await api<{ employees: { employee_wallet: string; name: string; role: string; salary_usdc: number }[] }>(
-        "/api/employees",
-      );
+      const r = await api<{
+        employees: { employee_wallet: string; name: string; role: string; salary_usdc: number; status: "invited" | "accepted" }[];
+      }>("/api/employees");
       return r.employees.map((e) => ({
         wallet: e.employee_wallet,
         name: e.name,
         role: e.role,
         salary: String(Number(e.salary_usdc)),
+        status: e.status,
       }));
     },
     enabled: !!employer && useDatabase,
@@ -165,3 +190,133 @@ export function useLastDays(n: number) {
   }, [n]);
   return days;
 }
+
+// ------------------------------------------------------------------ account type, business, invitations
+
+export type Me = {
+  profile: { wallet: string; uid: string; username: string | null; account_type: "individual" | "business" | null };
+  business: { name: string; description: string } | null;
+  memberships: { employer: string; businessName: string | null; role: string; status: "invited" | "accepted" }[];
+};
+
+export type Role = "individual" | "owner" | "employee";
+/** The two interfaces. Personal = investing for yourself. Business = running payroll or being paid by one. */
+export type Mode = "personal" | "business";
+
+const MODE_KEY = (address: string) => `stackday-mode-${address.toLowerCase()}`;
+/** Which side of a business this wallet chose: "owner" or "employee". Saved explicitly, never guessed. */
+const ROLE_KEY = (address: string) => `stackday-business-role-${address.toLowerCase()}`;
+type BusinessRole = "owner" | "employee";
+const MODE_EVENT = "stackday-mode";
+
+/** The mode remembered on this device, used when the account database is off or before it answers. */
+function useLocalMode(address: string | undefined) {
+  const [mode, setMode] = useState<Mode | null>(null);
+  const [businessRole, setBusinessRole] = useState<BusinessRole | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const read = () => {
+      try {
+        const v = address ? window.localStorage.getItem(MODE_KEY(address)) : null;
+        setMode(v === "personal" || v === "business" ? v : null);
+        const r = address ? window.localStorage.getItem(ROLE_KEY(address)) : null;
+        setBusinessRole(r === "owner" || r === "employee" ? r : null);
+      } catch {
+        setMode(null);
+        setBusinessRole(null);
+      }
+      setLoaded(true);
+    };
+    read();
+    window.addEventListener(MODE_EVENT, read);
+    return () => window.removeEventListener(MODE_EVENT, read);
+  }, [address]);
+  return { mode, businessRole, loaded };
+}
+
+export function rememberMode(address: string | undefined, mode: Mode, businessRole?: BusinessRole) {
+  if (!address) return;
+  try {
+    window.localStorage.setItem(MODE_KEY(address), mode);
+    if (businessRole) window.localStorage.setItem(ROLE_KEY(address), businessRole);
+  } catch {
+    /* private window: the choice simply is not remembered on this device */
+  }
+  window.dispatchEvent(new Event(MODE_EVENT));
+}
+
+/** Where each mode opens. */
+export function homeFor(mode: Mode | undefined, role: Role | undefined) {
+  if (mode === "business") return role === "owner" ? "/employer" : "/pay";
+  return "/dashboard";
+}
+
+/**
+ * Who the connected wallet is on Stackday, and which interface it uses.
+ * - `ready` is false until we know (so screens do not flash the wrong thing).
+ * - `needsSetup` is true only when a connected wallet has never picked Personal or Business, on
+ *   the profile or on this device. An expired sign-in no longer sends people back to /start: the
+ *   choice remembered on this device is used, and sign-in is asked for only where it is needed.
+ * - The business side (owner or team member) is saved as chosen, never guessed from whether the
+ *   wallet once created a business. On a new device with no saved choice, a wallet with a business
+ *   profile opens as the owner.
+ */
+export function useAccountState() {
+  const { address, isConnected } = useAccount();
+  const session = useSession();
+  const local = useLocalMode(address);
+  const me = useQuery({
+    queryKey: ["me", address?.toLowerCase()],
+    queryFn: () => api<Me>("/api/me"),
+    enabled: session.configured && session.signedIn,
+    staleTime: 15_000,
+  });
+  const type = me.data?.profile.account_type ?? null;
+  const saved: Mode | null = type === "individual" ? "personal" : type === "business" ? "business" : null;
+  // The choice made on this device wins; the profile fills in on a new device.
+  const mode: Mode | undefined = local.mode ?? saved ?? undefined;
+  // The business side as chosen; only a wallet with no saved choice falls back to its business profile.
+  const businessRole: "owner" | "employee" = local.businessRole ?? (me.data?.business ? "owner" : "employee");
+  const role: Role | undefined = mode === "personal" ? "individual" : mode === "business" ? businessRole : undefined;
+  const ready = local.loaded && !session.loading && (!session.signedIn || !me.isLoading);
+  return {
+    address,
+    isConnected,
+    session,
+    me: me.data,
+    mode,
+    role,
+    businessRole,
+    ready,
+    needsSetup: isConnected && ready && !mode,
+  };
+}
+
+/** Switch interface. Saves to the profile when signed in, and always on this device. */
+export function useSwitchMode() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (address: string | undefined, mode: Mode, signedIn: boolean) => {
+      rememberMode(address, mode);
+      if (signedIn) {
+        await saveAccountType(mode === "personal" ? "individual" : "business");
+        // The saved choice wins over this device's, so wait for the fresh profile before moving on.
+        await queryClient.refetchQueries({ queryKey: ["me"] });
+      }
+    },
+    [queryClient],
+  );
+}
+
+export const saveAccountType = (accountType: "individual" | "business") =>
+  api<{ accountType: string }>("/api/me", { method: "POST", body: JSON.stringify({ accountType }) });
+
+export const saveBusiness = (name: string, description: string) =>
+  api<{ name: string; description: string }>("/api/business", { method: "POST", body: JSON.stringify({ name, description }) });
+
+export type Person = { wallet: string; uid: string | null; username: string | null };
+
+export const searchPeople = (q: string) => api<{ people: Person[]; hint?: string }>(`/api/people?q=${encodeURIComponent(q)}`);
+
+export const answerInvite = (employer: string, action: "accept" | "decline") =>
+  api<{ ok: boolean }>("/api/memberships", { method: "POST", body: JSON.stringify({ employer, action }) });

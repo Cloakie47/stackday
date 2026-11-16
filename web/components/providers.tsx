@@ -6,6 +6,7 @@ import { isAddress } from "viem";
 import { WagmiProvider, useAccount } from "wagmi";
 import { config } from "@/lib/wagmi";
 import type { Address } from "@/lib/contracts";
+import { ThemeSync } from "./theme";
 
 type Viewer = {
   /** Address whose data is shown: the connected wallet, or a read-only "?view=0x…" address. */
@@ -38,6 +39,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
+        <ThemeSync />
         <ViewerProvider>{children}</ViewerProvider>
       </QueryClientProvider>
     </WagmiProvider>

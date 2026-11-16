@@ -53,6 +53,11 @@ export function assetForUsdc(usdc: bigint, price: bigint, tokenDecimals: number)
   return (usdc * 10n ** BigInt(tokenDecimals + 2)) / price;
 }
 
+/** USDC amount as plain text for an input field (no thousands commas). */
+export function usdcInput(v: bigint) {
+  return fmtUsdc(v).replace(/,/g, "");
+}
+
 export function parseUsdc(s: string): bigint {
   return parseAmount(s, USDC_DEC);
 }
@@ -98,7 +103,7 @@ export function until(timestamp: number, now: number) {
 }
 
 export function intervalLabel(seconds: number) {
-  if (seconds === 60) return "Every minute (demo)";
+  if (seconds === 60) return "Every minute";
   if (seconds === 86400) return "Daily";
   if (seconds === 604800) return "Weekly";
   if (seconds === 1209600) return "Every 2 weeks";
