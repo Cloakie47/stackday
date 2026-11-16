@@ -1,5 +1,6 @@
 "use client";
 
+import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
@@ -13,27 +14,13 @@ import { BRAND } from "@/lib/brand";
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4" role="radiogroup" aria-label="Asset">
-      {positions.map((pos) => {
-        const active = pos.asset.symbol === value;
-        return (
-          <button
-            key={pos.asset.symbol}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(pos.asset.symbol)}
-            className={`rounded-2xl border p-3.5 text-left transition-[border-color,transform,background-color] duration-200 active:scale-[0.98] ${
-              active ? "border-ink bg-surface" : "border-line bg-surface/60 hover:border-line-strong"
-            }`}
-          >
-            <AssetIcon asset={pos.asset} />
-            <div className="mt-2.5 text-sm font-semibold">{pos.asset.name}</div>
-            <div className="text-xs tabular-nums text-muted">${fmtPrice(pos.price)}</div>
-          </button>
-        );
-      })}
-    </div>
+    <AssetSelect
+      label="Asset"
+      assets={positions.map((p) => p.asset)}
+      value={value}
+      onChange={onChange}
+      detail={(a) => `$${fmtPrice(positions.find((p) => p.asset.symbol === a.symbol)?.price)}`}
+    />
   );
 }
 

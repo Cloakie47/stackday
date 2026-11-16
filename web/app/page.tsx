@@ -16,7 +16,7 @@ const STEPS = [
   },
   {
     title: "Your vault",
-    text: "A share you pick buys stocks, Bitcoin or Ether into a vault only you control.",
+    text: "A share you pick buys stocks, cbBTC or Ether into a vault only you control.",
     icon: "M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10",
   },
   {
