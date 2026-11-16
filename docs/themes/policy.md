@@ -2,7 +2,7 @@
 
 These are the rules the deterministic engine would follow. They come from the research default policy, adapted to Stackday's words and contracts. All numbers are proposals for the founder. The AI model never sets or overrides any of them.
 
-Hard caps are enforced in code before any plan is shown, and checked again right before a transaction is built.
+The caps are enforced in code on every suggested split, and checked again right before a transaction is built. They are **targets for new buys, not limits on holdings**: the contracts cannot sell, and a 2018 to 2026 backtest of new-money-only rebalancing saw crypto drift to about 41 percent and one stock to about 31 percent (research-agent.md). The app shows a drift notice when a holding is above its target. Holding them as hard limits would need a sell path, which is a contract change (proposed in its own issue).
 
 ## Why the rules look like this
 
@@ -18,7 +18,7 @@ Hard caps are enforced in code before any plan is shown, and checked again right
 | Stocks (core) | The person's themes, mapped onto the tokenized stocks that exist. At least 5 names where the asset list allows it |
 | Crypto | cbBTC and WETH. MSTRc and CRCLc count here too |
 | Risk bucket | A small slice for high-volatility allowed names (for example SPCXc, SNDKc, MSTRc). Bold only, or a small overweight of the person's strongest theme |
-| USDC cushion | Spare USDC in the vault. Dry powder for cheap weeks and a buffer for price gaps. It can earn interest through the existing yield adapter |
+| USDC cushion | Spare USDC in the vault, kept as cash. A buffer for price gaps and for new buys. It can earn interest through the existing yield adapter |
 
 ## Risk levels
 
@@ -35,7 +35,7 @@ The person picks one with a 3-question quiz (time horizon, reaction to a 20 perc
 
 Note: the earlier concept draft gave risk buckets of 5, 10 and 20 percent. This table uses the more cautious policy numbers. The founder picks.
 
-## Hard caps
+## Caps (targets for new buys)
 
 | Cap | Limit |
 |---|---|
@@ -58,18 +58,16 @@ Excess over a cap is spread pro rata to the other holdings. No leverage: total e
 
 ## Value tilt
 
-"Good assets at cheaper prices", as a slow, bounded tilt, never a timing switch.
+A slow, bounded tilt toward holdings that are further below their 52-week high than usual. It is not a claim to buy low: the backtest could not show that it adds return (research-agent.md). The weekly plan logs it against plain weekly buying and turns it off if it does not help.
 
 1. **Quality gate.** Only stocks with positive free cash flow, a positive operating margin and net debt below 3x EBITDA can be tilted up. SPCX (no public figures) and MSTR (a bitcoin proxy) are risk bucket only.
-2. **Cheapness score** = half of (forward P/E against its own 5-year median, inverted) plus half of (drawdown from the 52-week high), each as a z-score, clipped to -2 and +2. For crypto: drawdown from the all-time high plus price against the 200-week average.
+2. **Value score** = half of (forward P/E against its own 5-year median, inverted) plus half of (drawdown from the 52-week high), each as a z-score, clipped to -2 and +2. For crypto: drawdown from the all-time high plus price against the 200-week average.
 3. **Trend filter.** If the price is below its 200-day average and its 3-month return is in the bottom quarter, no upward tilt. This avoids buying a falling knife.
 4. **Tilt** = base weight x (1 + 0.125 x score). That keeps every tilt within plus or minus 25 percent of the base weight. Caps are applied again afterwards.
 
-## Smart DCA
+## Smart DCA (removed)
 
-- Each period's planned buy is multiplied by 0.5x to 1.5x, based on cheapness and Mood (concept.md).
-- Example: fear index below 25 and the basket cheap gives 1.5x. Hype gives 0.5x, and the unspent half stays as USDC.
-- Mood changes how fast we buy, never what we buy.
+An earlier draft scaled each buy between 0.5x and 1.5x from value and mood. It was removed on November 16, 2026: in the backtest it lost to plain weekly buying in 24 of 24 rolling 3-year windows (median 1.4 points of return a year), because with a fixed weekly paycheck it can only spend money it parked earlier (research-agent.md). Every week now buys the full planned amount.
 
 ## Drift bands and rebalancing
 

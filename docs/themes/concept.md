@@ -1,6 +1,6 @@
 # Themes concept: themes, value and mood
 
-The product idea behind the Themes layer, summarised from the research. The one-line pitch: pick the themes you believe in, and the app buys them when they are cheaper, holds back when it is hype, and explains every move.
+The product idea behind the Themes layer, summarised from the research. The one-line pitch: pick the themes you believe in, and the app suggests a split for your next buys, inside set limits, and explains every line. It does not claim to buy low or to beat the market (research-agent.md).
 
 ## The gap (reported)
 
@@ -32,7 +32,7 @@ The anchor names clean energy as an example interest. No clean energy stock is t
 
 1. **Base weights.** Each picked theme gets an equal share of the stock sleeve. Inside a theme, holdings are equal weight.
 2. **Merge overlaps.** If GOOGL is in two themes, add the weights together.
-3. **Apply hard caps** from policy.md. Spread any excess pro rata.
+3. **Apply the caps** from policy.md (targets for new buys). Spread any excess pro rata.
 4. **Risk bucket.** Bold puts it into Future Movers or Crypto-Native. Others get a small overweight of their strongest theme.
 5. **Value and Mood tilt.** Multiply base weights by 0.75 to 1.25, then apply the caps again.
 6. **Fit Stackday.** Keep at most 6 holdings per payday plan, and drop assets the deployment does not support.
@@ -41,7 +41,7 @@ The engine is pure TypeScript with unit tests. Same inputs always give the same 
 
 ## Value score
 
-Range -1 (expensive) to +1 (cheap). Inputs:
+Range -1 to +1: how far below its usual distance from its 52-week high a holding is (+ is further below). Inputs:
 - Drawdown from the 52-week high, compared with the stock's own usual pullbacks.
 - Price against the 200-day average.
 - Optional: forward P/E against its own 5-year range.
@@ -70,12 +70,12 @@ Materiality matters more than tone. A guidance cut or fraud claim is material. A
 
 | Situation | Action |
 |---|---|
-| Cheap, mood negative, no material event | Tilt up to +25 percent and speed up Smart DCA. "Good asset, cheaper price, the fear is noise" |
-| Cheap, but a material negative event | Freeze new buys of that stock and flag it for review |
-| Expensive and euphoric, or a hype spike | Tilt down to -25 percent and slow Smart DCA |
+| Value score up, no material event | Tilt up, at most +25 percent |
+| Material negative event open | No upward tilt for that stock, and a flag for review |
+| Value score down, or a hype spike | Tilt down, at most -25 percent |
 | Neutral | Base weights |
 
-Mood can never push a holding past a cap, add an asset outside the person's themes, or shrink the USDC cushion.
+Mood is shown as a summary of recent news; it does not predict prices. It can never push a split past a cap, add an asset outside the person's themes, or shrink the USDC cushion. The Smart DCA pace in earlier drafts is removed (policy.md).
 
 ## The AI model's narrow role
 
@@ -97,7 +97,7 @@ News text is untrusted. Research shows hidden-text and look-alike-letter headlin
 
 ## Defences against hype and pumps
 
-- Sentiment never buys on its own. Positive mood alone gives at most a neutral weight. An upward tilt needs a cheap Value score too.
+- Sentiment never buys on its own. Positive mood alone gives at most a neutral weight. An upward tilt needs a positive Value score too.
 - A sudden spike in mentions (z-score above 3) or a Fear and Greed reading above 80 sets a hype flag that reduces buying.
 - Fixed list of assets: only the deployment's tokenized stocks plus BTC, ETH and USDC tokens. No memecoins.
 - A material event needs 2 independent reputable sources or one filing before it changes weights. Social-only stories cap at materiality 0.2.
@@ -120,7 +120,7 @@ Each run writes a decision log: inputs, scores, every guardrail check (pass or f
 |---|---|
 | Pick your themes | Theme cards (name, 3 to 5 holdings, one-line idea, mood chip), then the 3-question risk quiz |
 | Your plan | Donut by sleeve, holdings with weights and a "why this" line, caps summary, amount, one confirm button, fee and slippage estimate |
-| Market mood strip (on the Dashboard) | Mood and Value per theme ("on sale, 12% below high"), next Smart DCA multiplier, pending proposal banner |
+| Market mood strip | Mood per theme as a summary of recent news ("12% below its 52-week high"), open-event flags, pending proposal banner |
 | Theme detail | Holdings in share terms (multiplier applied), Value explainer, 7 and 30 day mood, top scored news with evidence and links, hype or material-event flags |
 | Rebalance proposal | Current split against target, the next payday or recurring split that closes the drift, "why" cards, guardrail checklist, Approve or Skip |
 
