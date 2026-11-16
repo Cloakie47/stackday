@@ -50,7 +50,7 @@ This is the paragraph the build is checked against, followed by the numbered par
 | 11 | Individuals invest regularly from their own wallet | Built, tested. No Individual account type around it yet |
 | 12 | Dividends reinvested | A property of the real tokens. The testnet mocks pay none |
 | 13 | Idle USDC earns interest on Morpho or Aave | Built for Morpho-style vaults (mock on testnet, real Morpho vault tested on a mainnet copy). Aave NOT built |
-| 14 | Borrow against holdings through Morpho and Aave instead of selling | Built on Morpho. Aave NOT built |
+| 14 | Borrow against holdings through Morpho and Aave instead of selling | Built on Morpho. Aave NOT built. Collateral basket on the Borrow page: lock any mix of assets first (one total, one limit), then borrow; each borrow and repay is split across the Morpho markets so every part has the same health. Each asset is still its own market and can be liquidated on its own; the page says so |
 | 15 | Every payday adds collateral, the loan gets safer | Built, tested |
 | 16 | Themes: news and sentiment, stocks by theme, rebalancing | NOT built (see open question B) |
 | 17 | Confidential salaries | Next step, not built |

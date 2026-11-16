@@ -357,6 +357,18 @@ export default function DocsPage() {
                 Your vault posts its assets as collateral and borrows USDC from an existing Morpho market. {BRAND.name} runs
                 no lending pool. There is no repayment schedule and no forced repayment.
               </p>
+              <H3 id="basket">Collateral basket</H3>
+              <p>
+                Borrowing has two steps. First you lock collateral: any mix of Apple, NVIDIA, Bitcoin and Ether, for example
+                $1 of each for $4 in total. Then you borrow against the total. Each borrow is split across the assets so every
+                part ends up equally safe, and each repayment pays the most stretched parts first. Morpho keeps one market
+                per asset, so each part can still be liquidated on its own if its own price falls far. The page shows the
+                weakest part as well as the total. With no loan open, you can unlock everything in one go.
+              </p>
+              <p>
+                The page also shows what the basket earns in a year: reinvested dividends (using each real share&apos;s
+                approximate dividend; the testnet tokens pay none) minus the live interest on the loan.
+              </p>
               <H3 id="health">Loan health</H3>
               <p>
                 Health = collateral value × the market&apos;s liquidation limit ÷ what you owe. Above 1.00 is safe. At or below
