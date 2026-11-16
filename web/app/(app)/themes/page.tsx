@@ -10,6 +10,7 @@ import { assetForUsdc, fmtPct, fmtUsdc, parseUsdc } from "@/lib/format";
 import {
   assetOf,
   buildPlan,
+  CAPS,
   COMING_SOON,
   RISK_LEVELS,
   splitAmount,
@@ -18,7 +19,7 @@ import {
   type Plan,
   type RiskLevel,
 } from "@/lib/themes";
-import { dcaFor, themeMood, validateSnapshot } from "@/lib/themes/mood";
+import { openEventsFor, themeMood, validateSnapshot } from "@/lib/themes/mood";
 import snapshotJson from "@/lib/themes/mood-snapshot.json";
 import { proposalToSipLegs, proposeNewMoney } from "@/lib/themes/rebalance";
 import { usePortfolio, type Portfolio } from "@/lib/usePortfolio";
@@ -46,14 +47,15 @@ function moodWord(m: number) {
 
 function MoodCard({ picked }: { picked: string[] }) {
   if (!SNAPSHOT || picked.length === 0) return null;
-  const dca = dcaFor(SNAPSHOT, picked);
-  const items = dca.tickers
+  const events = openEventsFor(SNAPSHOT, picked);
+  const items = events.tickers
     .flatMap((t) => SNAPSHOT.assets[t]?.items ?? [])
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.materiality - a.materiality)
     .slice(0, 3);
   return (
     <Card title={`Market mood, reading of ${SNAPSHOT.asOf.slice(0, 10)}`} badge={<MockBadge>Snapshot, not live</MockBadge>} action={<LearnMore />}>
       <p className="text-xs text-muted">{SNAPSHOT.label}</p>
+      <p className="mt-1 text-xs text-muted">Mood summarises recent news. It does not predict prices and does not change your split.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {picked.map((id) => {
           const t = THEMES.find((x) => x.id === id)!;
@@ -73,12 +75,6 @@ function MoodCard({ picked }: { picked: string[] }) {
             </div>
           );
         })}
-      </div>
-      <div className="mt-4 rounded-2xl bg-sunken p-4">
-        <div className="text-sm font-semibold">Buying pace this week: {dca.multiplier.toFixed(2)}x (suggestion)</div>
-        {dca.materialRisk && (
-          <p className="mt-1 text-xs text-muted">Capped at 1x: open event ({dca.riskTickers.map((x) => assetOf(x)?.name ?? x).join(", ")}).</p>
-        )}
       </div>
       {items.length > 0 && (
         <ul className="mt-4 divide-y divide-line">
@@ -106,7 +102,6 @@ const MIN_TRADE_USD = CHAIN_ID === 84532 ? 0.25 : 5;
 /** Oldest price a stock buy may use (policy: 2 hours). Testnet mock prices only move when the demo operator sets them, so age is not checked there. */
 const MAX_PRICE_AGE_S = CHAIN_ID === 84532 ? Infinity : 2 * 3600;
 
-/** Holdings that must not be bought right now: frozen price feed, paused transfers, missing or stale price. */
 /** Current unix time, ticking every 30 seconds. 0 until the page is in the browser (no clock during prerender). */
 function useNow() {
   const [now, setNow] = useState(0);
@@ -119,6 +114,7 @@ function useNow() {
   return now;
 }
 
+/** Holdings that must not be bought right now: frozen price feed, paused transfers, missing or stale price. */
 function blockedHoldings(p: Portfolio, tickers: string[], now: number) {
   return tickers.filter((t) => {
     const a = ASSETS.find((x) => x.realTicker === t);
@@ -138,7 +134,27 @@ function PriceBlock({ tickers }: { tickers: string[] }) {
   );
 }
 
-function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: number }) {
+/**
+ * Holdings in the vault that are above their target. The targets shape new buys only: the contracts
+ * cannot sell, so a holding that rises can drift above its target (docs/themes/research-agent.md).
+ */
+function overTarget(holdingsUsd: Record<string, number>, risk: RiskLevel) {
+  const total = Object.values(holdingsUsd).reduce((s, v) => s + v, 0);
+  if (total <= 0) return [];
+  const share = (tickers: string[]) => tickers.reduce((s, t) => s + (holdingsUsd[t] ?? 0), 0) / total;
+  const out: { label: string; now: number; target: number }[] = [];
+  for (const t of Object.keys(holdingsUsd)) {
+    const a = assetOf(t);
+    if (a?.kind === "stock" && !a.cryptoLike && share([t]) > CAPS.singleStock + 0.005) out.push({ label: a.name, now: share([t]), target: CAPS.singleStock });
+  }
+  const crypto = Object.keys(holdingsUsd).filter((t) => assetOf(t)?.kind === "crypto" || assetOf(t)?.cryptoLike);
+  if (share(crypto) > RISK_LEVELS[risk].cryptoCap + 0.005) out.push({ label: "Crypto together", now: share(crypto), target: RISK_LEVELS[risk].cryptoCap });
+  const ai = Object.keys(holdingsUsd).filter((t) => assetOf(t)?.aiChips);
+  if (share(ai) > CAPS.aiChips + 0.005) out.push({ label: "AI and chips group", now: share(ai), target: CAPS.aiChips });
+  return out;
+}
+
+function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; share: number; risk: RiskLevel }) {
   const viewer = useViewer();
   const tx = useTx();
   const [amt, setAmt] = useState("");
@@ -158,6 +174,7 @@ function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: nu
   const rows = (newMoney > 0 ? proposal.after : proposal.before).filter((r) => r.kind !== "cash" && (r.targetShare > 0 || r.valueUsd > 0));
   const before = Object.fromEntries(proposal.before.map((r) => [r.ticker, r]));
 
+  const drifted = overTarget(holdingsUsd, risk);
   const now = useNow();
   const rebalanceBlocked = blockedHoldings(p, proposal.buys.map((b) => b.ticker), now);
 
@@ -184,6 +201,15 @@ function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: nu
   return (
     <Card title="5. Rebalance with new money">
       <p className="text-sm text-muted">New money tops up what is below target. Nothing is sold.</p>
+      {drifted.length > 0 && (
+        <div className="mt-3">
+          <Notice tone="warn">
+            Above target:{" "}
+            {drifted.map((d) => `${d.label} is ${(d.now * 100).toFixed(0)}% of your vault (target ${(d.target * 100).toFixed(0)}%)`).join("; ")}. New
+            buys go elsewhere first, but Stackday cannot sell for you, so this can last.
+          </Notice>
+        </div>
+      )}
       {invested === 0 ? (
         <div className="mt-4">
           <Notice>Nothing to rebalance yet.</Notice>
@@ -451,7 +477,7 @@ export default function ThemesPage() {
     <>
       <PageHeader
         title="Themes"
-        lead="Pick themes and a risk level. Get a capped split you can use."
+        lead="Pick themes and a risk level. Get a split for your next buys."
         aside={<LearnMore />}
       />
 
@@ -470,6 +496,7 @@ export default function ThemesPage() {
         />
         <p className="mt-3 text-sm text-muted">{RISK_LEVELS[risk].blurb}</p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
+          <span className="font-semibold">Targets for new buys:</span>
           <span>No stock above 15%</span>
           <span aria-hidden>·</span>
           <span>No theme above 40%</span>
@@ -598,7 +625,7 @@ export default function ThemesPage() {
         </Card>
       )}
 
-      {plan.holdings.length > 0 && viewer.address && <RebalanceCard plan={plan} p={p} share={Number(share)} />}
+      {plan.holdings.length > 0 && viewer.address && <RebalanceCard plan={plan} p={p} share={Number(share)} risk={risk} />}
 
       <Notice tone="warn">
         <strong>Information, not advice.</strong> Prices can fall. Not for people in the United States. No voting rights. Mock
