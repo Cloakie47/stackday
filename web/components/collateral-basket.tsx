@@ -31,18 +31,26 @@ const DIVIDEND_BPS: Record<string, number> = {
 type Tab = "lock" | "borrow" | "repay";
 
 /**
- * Borrow presets as a share of the liquidation limit (what Morpho would allow before liquidating).
- * Borrowing that share leaves the loan safe until prices fall by the rest: 25% survives a 75% drop.
- * Degen sits above the vault's default safety cap (50%), so choosing it also raises the cap to 80%
- * in the same signature. The vault never allows more than 85% (MAX_BORROW_CAP_BPS).
+ * Borrow presets as a share of the liquidation limit (the loan size at which Morpho liquidates).
+ * Borrowing that share leaves the loan safe until prices fall by the rest: 30% survives a 70% drop.
+ *
+ * Why these numbers (research, November 16, 2026): brokers lend up to 50% of a stock's value with
+ * a call at 75% (about 67% of the call line), and less for a single stock; banks lend 30 to 50%
+ * against one stock. Morpho's liquidation bonus is fixed per market, about 12.7% of the seized
+ * collateral at a 62.5% limit, and tokenized stocks do not trade at weekends. So the top level stays
+ * at 65%, below the broker line. The vault default cap is 50% (Mid); High raises it to 65% only when
+ * the amount needs it. The contract allows up to 85% for someone who types their own setting.
  */
 const LEVELS = [
-  { key: "low", label: "Low risk", pct: 25n },
-  { key: "mid", label: "Mid risk", pct: 50n },
-  { key: "degen", label: "Degen", pct: 80n },
+  { key: "low", label: "Low risk", pct: 30n, tone: "text-grow" },
+  { key: "mid", label: "Mid risk", pct: 50n, tone: "text-warn" },
+  { key: "high", label: "High risk", pct: 65n, tone: "text-danger" },
 ] as const;
 type Level = (typeof LEVELS)[number]["key"];
-const DEGEN_CAP_BPS = 8000n;
+const HIGH_CAP_BPS = 6500n;
+const WAD = 10n ** 18n;
+/** Price fall a loan survives, in whole percent, from its health (WAD). */
+const dropOf = (health: bigint | undefined) => (health === undefined || health === 0n ? 100 : Math.max(0, 100 - Number((100n * WAD) / health)));
 
 const toNum = (v: bigint | undefined) => (v === undefined ? undefined : Number(v / 10n ** 14n) / 10_000);
 
@@ -90,21 +98,29 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const afterLock = summarize(positions.map((x, i) => legOf(x, lockPlan[i].value)), cap);
 
   // ---- borrow and repay: one amount, split across the markets
-  // Degen needs a higher vault cap; it is raised in the same batch as the borrow.
-  const raiseCap = level === "degen" && cap < DEGEN_CAP_BPS;
-  const borrowCap = raiseCap ? DEGEN_CAP_BPS : cap;
-  const levelAmount = (pct: bigint) => {
-    const target = (now.maxDebt * pct) / 100n;
+  const highCap = cap > HIGH_CAP_BPS ? cap : HIGH_CAP_BPS;
+  const highRoom = summarize(legs, highCap).available;
+  // Each level: what it really borrows (market cash can cut it short) and the fall it really survives.
+  const levelInfo = LEVELS.map((l) => {
+    const target = (now.maxDebt * l.pct) / 100n;
     const want = target > now.debt ? target - now.debt : 0n;
-    const room = summarize(legs, pct * 100n > cap ? DEGEN_CAP_BPS : cap).available;
-    return want < room ? want : room;
-  };
-  function pickLevel(key: Level, pct: bigint) {
+    const room = l.pct * 100n > cap ? highRoom : now.available;
+    const amount = want < room ? want : room;
+    const split = amount > 0n ? splitBorrow(amount, legs, highCap) : undefined;
+    const after = split ? summarize(positions.map((x, i) => legOf(x, 0n, split[i])), highCap) : undefined;
+    return { ...l, amount, reached: want <= 10_000n, cashShort: room < want, drop: dropOf(after?.weakest) };
+  });
+  // When market cash cuts two levels to the same amount, keep only the safer one.
+  const sameAsSafer = levelInfo.map((l, i) => i > 0 && !l.reached && l.amount <= levelInfo[i - 1].amount + 10_000n);
+  function pickLevel(key: Level, amount: bigint) {
     setLevel(key);
-    setBorrowAmt(usdcInput(levelAmount(pct)));
+    setBorrowAmt(usdcInput(amount));
   }
-  const upTo = raiseCap ? summarize(legs, borrowCap).available : now.available;
   const borrow = parseUsdc(borrowAmt);
+  // The vault cap is raised to 65% only for High risk, and only when the amount needs it.
+  const raiseCap = level === "high" && borrow > now.available && cap < HIGH_CAP_BPS;
+  const borrowCap = raiseCap ? HIGH_CAP_BPS : cap;
+  const upTo = level === "high" ? highRoom : now.available;
   const borrowSplit = splitBorrow(borrow, legs, borrowCap);
   const afterBorrow = borrowSplit ? summarize(positions.map((x, i) => legOf(x, 0n, borrowSplit[i])), borrowCap) : undefined;
   const repayAll = repayAmt.trim() === "" ? false : parseUsdc(repayAmt) >= now.debt;
@@ -159,7 +175,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
       .filter(({ amt }) => amt > 0n)
       .map(({ x, amt }) => ({ label: `Borrow $${fmtUsdc(amt)} against your ${x.asset.name}`, address: vault, abi: vaultAbi, functionName: "borrow", args: [x.asset.token, 0n, amt, me] }));
     // Owner-only setting of the person's own vault, within the contract's 85% maximum.
-    if (raiseCap) calls.unshift({ label: "Raise your vault's safety cap to 80%", address: vault, abi: vaultAbi, functionName: "setBorrowCapBps", args: [Number(DEGEN_CAP_BPS)] });
+    if (raiseCap) calls.unshift({ label: "Raise your vault's safety cap to 65%", address: vault, abi: vaultAbi, functionName: "setBorrowCapBps", args: [Number(HIGH_CAP_BPS)] });
     if (await tx.run(vaultBatch(vault, calls, "Borrow across your locked assets"), "Borrowed. The USDC is in your wallet.")) {
       setBorrowAmt("");
       setLevel(null);
@@ -302,36 +318,46 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
             <div className="mb-4">
               <div className="mb-2 text-[13px] font-medium text-muted">Pick a risk level, or type your own amount</div>
               <div className="grid grid-cols-3 gap-2" role="group" aria-label="Risk level">
-                {LEVELS.map((l) => {
-                  const amt = levelAmount(l.pct);
-                  // Under one cent left counts as reached (rounding after a borrow at this level).
-                  const reached = (now.maxDebt * l.pct) / 100n <= now.debt + 10_000n;
+                {levelInfo.map((l, i) => {
                   const active = level === l.key;
+                  const same = sameAsSafer[i];
                   return (
                     <button
                       key={l.key}
                       type="button"
                       aria-pressed={active}
-                      disabled={reached || amt === 0n}
-                      onClick={() => pickLevel(l.key, l.pct)}
+                      disabled={l.reached || same || l.amount === 0n}
+                      onClick={() => pickLevel(l.key, l.amount)}
                       className={`rounded-2xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                         active ? "border-brand bg-brand/5" : "border-line hover:border-line-strong"
                       }`}
                     >
-                      <div className={`text-sm font-semibold ${l.key === "degen" ? "text-danger" : l.key === "mid" ? "text-warn" : "text-grow"}`}>{l.label}</div>
+                      <div className={`text-sm font-semibold ${l.tone}`}>{l.label}</div>
                       <div className="mt-1 text-xs text-muted">
-                        {reached ? "Already past this level" : `Borrow $${fmtUsdc(amt)}`}
+                        {l.reached ? "Already past this level" : same ? `Same as ${levelInfo[i - 1].label}` : `Borrow $${fmtUsdc(l.amount)}`}
                       </div>
-                      <div className="text-xs text-muted">Safe until a {Number(100n - l.pct)}% price drop</div>
+                      {!l.reached && !same && l.amount > 0n && <div className="text-xs text-muted">Safe until a {l.drop}% price drop</div>}
                     </button>
                   );
                 })}
               </div>
-              {raiseCap && (
-                <p className="mt-2 text-xs leading-relaxed text-danger">
-                  Degen raises your vault&apos;s safety cap from {Number(cap) / 100}% to 80% of the liquidation limit, in the same signature. A 20% fall in
-                  prices could get the loan liquidated.
+              {levelInfo.some((l) => l.cashShort && !l.reached) && (
+                <p className="mt-2 text-xs leading-relaxed text-muted">
+                  The lending markets have only ${fmtUsdc(highRoom)} to lend right now, so some levels borrow less than their share.
                 </p>
+              )}
+              {level === "high" && (
+                <div className="mt-2 space-y-1 text-xs leading-relaxed text-danger">
+                  {raiseCap && <p>This raises your vault&apos;s safety cap from {Number(cap) / 100}% to 65% of the liquidation limit, in the same signature.</p>}
+                  {positions.some((x) => x.collateral > 0n && x.asset.kind === "stock") && (
+                    <p>Tokenized stocks do not trade at weekends, so a price can jump on Monday. A liquidation costs about 12.7% of the collateral taken.</p>
+                  )}
+                  {!p.emergencyRule && (p.schedulesPayingMe.length > 0 || p.claims.length > 0) && (
+                    <p className="text-muted">
+                      Tip: turn on the emergency rule on this page, so a payday share goes into this collateral if the loan gets close to liquidation.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -351,7 +377,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
               ) : (
                 <>
                   Up to <FillAmount onFill={() => setBorrowAmt(usdcInput(upTo))}>${fmtUsdc(upTo)}</FillAmount>
-                  {raiseCap ? " at Degen" : ""}. Uses only what you locked.
+                  {level === "high" && upTo > now.available ? " at High risk" : ""}. Uses only what you locked.
                 </>
               )
             }
@@ -368,7 +394,10 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
                   ) : null,
                 )}
               </ul>
-              <div className="mt-2 text-muted">Health afterwards: {fmtHealth(afterBorrow.health)} for the basket, {fmtHealth(afterBorrow.weakest)} for the weakest part.</div>
+              <div className="mt-2 text-muted">
+                Health afterwards: {fmtHealth(afterBorrow.health)} for the basket, {fmtHealth(afterBorrow.weakest)} for the weakest part. Safe until
+                about a {dropOf(afterBorrow.weakest)}% price drop.
+              </div>
             </div>
           )}
           {borrow > 0n && !borrowSplit && <p className="mt-2 text-xs text-danger">That is above what you can borrow now. Lock more first.</p>}
