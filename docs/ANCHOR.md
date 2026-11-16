@@ -38,20 +38,20 @@ This is the paragraph the build is checked against, followed by the numbered par
 | # | Part of the anchor | Status today |
 |---|---|---|
 | 1 | Landing page is the start of the platform | Built |
-| 2 | Start, connect wallet, then choose Individual or Business | NOT built. Today every page is open to any connected wallet with no account type |
-| 3 | A profile with a unique ID is created in Supabase for each new user | PARTLY. The database is connected and each wallet can pick a unique name. There is no automatic unique ID and no profile created on first visit |
-| 4 | New business adds business name and description | NOT built |
-| 5 | Business account shows the owner dashboard or the employee dashboard depending on who the person is | PARTLY. Both dashboards exist (Run payroll, and Dashboard with Get paid) but the app does not route people by role |
-| 6 | A business can find people (see open question A) | NOT built. Today the owner pastes a wallet address |
+| 2 | Start, connect wallet, then choose Individual or Business | Built. The choice is required: a connected wallet without one is sent to /start. It picks Personal or Business (and, for Business, owner or team member). Personal and Business are separate interfaces with their own pages, switched from the top of the app |
+| 3 | A profile with a unique ID is created in Supabase for each new user | Built. First sign-in creates the profile with an ID like SD-7K3F9Q2M. The chosen name is now optional |
+| 4 | New business adds business name and description | Built. On /start and editable on Run payroll. Employees see the business name instead of a wallet address |
+| 5 | Business account shows the owner dashboard or the employee dashboard depending on who the person is | Built. Business owners get Payroll and Risk. Team members get My pay, Invest, Home, Borrow and Risk. Personal gets Home, Invest, Borrow and Risk. Opening a page from the other interface offers to switch |
+| 6 | A business can find people (see open question A) | Built. Search by Stackday ID, name or wallet address. The person is invited and must accept before the business sees their attendance |
 | 7 | Businesses fund a treasury and pay once or on a schedule | Built, tested, shown on testnet |
 | 8 | Employees claim to any wallet, with a share into assets, once or every payday | Built, tested, shown on testnet |
 | 9 | Coinbase tokenized stocks, plus Bitcoin and Ether tokens | Built with mock tokens on testnet. The same code is tested with the real AAPLc token on a copy of Base mainnet. BTC and ETH have no mainnet test yet |
 | 10 | A vault only they control | Built, tested |
-| 11 | Individuals invest regularly from their own wallet | Built, tested. No Individual account type around it yet |
+| 11 | Individuals invest regularly from their own wallet | Built, tested. The Individual account type is called Personal in the app |
 | 12 | Dividends reinvested | A property of the real tokens. The testnet mocks pay none |
 | 13 | Idle USDC earns interest on Morpho or Aave | Built for Morpho-style vaults (mock on testnet, real Morpho vault tested on a mainnet copy). Aave NOT built |
-| 14 | Borrow against holdings through Morpho and Aave instead of selling | Built on Morpho. Aave NOT built |
-| 15 | Every payday adds collateral, the loan gets safer | Built, tested |
+| 14 | Borrow against holdings through Morpho and Aave instead of selling | Built on Morpho. Aave NOT built. Collateral basket on the Borrow page: lock any mix of assets first (one total, one limit), then borrow; each borrow and repay is split across the Morpho markets so every part has the same health. Each asset is still its own market and can be liquidated on its own; the page says so. Borrow and repay happen only in the basket; taking assets out is one Withdraw control that releases locked assets automatically |
+| 15 | Every payday adds collateral, the loan gets safer | Built, tested. Founder decision November 16, 2026 (issue #29): new buys are never locked automatically; the person locks them on Borrow, and only the opt-in emergency rule locks a payday share by itself. So the loan gets safer when payday buys are locked |
 | 16 | Themes: news and sentiment, stocks by theme, rebalancing | NOT built (see open question B) |
 | 17 | Confidential salaries | Next step, not built |
 
@@ -67,7 +67,7 @@ B. Themes is built in steps. First version: the person picks themes, the app sug
 
 C. One wallet can be both an Individual and a Business account. The choice sets the default dashboard and can be switched.
 
-D. A wallet is an employee of a business when that business has added it to its team or to a payday. NOTE: the security review (docs/SECURITY-CHECKLIST.md, fix 6) found that adding someone without their agreement lets the business see that person's attendance dates. Recommended change: the person accepts before their attendance is visible. Not yet decided by the founder.
+D. A wallet is an employee of a business when that business has added it to its team or to a payday. UPDATE November 15: built with an accept step, see below. Original note: the security review (docs/SECURITY-CHECKLIST.md, fix 6) found that adding someone without their agreement lets the business see that person's attendance dates. Recommended change: the person accepts before their attendance is visible. Not yet decided by the founder.
 
 E. Bitcoin and Ether tokens are part of the anchor but secondary. The competition is about tokenized stocks.
 

@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -81,3 +81,74 @@ export const isWallet = (s: unknown): s is string => typeof s === "string" && /^
 
 /** Today's date in UTC as YYYY-MM-DD. */
 export const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Single-use sign-in codes, stored in the `sign_in_nonces` table (see supabase/schema.sql).
+ * `take` deletes the row and reports whether it was there and still valid, in one statement,
+ * so two requests can never both use the same nonce.
+ */
+export const dbNonceStore = {
+  async put(nonce: string, expiresAt: Date) {
+    // Clear out old unused codes first, so the table stays small.
+    await db().from("sign_in_nonces").delete().lt("expires_at", new Date().toISOString());
+    const { error } = await db().from("sign_in_nonces").insert({ nonce, expires_at: expiresAt.toISOString() });
+    if (error) throw new Error("Could not save the sign-in code.");
+  },
+  async take(nonce: string, now: Date) {
+    const { data, error } = await db()
+      .from("sign_in_nonces")
+      .delete()
+      .eq("nonce", nonce)
+      .gt("expires_at", now.toISOString())
+      .select("nonce");
+    if (error) return false;
+    return (data ?? []).length === 1;
+  },
+};
+
+/**
+ * The domain(s) sign-in messages must name. SITE_DOMAIN (comma-separated, for example
+ * "stackday-rho.vercel.app") if set, otherwise the host this request was sent to.
+ * The host comes from the request URL, which the hosting provider routes by: a request that
+ * reaches this deployment was sent to this deployment's host.
+ */
+export function signInDomains(request: Request): string[] {
+  const fixed = (process.env.SITE_DOMAIN ?? "")
+    .split(",")
+    .map((d) => d.trim())
+    .filter(Boolean);
+  return fixed.length ? fixed : [new URL(request.url).host];
+}
+
+const UID_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no 0, 1, I or O: easy to read aloud and type
+
+function newUid() {
+  let out = "SD-";
+  for (let i = 0; i < 8; i++) out += UID_ALPHABET[randomInt(UID_ALPHABET.length)];
+  return out;
+}
+
+export type Profile = { wallet: string; uid: string; username: string | null; account_type: "individual" | "business" | null };
+
+/**
+ * Returns the wallet's profile, creating it with a fresh unique ID the first time.
+ * Called at sign-in, so every signed-in wallet has a profile.
+ */
+export async function ensureProfile(wallet: string): Promise<Profile> {
+  const found = await db().from("profiles").select("wallet, uid, username, account_type").eq("wallet", wallet).maybeSingle();
+  if (found.error) throw new Error("profile lookup failed");
+  if (found.data?.uid) return found.data as Profile;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const uid = newUid();
+    const res = found.data
+      ? await db().from("profiles").update({ uid }).eq("wallet", wallet).select("wallet, uid, username, account_type").single()
+      : await db().from("profiles").insert({ wallet, uid }).select("wallet, uid, username, account_type").single();
+    if (!res.error) return res.data as Profile;
+    if (res.error.code !== "23505") throw new Error("profile create failed");
+    // 23505 is a uniqueness clash: either the ID is taken (try another) or the row was just created by a parallel request.
+    const again = await db().from("profiles").select("wallet, uid, username, account_type").eq("wallet", wallet).maybeSingle();
+    if (again.data?.uid) return again.data as Profile;
+  }
+  throw new Error("could not allocate a unique id");
+}

@@ -21,6 +21,7 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - We do NOT build a lending protocol. Borrowing goes through an existing market (Morpho on Base first choice).
 - No forced repayment. Repay is manual. SIP share is optional (one time or every payday).
 - Emergency rule: if the loan is near liquidation, the whole next SIP share goes to collateral.
+- New buys are never locked as collateral automatically (founder decision, issue #29). The person locks them; only the opt-in emergency rule locks by itself.
 - Withdraw any time after repaying the loan against the position.
 - Lending venues: Morpho first, Aave second, both behind the same lending adapter interface.
 - Idle USDC yield: founder decided it is USDC in the employee own vault that earns (not unclaimed salary). Built behind IYieldAdapter.
@@ -69,7 +70,7 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - test/fixtures: real Morpho and interest rate model bytecode copied from Base
 - web/: Next.js app. lib/usePortfolio.ts loads everything for one address, lib/useTx.ts sends transactions (simulates first, adds 60 percent gas), app/employer, app/employee, app/risk are the pages. Read web/AGENTS.md before changing Next.js code: this Next.js version differs from older ones.
 - web/app/api + web/lib/server/backend.ts + supabase/schema.sql: optional account database (Supabase) for unique names, team lists and attendance. Server-only secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SESSION_SECRET. Sign-in is a wallet signature checked on the server. The site must keep working when these are not set. Never ask for these keys in chat.
-- Assets: "stock" in contract names means any supported asset. Testnet has mAAPL, mNVDA (8 decimals, 62.5 percent limit) and mcbBTC (8), mWETH (18) at 86 percent. The site reads the list from web/lib/deployment.json. Never assume 8 decimals: use the asset's own.
+- Assets: "stock" in contract names means any supported asset. Testnet has seven stocks, mAAPL, mNVDA, mTSLA, mMSFT, mAMZN, mGOOGL, mMETA (8 decimals, 62.5 percent limit), and mcbBTC (8), mWETH (18) at 86 percent. Coinbase lists no index funds or ETFs as tokenized stocks (checked November 16, 2026). The site reads the list from web/lib/deployment.json. Never assume 8 decimals: use the asset's own.
 - BTC and ETH tokens, unique IDs and profiles, and investing without an employer are part of the anchor since November 15, 2026. Attendance is a supporting feature, not in the anchor paragraph.
 - Design: do not install design skills from the internet. Only reviewed catalog plugins if the founder enables them.
 - When click-testing on anvil, its clock only advances on a transaction: run `cast rpc evm_mine` before testing anything time-based.

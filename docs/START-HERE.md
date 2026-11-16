@@ -46,11 +46,11 @@ Built, tested and live on testnet:
 | Payroll | Employer treasury, pay once or on a schedule (daily, weekly, 2 weeks, monthly), claim to any wallet | src/Payroll.sol |
 | Payday investing | A share of each salary into one or several assets, once or every payday | src/Payroll.sol |
 | Vault | One vault per person, no admin, no pooled money | src/EmployeeVault.sol, src/VaultFactory.sol |
-| Borrowing | Borrow, repay, withdraw through a real Morpho market. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
+| Borrowing | Lock collateral as one basket of any assets, then borrow, repay, unlock, withdraw through real Morpho markets. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
 | Revenue | Fixed 0.25 percent fee on USDC going into assets | Payroll and SipRouter |
-| Web app | Landing, Dashboard, Get paid, Invest, Borrow, Risk, Run payroll, Demo panel | web/app |
+| Web app | Landing, Start (Personal or Business), Home, My pay, Invest (with real price chart), Borrow (collateral basket), Risk, Payroll, Docs, Testnet tools | web/app |
 | Account database | Unique name per wallet, saved team lists, attendance check-in. Connected on the live site | web/app/api, supabase/schema.sql |
 
 Tests: 69 local tests pass. Separate tests run the same code against the real AAPLc token, a real Aerodrome pool and the real Morpho market on a private copy of Base mainnet.
@@ -62,11 +62,6 @@ What is real and what is mocked on testnet:
 
 ## 4. What is not built
 
-- Choosing Individual or Business after connecting a wallet.
-- An automatic unique ID and profile for every new user.
-- Business name and description.
-- Sending people to the owner or employee dashboard by role.
-- A business finding and adding people (today the owner pastes a wallet address).
 - The Themes layer (news and sentiment, stocks by theme, rebalancing). Selling is not possible in the contracts yet: they only buy.
 - Aave, for borrowing or for interest.
 - Confidential salaries.
