@@ -63,7 +63,8 @@ contract SipRouterTest is BaseTest {
         assertEq(usdc.balanceOf(attacker), 0);
     }
 
-    function test_recurringPlan_addsCollateralWhenLoanOpen() public {
+    /// Founder decision (issue #29): a recurring buy stays free even with a loan open.
+    function test_recurringPlan_staysFreeWhenLoanOpen() public {
         vm.startPrank(carol);
         uint256 out = router.invest(address(stock), 1000 * U, 0);
         EmployeeVault vault = _vault(carol);
@@ -71,10 +72,12 @@ contract SipRouterTest is BaseTest {
         router.setPlan(address(stock), uint96(500 * U), 30 days, 100);
         vm.stopPrank();
         uint256 healthBefore = vault.healthFactor(address(stock));
+        uint256 collateralBefore = vault.collateralOf(address(stock));
         vm.prank(keeper);
         router.executePlan(carol, address(stock));
-        assertEq(vault.idleOf(address(stock)), 0);
-        assertApproxEqRel(vault.healthFactor(address(stock)), (healthBefore * 3) / 2, 1e14);
+        assertGt(vault.idleOf(address(stock)), 0, "the new buy is free in the vault");
+        assertEq(vault.collateralOf(address(stock)), collateralBefore, "nothing locked automatically");
+        assertEq(vault.healthFactor(address(stock)), healthBefore);
     }
 
     function test_cancelledOrMissingPlan_cannotRun() public {

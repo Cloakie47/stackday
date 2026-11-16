@@ -69,15 +69,24 @@ contract EmployeeVault is ReentrancyGuardTransient {
 
     // ------------------------------------------------------- value in (anyone)
 
-    /// @notice Put stock into the vault. If a loan is open against this stock, the new stock is
-    /// added straight to the loan's collateral, so every payday makes the loan safer.
+    /// @notice Put stock into the vault. It stays free: nothing is locked as loan collateral unless
+    /// the owner locks it (founder decision, issue #29).
     function depositStock(address stock, uint256 amount) external nonReentrant {
+        if (amount == 0) revert ZeroAmount();
+        _adapter(stock);
+        IERC20(stock).safeTransferFrom(msg.sender, address(this), amount);
+        emit StockDeposited(stock, msg.sender, amount, false);
+    }
+
+    /// @notice Put stock into the vault and lock it as collateral for the loan against it. Anyone may
+    /// call it, because it can only add the caller's own tokens as collateral, which makes the
+    /// owner's loan safer. Payroll uses it only when the owner's opt-in emergency rule fires.
+    function depositStockAsCollateral(address stock, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
         ILendingAdapter adapter = _adapter(stock);
         IERC20(stock).safeTransferFrom(msg.sender, address(this), amount);
-        bool toCollateral = adapter.debtOf(address(this)) > 0;
-        if (toCollateral) _supply(adapter, stock, amount);
-        emit StockDeposited(stock, msg.sender, amount, toCollateral);
+        _supply(adapter, stock, amount);
+        emit StockDeposited(stock, msg.sender, amount, true);
     }
 
     /// @notice Repay the loan against `stock`. Anyone may repay. Pass type(uint256).max to repay everything.

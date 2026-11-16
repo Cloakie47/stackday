@@ -159,6 +159,21 @@ export function Button({
   return <button {...props} className={buttonClass(variant, size, className)} />;
 }
 
+/** An amount shown next to a field; clicking it puts that amount in the field. */
+export function FillAmount({ onFill, children, label }: { onFill: () => void; children: ReactNode; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onFill}
+      aria-label={label}
+      title="Use this amount"
+      className="font-semibold text-brand underline decoration-dotted underline-offset-2 transition-colors hover:decoration-solid"
+    >
+      {children}
+    </button>
+  );
+}
+
 export function Field({
   label,
   suffix,
