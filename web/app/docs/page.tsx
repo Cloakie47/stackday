@@ -21,7 +21,17 @@ export const metadata: Metadata = {
 */
 const D = deployment as unknown as Record<string, string | number | string[]>;
 const SYMBOLS = D.assetSymbols as string[];
-const ASSET_NAMES: Record<string, string> = { mAAPL: "Apple (AAPLc)", mNVDA: "NVIDIA (NVDAc)", mcbBTC: "cbBTC (Coinbase Wrapped BTC)", mWETH: "Ether (WETH)" };
+const ASSET_NAMES: Record<string, string> = {
+  mAAPL: "Apple (AAPLc)",
+  mNVDA: "NVIDIA (NVDAc)",
+  mTSLA: "Tesla (TSLAc)",
+  mMSFT: "Microsoft (MSFTc)",
+  mAMZN: "Amazon (AMZNc)",
+  mGOOGL: "Alphabet (GOOGLc)",
+  mMETA: "Meta (METAc)",
+  mcbBTC: "cbBTC (Coinbase Wrapped BTC)",
+  mWETH: "Ether (WETH)",
+};
 const feePct = `${Number(D.sipFeeBps) / 100}%`;
 const pct = (wad: string | number) => `${(Number(wad) / 1e16).toFixed(1).replace(/\.0$/, "")}%`;
 
@@ -359,8 +369,8 @@ export default function DocsPage() {
               </p>
               <H3 id="basket">Collateral basket</H3>
               <p>
-                Borrowing has two steps. First you lock collateral: any mix of Apple, NVIDIA, cbBTC and Ether, for example
-                $1 of each for $4 in total. Then you borrow against the total. Each borrow is split across the assets so every
+                Borrowing has two steps. First you lock collateral: any mix of your stocks, cbBTC and Ether, for example
+                $1 each of Apple, NVIDIA, cbBTC and Ether for $4 in total. Then you borrow against the total. Each borrow is split across the assets so every
                 part ends up equally safe, and each repayment pays the most stretched parts first. Morpho keeps one market
                 per asset, so each part can still be liquidated on its own if its own price falls far. The page shows the
                 weakest part as well as the total. With no loan open, you can unlock everything in one go.
