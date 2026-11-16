@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus } from "@/components/ui";
 import { payrollAbi, routerAbi } from "@/lib/abis";
@@ -52,7 +52,7 @@ function MoodCard({ picked }: { picked: string[] }) {
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.materiality - a.materiality)
     .slice(0, 3);
   return (
-    <Card title="Market mood" badge={<MockBadge>Snapshot, not live</MockBadge>} action={<LearnMore />}>
+    <Card title={`Market mood, reading of ${SNAPSHOT.asOf.slice(0, 10)}`} badge={<MockBadge>Snapshot, not live</MockBadge>} action={<LearnMore />}>
       <p className="text-xs text-muted">{SNAPSHOT.label}</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {picked.map((id) => {
@@ -103,6 +103,40 @@ function MoodCard({ picked }: { picked: string[] }) {
 const usd = (v: bigint) => Number(v) / 1e6;
 /** Policy: skip buys under $5. Testnet faucet amounts are tiny, so the demo uses 25 cents there. */
 const MIN_TRADE_USD = CHAIN_ID === 84532 ? 0.25 : 5;
+/** Oldest price a stock buy may use (policy: 2 hours). Testnet mock prices only move when the demo operator sets them, so age is not checked there. */
+const MAX_PRICE_AGE_S = CHAIN_ID === 84532 ? Infinity : 2 * 3600;
+
+/** Holdings that must not be bought right now: frozen price feed, paused transfers, missing or stale price. */
+/** Current unix time, ticking every 30 seconds. 0 until the page is in the browser (no clock during prerender). */
+function useNow() {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const tick = () => setNow(Math.floor(Date.now() / 1000));
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+function blockedHoldings(p: Portfolio, tickers: string[], now: number) {
+  return tickers.filter((t) => {
+    const a = ASSETS.find((x) => x.realTicker === t);
+    const pos = a && p.positions.find((x) => x.asset.symbol === a.symbol);
+    if (!pos) return false;
+    if (pos.feedFrozen || pos.transfersPaused || !pos.price) return true;
+    return now > 0 && pos.priceUpdatedAt !== undefined && now - Number(pos.priceUpdatedAt) > MAX_PRICE_AGE_S;
+  });
+}
+
+function PriceBlock({ tickers }: { tickers: string[] }) {
+  if (tickers.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <Notice tone="warn">Buying paused: no fresh price for {tickers.map((t) => assetOf(t)?.name ?? t).join(", ")}.</Notice>
+    </div>
+  );
+}
 
 function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: number }) {
   const viewer = useViewer();
@@ -123,6 +157,9 @@ function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: nu
   const proposal = proposeNewMoney({ plan: investedPlan, holdingsUsd, cashUsd: 0, newMoneyUsd: newMoney, minTradeUsd: MIN_TRADE_USD });
   const rows = (newMoney > 0 ? proposal.after : proposal.before).filter((r) => r.kind !== "cash" && (r.targetShare > 0 || r.valueUsd > 0));
   const before = Object.fromEntries(proposal.before.map((r) => [r.ticker, r]));
+
+  const now = useNow();
+  const rebalanceBlocked = blockedHoldings(p, proposal.buys.map((b) => b.ticker), now);
 
   async function buyNow() {
     const buys = proposal.buys.map((b) => ({ a: assetFor(b.ticker)!, usdc: BigInt(Math.floor(b.usd * 1e6)) })).filter((b) => b.a && b.usdc > 0n);
@@ -196,13 +233,14 @@ function RebalanceCard({ plan, p, share }: { plan: Plan; p: Portfolio; share: nu
                 )}
               </ul>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button disabled={!viewer.canAct || proposal.buys.length === 0 || parseUsdc(amt) > p.walletUsdc || tx.state.busy} onClick={buyNow}>
+                <Button disabled={!viewer.canAct || proposal.buys.length === 0 || rebalanceBlocked.length > 0 || parseUsdc(amt) > p.walletUsdc || tx.state.busy} onClick={buyNow}>
                   Buy these now from my wallet
                 </Button>
                 <Button variant="secondary" disabled={!viewer.canAct || legAssets.length === 0 || tx.state.busy} onClick={useForPayday}>
                   Use for my next paydays ({fmtPct(share)} of salary)
                 </Button>
               </div>
+              <PriceBlock tickers={rebalanceBlocked} />
             </>
           )}
         </>
@@ -269,6 +307,14 @@ function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string
   );
 }
 
+/** One line per holding: the themes it comes from, plus the last limit applied, which is the one that set its size (the engine keeps the full list). */
+function shortWhy(why: string[]) {
+  const themes = why.filter((w) => w.startsWith("In your ")).map((w) => w.replace(/^In your /, "").replace(/ theme$/, ""));
+  const rest = why.filter((w) => !w.startsWith("In your "));
+  const first = themes.length ? `In your ${themes.join(" and ")} theme${themes.length > 1 ? "s" : ""}` : rest.shift();
+  return [first, rest[rest.length - 1]].filter(Boolean).join(". ");
+}
+
 function PlanView({ plan }: { plan: Plan }) {
   const parts = [
     ...plan.holdings.map((h) => ({ key: h.ticker, value: h.bps, color: colorOf(h.ticker), label: `${h.name} ${fmtPct(h.bps)}` })),
@@ -289,11 +335,7 @@ function PlanView({ plan }: { plan: Plan }) {
                     {h.name} <span className="font-normal text-muted">{h.ticker}</span>
                     {a && <span className="ml-1.5 text-xs font-normal text-muted">(testnet: {a.symbol}, mock)</span>}
                   </div>
-                  <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-muted">
-                    {h.why.map((w) => (
-                      <li key={w}>{w}</li>
-                    ))}
-                  </ul>
+                  <p className="mt-1 text-xs leading-relaxed text-muted">{shortWhy(h.why)}</p>
                 </div>
               </div>
               <span className="text-sm font-semibold tabular-nums">{fmtPct(h.bps, 1)}</span>
@@ -375,10 +417,9 @@ export default function ThemesPage() {
     const price = p.positions.find((x) => x.asset.symbol === a.symbol)?.price;
     return price ? (assetForUsdc(net(usdc), price, a.decimals) * 99n) / 100n : 0n;
   };
-  const pricesReady = plan.holdings.every((h) => {
-    const a = assetFor(h.ticker);
-    return !a || p.positions.find((x) => x.asset.symbol === a.symbol)?.price;
-  });
+  const now = useNow();
+  const blocked = blockedHoldings(p, plan.holdings.map((h) => h.ticker), now);
+  const pricesReady = blocked.length === 0;
 
   async function buyOnce() {
     const total = onceSplit.buys.reduce((s, b) => s + b.usdc, 0n);
@@ -520,6 +561,7 @@ export default function ThemesPage() {
                   Buy the split
                 </Button>
                 {once > p.walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet does not hold that much USDC.</p>}
+                <PriceBlock tickers={blocked} />
               </div>
 
               <div className="rounded-2xl border border-line p-4">
