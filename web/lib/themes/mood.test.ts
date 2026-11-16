@@ -2,10 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { CATALOG, THEMES } from "./catalog.ts";
-import { smartDcaMultiplier } from "./legs.ts";
 import {
   aggregateMood,
-  dcaFor,
+  openEventsFor,
   itemTrust,
   materialRiskFlag,
   parseNewsItem,
@@ -248,7 +247,7 @@ test("corroboration: with a date, only the last 14 days count", () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// Snapshot, theme mood, Smart DCA
+// Snapshot, theme mood, open events
 // ---------------------------------------------------------------------------------------------
 
 const asset = (over: Record<string, unknown> = {}) => ({ valueScore: 0, mood: 0, hype: false, materialRisk: false, items: [], ...over });
@@ -299,31 +298,15 @@ test("theme mood is the equal-weight mean over the theme's tickers (missing coun
   assert.throws(() => themeMood(s, "nope"));
 });
 
-test("Smart DCA from the snapshot uses portfolio value, mood, hype and material risk", () => {
-  // Cheap (value 2 of 2 maps to +1) and fearful, no material event: buy more.
-  const cheapFear = testSnap({ TSLAc: { valueScore: 2, mood: -0.5 }, SPCXc: { valueScore: 2, mood: -0.5 } });
-  const r = dcaFor(cheapFear, ["future-movers"]);
-  assert.equal(r.value, 1);
-  assert.equal(r.mood, -0.5);
-  assert.equal(r.multiplier, smartDcaMultiplier({ value: 1, mood: -0.5 }));
-  assert.ok(r.multiplier > 1);
-
-  // Same, but one name has a material risk open: never above 1x.
-  const risky = testSnap({ TSLAc: { valueScore: 2, mood: -0.5, materialRisk: true }, SPCXc: { valueScore: 2, mood: -0.5 } });
-  const rr = dcaFor(risky, ["future-movers"]);
-  assert.equal(rr.materialRisk, true);
-  assert.deepEqual(rr.riskTickers, ["TSLAc"]);
-  assert.ok(rr.multiplier <= 1);
-
-  // Any hype flag: slowest buying.
-  const hyped = testSnap({ TSLAc: { hype: true } });
-  assert.equal(dcaFor(hyped, ["future-movers"]).multiplier, 0.5);
-
-  // Tickers shared by two themes count once; no themes is neutral.
-  const both = dcaFor(cheapFear, ["ai-chips", "big-tech"]);
+test("open events: tickers with a material risk in the chosen themes, each once", () => {
+  const risky = testSnap({ TSLAc: { materialRisk: true }, SPCXc: { mood: -0.5 } });
+  const r = openEventsFor(risky, ["future-movers"]);
+  assert.deepEqual(r.riskTickers, ["TSLAc"]);
+  const both = openEventsFor(risky, ["ai-chips", "big-tech"]);
   assert.equal(new Set(both.tickers).size, both.tickers.length);
-  assert.equal(dcaFor(cheapFear, []).multiplier, 1);
-  assert.throws(() => dcaFor(cheapFear, ["nope"]));
+  assert.deepEqual(both.riskTickers, []);
+  assert.deepEqual(openEventsFor(risky, []).tickers, []);
+  assert.throws(() => openEventsFor(risky, ["nope"]));
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -371,6 +354,6 @@ test("the shipped snapshot: stored moods and flags match the scoring code", () =
     const m = themeMood(snap, theme.id);
     assert.ok(m >= -1 && m <= 1);
   }
-  const all = dcaFor(snap, THEMES.map((t) => t.id));
-  assert.ok(all.multiplier >= 0.5 && all.multiplier <= 1.5);
+  const all = openEventsFor(snap, THEMES.map((t) => t.id));
+  assert.ok(all.riskTickers.includes("NVDAc"), "the NVIDIA CEO filing is an open material event");
 });

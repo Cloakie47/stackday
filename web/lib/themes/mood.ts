@@ -1,17 +1,18 @@
 import { CATALOG, themeOf } from "./catalog.ts";
 import { VALUE_SCORE_LIMIT } from "./policy.ts";
-import { smartDcaMultiplier } from "./legs.ts";
 
 /**
- * Market Mood: scores news per asset and rolls it up per theme, then feeds Smart DCA.
+ * Market Mood: scores news per asset and rolls it up per theme. The mood score summarises recent
+ * news; it does not predict prices (Mutual Interest docs/07, section 2.5).
  * Pure TypeScript, no network. Pipeline and guardrails: docs/themes/concept.md ("Mood score")
  * and docs/03-consumer-app-concept.md section 3.
  *
  * Every article is untrusted text. The model that classifies it returns only the strict
  * `NewsItem` shape below; anything else is dropped, and an article the model flags as a
  * possible prompt injection gets zero weight. Weights are computed here, in code, from
- * bounded numbers, so even a fooled model can only move mood inside [-1, 1], and mood only
- * changes how fast Smart DCA buys (0.5x to 1.5x), never what it buys.
+ * bounded numbers, so even a fooled model can only move mood inside [-1, 1]. Mood is shown to
+ * people as context next to the split; it does not change amounts. (A Smart DCA pace driven by
+ * mood was removed: it lost to plain weekly buying in 24 of 24 backtest windows, docs/07 4.4.)
  */
 
 export const EVENT_TYPES = ["regulation", "earnings", "guidance", "product", "legal", "macro", "rumor", "other"] as const;
@@ -375,38 +376,16 @@ export function themeMood(snapshot: MoodSnapshot, themeId: string): number {
   return clamp(sum / theme.tickers.length, -1, 1);
 }
 
-export type DcaReading = {
-  /** Smart DCA multiplier, 0.5 to 1.5. */
-  multiplier: number;
-  /** Portfolio value, -1 (expensive) to +1 (cheap): mean value score / 2. */
-  value: number;
-  /** Portfolio mood, -1 to +1: equal-weight mean over the tickers. */
-  mood: number;
-  hype: boolean;
-  materialRisk: boolean;
-  /** Tickers whose material risk is open. */
-  riskTickers: string[];
-  tickers: string[];
-};
-
 /**
- * Smart DCA for the chosen themes, from the snapshot: equal-weight value and mood over every
- * ticker in those themes (each ticker once), hype if any is hyped, material risk if any has one.
- * No themes gives the neutral 1x.
+ * Open material events for the chosen themes: tickers (each once) whose corroborated material
+ * negative event is still open in the snapshot. Shown as a flag; it never changes amounts.
  */
-export function dcaFor(snapshot: MoodSnapshot, themeIds: string[]): DcaReading {
+export function openEventsFor(snapshot: MoodSnapshot, themeIds: string[]): { tickers: string[]; riskTickers: string[] } {
   const tickers: string[] = [];
   for (const id of themeIds) {
     const theme = themeOf(id);
     if (!theme) throw new Error(`unknown theme: ${id}`);
     for (const t of theme.tickers) if (!tickers.includes(t)) tickers.push(t);
   }
-  const n = tickers.length;
-  const mean = (f: (a: AssetMood | undefined) => number) => (n === 0 ? 0 : tickers.reduce((s, t) => s + f(snapshot.assets[t]), 0) / n);
-  const value = clamp(mean((a) => a?.valueScore ?? 0) / VALUE_SCORE_LIMIT, -1, 1);
-  const mood = clamp(mean((a) => a?.mood ?? 0), -1, 1);
-  const hype = tickers.some((t) => snapshot.assets[t]?.hype === true);
-  const riskTickers = tickers.filter((t) => snapshot.assets[t]?.materialRisk === true);
-  const materialRisk = riskTickers.length > 0;
-  return { multiplier: smartDcaMultiplier({ value, mood, hype, materialRisk }), value, mood, hype, materialRisk, riskTickers, tickers };
+  return { tickers, riskTickers: tickers.filter((t) => snapshot.assets[t]?.materialRisk === true) };
 }
