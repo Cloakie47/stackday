@@ -103,6 +103,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
     setLevel(key);
     setBorrowAmt(usdcInput(levelAmount(pct)));
   }
+  const upTo = raiseCap ? summarize(legs, borrowCap).available : now.available;
   const borrow = parseUsdc(borrowAmt);
   const borrowSplit = splitBorrow(borrow, legs, borrowCap);
   const afterBorrow = borrowSplit ? summarize(positions.map((x, i) => legOf(x, 0n, borrowSplit[i])), borrowCap) : undefined;
@@ -303,7 +304,8 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
               <div className="grid grid-cols-3 gap-2" role="group" aria-label="Risk level">
                 {LEVELS.map((l) => {
                   const amt = levelAmount(l.pct);
-                  const reached = (now.maxDebt * l.pct) / 100n <= now.debt;
+                  // Under one cent left counts as reached (rounding after a borrow at this level).
+                  const reached = (now.maxDebt * l.pct) / 100n <= now.debt + 10_000n;
                   const active = level === l.key;
                   return (
                     <button
@@ -348,7 +350,8 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
                 "Lock collateral first."
               ) : (
                 <>
-                  Up to <FillAmount onFill={() => setBorrowAmt(usdcInput(now.available))}>${fmtUsdc(now.available)}</FillAmount>. Uses only what you locked.
+                  Up to <FillAmount onFill={() => setBorrowAmt(usdcInput(upTo))}>${fmtUsdc(upTo)}</FillAmount>
+                  {raiseCap ? " at Degen" : ""}. Uses only what you locked.
                 </>
               )
             }

@@ -213,7 +213,10 @@ const MODE_EVENT = "stackday-mode";
 function useLocalMode(address: string | undefined) {
   const [mode, setMode] = useState<Mode | null>(null);
   const [businessRole, setBusinessRole] = useState<BusinessRole | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // Which address the stored choice was read for. On connect the address changes before the
+  // effect runs, so "loaded" must belong to this address, or the app briefly thinks no choice
+  // was made and sends the person back to /start.
+  const [loadedFor, setLoadedFor] = useState<string | undefined | null>(null);
   useEffect(() => {
     const read = () => {
       try {
@@ -225,13 +228,14 @@ function useLocalMode(address: string | undefined) {
         setMode(null);
         setBusinessRole(null);
       }
-      setLoaded(true);
+      setLoadedFor(address);
     };
     read();
     window.addEventListener(MODE_EVENT, read);
     return () => window.removeEventListener(MODE_EVENT, read);
   }, [address]);
-  return { mode, businessRole, loaded };
+  const loaded = loadedFor === address;
+  return { mode: loaded ? mode : null, businessRole: loaded ? businessRole : null, loaded };
 }
 
 export function rememberMode(address: string | undefined, mode: Mode, businessRole?: BusinessRole) {
