@@ -50,7 +50,7 @@ Built, tested and live on testnet:
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
 | Revenue | Fixed 0.25 percent fee on USDC going into assets | Payroll and SipRouter |
-| Web app | Landing, Dashboard, Get paid, Invest, Borrow, Risk, Run payroll, Demo panel | web/app |
+| Web app | Landing, Start (Personal or Business), Home, My pay, Invest (with real price chart), Borrow (collateral basket), Risk, Payroll, Docs, Testnet tools | web/app |
 | Account database | Unique name per wallet, saved team lists, attendance check-in. Connected on the live site | web/app/api, supabase/schema.sql |
 
 Tests: 69 local tests pass. Separate tests run the same code against the real AAPLc token, a real Aerodrome pool and the real Morpho market on a private copy of Base mainnet.

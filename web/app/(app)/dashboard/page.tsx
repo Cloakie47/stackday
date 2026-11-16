@@ -175,7 +175,7 @@ function Account({ canAct, wallet }: { canAct: boolean; wallet?: string }) {
                 This wallet is <strong className="text-ink">@{current}</strong>. Sign in to change it or check in.
               </>
             ) : (
-              "Sign in to get your Stackday ID, pick a name and check in. It is one free signature."
+              (account.mode === "personal" ? "Sign in to pick a name. It is one free signature." : "Sign in to pick a name and check in. It is one free signature.")
             )}
           </p>
           <Button variant="ink" disabled={!canAct || session.busy} onClick={session.signIn}>
@@ -289,7 +289,7 @@ function Plans({ p, now }: { p: Portfolio; now: number }) {
           {salaryPlans && p.sipPlan.length > 0 && (
             <div className="py-3.5 first:pt-0 last:pb-0">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold">Every payday, automatically</div>
+                <div className="text-sm font-semibold">Payday plan</div>
                 <Link href="/pay" className="text-xs font-semibold text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
                   Change
                 </Link>
@@ -359,7 +359,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
-        title={name ? `Hello, ${name}` : businessMode ? "Holdings" : "Home"}
+        title={name ? `Hello, ${name}` : "Home"}
         lead={
           <>
             {businessMode ? "What your pay has bought, and any loans against it." : "Your investments, plans and loans."}{" "}
@@ -443,7 +443,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="text-xs text-muted">
                         {fmtAsset(x.idle + x.collateral, x.asset.decimals)} at ${fmtPrice(x.price)}
-                        {x.collateral > 0n && " · posted as loan collateral"}
+                        {x.collateral > 0n && " · locked as collateral"}
                       </div>
                     </div>
                   </div>

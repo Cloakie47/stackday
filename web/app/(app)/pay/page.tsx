@@ -97,6 +97,10 @@ export default function PayPage() {
     setAlloc(next);
   }
 
+  // Payroll accepts at most 6 assets in one payday split (MAX_ALLOCATIONS in Payroll.sol).
+  const MAX_ASSETS = 6;
+  const chosenCount = Object.values(alloc).filter((v) => v > 0).length;
+
   function setPct(symbol: string, pct: number) {
     const others = total - (alloc[symbol] ?? 0);
     const clamped = Math.max(0, Math.min(100 - others, Math.round(pct)));
@@ -122,7 +126,7 @@ export default function PayPage() {
         p.sipPlan.every((leg, i) => leg.asset.toLowerCase() === tokens[i].toLowerCase() && Number(leg.bps) === bps[i]);
       if (!same)
         calls.push({
-          label: "Save your every-payday plan",
+          label: "Save your payday plan",
           address: ADDR.payroll,
           abi: payrollAbi,
           functionName: "setSipPlanMany",
@@ -149,7 +153,7 @@ export default function PayPage() {
 
   const turnOffPlan = () =>
     tx.run(
-      [{ label: "Turn off the every-payday plan", address: ADDR.payroll, abi: payrollAbi, functionName: "setSipPlanMany", args: [[], []] }],
+      [{ label: "Turn off the payday plan", address: ADDR.payroll, abi: payrollAbi, functionName: "setSipPlanMany", args: [[], []] }],
       "Every-payday plan turned off.",
     );
 
@@ -158,7 +162,7 @@ export default function PayPage() {
   return (
     <>
       <PageHeader
-        title="Get paid"
+        title="My pay"
         lead={
           <>
             Claim your salary and choose a share to invest. <LearnMore href="/docs#employees" />
@@ -172,12 +176,12 @@ export default function PayPage() {
         <div key={s.id.toString()} className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-grow-soft p-5">
           <div>
             <div className="text-sm font-semibold text-grow">
-              Your {intervalLabel(s.interval).toLowerCase()} payday from {names.display(s.employer)} is due
+              Your {intervalLabel(s.interval).toLowerCase()} pay from {names.display(s.employer)} is ready
             </div>
-            <div className="text-xs text-grow/80">{fmtUsdc(s.mine)} USDC. Anyone can release it from the employer&apos;s treasury.</div>
+            <div className="text-xs text-grow/80">{fmtUsdc(s.mine)} USDC. Press Release to move it into Claim.</div>
           </div>
           <Button variant="ink" disabled={!viewer.canAct || tx.state.busy} onClick={() => release(s.id)}>
-            Release payday
+            Release pay
           </Button>
         </div>
       ))}
@@ -261,7 +265,8 @@ export default function PayPage() {
                             type="button"
                             aria-label={`More ${pos.asset.name}`}
                             onClick={() => setPct(pos.asset.symbol, pct + 5)}
-                            disabled={total >= 100}
+                            disabled={total >= 100 || (pct === 0 && chosenCount >= MAX_ASSETS)}
+                            title={pct === 0 && chosenCount >= MAX_ASSETS ? "Up to 6 assets per payday." : undefined}
                             className="grid h-8 w-8 place-items-center rounded-full border border-line-strong text-lg leading-none transition-colors hover:border-ink disabled:opacity-30"
                           >
                             +
@@ -339,9 +344,9 @@ export default function PayPage() {
         <TxStatus state={tx.state} />
       </Card>
 
-      <Card title="Your every-payday plan">
+      <Card title="Your payday plan">
         {p.sipPlan.length === 0 ? (
-          <Empty>No standing plan. Choose &quot;Every payday&quot; when you claim to set one.</Empty>
+          <Empty>No payday plan yet. Choose &quot;Every payday&quot; when you claim to set one.</Empty>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">

@@ -45,17 +45,17 @@ const NAVS: Record<Role | "all", NavItem[]> = {
   employee: [
     { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
     { href: "/invest", label: "Invest", icon: ICON.invest },
-    { href: "/dashboard", label: "Holdings", icon: ICON.holdings },
+    { href: "/dashboard", label: "Home", icon: ICON.holdings },
     { href: "/borrow", label: "Borrow", icon: ICON.borrow },
     { href: "/risk", label: "Risk", icon: ICON.risk },
   ],
   all: [
-    { href: "/dashboard", label: "Dashboard", short: "Home", icon: ICON.home },
-    { href: "/pay", label: "Get paid", icon: ICON.pay },
+    { href: "/dashboard", label: "Home", icon: ICON.home },
+    { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
     { href: "/invest", label: "Invest", icon: ICON.invest },
     { href: "/borrow", label: "Borrow", icon: ICON.borrow },
     { href: "/risk", label: "Risk", icon: ICON.risk },
-    { href: "/employer", label: "Run payroll", icon: ICON.payroll },
+    { href: "/employer", label: "Payroll", icon: ICON.payroll },
   ],
 };
 /** Every page, for the header title. */
@@ -400,7 +400,6 @@ export function Shell({ children }: { children: ReactNode }) {
             <ThemeToggle />
           </div>
           <p className="px-2 text-xs leading-relaxed text-muted">
-            Testnet, not audited.{" "}
             <Link href="/demo" className="underline decoration-line-strong underline-offset-2 hover:text-ink">
               Testnet tools
             </Link>

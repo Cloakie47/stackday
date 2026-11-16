@@ -326,7 +326,7 @@ export default function EmployerPage() {
   return (
     <>
       <PageHeader
-        title="Run payroll"
+        title="Payroll"
         lead={
           <>
             Fund a treasury, pick a rhythm, pay your team. <LearnMore href="/docs#businesses" />

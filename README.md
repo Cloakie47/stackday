@@ -2,7 +2,7 @@
 
 Stackday, salary maxxing on Base.
 
-A payroll platform for teams paid in USDC on Base that turns every payday into an investment. Built for the Base Stocks Maxxing competition, Track 3.
+A payroll and investing app on Base. Teams paid in USDC can send a share of every payday into tokenized stocks, cbBTC or Ether, and anyone can invest on a schedule from their own wallet, then borrow against what they hold instead of selling. Built for the Base Stocks Maxxing competition, Track 3. Next step: confidential salary payments (a testnet preview with Fairblock is in progress).
 
 Live site: https://stackday-rho.vercel.app (Base Sepolia testnet demo)
 
@@ -217,12 +217,12 @@ The web app lives in the `web` folder (Next.js, TypeScript, wagmi, viem, Tailwin
 Pages:
 
 - Home: what Stackday is, what is real and what is mocked, the risk note.
-- Dashboard: net worth in your vault, holdings, your plans (recurring salary, every-payday plan, recurring buys, emergency rule), loans, your name and attendance check-in.
-- Get paid: release a due payday, claim to any address, choose a share (0, 10, 20 percent or custom) and split it across assets, once or every payday.
+- Home: net worth in your vault, holdings, your plans (recurring salary, payday plan, recurring buys, emergency rule), loans, your name and attendance check-in.
+- My pay: release a due payday, claim to any address, choose a share (0, 10, 20 percent or custom) and split it across assets, once or every payday.
 - Invest: buy once or on a schedule without an employer, one plan per asset. Earn interest on idle USDC.
 - Borrow: borrow, repay, withdraw, and the emergency rule.
 - Risk: borrowing cost, borrow limit, loan health, liquidation price, repayment options, a stress test for 10, 20 and 30 percent gaps (plus your own), what paused collateral transfers do, price freshness, and the exact Morpho market used.
-- Run payroll: treasury, team list, pay once or start a schedule, pause and resume, attendance, past paydays.
+- Payroll: treasury, team list, pay once or start a schedule, pause and resume, attendance, past paydays.
 - Demo panel (testnet only): price drop, market closed and reopened lower, paused transfers, price recovery, quick payday. Only the demo wallet that owns the mocks can use the market switches.
 
 Run it on your computer (PowerShell):

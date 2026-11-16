@@ -274,6 +274,10 @@ export default function DocsPage() {
                   </li>
                 ))}
               </ol>
+              <p className="mt-4">
+                Next step: confidential salary payments, so pay amounts are hidden on chain while each person can still read
+                their own.
+              </p>
             </Section>
 
             <Section id="who" title="Who it is for">
@@ -296,7 +300,7 @@ export default function DocsPage() {
                   "Set an emergency rule so a risky loan gets more collateral on payday.",
                 ]}
               />
-              <H3 id="individuals">For individuals without an employer</H3>
+              <H3 id="individuals">For Personal accounts (no employer needed)</H3>
               <List
                 items={[
                   "Buy into your own vault from your wallet, once or on a schedule (one recurring plan per asset).",
@@ -364,7 +368,7 @@ export default function DocsPage() {
 
             <Section id="borrowing" title="Borrowing and health">
               <p>
-                Your vault posts its assets as collateral and borrows USDC from an existing Morpho market. {BRAND.name} runs
+                Your vault locks its assets as collateral and borrows USDC from an existing Morpho market. {BRAND.name} runs
                 no lending pool. There is no repayment schedule and no forced repayment.
               </p>
               <H3 id="basket">Collateral basket</H3>

@@ -15,9 +15,9 @@ import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
 
 const STORY = [
-  "Run payroll: add yourself to the team, fund the treasury and start a schedule (or pay once).",
-  "Get paid: claim with 10% or 20% going to work. The assets land in your vault (deposit).",
-  "Borrow: take a USDC loan against one of them.",
+  "Payroll: add yourself to the team, fund the treasury and start a schedule (or pay once).",
+  "My pay: claim with 10% or 20% going to work. The assets land in your vault (deposit).",
+  "Borrow: lock some of them, then borrow USDC against them.",
   "Here: drop that asset's price 30%. Open Risk and watch loan health fall.",
   "Here: pause transfers. On Borrow, repaying still works but withdrawing does not.",
   "Here: resume transfers and recover the price.",
@@ -70,7 +70,7 @@ export default function DemoPage() {
         args: [amount, [viewer.address], [amount]],
       },
     ];
-    await tx.run(calls, "New payday created. Claim it on Get paid.");
+    await tx.run(calls, "New payday created. Claim it on My pay.");
   }
 
   return (
