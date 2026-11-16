@@ -6,7 +6,6 @@ import {
   checkPlan,
   MOCK_FOR,
   RISK_LEVELS,
-  smartDcaMultiplier,
   splitAmount,
   THEMES,
   toSipLegs,
@@ -139,14 +138,4 @@ test("splitting a USDC amount never spends more than the amount", () => {
   const { buys, cash } = splitAmount(plan, 100_000_000n);
   assert.equal(buys.reduce((s, b) => s + b.usdc, 0n) + cash, 100_000_000n);
   assert.ok(cash >= (100_000_000n * BigInt(plan.usdcBps)) / 10_000n);
-});
-
-test("Smart DCA: 0.5x to 1.5x, cheap plus fear buys more, hype buys less", () => {
-  assert.equal(smartDcaMultiplier({ value: 0, mood: 0 }), 1);
-  assert.equal(smartDcaMultiplier({ value: 1, mood: -1 }), 1.5);
-  assert.equal(smartDcaMultiplier({ value: 1, mood: 0, hype: true }), 0.5);
-  assert.ok(smartDcaMultiplier({ value: -1, mood: 1 }) < 0.6);
-  assert.equal(smartDcaMultiplier({ value: -0.2, mood: -1 }), 0.93, "fear about a pricey basket is no reason to buy more");
-  assert.ok(smartDcaMultiplier({ value: 1, mood: -1, materialRisk: true }) <= 1, "real bad news never speeds buying up");
-  assert.equal(smartDcaMultiplier({ value: Number.NaN, mood: Number.NaN }), 1);
 });

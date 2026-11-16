@@ -16,7 +16,7 @@ export type PlanInput = {
   risk: RiskLevel;
   /** Real tickers that can actually be bought here (on testnet: the ones with a Stackday mock). */
   available: string[];
-  /** Optional cheapness score per ticker, -2 (expensive) to +2 (cheap). */
+  /** Optional value score per ticker, -2 to +2: how far below its usual distance from its 52-week high it is (+ is further below). */
   valueScores?: Record<string, number>;
 };
 
@@ -129,8 +129,8 @@ export function buildPlan(input: PlanInput): Plan {
         x.w *= 1 + VALUE_TILT_PER_POINT * score;
         x.why.push(
           score > 0
-            ? `Tilted up: cheaper than usual (value score ${score.toFixed(1)})`
-            : `Tilted down: pricier than usual (value score ${score.toFixed(1)})`,
+            ? `Tilted up: further below its 52-week high than usual (value score ${score.toFixed(1)})`
+            : `Tilted down: closer to its 52-week high than usual (value score ${score.toFixed(1)})`,
         );
       }
       const after = items.reduce((s, x) => s + x.w, 0);
