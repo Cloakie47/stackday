@@ -337,11 +337,16 @@ export default function DocsPage() {
                 for your next buys and shows a reason for each holding. The AI model never sets or overrides these rules. It
                 only proposes; you confirm.
               </p>
-              <H3 id="caps">Hard caps</H3>
+              <H3 id="caps">Targets for new buys</H3>
+              <p>
+                These targets shape each suggested split for your next buys. They are not limits on what you hold: Stackday
+                cannot sell for you, so a holding that rises can grow above its target and stay there. The Themes page shows a
+                notice when that happens, and new money goes to other holdings first.
+              </p>
               <Table
-                head={["Rule", "Limit"]}
+                head={["Rule", "Target"]}
                 rows={[
-                  ["Single stock", "15% of the portfolio"],
+                  ["Single stock", "15% of each split"],
                   ["Single theme", "40%"],
                   ["AI and chips cluster (NVDA, SNDK, INTC, MSFT)", "35%"],
                   ["Crypto (cbBTC, WETH and crypto-like stocks)", "25% (Steady 10%)"],
@@ -350,18 +355,19 @@ export default function DocsPage() {
                   ["Leverage", "None. Total exposure never above 1x"],
                 ]}
               />
-              <H3 id="smart-dca">Smart DCA</H3>
+              <H3 id="mood">Market mood</H3>
               <p>
-                Each planned buy is scaled between 0.5x and 1.5x: more when prices look cheap and the market is fearful, less
-                when it looks heated. The unspent part stays as USDC. Mood changes how fast you buy, never what you buy.
+                Market mood summarises recent news about the stocks in your themes, weighted by how much each item matters to
+                the business. It does not predict prices and does not change your amounts. A serious event confirmed by a
+                filing or two reliable sources is flagged so you can look at it.
               </p>
               <H3 id="rebalancing">Rebalancing with new money</H3>
               <List
                 items={[
-                  "The contracts can only buy, so a rebalance is a new split for your next payday or recurring buy, sent to the holdings that are under target. Nothing is sold.",
+                  "The contracts can only buy, so a rebalance is a new split for your next payday or recurring buy, sent to the holdings that are under target. Nothing is sold. It keeps the mix closer to what you chose; it does not add return.",
                   "A holding counts as off target when it is more than 5 points or more than 25 percent away from its target.",
                   "Buys below $5 are skipped to keep fees low.",
-                  "Before any stock buy: the market must be open, the price feed fresh and not frozen, and the exchange price close to the oracle price.",
+                  "Buying pauses for an asset whose price feed is frozen or out of date, or whose transfers are paused.",
                 ]}
               />
             </Section>
