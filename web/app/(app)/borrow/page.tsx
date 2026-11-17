@@ -13,6 +13,7 @@ import {
   Field,
   Notice,
   PageHeader,
+  Responsive,
   RiskNote,
   Select,
   TxStatus,
@@ -80,18 +81,18 @@ export default function BorrowPage() {
         }
         aside={
           <Link href="/risk" className={buttonClass("secondary")}>
-            Risk screen and stress test
+            <Responsive m="Stress test" d="Risk and stress test" />
           </Link>
         }
       />
 
-      {!me && <Notice>Connect your wallet (top right) to borrow.</Notice>}
+      {!me && <Notice>Connect your wallet to borrow.</Notice>}
 
       {me && <CollateralBasket p={p} />}
 
-      <Card title="Take assets out">
+      <Card title="Withdraw">
         <p className="text-sm text-muted">
-          Withdraw to your wallet. Locked assets are released automatically, as far as any open loan allows.
+          <Responsive m="Collateral unlocks if your loan allows." d="Withdraw to your wallet. Collateral unlocks automatically if your loan allows it." />
         </p>
         <div className="mt-4">
           <AssetSelect
@@ -105,14 +106,14 @@ export default function BorrowPage() {
             }}
           />
         </div>
-        <p className="mt-4 text-xs text-muted">
+        <p className="mt-3 text-xs tabular-nums text-muted">
           In your vault: {fmtAsset(pos.idle, asset.decimals)} {asset.symbol} free, {fmtAsset(pos.collateral, asset.decimals)} locked.
           {pos.debt > 0n && ` Loan against ${asset.name}: $${fmtUsdc(pos.debt)}, health ${fmtHealth(pos.health)}.`}
         </p>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-start">
           <Field
-            label={`Withdraw ${asset.name} to your wallet`}
+            label="Amount"
             inputMode="decimal"
             placeholder="0.0"
             suffix={asset.symbol}
@@ -120,14 +121,14 @@ export default function BorrowPage() {
             onChange={(e) => setWithdrawAmt(e.target.value)}
             hint={
               pos.debt > 0n
-                ? "With a loan open, you can withdraw only what the loan allows. Repay first to take everything."
-                : "You can withdraw everything at any time."
+                ? "Your loan limits how much you can withdraw. Repay to withdraw all."
+                : "No loan. Withdraw any amount."
             }
           />
-          <Button variant="ghost" disabled={totalHeld === 0n} onClick={() => setWithdrawAmt(fmtAsset(totalHeld, asset.decimals, asset.decimals).replace(/,/g, ""))}>
+          <Button variant="ghost" className="min-h-11 sm:mt-[25.5px]" disabled={totalHeld === 0n} onClick={() => setWithdrawAmt(fmtAsset(totalHeld, asset.decimals, asset.decimals).replace(/,/g, ""))}>
             Max
           </Button>
-          <Button variant="secondary" disabled={!viewer.canAct || !vault || withdraw === 0n || withdraw > totalHeld || tx.state.busy} onClick={doWithdraw}>
+          <Button variant="secondary" className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || !vault || withdraw === 0n || withdraw > totalHeld || tx.state.busy} onClick={doWithdraw}>
             Withdraw
           </Button>
         </div>
@@ -137,10 +138,13 @@ export default function BorrowPage() {
       <RiskNote />
 
       {!personal && (
-      <Card title="Emergency rule: protect a loan on payday">
+      <Card title="Emergency rule">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          If this loan&apos;s health is at or below your threshold on payday, this share of the salary goes to its
-          collateral. Acts only when a salary is claimed. <LearnMore href="/docs#emergency-rule" />
+          <Responsive
+            m="Tops up collateral from your salary when health is low."
+            d="On payday, if this loan's health is at or below your threshold, a share of your salary goes to its collateral. Runs only when you claim."
+          />{" "}
+          <LearnMore href="/docs#emergency-rule" />
         </p>
         {rule && ruleAsset && (
           <div className="mt-4">
@@ -159,7 +163,7 @@ export default function BorrowPage() {
             options={ASSETS.map((a) => ({ value: a.symbol, label: a.name }))}
           />
           <Select
-            label="When health is at or below"
+            label="Trigger at health"
             value={threshold}
             onChange={setThreshold}
             options={[
@@ -168,10 +172,10 @@ export default function BorrowPage() {
               { value: "2", label: "2.00 (early)" },
             ]}
           />
-          <Field label="Share of salary to redirect" inputMode="numeric" suffix="%" value={share} onChange={(e) => setShare(e.target.value)} />
+          <Field label="Salary share" inputMode="numeric" suffix="%" value={share} onChange={(e) => setShare(e.target.value)} />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="ink" disabled={!viewer.canAct || ruleBps <= 0 || ruleBps > 10000 || tx.state.busy} onClick={() => saveRule(false)}>
+          <Button variant="secondary" disabled={!viewer.canAct || ruleBps <= 0 || ruleBps > 10000 || tx.state.busy} onClick={() => saveRule(false)}>
             Save rule
           </Button>
           {rule && (

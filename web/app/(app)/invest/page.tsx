@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Empty, Field, FillAmount, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Empty, Field, FillAmount, MockBadge, Notice, PageHeader, Responsive, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, mockSwapAbi, routerAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, EARN_FEE_BPS, MAX_UINT, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until, usdcInput } from "@/lib/format";
@@ -16,7 +16,7 @@ import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
 import { DEFAULT_SLOT, SLOT_DAYS, nextSlot, slotLabel } from "@/lib/slots";
 
-/** Above this, a manual buy shows "Slippage is too high" (the buy itself refuses to fill past 1%). */
+/** Above this, a manual buy says the price moved too much (the buy itself refuses to fill past 1%). */
 const MAX_SLIPPAGE_BPS = 100n;
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
@@ -77,13 +77,15 @@ export default function InvestPage() {
 
   async function buyOnce() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, "Approve USDC")),
       { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min(amount)] },
     ];
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
   }
 
   /** The first buy is the next chosen weekday at 11:00 New York time; later buys keep that slot. */
+  // Called only from the save handler, never during render.
+  // eslint-disable-next-line react-hooks/purity
   const firstBuyAt = () => nextSlot(Number(slotDay), DEFAULT_SLOT.time, Math.floor(Date.now() / 1000));
 
   // How long a plan runs: the wallet approval covers exactly that many buys, then the plan stops on
@@ -153,7 +155,7 @@ export default function InvestPage() {
     if (!vault || !me) return;
     const calls: Call[] = [];
     if (!p.vault) calls.push({ label: "Create your vault", address: ADDR.factory, abi: factoryAbi, functionName: "createVault", args: [me] });
-    calls.push(...(await tx.withApproval(ADDR.usdc, vault, fromWallet, "Allow your vault to take the USDC")));
+    calls.push(...(await tx.withApproval(ADDR.usdc, vault, fromWallet, "Approve USDC")));
     calls.push({ label: "Start earning interest", address: vault, abi: vaultAbi, functionName: "earn", args: [earn] });
     if (await tx.run(calls, "Your USDC is now earning interest.")) setEarnAmt("");
   }
@@ -162,7 +164,7 @@ export default function InvestPage() {
     p.vault &&
     me &&
     tx.run(
-      [{ label: "Take all earning USDC back", address: p.vault, abi: vaultAbi, functionName: "stopEarning", args: [MAX_UINT, me] }],
+      [{ label: "Withdraw all earning USDC", address: p.vault, abi: vaultAbi, functionName: "stopEarning", args: [MAX_UINT, me] }],
       "USDC and its interest are back in your wallet.",
     );
 
@@ -172,23 +174,22 @@ export default function InvestPage() {
         title="Invest"
         lead={
           <>
-            Buy into your own vault, once or on a schedule. <LearnMore href="/docs#individuals" />
+            Buy once or on a schedule, straight into your vault. <LearnMore href="/docs#individuals" />
           </>
         }
       />
 
-      {!me && <Notice>Connect your wallet (top right) to invest.</Notice>}
+      {!me && <Notice>Connect your wallet to invest.</Notice>}
 
-      <Card title="Choose what to buy">
+      <Card title="What to buy">
         <AssetPicker positions={p.positions} value={symbol} onChange={setSymbol} />
-        <p className="mt-3 text-xs text-muted">
-          In your vault: {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet:{" "}
-          {fmtUsdc(p.walletUsdc)} USDC.
+        <p className="mt-2 text-xs tabular-nums text-muted">
+          In your vault {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol} · Wallet {fmtUsdc(p.walletUsdc)} USDC
         </p>
         <PriceChart key={asset.symbol} asset={asset} testnetPrice={pos.price} />
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-line p-4">
+        <div className="-mx-4 mt-6 grid border-t border-line sm:-mx-5 lg:grid-cols-2">
+          <div className="px-4 pt-5 sm:px-5 lg:pb-1">
             <h3 className="text-sm font-semibold">Buy once</h3>
             <div className="mt-3">
               <Field
@@ -200,12 +201,17 @@ export default function InvestPage() {
                 onChange={(e) => setAmt(e.target.value)}
                 hint={
                   <>
-                    {amount > 0n && exchangeOut !== undefined && rate !== undefined
-                      ? `Rate $${fmtPrice(rate)} per ${asset.symbol}. About ${fmtAsset(exchangeOut, asset.decimals)} ${asset.symbol}. `
-                      : amount > 0n && pos.price
-                        ? `About ${fmtAsset(assetForUsdc(amount, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}. `
-                        : ""}
-                    Wallet:{" "}
+                    {amount > 0n && exchangeOut !== undefined && rate !== undefined ? (
+                      <Responsive
+                        m={`About ${fmtAsset(exchangeOut, asset.decimals)} ${asset.symbol}. `}
+                        d={`About ${fmtAsset(exchangeOut, asset.decimals)} ${asset.symbol} at $${fmtPrice(rate)} each. `}
+                      />
+                    ) : amount > 0n && pos.price ? (
+                      `About ${fmtAsset(assetForUsdc(amount, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}. `
+                    ) : (
+                      ""
+                    )}
+                    Wallet{" "}
                     <FillAmount onFill={() => setAmt(usdcInput(p.walletUsdc))} label="Use all USDC in your wallet">
                       ${fmtUsdc(p.walletUsdc)}
                     </FillAmount>
@@ -220,31 +226,24 @@ export default function InvestPage() {
             >
               Buy {asset.name}
             </Button>
-            {amount > p.walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet does not hold that much USDC.</p>}
-            {slippageTooHigh && <p className="mt-2 text-xs text-danger">Slippage is too high.</p>}
+            {amount > p.walletUsdc && <p className="mt-2 text-xs text-danger">Not enough USDC in your wallet.</p>}
+            {slippageTooHigh && (
+              <p className="mt-2 text-xs text-danger">
+                <Responsive m="Price moved over 1%. Try again." d="Price moved more than 1%. Try a smaller amount or try again." />
+              </p>
+            )}
           </div>
 
-          <div className="rounded-2xl border border-line p-4">
-            <h3 className="text-sm font-semibold">Buy on a schedule</h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 border-t border-line px-4 pt-5 sm:px-5 lg:mt-0 lg:border-l lg:border-t-0 lg:pb-1">
+            <h3 className="text-sm font-semibold">Recurring buy</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field
-                label="Each time"
+                label="Amount per buy"
                 inputMode="decimal"
                 placeholder="0.00"
                 suffix="USDC"
                 value={perBuy}
                 onChange={(e) => setPerBuy(e.target.value)}
-                hint={
-                  <>
-                    Quick:{" "}
-                    {["5", "10", "25", "50"].map((v, i) => (
-                      <span key={v}>
-                        {i > 0 && " · "}
-                        <FillAmount onFill={() => setPerBuy(v)}>${v}</FillAmount>
-                      </span>
-                    ))}
-                  </>
-                }
               />
               <Select
                 label="How often"
@@ -269,22 +268,29 @@ export default function InvestPage() {
                 ]}
               />
               <Select
-                label="Day (11:00 am New York)"
+                label="Day (11:00 ET)"
                 value={slotDay}
                 onChange={setSlotDay}
                 options={SLOT_DAYS.map((d) => ({ value: String(d.value), label: d.label }))}
               />
             </div>
-            <p className="mt-2 text-xs text-muted">Buys run while the US market is open, when prices are steadiest.</p>
+            <div className="mt-3 flex flex-wrap gap-2" aria-label="Quick amounts">
+              {["5", "10", "25", "50"].map((v) => (
+                <Button key={v} size="sm" variant="soft" aria-label={`${v} USDC per buy`} onClick={() => setPerBuy(v)}>
+                  ${v}
+                </Button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted">Buys run while the US market is open.</p>
             {recurringAmount > 0n && (
               <p className="mt-2 text-xs text-muted">
                 {buyCount === 0
                   ? "Runs until you cancel it."
-                  : `${buyCount} buys, $${fmtUsdc(recurringAmount * BigInt(buyCount))} in total. It stops on its own after the last one.`}
+                  : `${buyCount} buys, $${fmtUsdc(recurringAmount * BigInt(buyCount))} total. Stops after the last one.`}
               </p>
             )}
-            <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
-              {pos.recurring ? "Replace the recurring buy" : "Start a recurring buy"}
+            <Button variant="secondary" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
+              {pos.recurring ? "Replace recurring buy" : "Start recurring buy"}
             </Button>
             <p className="mt-2 text-xs text-muted">{fmtPct(SIP_FEE_BPS)} fee on each recurring buy.</p>
           </div>
@@ -294,7 +300,9 @@ export default function InvestPage() {
 
       <Card title="Your recurring buys">
         {plans.length === 0 ? (
-          <Empty>No recurring buys yet. You can run one per asset, side by side.</Empty>
+          <Empty>
+            <Responsive m="No recurring buys yet." d="No recurring buys yet. You can run one per asset." />
+          </Empty>
         ) : (
           <div className="divide-y divide-line">
             {plans.map((x) => {
@@ -307,13 +315,13 @@ export default function InvestPage() {
                   <div className="flex items-center gap-3">
                     <AssetIcon asset={x.asset} />
                     <div>
-                      <div className="text-sm font-semibold">
+                      <div className="text-sm font-medium">
                         {fmtUsdc(x.recurring!.usdcPerBuy)} USDC into {x.asset.name} · {intervalLabel(x.recurring!.interval)}
                       </div>
                       <div className="text-xs text-muted">
                         {ended
-                          ? "Finished: the approved buys are used up"
-                          : `${due ? "A buy is due now" : `Next buy ${until(x.recurring!.nextBuyAt, now)}`} · ${
+                          ? "Finished. Extend to keep buying."
+                          : `${due ? "Due now" : `Next buy ${until(x.recurring!.nextBuyAt, now)}`} · ${
                               left === undefined ? "runs until you stop it" : `${left} ${left === 1n ? "buy" : "buys"} left`
                             }`}
                       </div>
@@ -340,20 +348,26 @@ export default function InvestPage() {
         )}
       </Card>
 
-      <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock interest venue</MockBadge>}>
+      <Card title="Earn interest" badge={<MockBadge>Mock venue</MockBadge>}>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          Lend idle vault USDC to earn interest. Not guaranteed.
-          {EARN_FEE_BPS > 0n && ` Stackday fee: ${feeLabel(EARN_FEE_BPS)} a year, taken only out of the interest.`}{" "}
+          <Responsive m="Earn a variable rate on idle USDC. Not guaranteed." d="Lend idle USDC in your vault to earn a variable rate. Not guaranteed." />
+          {EARN_FEE_BPS > 0n && ` ${BRAND.name} fee: ${feeLabel(EARN_FEE_BPS)} a year, taken only out of the interest.`}{" "}
           <LearnMore href="/docs#earn" />
         </p>
-        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Stat label="Earning now" value={`$${fmtUsdc(p.earning, 4)}`} />
-          <Stat label="Idle in your vault" value={`$${fmtUsdc(p.vaultUsdc)}`} />
-          <Stat label="In your wallet" value={`$${fmtUsdc(p.walletUsdc)}`} />
-        </div>
-        <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+        <dl className="mt-5 grid grid-cols-3">
+          <div className="min-w-0 pr-3 sm:pr-6">
+            <Stat label="Earning" value={`$${fmtUsdc(p.earning, 4)}`} />
+          </div>
+          <div className="min-w-0 border-l border-line px-3 sm:px-6">
+            <Stat label="Idle in vault" value={`$${fmtUsdc(p.vaultUsdc)}`} />
+          </div>
+          <div className="min-w-0 border-l border-line pl-3 sm:pl-6">
+            <Stat label="In wallet" value={`$${fmtUsdc(p.walletUsdc)}`} />
+          </div>
+        </dl>
+        <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-start">
           <Field
-            label="Amount to put to work"
+            label="Amount"
             inputMode="decimal"
             placeholder="0.00"
             suffix="USDC"
@@ -373,11 +387,11 @@ export default function InvestPage() {
               </>
             }
           />
-          <Button disabled={!viewer.canAct || earn === 0n || fromWallet > p.walletUsdc || tx.state.busy} onClick={startEarning}>
+          <Button className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || earn === 0n || fromWallet > p.walletUsdc || tx.state.busy} onClick={startEarning}>
             Start earning
           </Button>
-          <Button variant="secondary" disabled={!viewer.canAct || p.earning === 0n || tx.state.busy} onClick={stopEarning}>
-            Take it all back
+          <Button variant="secondary" className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || p.earning === 0n || tx.state.busy} onClick={stopEarning}>
+            Withdraw all
           </Button>
         </div>
       </Card>

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { DEFAULT_SLOT, nextSlot } from "@/lib/slots";
-import { Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus } from "@/components/ui";
+import { Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Responsive, Segmented, Select, SplitBar, TxStatus } from "@/components/ui";
+import { BRAND } from "@/lib/brand";
 import { payrollAbi, routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS, CHAIN_ID, SIP_FEE_BPS, type Asset } from "@/lib/contracts";
 import { assetForUsdc, fmtPct, fmtUsdc, parseUsdc } from "@/lib/format";
@@ -29,7 +30,7 @@ import { useTx, type Call } from "@/lib/useTx";
 /** Longer explanations live on the docs page (source text: docs/themes/for-the-docs-page.md). */
 function LearnMore() {
   return (
-    <Link href="/docs#themes" className="text-[13px] font-semibold text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand">
+    <Link href="/docs#themes" className="rounded-sm text-[13px] font-medium text-brand-ink underline decoration-brand-ink/30 underline-offset-2 hover:decoration-brand-ink">
       Learn more
     </Link>
   );
@@ -37,6 +38,13 @@ function LearnMore() {
 
 /** Market mood: a hand-built, labelled snapshot (lib/themes/mood-snapshot.json), not a live feed. */
 const SNAPSHOT = validateSnapshot(snapshotJson);
+
+/** "12 Nov 2026" from an ISO date. Presentation only (no clock read, so it is safe to prerender). */
+function shortDate(iso: string) {
+  const d = new Date(iso.slice(0, 10) + "T12:00:00Z");
+  if (isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
 
 function moodWord(m: number) {
   if (m <= -0.35) return "Fearful";
@@ -54,7 +62,7 @@ function MoodCard({ picked }: { picked: string[] }) {
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.materiality - a.materiality)
     .slice(0, 3);
   return (
-    <Card title={`Market mood, reading of ${SNAPSHOT.asOf.slice(0, 10)}`} badge={<MockBadge>Snapshot, not live</MockBadge>} action={<LearnMore />}>
+    <Card title={`Market mood · ${shortDate(SNAPSHOT.asOf)}`} badge={<MockBadge>Snapshot, not live</MockBadge>} action={<LearnMore />}>
       <p className="text-xs text-muted">{SNAPSHOT.label}</p>
       <p className="mt-1 text-xs text-muted">Mood summarises recent news. It does not predict prices and does not change your split.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -63,10 +71,10 @@ function MoodCard({ picked }: { picked: string[] }) {
           const m = themeMood(SNAPSHOT, id);
           const risky = t.tickers.filter((x) => SNAPSHOT.assets[x]?.materialRisk);
           return (
-            <div key={id} className="rounded-2xl border border-line p-4">
+            <div key={id} className="rounded-xl border border-line px-3.5 py-3">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-semibold">{t.name}</span>
-                <span className="text-sm font-semibold">
+                <span className="text-sm font-medium">{t.name}</span>
+                <span className="text-sm font-medium">
                   {moodWord(m)} <span className="font-normal tabular-nums text-muted">({m.toFixed(2)})</span>
                 </span>
               </div>
@@ -81,11 +89,11 @@ function MoodCard({ picked }: { picked: string[] }) {
         <ul className="mt-4 divide-y divide-line">
           {items.map((it) => (
             <li key={it.url + it.ticker} className="py-3 first:pt-0 last:pb-0">
-              <a href={it.url} target="_blank" rel="noreferrer" className="text-sm font-semibold underline decoration-line-strong underline-offset-2 hover:decoration-ink">
+              <a href={it.url} target="_blank" rel="noreferrer" className="rounded-sm text-sm font-medium underline decoration-line-strong underline-offset-2 hover:decoration-ink">
                 {it.title}
               </a>
               <div className="mt-0.5 text-xs text-muted">
-                {it.source} · {it.publishedAt.slice(0, 10)} · {assetOf(it.ticker)?.name ?? it.ticker} · materiality {it.materiality.toFixed(2)}
+                {it.source} · {shortDate(it.publishedAt)} · {assetOf(it.ticker)?.name ?? it.ticker} · impact {it.materiality.toFixed(2)}
                 {it.is_opinion ? " · opinion" : ""}
               </div>
               <p className="mt-1 text-xs italic leading-relaxed text-ink-soft">&ldquo;{it.evidence_quote}&rdquo;</p>
@@ -182,7 +190,7 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
   async function buyNow() {
     const buys = proposal.buys.map((b) => ({ a: assetFor(b.ticker)!, usdc: BigInt(Math.floor(b.usd * 1e6)) })).filter((b) => b.a && b.usdc > 0n);
     const total = buys.reduce((s, b) => s + b.usdc, 0n);
-    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, "Allow Stackday to take the USDC"))];
+    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, "Approve USDC"))];
     for (const b of buys) {
       const price = p.positions.find((x) => x.asset.symbol === b.a.symbol)?.price;
       const min = price ? (assetForUsdc(b.usdc - (b.usdc * SIP_FEE_BPS) / 10_000n, price, b.a.decimals) * 99n) / 100n : 0n;
@@ -207,7 +215,7 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
           <Notice tone="warn">
             Above target:{" "}
             {drifted.map((d) => `${d.label} is ${(d.now * 100).toFixed(0)}% of your vault (target ${(d.target * 100).toFixed(0)}%)`).join("; ")}. New
-            buys go elsewhere first, but Stackday cannot sell for you, so this can last.
+            buys go elsewhere first. {BRAND.name} never sells, so this can last.
           </Notice>
         </div>
       )}
@@ -220,25 +228,25 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
           <div className="mt-4 max-w-sm">
             <Field label="New money to place" inputMode="decimal" placeholder="0.00" suffix="USDC" value={amt} onChange={(e) => setAmt(e.target.value)} />
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="-mx-4 mt-4 overflow-x-auto border-y border-line sm:-mx-5">
             <table className="w-full min-w-[28rem] text-left text-sm">
-              <thead className="text-xs text-muted">
+              <thead className="border-b border-line bg-surface-2 text-xs text-muted">
                 <tr>
-                  <th className="py-2 font-medium">Holding</th>
-                  <th className="py-2 text-right font-medium">Target</th>
-                  <th className="py-2 text-right font-medium">Now</th>
-                  {newMoney > 0 && <th className="py-2 text-right font-medium">After</th>}
-                  <th className="py-2 text-right font-medium">Status</th>
+                  <th scope="col" className="h-10 px-3 pl-4 font-medium sm:pl-5">Holding</th>
+                  <th scope="col" className="h-10 px-3 text-right font-medium">Target</th>
+                  <th scope="col" className="h-10 px-3 text-right font-medium">Now</th>
+                  {newMoney > 0 && <th scope="col" className="h-10 px-3 text-right font-medium">After</th>}
+                  <th scope="col" className="h-10 px-3 pr-4 text-right font-medium sm:pr-5">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {rows.map((r) => (
                   <tr key={r.ticker}>
-                    <td className="py-2">{r.name}</td>
-                    <td className="py-2 text-right tabular-nums">{(r.targetShare * 100).toFixed(1)}%</td>
-                    <td className="py-2 text-right tabular-nums">{((before[r.ticker]?.currentShare ?? 0) * 100).toFixed(1)}%</td>
-                    {newMoney > 0 && <td className="py-2 text-right tabular-nums">{(r.currentShare * 100).toFixed(1)}%</td>}
-                    <td className={`py-2 text-right text-xs font-semibold ${before[r.ticker]?.outOfBand ? "text-warn" : "text-grow"}`}>
+                    <td className="h-12 px-3 pl-4 font-medium sm:pl-5">{r.name}</td>
+                    <td className="h-12 px-3 text-right tabular-nums">{(r.targetShare * 100).toFixed(1)}%</td>
+                    <td className="h-12 px-3 text-right tabular-nums">{((before[r.ticker]?.currentShare ?? 0) * 100).toFixed(1)}%</td>
+                    {newMoney > 0 && <td className="h-12 px-3 text-right tabular-nums">{(r.currentShare * 100).toFixed(1)}%</td>}
+                    <td className={`h-12 px-3 pr-4 text-right text-xs font-medium sm:pr-5 ${before[r.ticker]?.outOfBand ? "text-warn" : "text-grow"}`}>
                       {before[r.ticker]?.outOfBand ? "Off target" : "In range"}
                     </td>
                   </tr>
@@ -261,10 +269,10 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
               </ul>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button disabled={!viewer.canAct || proposal.buys.length === 0 || rebalanceBlocked.length > 0 || parseUsdc(amt) > p.walletUsdc || tx.state.busy} onClick={buyNow}>
-                  Buy these now from my wallet
+                  <Responsive m="Buy now" d="Buy now from wallet" />
                 </Button>
                 <Button variant="secondary" disabled={!viewer.canAct || legAssets.length === 0 || tx.state.busy} onClick={useForPayday}>
-                  Use for my next paydays ({fmtPct(share)} of salary)
+                  <Responsive m="Use on paydays" d={`Use on paydays (${fmtPct(share)} of salary)`} />
                 </Button>
               </div>
               <PriceBlock tickers={rebalanceBlocked} />
@@ -277,7 +285,7 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
   );
 }
 
-/** The real tickers that have a Stackday token on this network (on testnet: the mocks). */
+/** The real tickers that have a token on this network (on testnet: the mocks). */
 const AVAILABLE = ASSETS.map((a) => a.realTicker);
 const assetFor = (ticker: string): Asset | undefined => ASSETS.find((a) => a.realTicker === ticker);
 const CUSHION_COLOR = "#cbd5e1";
@@ -299,23 +307,21 @@ function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string
             type="button"
             aria-pressed={on}
             onClick={() => toggle(t.id)}
-            className={`rounded-2xl border p-4 text-left transition-[border-color,background-color,transform] duration-200 active:scale-[0.99] ${
-              on ? "border-ink bg-surface" : "border-line bg-surface/60 hover:border-line-strong"
-            }`}
+            className="tile rounded-2xl p-4 text-left"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold">{t.name}</span>
-              <span className={`text-xs font-semibold ${on ? "text-brand" : "text-muted"}`}>{on ? "Picked" : "Pick"}</span>
+              <span className="text-sm font-semibold text-ink">{t.name}</span>
+              <span className={`text-xs font-medium ${on ? "text-brand-ink" : "text-muted"}`}>{on ? "Picked" : "Pick"}</span>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-muted">{t.thesis}</p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {t.tickers.map((x) => (
                 <span
                   key={x}
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
                     live.includes(x) ? "bg-ink text-canvas" : "bg-sunken text-muted"
                   }`}
-                  title={live.includes(x) ? "Can be bought here" : "Preview only on this network"}
+                  title={live.includes(x) ? "Buyable on testnet (mock)" : "Preview only on this network"}
                 >
                   {x}
                 </span>
@@ -325,9 +331,9 @@ function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string
         );
       })}
       {COMING_SOON.map((name) => (
-        <div key={name} className="rounded-2xl border border-dashed border-line p-4 text-left opacity-70" aria-disabled>
-          <div className="text-sm font-semibold">{name}</div>
-          <p className="mt-1.5 text-xs text-muted">When tokenized on Base</p>
+        <div key={name} className="rounded-2xl border border-dashed border-line-strong p-4 text-left" aria-disabled>
+          <div className="text-sm font-semibold text-muted">{name}</div>
+          <p className="mt-1.5 text-xs text-muted">Coming later</p>
         </div>
       ))}
     </div>
@@ -349,18 +355,18 @@ function PlanView({ plan }: { plan: Plan }) {
   ];
   return (
     <div>
-      <SplitBar parts={parts} height={14} />
+      <SplitBar parts={parts} height={8} />
       <ul className="mt-5 divide-y divide-line">
         {plan.holdings.map((h) => {
           const a = assetFor(h.ticker);
           return (
             <li key={h.ticker} className="flex items-start justify-between gap-4 py-3 first:pt-0">
               <div className="flex items-start gap-3">
-                <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: colorOf(h.ticker) }} aria-hidden />
+                <span className="mt-1 h-3 w-3 shrink-0 rounded-full shadow-[0_0_0_1px_var(--line-strong)]" style={{ background: colorOf(h.ticker) }} aria-hidden />
                 <div>
                   <div className="text-sm font-semibold">
                     {h.name} <span className="font-normal text-muted">{h.ticker}</span>
-                    {a && <span className="ml-1.5 text-xs font-normal text-muted">(testnet: {a.symbol}, mock)</span>}
+                    {a && <span className="ml-1.5 text-xs font-normal text-muted">({a.symbol}, mock)</span>}
                   </div>
                   <p className="mt-1 text-xs leading-relaxed text-muted">{shortWhy(h.why)}</p>
                 </div>
@@ -371,10 +377,10 @@ function PlanView({ plan }: { plan: Plan }) {
         })}
         <li className="flex items-start justify-between gap-4 py-3 last:pb-0">
           <div className="flex items-start gap-3">
-            <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: CUSHION_COLOR }} aria-hidden />
+            <span className="mt-1 h-3 w-3 shrink-0 rounded-full shadow-[0_0_0_1px_var(--line-strong)]" style={{ background: CUSHION_COLOR }} aria-hidden />
             <div>
               <div className="text-sm font-semibold">USDC cushion</div>
-              <p className="mt-1 text-xs text-muted">Kept as cash, not bought</p>
+              <p className="mt-1 text-xs text-muted">Kept as cash</p>
             </div>
           </div>
           <span className="text-sm font-semibold tabular-nums">{fmtPct(plan.usdcBps, 1)}</span>
@@ -389,7 +395,7 @@ function PlanView({ plan }: { plan: Plan }) {
       )}
       {plan.previewOnly.length > 0 && (
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Preview only here:{" "}
+          Preview only on testnet:{" "}
           {plan.previewOnly.map((t) => `${assetOf(t)?.name ?? t} (${t})`).join(", ")}.
         </p>
       )}
@@ -450,7 +456,7 @@ export default function ThemesPage() {
 
   async function buyOnce() {
     const total = onceSplit.buys.reduce((s, b) => s + b.usdc, 0n);
-    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, "Allow Stackday to take the USDC"))];
+    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, "Approve USDC"))];
     for (const b of onceSplit.buys) {
       const a = assetFor(b.ticker)!;
       calls.push({ label: `Buy ${a.name}`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [a.token, b.usdc, minOut(a, b.usdc)] });
@@ -471,22 +477,22 @@ export default function ThemesPage() {
         args: [a.token, b.usdc, Number(interval) * 86400, 100, nextSlot(DEFAULT_SLOT.day, DEFAULT_SLOT.time, Math.floor(Date.now() / 1000))],
       });
     }
-    if (await tx.run(calls, "Recurring plans saved, one per asset. They show on the Invest page.")) setPerBuy("");
+    if (await tx.run(calls, "Recurring buys saved, one per asset. See them on Invest.")) setPerBuy("");
   }
 
   return (
     <>
       <PageHeader
         title="Themes"
-        lead="Pick themes and a risk level. Get a split for your next buys."
+        lead="Pick themes and a risk level to get a suggested split for your next buys."
         aside={<LearnMore />}
       />
 
-      {!viewer.address && <Notice>Connect a wallet to use a plan.</Notice>}
+      {!viewer.address && <Notice>Connect your wallet to use this split.</Notice>}
 
       <Card title="1. Pick your themes" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
         <ThemePicker picked={picked} toggle={toggle} />
-        <p className="mt-3 text-xs text-muted">Dark: buyable here (mock). Grey: preview only.</p>
+        <p className="mt-3 text-xs text-muted">Dark: buyable on testnet (mock). Grey: preview only.</p>
       </Card>
 
       <Card title="2. Your risk level">
@@ -497,7 +503,7 @@ export default function ThemesPage() {
         />
         <p className="mt-3 text-sm text-muted">{RISK_LEVELS[risk].blurb}</p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-          <span className="font-semibold">Targets for new buys:</span>
+          <span className="font-medium text-ink-soft">Targets for new buys:</span>
           <span>No stock above 15%</span>
           <span aria-hidden>·</span>
           <span>No theme above 40%</span>
@@ -558,13 +564,13 @@ export default function ThemesPage() {
                 <p className="mt-2 text-xs text-muted">Left out (max 6 assets): {legs.dropped.join(", ")}</p>
               )}
               <Button className="mt-4" disabled={!viewer.canAct || legAssets.length === 0 || samePlan || tx.state.busy} onClick={savePaydayPlan}>
-                {samePlan ? "This is already your payday plan" : "Use this split on every payday"}
+                {samePlan ? "Current payday plan" : "Use on every payday"}
               </Button>
               <p className="mt-2 text-xs text-muted">Replaces your current payday plan.</p>
             </div>
           ) : (
-            <div className="mt-5 grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-line p-4">
+            <div className="-mx-4 mt-5 grid border-t border-line sm:-mx-5 lg:grid-cols-2">
+              <div className="px-4 pt-5 sm:px-5 lg:pb-1">
                 <h3 className="text-sm font-semibold">Buy the split once</h3>
                 <div className="mt-3">
                   <Field
@@ -588,14 +594,14 @@ export default function ThemesPage() {
                 >
                   Buy the split
                 </Button>
-                {once > p.walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet does not hold that much USDC.</p>}
+                {once > p.walletUsdc && <p className="mt-2 text-xs text-danger">Not enough USDC in your wallet.</p>}
                 <PriceBlock tickers={blocked} />
               </div>
 
-              <div className="rounded-2xl border border-line p-4">
+              <div className="mt-6 border-t border-line px-4 pt-5 sm:px-5 lg:mt-0 lg:border-l lg:border-t-0 lg:pb-1">
                 <h3 className="text-sm font-semibold">Buy the split on a schedule</h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label="Each time" inputMode="decimal" placeholder="0.00" suffix="USDC" value={perBuy} onChange={(e) => setPerBuy(e.target.value)} />
+                  <Field label="Amount per buy" inputMode="decimal" placeholder="0.00" suffix="USDC" value={perBuy} onChange={(e) => setPerBuy(e.target.value)} />
                   <Select
                     label="How often"
                     value={interval}
@@ -608,12 +614,12 @@ export default function ThemesPage() {
                   />
                 </div>
                 <Button
-                  variant="ink"
+                  variant="secondary"
                   className="mt-3 w-full"
                   disabled={!viewer.canAct || recurring === 0n || recurringSplit.buys.length === 0 || tx.state.busy}
                   onClick={startRecurring}
                 >
-                  Start the recurring plans
+                  Start recurring buys
                 </Button>
                 {recurringSplit.buys.length > 0 && (
                   <p className="mt-2 text-xs text-muted">Per asset: {recurringSplit.buys.map((b) => `${fmtUsdc(b.usdc)} USDC ${b.ticker}`).join(", ")}</p>
@@ -628,8 +634,19 @@ export default function ThemesPage() {
       {plan.holdings.length > 0 && viewer.address && <RebalanceCard plan={plan} p={p} share={Number(share)} risk={risk} />}
 
       <Notice tone="warn">
-        <strong>Information, not advice.</strong> Prices can fall. Not for people in the United States. No voting rights. Mock
-        tokens on testnet.
+        <Responsive
+          m={
+            <>
+              <strong className="font-semibold">Not investment advice.</strong> Eligible non-US persons only. No voting rights. Mock tokens.
+            </>
+          }
+          d={
+            <>
+              <strong className="font-semibold">Not investment advice.</strong> Prices can fall. Tokenized stocks are for eligible persons outside
+              the US and carry no voting rights. Mock tokens on testnet.
+            </>
+          }
+        />
       </Notice>
     </>
   );

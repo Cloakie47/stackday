@@ -12,11 +12,10 @@ import { ADDR, ASSETS } from "@/lib/contracts";
 import { fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
-import { BRAND } from "@/lib/brand";
 
 const STORY = [
   "Payroll: add yourself to the team, fund the treasury and start a schedule (or pay once).",
-  "My pay: claim with 10% or 20% going to work. The assets land in your vault (deposit).",
+  "My pay: claim with 10% or 20% invested. The assets land in your vault (deposit).",
   "Borrow: lock some of them, then borrow USDC against them.",
   "Here: drop that asset's price 30%. Open Risk and watch loan health fall.",
   "Here: pause transfers. On Borrow, repaying still works but withdrawing does not.",
@@ -61,7 +60,7 @@ export default function DemoPage() {
     if (!viewer.address) return;
     const amount = parseUsdc(payday);
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, amount, `Allow ${BRAND.name} to take the USDC`)),
+      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, amount, "Approve USDC")),
       {
         label: "Create a payday for this wallet",
         address: ADDR.payroll,
@@ -76,29 +75,29 @@ export default function DemoPage() {
   return (
     <>
       <PageHeader
-        title="Demo panel"
+        title="Testnet tools"
         lead={
           <>
-            Testnet switches to show stress scenarios. They only change mocks. <LearnMore href="/docs#demo" />
+            Switches for stress scenarios. They only change mocks. <LearnMore href="/docs#demo" />
           </>
         }
         aside={<MockBadge>Testnet only</MockBadge>}
       />
 
       {isOperator ? (
-        <Notice tone="grow">You are connected as the demo operator, so the switches below work.</Notice>
+        <Notice tone="grow">Connected as the demo operator. Switches are on.</Notice>
       ) : (
         <Notice tone="warn">
-          Only the demo operator wallet {operator && <AddressLink address={operator} />} can use the market switches.
-          {viewer.canAct ? " You are connected with a different wallet." : " Connect that wallet to use them."}
+          Only the operator wallet {operator && <AddressLink address={operator} />} can use these switches.
+          {viewer.canAct ? " You're on a different wallet." : " Connect that wallet to use them."}
         </Notice>
       )}
 
-      <Card title="The story to show">
-        <ol className="space-y-2 text-sm leading-relaxed">
+      <Card title="Demo script">
+        <ol className="space-y-2 text-sm leading-relaxed text-ink-soft">
           {STORY.map((s, i) => (
             <li key={s} className="flex gap-3">
-              <span className="font-mono text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
+              <span className="w-4 shrink-0 pt-px text-right text-xs font-medium tabular-nums text-muted">{i + 1}</span>
               {s}
             </li>
           ))}
@@ -125,9 +124,9 @@ export default function DemoPage() {
             Recover to starting price
           </Button>
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
           <Field label="Or set an exact price" inputMode="decimal" placeholder="0.00" suffix="USD" value={custom} onChange={(e) => setCustom(e.target.value)} />
-          <Button variant="secondary" disabled={disabled || parseUsdc(custom) === 0n} onClick={() => setPrice(parseUsdc(custom) * 100n, `Set the ${asset.name} price`)}>
+          <Button variant="secondary" className="min-h-11 sm:mt-[25.5px]" disabled={disabled || parseUsdc(custom) === 0n} onClick={() => setPrice(parseUsdc(custom) * 100n, `Set the ${asset.name} price`)}>
             Set price
           </Button>
         </div>
@@ -191,16 +190,16 @@ export default function DemoPage() {
         <p className="text-sm leading-relaxed text-muted">
           Pays the connected wallet from its own test USDC.
         </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
           <Field label="Salary" inputMode="decimal" suffix="USDC" value={payday} onChange={(e) => setPayday(e.target.value)} hint={`Wallet: ${fmtUsdc(p.walletUsdc)} USDC.`} />
-          <Button disabled={!viewer.canAct || tx.state.busy || parseUsdc(payday) === 0n || parseUsdc(payday) > p.walletUsdc} onClick={runPayday}>
+          <Button className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || tx.state.busy || parseUsdc(payday) === 0n || parseUsdc(payday) > p.walletUsdc} onClick={runPayday}>
             Create payday
           </Button>
         </div>
       </Card>
 
       <Card title="Housekeeping" badge={<MockBadge />}>
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
           <Field
             label="Pay interest into the mock interest venue"
             inputMode="decimal"
@@ -211,6 +210,7 @@ export default function DemoPage() {
           />
           <Button
             variant="secondary"
+            className="min-h-11 sm:mt-[25.5px]"
             disabled={!viewer.canAct || tx.state.busy || parseUsdc(interest) === 0n}
             onClick={() =>
               tx.run(
@@ -222,8 +222,8 @@ export default function DemoPage() {
             Pay interest
           </Button>
         </div>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-          <p className="text-sm">
+        <div className="-mx-4 mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 pt-4 sm:-mx-5 sm:px-5">
+          <p className="text-sm text-ink-soft">
             The mock exchange holds <strong>{fmtUsdc(exchangeUsdc)} USDC</strong> from purchases.
           </p>
           <Button

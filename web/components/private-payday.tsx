@@ -192,7 +192,11 @@ export function PayNow({
           {privateList.length > 0 ? `: Fairblock sends one private payment at a time, each signed` : ""}
         </span>
       </div>
-      {fromWallet > walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet holds ${fmtUsdc(walletUsdc)} USDC; this payday needs ${fmtUsdc(fromWallet)} from it.</p>}
+      {fromWallet > walletUsdc && (
+        <p className="mt-2 text-xs text-danger">
+          Not enough USDC. This payday needs {fmtUsdc(fromWallet)} USDC from your wallet; you have {fmtUsdc(walletUsdc)} USDC.
+        </p>
+      )}
 
       {progress && (
         <p className="mt-4 flex items-center gap-2 text-sm text-muted">
