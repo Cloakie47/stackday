@@ -1,6 +1,7 @@
 "use client";
 
 import { LearnMore } from "@/components/learn-more";
+import { PrivatePaySetup } from "@/components/private-collect";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,7 +36,7 @@ function useNow() {
   return now;
 }
 
-function Invitations() {
+function Invitations({ canAct }: { canAct: boolean }) {
   const account = useAccountState();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState<string>();
@@ -91,6 +92,7 @@ function Invitations() {
         ))}
       </div>
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+      <PrivatePaySetup address={account.address} canAct={canAct} />
     </Card>
   );
 }
@@ -534,7 +536,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {businessMode && <Invitations />}
+      {businessMode && <Invitations canAct={viewer.canAct} />}
 
       <Account canAct={viewer.canAct} wallet={viewer.address} />
     </>

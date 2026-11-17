@@ -1,5 +1,6 @@
 "use client";
 
+import { PrivateCollect } from "@/components/private-collect";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
@@ -391,6 +392,7 @@ export default function PayPage() {
           </div>
         </Card>
       )}
+      <PrivateCollect p={p} address={me} canAct={viewer.canAct} />
     </>
   );
 }

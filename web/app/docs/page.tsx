@@ -44,6 +44,7 @@ const SECTIONS: DocsSection[] = [
   { id: "vault", label: "Your vault and fees" },
   { id: "themes", label: "Themes and risk rules" },
   { id: "borrowing", label: "Borrowing and health" },
+  { id: "private-pay", label: "Private pay" },
   { id: "testnet", label: "Testnet: real and mocked" },
   { id: "contracts", label: "Contract addresses" },
   { id: "security", label: "Security and risks" },
@@ -460,6 +461,32 @@ export default function DocsPage() {
                   "Interest is set by the market, changes with demand, and is added to what you owe every second.",
                 ]}
               />
+            </Section>
+
+            <Section id="private-pay" title="Private pay">
+              <p>
+                Private pay hides salary amounts on chain using Fairblock&apos;s confidential transfers (StableTrust). It is
+                real on Base Sepolia, not mocked, and Fairblock also runs it on Base mainnet.
+              </p>
+              <p>
+                Each team member turns on private pay once (the team invite on Home offers it), so their account is ready
+                before the first private payday. On Payroll, the Private payday panel shows who is ready, pays them all in one
+                go (it tops up the employer&apos;s private balance from their wallet, then sends each person an encrypted amount)
+                and can pay anyone not set up yet the normal way. Only the sender and the receiver can read an amount; each
+                decrypts it in their own browser with keys made from one wallet signature. Wallet addresses still show.
+              </p>
+              <p>
+                On My pay, the team member checks their private pay, picks a share to invest (none, 10%, 20% or their own),
+                an asset, and whether the rest stays private or goes to their wallet. One button collects the share from the
+                private balance and buys the asset into their vault (a one-time buy, so no {BRAND.name} fee). Whatever stays
+                private never shows on chain. Fairblock&apos;s network confirms each step, usually within a minute on testnet,
+                and may charge a small fee on withdrawals.
+              </p>
+              <p>
+                Private pay runs beside {BRAND.name}&apos;s payroll contract, not inside it, because the keys live in each
+                person&apos;s browser and a contract cannot send a private payment on its own. {BRAND.name} never holds this money.
+                Amounts move in whole cents.
+              </p>
             </Section>
 
             <Section id="testnet" title="Testnet: real and mocked">
