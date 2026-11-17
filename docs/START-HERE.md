@@ -50,7 +50,7 @@ Built, tested and live on testnet:
 | Borrowing | Lock collateral as one basket of any assets, then borrow, repay, unlock, withdraw through real Morpho markets. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
-| Revenue | Fixed 0.25 percent fee on USDC that recurring plans put into assets; one-time buys are free | Payroll and SipRouter |
+| Revenue | Small fixed fees, 0.2 percent at most: 0.15 percent on recurring buys (one-time free), 0.1 percent once on borrowing, 0.1 percent a year from interest on idle USDC | Payroll, SipRouter, EmployeeVault (settings in VaultFactory) |
 | Web app | Landing, Start (Personal or Business), Home, My pay, Invest (with real price chart), Borrow (collateral basket), Risk, Payroll, Docs, Testnet tools | web/app |
 | Account database | Unique name per wallet, saved team lists, attendance check-in. Connected on the live site | web/app/api, supabase/schema.sql |
 

@@ -25,7 +25,7 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - Withdraw any time after repaying the loan against the position.
 - Lending venues: Morpho first, Aave second, both behind the same lending adapter interface.
 - Idle USDC yield: founder decided it is USDC in the employee own vault that earns (not unclaimed salary). Built behind IYieldAdapter.
-- Revenue: a SIP fee on USDC that a recurring plan puts into stock (the standing payday plan, or a SipRouter recurring plan; one-time buys are free, founder decision November 16, 2026), immutable at deployment (planned 25 bps, code cap 100 bps), in Payroll and SipRouter. Never charge salary paid out, never reach into vaults, never add a way to change the fee. Local tests deploy with fee 0 except test/Fee.t.sol.
+- Revenue: small fees only, 0.1 to 0.2 percent at most (founder decision November 17, 2026, issue #45), every one immutable at deployment and capped in code at 20 bps. (1) SIP fee on USDC a recurring plan puts into stock (standing payday plan or SipRouter recurring plan; one-time buys are free), 15 bps, in Payroll and SipRouter. (2) Borrow fee, 10 bps once, taken from the borrowed USDC in EmployeeVault.borrow. (3) Earn fee, 10 bps a year of the amount earning, taken only out of interest in EmployeeVault.stopEarning. Fee settings live in Payroll, SipRouter and VaultFactory. Never charge salary paid out, never take from money in a vault or collateral, never add a way to change a fee. Local tests deploy with fees 0 except test/Fee.t.sol and test/SmallFees.t.sol.
 - Out of scope for v1: own lending pool, pooled employee funds, token launch. Confidential salaries are the next step, not v1: keep a clean payout interface so Fairblock-style confidential transfers can plug in.
 
 ## Technical rules
@@ -85,4 +85,4 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - Only the founder publishes the live site and changes the official testnet deployment. If you are not the founder's session: do not run `vercel --prod`, do not overwrite deployments/base-sepolia.json (use DEPLOYMENTS_FILE for your own copy), do not touch the live database.
 - Contract changes need an agreed issue first, because they force a redeploy.
 - CI (.github/workflows/ci.yml) runs `forge test` and the web build (which type-checks) on every pull request. Do not add a bare `tsc` step before the build: Next.js generates types such as LayoutProps during the build.
-- Revenue model, team workflow and feedback loop are described in README.md. Only the SIP fee is built.
+- Revenue model, team workflow and feedback loop are described in README.md. Built: SIP fee, borrow fee, earn fee.

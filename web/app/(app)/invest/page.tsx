@@ -4,16 +4,17 @@ import { PriceChart } from "@/components/price-chart";
 import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
+import { erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Empty, Field, FillAmount, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, mockSwapAbi, routerAbi, vaultAbi } from "@/lib/abis";
-import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
+import { ADDR, ASSETS, EARN_FEE_BPS, MAX_UINT, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until, usdcInput } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
-import { DEFAULT_SLOT, SLOT_DAYS, SLOT_TIMES, nextSlot, slotLabel } from "@/lib/slots";
+import { DEFAULT_SLOT, SLOT_DAYS, nextSlot, slotLabel } from "@/lib/slots";
 
 /** Above this, a manual buy shows "Slippage is too high" (the buy itself refuses to fill past 1%). */
 const MAX_SLIPPAGE_BPS = 100n;
@@ -40,7 +41,7 @@ export default function InvestPage() {
   const [perBuy, setPerBuy] = useState("");
   const [interval, setIntervalDays] = useState("7");
   const [slotDay, setSlotDay] = useState(String(DEFAULT_SLOT.day));
-  const [slotTime, setSlotTime] = useState<string>(DEFAULT_SLOT.time);
+  const [weeks, setWeeks] = useState("12");
   const [earnAmt, setEarnAmt] = useState("");
   const [now, setNow] = useState(0);
 
@@ -82,12 +83,27 @@ export default function InvestPage() {
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
   }
 
-  /** The first buy is the next chosen weekday and time in New York; later buys keep that slot. */
-  const firstBuyAt = () => nextSlot(Number(slotDay), slotTime, Math.floor(Date.now() / 1000));
+  /** The first buy is the next chosen weekday at 11:00 New York time; later buys keep that slot. */
+  const firstBuyAt = () => nextSlot(Number(slotDay), DEFAULT_SLOT.time, Math.floor(Date.now() / 1000));
+
+  // How long a plan runs: the wallet approval covers exactly that many buys, then the plan stops on
+  // its own (the next buy cannot take the USDC). "Until I stop" approves without a limit.
+  const buysFor = (intervalDays: number) => (weeks === "0" ? 0 : Math.max(1, Math.ceil((Number(weeks) * 7) / intervalDays)));
+  const buyCount = buysFor(Number(interval));
+  const MAX_APPROVAL = 2n ** 256n - 1n;
+  const approveMore = (extra: bigint, label: string): Call => ({
+    label,
+    address: ADDR.usdc,
+    abi: erc20Abi,
+    functionName: "approve",
+    args: [ADDR.router, extra === MAX_APPROVAL || p.routerAllowance + extra > MAX_APPROVAL - 1n ? MAX_APPROVAL : p.routerAllowance + extra],
+  });
 
   async function savePlan() {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.router, recurringAmount * 12n, "Allow up to 12 recurring buys")),
+      buyCount === 0
+        ? approveMore(MAX_APPROVAL, "Allow recurring buys until you stop them")
+        : approveMore(recurringAmount * BigInt(buyCount), `Allow ${buyCount} recurring buys`),
       {
         label: "Save your recurring plan",
         address: ADDR.router,
@@ -96,8 +112,24 @@ export default function InvestPage() {
         args: [asset.token, recurringAmount, Number(interval) * 86400, 100, firstBuyAt()],
       },
     ];
-    if (await tx.run(calls, `Recurring plan saved. Buys run ${slotLabel(Number(slotDay), slotTime)} New York time.`)) setPerBuy("");
+    if (await tx.run(calls, `Recurring plan saved. Buys run ${slotLabel(Number(slotDay), DEFAULT_SLOT.time)} New York time.`)) {
+      setPerBuy("");
+      // Let the trigger bot know, so future buys run on time. Optional: works without the database.
+      fetch("/api/keeper/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet: me, asset: asset.token }),
+      }).catch(() => {});
+    }
   }
+
+  const extendPlan = (x: Position) => {
+    const n = buysFor(Math.max(1, Math.round(x.recurring!.interval / 86400)));
+    return tx.run(
+      [n === 0 ? approveMore(MAX_APPROVAL, "Allow recurring buys until you stop them") : approveMore(x.recurring!.usdcPerBuy * BigInt(n), `Allow ${n} more buys`)],
+      "Plan extended.",
+    );
+  };
 
   const runPlan = (x: Position) =>
     me &&
@@ -194,7 +226,7 @@ export default function InvestPage() {
 
           <div className="rounded-2xl border border-line p-4">
             <h3 className="text-sm font-semibold">Buy on a schedule</h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <Field
                 label="Each time"
                 inputMode="decimal"
@@ -225,14 +257,32 @@ export default function InvestPage() {
                 ]}
               />
               <Select
-                label="Day"
+                label="How long"
+                value={weeks}
+                onChange={setWeeks}
+                options={[
+                  { value: "4", label: "4 weeks" },
+                  { value: "12", label: "12 weeks" },
+                  { value: "26", label: "26 weeks" },
+                  { value: "52", label: "1 year" },
+                  { value: "0", label: "Until I stop" },
+                ]}
+              />
+              <Select
+                label="Day (11:00 am New York)"
                 value={slotDay}
                 onChange={setSlotDay}
                 options={SLOT_DAYS.map((d) => ({ value: String(d.value), label: d.label }))}
               />
-              <Select label="Time (New York)" value={slotTime} onChange={setSlotTime} options={SLOT_TIMES.map((t) => ({ value: t.value, label: t.label }))} />
             </div>
             <p className="mt-2 text-xs text-muted">Buys run while the US market is open, when prices are steadiest.</p>
+            {recurringAmount > 0n && (
+              <p className="mt-2 text-xs text-muted">
+                {buyCount === 0
+                  ? "Runs until you cancel it."
+                  : `${buyCount} buys, $${fmtUsdc(recurringAmount * BigInt(buyCount))} in total. It stops on its own after the last one.`}
+              </p>
+            )}
             <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
               {pos.recurring ? "Replace the recurring buy" : "Start a recurring buy"}
             </Button>
@@ -249,6 +299,9 @@ export default function InvestPage() {
           <div className="divide-y divide-line">
             {plans.map((x) => {
               const due = now > 0 && x.recurring!.nextBuyAt <= now;
+              const unlimited = p.routerAllowance > 2n ** 200n;
+              const left = unlimited ? undefined : p.routerAllowance / x.recurring!.usdcPerBuy;
+              const ended = left === 0n;
               return (
                 <div key={x.asset.symbol} className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
                   <div className="flex items-center gap-3">
@@ -257,13 +310,25 @@ export default function InvestPage() {
                       <div className="text-sm font-semibold">
                         {fmtUsdc(x.recurring!.usdcPerBuy)} USDC into {x.asset.name} · {intervalLabel(x.recurring!.interval)}
                       </div>
-                      <div className="text-xs text-muted">{due ? "A buy is due now" : `Next buy ${until(x.recurring!.nextBuyAt, now)}`}</div>
+                      <div className="text-xs text-muted">
+                        {ended
+                          ? "Finished: the approved buys are used up"
+                          : `${due ? "A buy is due now" : `Next buy ${until(x.recurring!.nextBuyAt, now)}`} · ${
+                              left === undefined ? "runs until you stop it" : `${left} ${left === 1n ? "buy" : "buys"} left`
+                            }`}
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" disabled={!viewer.canAct || !due || tx.state.busy} onClick={() => runPlan(x)}>
-                      Run now
-                    </Button>
+                    {ended ? (
+                      <Button size="sm" variant="secondary" disabled={!viewer.canAct || tx.state.busy} onClick={() => extendPlan(x)}>
+                        Extend
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" disabled={!viewer.canAct || !due || tx.state.busy} onClick={() => runPlan(x)}>
+                        Run now
+                      </Button>
+                    )}
                     <Button size="sm" variant="danger" disabled={!viewer.canAct || tx.state.busy} onClick={() => cancelPlan(x)}>
                       Cancel
                     </Button>
@@ -277,7 +342,9 @@ export default function InvestPage() {
 
       <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock interest venue</MockBadge>}>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          Lend idle vault USDC to earn interest. Not guaranteed. <LearnMore href="/docs#earn" />
+          Lend idle vault USDC to earn interest. Not guaranteed.
+          {EARN_FEE_BPS > 0n && ` Stackday fee: ${feeLabel(EARN_FEE_BPS)} a year, taken only out of the interest.`}{" "}
+          <LearnMore href="/docs#earn" />
         </p>
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Stat label="Earning now" value={`$${fmtUsdc(p.earning, 4)}`} />

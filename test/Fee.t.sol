@@ -8,10 +8,10 @@ import {SipRouter} from "../src/SipRouter.sol";
 import {EmployeeVault} from "../src/EmployeeVault.sol";
 import {IPriceAdapter} from "../src/interfaces/IAdapters.sol";
 
-/// Platform revenue: a 0.25% SIP fee, fixed at deployment, only on USDC that a recurring plan puts into
+/// Platform revenue: a 0.15% SIP fee, fixed at deployment, only on USDC that a recurring plan puts into
 /// stock (the standing payday plan, or a SipRouter recurring buy). One-time buys are free.
 contract SipFeeTest is BaseTest {
-    uint16 internal constant FEE_BPS = 25;
+    uint16 internal constant FEE_BPS = 15;
     address internal treasury = makeAddr("treasury");
     Payroll internal feePayroll;
     SipRouter internal feeRouter;
@@ -46,8 +46,8 @@ contract SipFeeTest is BaseTest {
         feePayroll.claim(runId, aliceBank, 0); // 1,000 USDC SIP
         vm.stopPrank();
         assertEq(usdc.balanceOf(aliceBank), 4000 * U, "salary paid out is never charged");
-        assertEq(usdc.balanceOf(treasury), 2.5e6, "0.25% of 1,000 USDC");
-        assertEq(_vault(alice).idleOf(address(stock)), swapAdapter.quote(address(stock), 997.5e6));
+        assertEq(usdc.balanceOf(treasury), 1.5e6, "0.15% of 1,000 USDC");
+        assertEq(_vault(alice).idleOf(address(stock)), swapAdapter.quote(address(stock), 998.5e6));
         assertEq(usdc.balanceOf(address(feePayroll)), 0);
     }
 
@@ -89,7 +89,7 @@ contract SipFeeTest is BaseTest {
         vm.prank(carol);
         feeRouter.setPlan(address(stock), uint96(400 * U), 7 days, 0, 0); // zero tolerance still fills at oracle price
         feeRouter.executePlan(carol, address(stock));
-        assertEq(usdc.balanceOf(treasury), 1e6, "0.25% of the 400 USDC recurring buy");
+        assertEq(usdc.balanceOf(treasury), 0.6e6, "0.15% of the 400 USDC recurring buy");
         assertEq(usdc.balanceOf(carol), 8600 * U);
         assertEq(usdc.balanceOf(address(feeRouter)), 0);
     }
@@ -123,11 +123,11 @@ contract SipFeeTest is BaseTest {
         assertEq(feePayroll.sipFeeBps(), FEE_BPS);
         assertEq(feePayroll.feeRecipient(), treasury);
         vm.expectRevert(Payroll.BadFee.selector);
-        new Payroll(IERC20(address(usdc)), factory, swapAdapter, treasury, 101, 1 days);
+        new Payroll(IERC20(address(usdc)), factory, swapAdapter, treasury, 21, 1 days);
         vm.expectRevert(Payroll.BadFee.selector);
-        new Payroll(IERC20(address(usdc)), factory, swapAdapter, address(0), 25, 1 days);
+        new Payroll(IERC20(address(usdc)), factory, swapAdapter, address(0), 15, 1 days);
         vm.expectRevert(SipRouter.BadFee.selector);
-        new SipRouter(IERC20(address(usdc)), factory, swapAdapter, IPriceAdapter(address(priceAdapter)), treasury, 101, 0);
+        new SipRouter(IERC20(address(usdc)), factory, swapAdapter, IPriceAdapter(address(priceAdapter)), treasury, 21, 0);
     }
 
     /// The fee recipient is just a wallet that receives fees. It has no power over vaults or salaries.

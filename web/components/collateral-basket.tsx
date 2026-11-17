@@ -5,7 +5,7 @@ import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Field, FillAmount, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, vaultAbi } from "@/lib/abis";
 import { splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
-import { MAX_UINT, ADDR } from "@/lib/contracts";
+import { MAX_UINT, ADDR, BORROW_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc, usdcInput } from "@/lib/format";
 import type { Portfolio, Position } from "@/lib/usePortfolio";
 import { vaultBatch } from "@/lib/batch";
@@ -413,6 +413,14 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
                   ) : null,
                 )}
               </ul>
+              {BORROW_FEE_BPS > 0n && (
+                <div className="mt-2">
+                  You receive <strong>${fmtUsdc(borrow - (borrow * BORROW_FEE_BPS) / 10_000n)}</strong> and owe ${fmtUsdc(borrow)}.{" "}
+                  <span className="text-muted">
+                    Stackday fee {feeLabel(BORROW_FEE_BPS)}: ${fmtUsdc((borrow * BORROW_FEE_BPS) / 10_000n)}, once.
+                  </span>
+                </div>
+              )}
               <div className="mt-2 text-muted">
                 Health afterwards: {fmtHealth(afterBorrow.health)} for the basket, {fmtHealth(afterBorrow.weakest)} for the weakest part. Safe until
                 about a {dropOf(afterBorrow.weakest)}% price drop.

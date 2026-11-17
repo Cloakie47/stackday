@@ -14,7 +14,7 @@ import {EmployeeVault} from "./EmployeeVault.sol";
 /// as the treasury is funded. Employees claim to any wallet and may send shares of each salary
 /// (the SIP shares) into assets held in their own vault: tokenized stocks, and also BTC or ETH tokens.
 ///
-/// No owner and no admin. The only fee is a SIP fee fixed forever at deployment (at most 1%),
+/// No owner and no admin. The only fee is a SIP fee fixed forever at deployment (at most 0.2%),
 /// charged on the USDC that the standing "every payday" plan puts into assets (a one-time choice at
 /// claim is free), never on salary paid out and never on vault funds.
 /// Salary assigned to an employee can only be claimed by that employee (an employer can take back
@@ -24,7 +24,7 @@ contract Payroll is ReentrancyGuardTransient {
 
     uint16 public constant MAX_BPS = 10_000;
     uint256 public constant RECLAIM_DELAY = 180 days;
-    uint16 public constant MAX_SIP_FEE_BPS = 100; // the fee can never be deployed above 1%
+    uint16 public constant MAX_SIP_FEE_BPS = 20; // the fee can never be deployed above 0.2%
     uint256 public constant MAX_ALLOCATIONS = 6;
     uint256 public constant MAX_SCHEDULE_EMPLOYEES = 200;
 

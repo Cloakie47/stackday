@@ -65,7 +65,7 @@ contract BaseMainnetForkTest is Test {
         one[0] = address(adapter);
         yieldAdapter = new ERC4626YieldAdapter(YIELD_VAULT);
         assertEq(yieldAdapter.asset(), address(USDC));
-        factory = new VaultFactory(stocks, one, address(yieldAdapter));
+        factory = new VaultFactory(stocks, one, address(yieldAdapter), address(0), 0, 0);
         one[0] = AAPLC_POOL;
         swapAdapter = new SlipstreamSwapAdapter(USDC, stocks, one);
         one[0] = AAPL_FEED;
