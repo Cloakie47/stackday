@@ -13,7 +13,7 @@ import { cx } from "./styles";
  */
 export type ThemeChoice = "system" | "light" | "dark";
 const KEY = "theme";
-const COLORS = { light: "#f5f7fb", dark: "#0a0b0d" };
+const COLORS = { light: "#f6f7f9", dark: "#0a0b0d" };
 
 function read(): ThemeChoice {
   try {
@@ -77,7 +77,7 @@ const ICONS: Record<ThemeChoice, string> = {
   light: "M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 16a4 4 0 100-8 4 4 0 000 8z",
   dark: "M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z",
 };
-const LABELS: Record<ThemeChoice, string> = { system: "Match system", light: "Light", dark: "Dark" };
+const LABELS: Record<ThemeChoice, string> = { system: "System", light: "Light", dark: "Dark" };
 
 /** Three small icon buttons: system, light, dark. */
 export function ThemeToggle({ className = "" }: { className?: string }) {
@@ -94,11 +94,11 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
           title={LABELS[c]}
           onClick={() => set(c)}
           className={cx(
-            "grid h-8 w-8 place-items-center rounded-full transition-[background-color,color,box-shadow] duration-150",
+            "grid h-7 w-7 place-items-center rounded-full transition-[background-color,color,box-shadow] duration-150 pointer-coarse:h-9 pointer-coarse:w-9",
             choice === c ? "thumb text-ink" : "text-muted hover:text-ink",
           )}
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d={ICONS[c]} />
           </svg>
         </button>

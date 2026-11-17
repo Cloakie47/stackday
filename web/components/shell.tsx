@@ -11,7 +11,7 @@ import { homeFor, useAccountState, useNames, useSwitchMode, type Mode, type Role
 import { LearnMore } from "./learn-more";
 import { useViewer } from "./providers";
 import { ThemeToggle } from "./theme";
-import { Button, cx, type ButtonSize } from "./ui";
+import { Button, Responsive, cx, type ButtonSize } from "./ui";
 
 type NavItem = { href: string; label: string; short?: string; icon: string };
 
@@ -133,12 +133,12 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div role="radiogroup" aria-label="Interface" className={cx("relative grid grid-cols-2 rounded-full bg-sunken p-1", compact ? "w-44" : "w-full")}>
+    <div role="radiogroup" aria-label="Interface" className={cx("track relative grid grid-cols-2 rounded-xl p-0.5", compact ? "w-44" : "w-full")}>
       <span
         aria-hidden
         className={cx(
-          "absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-full shadow-sm transition-transform duration-200 ease-[var(--ease-out)]",
-          account.mode === "business" ? "translate-x-full bg-brand" : "translate-x-0 bg-grow",
+          "thumb absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-lg transition-transform duration-200 ease-[var(--ease-out)]",
+          account.mode === "business" ? "translate-x-full" : "translate-x-0",
         )}
       />
       {(["personal", "business"] as Mode[]).map((m) => (
@@ -150,9 +150,9 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
           disabled={busy}
           onClick={() => go(m)}
           className={cx(
-            "relative z-10 rounded-full font-semibold transition-colors duration-200",
-            compact ? "min-h-8 text-[12px]" : "min-h-9 text-[13px]",
-            account.mode === m ? "text-white" : "text-muted hover:text-ink",
+            "relative z-10 rounded-lg font-medium transition-colors duration-150",
+            compact ? "min-h-7 text-[12px]" : "min-h-8 text-[13px] pointer-coarse:min-h-10",
+            account.mode === m ? "text-ink" : "text-muted hover:text-ink",
           )}
         >
           {MODE_LABEL[m]}
@@ -162,20 +162,20 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
   );
 }
 
-/** Role, name and Stackday ID, linking to /start to change the account. */
+/** Role, name and ID, linking to /start to change the account. */
 function AccountChip({ className = "" }: { className?: string }) {
   const account = useAccountState();
   const { role, me } = account;
   if (!role || !me) return null;
   const name = (role === "owner" ? me.business?.name : null) ?? (me.profile.username ? `@${me.profile.username}` : "Your account");
   return (
-    <div className={cx("rounded-2xl border border-line px-3 py-2.5", className)}>
-      <Link href="/start" className="block rounded-lg transition-colors duration-150 hover:text-brand-ink">
-        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+    <div className={cx("rounded-xl border border-line bg-surface px-3 py-2.5", className)}>
+      <Link href="/start" className="block rounded-md transition-colors duration-150 hover:text-brand-ink">
+        <div className="flex items-center justify-between text-xs font-medium text-muted">
           {ROLE_LABEL[role]}
-          <span className="normal-case tracking-normal text-brand-ink">Account</span>
+          <span className="text-brand-ink">Account</span>
         </div>
-        <div className="mt-1 truncate text-sm font-semibold text-ink">{name}</div>
+        <div className="mt-0.5 truncate text-sm font-semibold text-ink">{name}</div>
       </Link>
       <CopyId uid={me.profile.uid} />
     </div>
@@ -188,12 +188,12 @@ function CopyId({ uid }: { uid: string }) {
     <button
       type="button"
       onClick={() => copy("id", uid)}
-      title="Copy your Stackday ID"
-      aria-label={`Copy your Stackday ID ${uid}`}
-      className="mt-0.5 flex w-full items-center justify-between rounded-md font-mono text-[11px] text-muted transition-colors duration-150 hover:text-ink"
+      title={`Copy your ${BRAND.name} ID`}
+      aria-label={`Copy your ${BRAND.name} ID ${uid}`}
+      className="mt-1 flex w-full items-center justify-between rounded-md font-mono text-xs text-muted transition-colors duration-150 hover:text-ink"
     >
       {uid}
-      <span className="font-sans font-semibold text-brand-ink">{copied ? "Copied" : "Copy"}</span>
+      <span className="font-sans text-xs font-medium text-brand-ink">{copied ? "Copied" : "Copy"}</span>
     </button>
   );
 }
@@ -209,16 +209,16 @@ function WrongModeNotice({ pathname }: { pathname: string }) {
   const other: Mode = mode === "personal" ? "business" : "personal";
   return (
     <div className="border-b border-line bg-sunken">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-8">
-        <p className="text-sm text-ink-soft">
-          This page is part of the {MODE_LABEL[other]} interface. You are in {MODE_LABEL[mode]}.
+      <div className="mx-auto flex max-w-[70rem] flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:px-8">
+        <p className="text-[13px] text-ink-soft">
+          This page is in {MODE_LABEL[other]}.<span className="hidden sm:inline"> You&apos;re in {MODE_LABEL[mode]}.</span>
         </p>
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => switchMode(account.address, other, account.session.signedIn)}>
-            Switch to {MODE_LABEL[other]}
+            <Responsive m="Switch" d={`Switch to ${MODE_LABEL[other]}`} />
           </Button>
           <Button size="sm" variant="ghost" onClick={() => router.push(homeFor(mode, role))}>
-            Back to {MODE_LABEL[mode]}
+            <Responsive m="Back" d={`Back to ${MODE_LABEL[mode]}`} />
           </Button>
         </div>
       </div>
@@ -228,17 +228,17 @@ function WrongModeNotice({ pathname }: { pathname: string }) {
 
 function Icon({ d, className = "h-[18px] w-[18px]" }: { d: string; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={cx("shrink-0", className)} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 24 24" className={cx("shrink-0", className)} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d={d} />
     </svg>
   );
 }
 
-/** The Stackday mark: three stacked bars, one more each payday. */
-export function LogoMark({ size = 32 }: { size?: number }) {
+/** The brand mark: three stacked bars, one more each payday. */
+export function LogoMark({ size = 28 }: { size?: number }) {
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-[30%] bg-brand shadow-[inset_0_1px_0_rgb(255_255_255/0.25)]"
+      className="grid shrink-0 place-items-center rounded-[30%] bg-brand"
       style={{ width: size, height: size }}
       aria-hidden
     >
@@ -255,7 +255,7 @@ export function Logo({ light = false }: { light?: boolean }) {
       href="/"
       translate="no"
       className={cx(
-        "flex items-center gap-2.5 rounded-lg font-display text-[1.375rem] font-semibold leading-none tracking-[-0.02em]",
+        "flex items-center gap-2 rounded-lg text-[17px] font-semibold leading-none tracking-[-0.02em]",
         light ? "text-white" : "text-ink",
       )}
     >
@@ -265,7 +265,16 @@ export function Logo({ light = false }: { light?: boolean }) {
   );
 }
 
-export function WalletButton({ light = false, size = "sm" }: { light?: boolean; size?: ButtonSize }) {
+export function WalletButton({
+  light = false,
+  size = "sm",
+  variant = "primary",
+}: {
+  light?: boolean;
+  size?: ButtonSize;
+  /** Look of the "Connect wallet" button. Secondary where another primary action leads the page. */
+  variant?: "primary" | "secondary";
+}) {
   const { address, chainId, isConnected } = useAccount();
   const { connectors, connect, isPending, error } = useConnect();
   const { switchChain } = useSwitchChain();
@@ -273,20 +282,20 @@ export function WalletButton({ light = false, size = "sm" }: { light?: boolean; 
 
   if (isConnected && chainId !== CHAIN_ID)
     return (
-      <Button variant="danger" size="sm" onClick={() => switchChain({ chainId: CHAIN_ID })}>
-        Switch to Base Sepolia
+      <Button variant="danger" size="sm" className="min-h-9" onClick={() => switchChain({ chainId: CHAIN_ID })}>
+        <Responsive m="Switch network" d="Switch to Base Sepolia" />
       </Button>
     );
   if (isConnected && address) return <WalletMenu address={address} label={display(address)} light={light} />;
   const connector = connectors[0];
   return (
     <div className="text-right">
-      <Button size={size} disabled={isPending || !connector} onClick={() => connector && connect({ connector })}>
+      <Button size={size} variant={variant} className={size === "sm" ? "min-h-9" : undefined} disabled={isPending || !connector} onClick={() => connector && connect({ connector })}>
         {isPending ? "Connecting…" : "Connect wallet"}
       </Button>
       {error && (
         <p className="mt-1 max-w-48 text-xs text-danger" role="alert">
-          No wallet found. Install a browser wallet.
+          <Responsive m="No wallet found." d="No wallet found. Install Coinbase Wallet or MetaMask." />
         </p>
       )}
     </div>
@@ -326,7 +335,7 @@ function WalletMenu({ address, label, light }: { address: string; label: string;
   }
 
   const item =
-    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-ink transition-colors duration-150 hover:bg-sunken";
+    "flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors duration-150 hover:bg-hover";
   return (
     <div ref={ref} className="relative">
       <button
@@ -336,27 +345,24 @@ function WalletMenu({ address, label, light }: { address: string; label: string;
         aria-expanded={open}
         aria-label={`Connected as ${label}. Open wallet menu`}
         className={cx(
-          "inline-flex min-h-9 max-w-48 items-center gap-2 rounded-full px-3 text-[13px] font-semibold",
-          light ? "border border-white/25 text-white transition-colors hover:bg-white/10 active:scale-[0.97]" : "key key-surface text-ink",
+          "inline-flex min-h-9 max-w-48 items-center gap-2 rounded-xl px-3 text-[13px] font-medium pointer-coarse:min-h-11",
+          light ? "border border-white/25 text-white transition-colors hover:bg-white/10 active:scale-[0.98]" : "key key-surface text-ink",
         )}
       >
-        <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
-          <span className="absolute inset-0 rounded-full bg-grow" />
-          <span className="absolute -inset-1 rounded-full bg-grow/25" />
-        </span>
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-grow" aria-hidden />
         <span className="truncate">{label}</span>
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
-          <div className="px-3 pb-2 pt-1.5 font-mono text-[11px] text-muted">{shortAddr(address)}</div>
+        <div role="menu" className="absolute right-0 z-50 mt-2 w-64 animate-[var(--animate-pop)] rounded-2xl border border-line bg-popover p-1.5 shadow-md">
+          <div className="px-3 pb-2 pt-1.5 font-mono text-xs text-muted">{shortAddr(address)}</div>
           <button type="button" role="menuitem" className={item} onClick={() => copy("addr", address)}>
-            Copy wallet address
+            Copy address
             <span className="text-xs font-medium text-brand-ink">{copied === "addr" ? "Copied" : ""}</span>
           </button>
           {uid && (
             <button type="button" role="menuitem" className={item} onClick={() => copy("id", uid)}>
               <span>
-                Copy Stackday ID <span className="font-mono text-xs font-normal text-muted">{uid}</span>
+                Copy {BRAND.name} ID <span className="font-mono text-xs font-normal text-muted">{uid}</span>
               </span>
               <span className="text-xs font-medium text-brand-ink">{copied === "id" ? "Copied" : ""}</span>
             </button>
@@ -387,9 +393,16 @@ function WalletMenu({ address, label, light }: { address: string; label: string;
 export function TestnetBanner() {
   const viewer = useViewer();
   return (
-    <div className="border-b border-warn/15 bg-warn-soft px-4 py-1.5 text-center text-xs font-medium text-warn">
-      Testnet. Test tokens and prices, no real money.
-      {viewer.readOnly && <strong> Read-only view of {shortAddr(viewer.address)}.</strong>}
+    <div className="truncate bg-warn-soft px-4 py-1.5 text-center text-xs font-medium leading-4 text-warn">
+      <Responsive
+        m={<>Testnet · no real money{viewer.readOnly && <strong className="font-semibold"> · Read-only</strong>}</>}
+        d={
+          <>
+            Testnet. Mock tokens and prices, no real money.
+            {viewer.readOnly && <strong className="font-semibold"> Viewing {shortAddr(viewer.address)} (read-only).</strong>}
+          </>
+        }
+      />
     </div>
   );
 }
@@ -411,8 +424,8 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
         onClick={() => ref.current?.showModal()}
         aria-haspopup="dialog"
         className={cx(
-          "flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition-colors duration-150 active:scale-[0.96]",
-          moreActive ? "text-brand-ink" : "text-muted",
+          "flex min-h-12 min-w-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg text-[11px] tracking-[0.01em] transition-colors duration-150 active:scale-[0.97]",
+          moreActive ? "font-semibold text-ink" : "font-medium text-muted",
         )}
       >
         <Icon d="M5 12h.01M12 12h.01M19 12h.01" className="h-[22px] w-[22px]" />
@@ -426,8 +439,8 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
           if (e.target === ref.current) ref.current?.close();
         }}
       >
-        <div className="px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-3">
-          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" aria-hidden />
+        <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-2.5">
+          <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-line-strong" aria-hidden />
           <div className="mb-4">
             <ModeSwitch />
           </div>
@@ -438,8 +451,8 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
                 href={item.href}
                 aria-current={isActive(item.href) ? "page" : undefined}
                 className={cx(
-                  "flex min-h-12 items-center gap-3 rounded-2xl px-3 text-[15px] font-semibold transition-colors duration-150",
-                  isActive(item.href) ? "nav-active text-brand-ink" : "text-ink active:bg-sunken",
+                  "flex min-h-12 items-center gap-3 rounded-xl px-3 text-[15px] font-medium transition-colors duration-150",
+                  isActive(item.href) ? "nav-active" : "text-ink active:bg-press",
                 )}
               >
                 <Icon d={item.icon} />
@@ -449,7 +462,7 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
           </nav>
           <Link
             href="/docs"
-            className="mt-1 flex min-h-12 items-center gap-3 rounded-2xl px-3 text-[15px] font-semibold text-ink active:bg-sunken"
+            className="mt-1 flex min-h-12 items-center gap-3 rounded-xl px-3 text-[15px] font-medium text-ink active:bg-press"
           >
             <Icon d={DOCS_ICON} />
             Docs
@@ -460,7 +473,7 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
             <ThemeToggle />
           </div>
           <form method="dialog" className="mt-4">
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" size="lg" className="w-full">
               Close
             </Button>
           </form>
@@ -487,26 +500,26 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [account.needsSetup, viewer.readOnly, router]);
 
   return (
-    <div className="min-h-dvh lg:pl-64">
+    <div className="min-h-dvh lg:pl-60">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
-        <div className="px-2">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line bg-canvas px-3 pb-4 lg:flex">
+        <div className="flex h-14 shrink-0 items-center px-2.5">
           <Logo />
         </div>
         {showMode && (
-          <div className="mt-6 px-1">
+          <div className="mt-3 px-1">
             <ModeSwitch />
           </div>
         )}
-        <nav className={cx("flex flex-1 flex-col gap-0.5", showMode ? "mt-5" : "mt-9")} aria-label="Main">
+        <nav className={cx("flex flex-1 flex-col gap-0.5", showMode ? "mt-4" : "mt-5")} aria-label="Main">
           {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={isActive(item.href) ? "page" : undefined}
               className={cx(
-                "group flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors duration-150",
-                isActive(item.href) ? "nav-active font-semibold text-brand-ink" : "text-muted hover:bg-sunken hover:text-ink",
+                "group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors duration-150",
+                isActive(item.href) ? "nav-active" : "text-muted hover:bg-hover hover:text-ink",
               )}
             >
               <Icon d={item.icon} />
@@ -514,43 +527,39 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <AccountChip className="mb-4" />
-        <div className="space-y-4">
+        <AccountChip className="mb-3" />
+        <div className="space-y-3">
           <Link
             href="/docs"
-            className="flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-muted transition-colors duration-150 hover:bg-sunken hover:text-ink"
+            className="flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-ink"
           >
             <Icon d={DOCS_ICON} />
             Docs
           </Link>
-          <div className="px-2">
-            <ThemeToggle />
-          </div>
-          <p className="px-2 text-xs leading-relaxed text-muted">
-            <Link href="/demo" className="underline decoration-line-strong underline-offset-2 hover:text-ink">
+          <div className="flex items-center justify-between gap-2 pl-2.5">
+            <Link href="/demo" className="rounded-sm text-xs text-muted underline decoration-line-strong underline-offset-2 hover:text-ink">
               Testnet tools
             </Link>
-          </p>
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 
       {/* Top bar */}
       <header className="glass sticky top-0 z-10 border-b border-line">
         <TestnetBanner />
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-8">
+        <div className="mx-auto flex h-14 max-w-[70rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="lg:hidden">
             <Logo />
           </div>
-          <div className="hidden items-center gap-2 text-sm font-medium text-muted lg:flex">
+          <div className="hidden items-center gap-2 text-sm font-medium text-ink lg:flex">
             {showMode && (
-              <span
-                className={cx(
-                  "rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-                  mode === "business" ? "bg-brand-soft text-brand-ink" : "bg-grow-soft text-grow",
-                )}
-              >
-                {MODE_LABEL[mode!]}
-              </span>
+              <>
+                <span className="text-muted">{MODE_LABEL[mode!]}</span>
+                <span className="text-faint" aria-hidden>
+                  /
+                </span>
+              </>
             )}
             {current?.label ?? BRAND.name}
           </div>
@@ -570,20 +579,32 @@ export function Shell({ children }: { children: ReactNode }) {
       <main
         id="main"
         key={pathname}
-        className="stagger mx-auto w-full max-w-5xl space-y-6 px-4 pb-8 pt-6 sm:px-8 sm:pt-10 lg:pb-10"
+        className="mx-auto w-full max-w-[70rem] space-y-4 px-4 pb-8 pt-5 sm:space-y-6 sm:px-6 sm:pt-8 lg:px-8 lg:pb-10"
       >
         {children}
       </main>
 
-      <footer className="mx-auto max-w-5xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] text-xs leading-relaxed text-muted sm:px-8 lg:pb-10">
-        Tokenized stocks are for eligible persons outside the US. Not investment advice.{" "}
-        <LearnMore href="/docs#notices">Full notices</LearnMore>
+      <footer className="mx-auto max-w-[70rem] px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] text-xs leading-relaxed text-muted sm:px-6 lg:px-8 lg:pb-10">
+        <Responsive
+          m={
+            <>
+              Not investment advice. Tokenized stocks: eligible non-US persons only, no voting rights.{" "}
+              <LearnMore href="/docs#notices">Notices</LearnMore>
+            </>
+          }
+          d={
+            <>
+              Not investment advice. Tokenized stocks are for eligible persons outside the US and carry no voting rights.{" "}
+              <LearnMore href="/docs#notices">Full notices</LearnMore>
+            </>
+          }
+        />
       </footer>
 
       {/* Phone and tablet tab bar */}
       <nav
         aria-label="Main"
-        className="glass fixed inset-x-0 bottom-0 z-20 flex border-t border-line px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] pt-1.5 lg:hidden"
+        className="glass fixed inset-x-0 bottom-0 z-20 flex border-t border-line px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] pt-1 lg:hidden"
       >
         {tabs.map((item) => (
           <Link
@@ -591,13 +612,11 @@ export function Shell({ children }: { children: ReactNode }) {
             href={item.href}
             aria-current={isActive(item.href) ? "page" : undefined}
             className={cx(
-              "flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition-colors duration-150 active:scale-[0.96]",
-              isActive(item.href) ? "text-brand-ink" : "text-muted",
+              "flex min-h-12 min-w-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg text-[11px] tracking-[0.01em] transition-colors duration-150 active:scale-[0.97]",
+              isActive(item.href) ? "font-semibold text-ink" : "font-medium text-muted",
             )}
           >
-            <span className={cx("grid h-7 w-14 place-items-center rounded-full transition-colors duration-150", isActive(item.href) && "nav-active")}>
-              <Icon d={item.icon} className="h-[22px] w-[22px]" />
-            </span>
+            <Icon d={item.icon} className="h-[22px] w-[22px]" />
             {item.short ?? item.label}
           </Link>
         ))}

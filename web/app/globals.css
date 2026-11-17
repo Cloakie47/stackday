@@ -1,9 +1,11 @@
 @import "tailwindcss";
 
 /*
-  Stackday design system.
+  Design system.
 
-  Base-native: crisp blue on cool, clean surfaces, confident type, subtle depth.
+  Flat, bordered and quiet, in the way of Morpho and Aave: depth comes from 1px low-alpha lines
+  and near-invisible shadows, never from gradients, glows or bevels. Controls keep two small
+  physical cues only: a 1px inner top highlight on the primary fill, and a press that scales to 0.98.
   Every colour is a semantic token that flips between light and dark, so pages never hard-code a theme.
 
   How the theme is chosen:
@@ -11,16 +13,22 @@
     2. The theme switch sets data-theme="light" or "dark" on <html> to override it.
 
   Colour roles (use the role, not the hue):
-    canvas        page background
-    surface       cards, inputs, sheets
-    sunken        wells, tracks, segmented controls, skeletons
-    ink           primary text and high-emphasis fills (selected chips, ink buttons)
+    canvas        page background (cards are surface on it)
+    surface       cards, inputs, sheets, table containers
+    surface-2     table header rows, sticky footers
+    sunken        segmented tracks, skeletons, disabled fills, soft buttons
+    popover       menus and dropdowns
+    ink           primary text and figures
     ink-soft      secondary text with more weight than muted
-    muted         labels, help text, captions (AA on canvas and surface)
-    line          hairlines and dividers
-    line-strong   input borders, disabled fills
-    brand         Base blue. Primary buttons and brand fills only (white text on it passes AA)
-    brand-strong  hover and pressed state of brand fills
+    muted         labels, help text, captions (AA on canvas, surface and sunken)
+    faint         placeholders, decorative icons only (not for text people must read)
+    line          hairlines, card borders and dividers (alpha, works on any surface)
+    line-strong   input borders, outlines
+    line-hover    input and outline hover border
+    hover/press   overlays for hovered and pressed rows, nav items and ghost buttons
+    brand         Base blue. Primary buttons, links, focus, selection and charts only
+    brand-strong  hover of brand fills
+    brand-press   pressed brand fills
     brand-soft    tinted background for info notices and selected states
     brand-ink     blue text: links, and text on brand-soft (AA in both themes)
     grow/warn/danger (+ -soft)  status colours, text on their soft background passes AA
@@ -29,36 +37,51 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
-  --canvas: #f5f7fb;
+  --canvas: #f6f7f9;
   --surface: #ffffff;
-  --sunken: #edf1f7;
+  --surface-2: #fafbfc;
+  --sunken: #f1f3f6;
+  --popover: #ffffff;
+
   --ink: #0a0b0d;
-  --ink-soft: #30343c;
-  --muted: #5a606c;
-  --line: #e1e6ee;
-  --line-strong: #c9d1dd;
+  --ink-soft: #454b57;
+  --muted: #646b79;
+  --faint: #9aa0ab;
+
+  --line: rgb(16 24 40 / 0.08);
+  --line-strong: rgb(16 24 40 / 0.14);
+  --line-hover: rgb(16 24 40 / 0.24);
+  --hover: rgb(16 24 40 / 0.04);
+  --press: rgb(16 24 40 / 0.07);
 
   --brand: #0052ff;
-  --brand-strong: #0041cc;
-  --brand-soft: #e7eeff;
+  --brand-strong: #0049e6;
+  --brand-press: #0041cc;
+  --brand-soft: #ebf1ff;
   --brand-ink: #0040cc;
+  --focus: #0052ff;
 
-  --grow: #05784a;
-  --grow-soft: #e0f4ea;
+  --grow: #067a4e;
+  --grow-soft: #e8f6ef;
   --warn: #8f5300;
-  --warn-soft: #fff1d6;
-  --danger: #c0212d;
-  --danger-soft: #fde6e7;
+  --warn-soft: #fff4e0;
+  --danger: #c62a37;
+  --danger-soft: #fdecee;
 
-  --shadow-color: 220 40% 20%;
-  --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.06);
-  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.05), 0 2px 6px hsl(var(--shadow-color) / 0.05);
-  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.04), 0 8px 24px -6px hsl(var(--shadow-color) / 0.1);
-  --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.04), 0 24px 48px -12px hsl(var(--shadow-color) / 0.18);
-  --shadow-brand: 0 8px 24px -8px rgb(0 82 255 / 0.55);
-
-  --glass: rgb(245 247 251 / 0.8);
   --chart-line: #0052ff;
+  --chart-grid: rgb(16 24 40 / 0.06);
+
+  --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-md: 0 2px 4px rgb(16 24 40 / 0.04), 0 8px 16px -4px rgb(16 24 40 / 0.1);
+  --shadow-lg: 0 4px 8px rgb(16 24 40 / 0.04), 0 20px 40px -8px rgb(16 24 40 / 0.18);
+  /* Older name, kept so existing pages keep compiling. No coloured glow any more. */
+  --shadow-brand: var(--shadow-sm);
+  /* The one soft shadow allowed on the site: the landing product preview. */
+  --shadow-preview: 0 24px 48px -16px rgb(16 24 40 / 0.16);
+
+  --thumb: #ffffff;
+  --glass: rgb(246 247 249 / 0.85);
   color-scheme: light;
 }
 
@@ -66,91 +89,135 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --canvas: #0a0b0d;
-    --surface: #131519;
-    --sunken: #1b1e24;
-    --ink: #f3f5f9;
-    --ink-soft: #cdd2db;
-    --muted: #969dab;
-    --line: #23272e;
-    --line-strong: #363c46;
+    --surface: #121317;
+    --surface-2: #16181c;
+    --sunken: #1b1d22;
+    --popover: #1c1e23;
 
+    --ink: #f4f5f7;
+    --ink-soft: #b8bdc7;
+    --muted: #8f95a1;
+    --faint: #5d636e;
+
+    --line: rgb(255 255 255 / 0.08);
+    --line-strong: rgb(255 255 255 / 0.14);
+    --line-hover: rgb(255 255 255 / 0.22);
+    --hover: rgb(255 255 255 / 0.04);
+    --press: rgb(255 255 255 / 0.07);
+
+    /* White on brand stays above 4.5:1. Hover and press go darker, never lighter. */
     --brand: #1f5fff;
-    --brand-strong: #3a74ff;
-    --brand-soft: #0f1f45;
+    --brand-strong: #1a56eb;
+    --brand-press: #174dd6;
+    --brand-soft: #12203f;
     --brand-ink: #8fb1ff;
+    --focus: #6f97ff;
 
     --grow: #3ccf8e;
-    --grow-soft: #0c2a1e;
-    --warn: #f3b33d;
-    --warn-soft: #2e2208;
-    --danger: #ff7076;
-    --danger-soft: #34141a;
+    --grow-soft: #0f2a1f;
+    --warn: #f5b544;
+    --warn-soft: #2b2009;
+    --danger: #ff6b75;
+    --danger-soft: #331418;
 
-    --shadow-color: 220 60% 2%;
-    --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.4);
-    --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.5), 0 2px 6px hsl(var(--shadow-color) / 0.3);
-    --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.4), 0 8px 24px -6px hsl(var(--shadow-color) / 0.6);
-    --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.4), 0 24px 48px -12px hsl(var(--shadow-color) / 0.8);
-    --shadow-brand: 0 8px 28px -8px rgb(31 95 255 / 0.7);
+    --chart-line: #5b8bff;
+    --chart-grid: rgb(255 255 255 / 0.06);
 
-    --glass: rgb(10 11 13 / 0.75);
-    --chart-line: #3a74ff;
+    --shadow-xs: 0 0 #0000;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 8px 24px -4px rgb(0 0 0 / 0.55);
+    --shadow-lg: 0 24px 48px -12px rgb(0 0 0 / 0.7);
+    --shadow-preview: 0 24px 48px -16px rgb(0 0 0 / 0.6);
+
+    --thumb: #24262c;
+    --glass: rgb(10 11 13 / 0.8);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
   --canvas: #0a0b0d;
-  --surface: #131519;
-  --sunken: #1b1e24;
-  --ink: #f3f5f9;
-  --ink-soft: #cdd2db;
-  --muted: #969dab;
-  --line: #23272e;
-  --line-strong: #363c46;
+  --surface: #121317;
+  --surface-2: #16181c;
+  --sunken: #1b1d22;
+  --popover: #1c1e23;
+
+  --ink: #f4f5f7;
+  --ink-soft: #b8bdc7;
+  --muted: #8f95a1;
+  --faint: #5d636e;
+
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.14);
+  --line-hover: rgb(255 255 255 / 0.22);
+  --hover: rgb(255 255 255 / 0.04);
+  --press: rgb(255 255 255 / 0.07);
 
   --brand: #1f5fff;
-  --brand-strong: #3a74ff;
-  --brand-soft: #0f1f45;
+  --brand-strong: #1a56eb;
+  --brand-press: #174dd6;
+  --brand-soft: #12203f;
   --brand-ink: #8fb1ff;
+  --focus: #6f97ff;
 
   --grow: #3ccf8e;
-  --grow-soft: #0c2a1e;
-  --warn: #f3b33d;
-  --warn-soft: #2e2208;
-  --danger: #ff7076;
-  --danger-soft: #34141a;
+  --grow-soft: #0f2a1f;
+  --warn: #f5b544;
+  --warn-soft: #2b2009;
+  --danger: #ff6b75;
+  --danger-soft: #331418;
 
-  --shadow-color: 220 60% 2%;
-  --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.4);
-  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.5), 0 2px 6px hsl(var(--shadow-color) / 0.3);
-  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.4), 0 8px 24px -6px hsl(var(--shadow-color) / 0.6);
-  --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.4), 0 24px 48px -12px hsl(var(--shadow-color) / 0.8);
-  --shadow-brand: 0 8px 28px -8px rgb(31 95 255 / 0.7);
+  --chart-line: #5b8bff;
+  --chart-grid: rgb(255 255 255 / 0.06);
 
-  --glass: rgb(10 11 13 / 0.75);
-  --chart-line: #3a74ff;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 8px 24px -4px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 24px 48px -12px rgb(0 0 0 / 0.7);
+  --shadow-preview: 0 24px 48px -16px rgb(0 0 0 / 0.6);
+
+  --thumb: #24262c;
+  --glass: rgb(10 11 13 / 0.8);
   color-scheme: dark;
 }
 
 @theme inline {
-  /* Type. Display: Funnel Display (headlines, big money). UI: Geist. Data: Geist Mono (addresses only). */
+  /* Type. Geist for everything (display is Geist too, so older font-display classes keep working). Geist Mono for addresses and IDs. */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-display: var(--font-funnel-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Calmer large sizes: hero figures top out around 44px. */
+  --text-6xl: 2.75rem;
+  --text-6xl--line-height: 1.1;
+  --text-7xl: 3.5rem;
+  --text-7xl--line-height: 1.07;
+
+  /* Radii: 8px small controls, 10px controls and inputs, 12px inner boxes, 16px cards, 20px sheets. */
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 1rem;
+  --radius-4xl: 1.25rem;
 
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-sunken: var(--sunken);
+  --color-popover: var(--popover);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-line-hover: var(--line-hover);
+  --color-hover: var(--hover);
+  --color-press: var(--press);
 
   --color-brand: var(--brand);
   --color-chart-line: var(--chart-line);
   --color-brand-strong: var(--brand-strong);
+  --color-brand-press: var(--brand-press);
   --color-brand-soft: var(--brand-soft);
   --color-brand-ink: var(--brand-ink);
   /* Older name, kept so existing pages keep compiling. Means blue text. */
@@ -168,25 +235,26 @@
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
   --shadow-brand: var(--shadow-brand);
+  --shadow-preview: var(--shadow-preview);
 
-  /* Motion. Enter/exit: ease-out. Moving on screen: ease-in-out. UI stays under 300ms. */
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* Motion. Enter: ease-out (Morpho's curve). Moving on screen: ease-in-out. UI stays under 300ms. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   /* Older names, kept for existing pages. */
-  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-out-quint: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --animate-rise: rise 0.42s var(--ease-out) both;
-  --animate-fade: fade 0.3s ease-out both;
-  --animate-pop: pop 0.22s var(--ease-out) both;
-  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-rise: rise 0.24s var(--ease-out) both;
+  --animate-fade: fade 0.2s ease-out both;
+  --animate-pop: pop 0.2s var(--ease-out) both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
   --animate-spin-slow: spin 0.7s linear infinite;
 
   @keyframes rise {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateY(4px);
     }
     to {
       opacity: 1;
@@ -204,11 +272,11 @@
   @keyframes pop {
     from {
       opacity: 0;
-      transform: scale(0.97) translateY(3px);
+      transform: translateY(2px);
     }
     to {
       opacity: 1;
-      transform: scale(1) translateY(0);
+      transform: translateY(0);
     }
   }
   @keyframes shimmer {
@@ -222,10 +290,8 @@
 }
 
 /*
-  Spacing scale: Tailwind's 4px grid. Page gutters 16px (phone) / 32px (tablet up).
-  Section rhythm: 24px between cards in the app, 96 to 128px between landing sections.
-  Radius: 9999px for controls (buttons, chips, pills), 16px for inputs and notices,
-  24px for cards, 32px for hero panels.
+  Spacing: Tailwind's 4px grid. Card padding 16px (phone) / 20px (desktop). 16px between cards on
+  phones, 24px on desktop. App content max 1120px, landing max 1200px.
 */
 
 html {
@@ -238,7 +304,6 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -291,14 +356,11 @@ input[type="range"] {
   accent-color: var(--brand);
 }
 
-/* Keyboard focus is always visible: a crisp blue ring with a gap, in both themes. */
+/* Keyboard focus is always visible: a crisp ring with a gap, in both themes. */
 @layer base {
   :focus-visible {
-    outline: 2px solid var(--brand);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
-  }
-  .feature :focus-visible {
-    outline-color: white;
   }
 }
 
@@ -309,7 +371,7 @@ input[type="range"] {
   top: 0.75rem;
   z-index: 100;
   transform: translateY(-200%);
-  border-radius: 9999px;
+  border-radius: 0.5rem;
   background: var(--ink);
   color: var(--canvas);
   padding: 0.5rem 1rem;
@@ -321,71 +383,16 @@ input[type="range"] {
   transform: translateY(0);
 }
 
-/*
-  Feature surface: the deep Base-blue panel used for the one hero number on a page.
-  It redefines the tokens inside it, so anything written with ink, canvas, muted or line still reads correctly.
-*/
-.feature {
-  --canvas: #ffffff;
-  --ink: #ffffff;
-  --ink-soft: rgb(255 255 255 / 0.86);
-  --muted: rgb(255 255 255 / 0.78);
-  --line: rgb(255 255 255 / 0.14);
-  --line-strong: rgb(255 255 255 / 0.28);
-  --surface: rgb(255 255 255 / 0.08);
-  --sunken: rgb(255 255 255 / 0.1);
-  --brand-soft: rgb(255 255 255 / 0.16);
-  --brand-ink: #c7d8ff;
-  /* Keys inside the panel become frosted glass. */
-  --surface-2: rgb(255 255 255 / 0.04);
-  --key-hi: rgb(255 255 255 / 0.16);
-  --key-lo: rgb(0 0 0 / 0.28);
-  --key-edge: rgb(255 255 255 / 0.22);
-  --key-drop: 0 1px 2px rgb(0 0 0 / 0.3);
-  --danger: #ff9aa0;
-  --danger-soft: rgb(255 112 118 / 0.16);
-  color: #ffffff;
-  background:
-    radial-gradient(720px 380px at 92% -18%, rgb(58 116 255 / 0.62), transparent 70%),
-    radial-gradient(560px 300px at -8% 118%, rgb(0 82 255 / 0.24), transparent 70%),
-    linear-gradient(180deg, #0c1838 0%, #060b1c 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.14),
-    inset 0 0 0 1px rgb(143 177 255 / 0.12),
-    0 1px 2px rgb(0 20 80 / 0.18),
-    0 28px 56px -24px rgb(0 40 150 / 0.5);
-}
-.feature .key-ink {
-  color: #0b1633;
-}
-
-/* Glass bars (sticky headers, the phone tab bar). */
+/* Glass bars (sticky headers, the phone tab bar). Blur stays on these two only. */
 .glass {
   background: var(--glass);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
-  backdrop-filter: saturate(180%) blur(16px);
-}
-
-/* Sections on an app page fade up in a short cascade, once, when the page opens. */
-.stagger > * {
-  animation: var(--animate-rise);
-}
-.stagger > *:nth-child(2) {
-  animation-delay: 40ms;
-}
-.stagger > *:nth-child(3) {
-  animation-delay: 80ms;
-}
-.stagger > *:nth-child(4) {
-  animation-delay: 120ms;
-}
-.stagger > *:nth-child(n + 5) {
-  animation-delay: 160ms;
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  backdrop-filter: saturate(160%) blur(12px);
 }
 
 .skeleton {
-  border-radius: 0.5rem;
-  background: linear-gradient(90deg, var(--sunken) 25%, var(--line) 37%, var(--sunken) 63%);
+  border-radius: 0.375rem;
+  background: linear-gradient(90deg, var(--sunken) 25%, var(--surface-2) 37%, var(--sunken) 63%);
   background-size: 400% 100%;
   animation: var(--animate-shimmer);
   color: transparent;
@@ -399,18 +406,18 @@ dialog.sheet {
   max-height: 85dvh;
   border: 0;
   padding: 0;
-  border-radius: 1.75rem 1.75rem 0 0;
-  background: var(--surface);
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: var(--popover);
   color: var(--ink);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--line);
   overscroll-behavior: contain;
   opacity: 1;
   transform: translateY(0);
   transition:
-    transform 320ms var(--ease-drawer),
+    transform 280ms var(--ease-drawer),
     opacity 200ms ease-out,
-    overlay 320ms allow-discrete,
-    display 320ms allow-discrete;
+    overlay 280ms allow-discrete,
+    display 280ms allow-discrete;
 }
 dialog.sheet:not([open]) {
   opacity: 0;
@@ -423,48 +430,7 @@ dialog.sheet:not([open]) {
   }
 }
 dialog.sheet::backdrop {
-  background: rgb(5 10 24 / 0.45);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
-}
-
-/* Landing page */
-
-/* Soft Base-blue light behind the hero, plus a faint grid that fades out. */
-.hero-glow {
-  isolation: isolate;
-  background:
-    radial-gradient(60% 55% at 85% 20%, rgb(0 82 255 / 0.14), transparent 70%),
-    radial-gradient(40% 40% at 10% 0%, rgb(0 82 255 / 0.06), transparent 70%);
-}
-.hero-glow::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(70% 60% at 50% 0%, black, transparent 75%);
-  opacity: 0.55;
-  pointer-events: none;
-}
-
-/* Each payday bar grows up from the baseline, once, in sequence. */
-.stack-bar {
-  transform-origin: bottom;
-  animation: stack-grow 0.6s var(--ease-out) both;
-}
-@keyframes stack-grow {
-  from {
-    transform: scaleY(0.08);
-    opacity: 0;
-  }
-  to {
-    transform: scaleY(1);
-    opacity: 1;
-  }
+  background: rgb(10 11 13 / 0.4);
 }
 
 .faq summary::-webkit-details-marker {
@@ -475,205 +441,101 @@ dialog.sheet::backdrop {
 }
 
 @layer components {
-  /* ------------------------------------------------------------------
-     Tactile layer: controls that look and feel like physical keys.
-
-     Light comes from above. Every raised control has
-       1. a top highlight (inset, white),
-       2. a bottom bevel (inset, dark),
-       3. a crisp 1px edge, and
-       4. a soft drop shadow that is tinted, never grey.
-     Hover lifts 1px and brightens. Press sinks 1px, the drop shadow
-     collapses and an inner shadow appears, so the key looks pushed in.
-     Motion is transform and box-shadow only, under 200ms.
-     ------------------------------------------------------------------ */
-
-  :root {
-    --key-hi: rgb(255 255 255 / 0.9);
-    --key-lo: rgb(15 23 42 / 0.06);
-    --key-edge: rgb(15 23 42 / 0.1);
-    --key-drop: 0 1px 1px rgb(15 23 42 / 0.06), 0 2px 4px -1px rgb(15 23 42 / 0.08);
-    --key-press: inset 0 1px 2px rgb(15 23 42 / 0.12);
-    --well: inset 0 1px 2px rgb(15 23 42 / 0.07), inset 0 0 0 1px var(--line-strong);
-    --card-hi: inset 0 1px 0 rgb(255 255 255 / 0.9);
-    --card-edge: 0 0 0 1px rgb(15 23 42 / 0.07);
-    --card-drop: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(30 50 110 / 0.14);
-    --surface-2: #fbfcfe;
-    --key-drop-hover: 0 2px 3px rgb(15 23 42 / 0.06), 0 8px 16px -8px rgb(30 50 110 / 0.22);
-    --thumb: #ffffff;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --key-hi: rgb(255 255 255 / 0.09);
-      --key-lo: rgb(0 0 0 / 0.35);
-      --key-edge: rgb(255 255 255 / 0.1);
-      --key-drop: 0 1px 1px rgb(0 0 0 / 0.5), 0 3px 8px -2px rgb(0 0 0 / 0.6);
-      --key-press: inset 0 2px 4px rgb(0 0 0 / 0.5);
-      --well: inset 0 2px 4px rgb(0 0 0 / 0.45), inset 0 0 0 1px var(--line-strong);
-      --card-hi: inset 0 1px 0 rgb(255 255 255 / 0.06);
-      --card-edge: 0 0 0 1px rgb(255 255 255 / 0.07);
-      --card-drop: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -16px rgb(0 0 0 / 0.8);
-      --surface-2: #16191e;
-      --key-drop-hover: 0 2px 4px rgb(0 0 0 / 0.5), 0 10px 20px -8px rgb(0 0 0 / 0.7);
-      --thumb: #2a2f38;
-    }
-  }
-  :root[data-theme="dark"] {
-    --key-hi: rgb(255 255 255 / 0.09);
-    --key-lo: rgb(0 0 0 / 0.35);
-    --key-edge: rgb(255 255 255 / 0.1);
-    --key-drop: 0 1px 1px rgb(0 0 0 / 0.5), 0 3px 8px -2px rgb(0 0 0 / 0.6);
-    --key-press: inset 0 2px 4px rgb(0 0 0 / 0.5);
-    --well: inset 0 2px 4px rgb(0 0 0 / 0.45), inset 0 0 0 1px var(--line-strong);
-    --card-hi: inset 0 1px 0 rgb(255 255 255 / 0.06);
-    --card-edge: 0 0 0 1px rgb(255 255 255 / 0.07);
-    --card-drop: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -16px rgb(0 0 0 / 0.8);
-    --surface-2: #16191e;
-    --key-drop-hover: 0 2px 4px rgb(0 0 0 / 0.5), 0 10px 20px -8px rgb(0 0 0 / 0.7);
-    --thumb: #2a2f38;
-  }
-
-  /* ---------- Keys (buttons) ---------- */
+  /* ---------- Keys (buttons) ----------
+     Flat fills and hairline borders. Hover changes colour only. Press scales to 0.98 and sinks 1px.
+     The primary fill carries one barely visible 1px top highlight. No glow, gradient, sheen or lift. */
 
   .key {
     position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    transform: translateY(0);
     transition:
-      transform 160ms var(--ease-out),
-      box-shadow 160ms var(--ease-out),
-      background-color 160ms ease,
-      color 160ms ease;
+      transform 100ms var(--ease-out),
+      background-color 120ms ease,
+      box-shadow 120ms ease,
+      color 120ms ease;
     -webkit-tap-highlight-color: transparent;
   }
   .key:active:not(:disabled) {
-    transform: translateY(1px) scale(0.985);
-    transition-duration: 60ms;
+    transform: translateY(1px) scale(0.98);
   }
   /* Disabled keys go flat and grey with a hairline edge, so they never look pressable. */
   .key:disabled {
     color: var(--muted);
+    background-color: var(--sunken) !important;
     background-image: none !important;
-    box-shadow: inset 0 0 0 1px var(--line-strong) !important;
-    text-shadow: none !important;
-    filter: none !important;
+    box-shadow: inset 0 0 0 1px var(--line) !important;
     transform: none !important;
   }
-  .key-primary:disabled,
-  .key-ink:disabled,
-  .key-surface:disabled {
-    background-color: var(--sunken);
-  }
-  .key:disabled::after {
-    display: none;
+  .key-ghost:disabled {
+    background-color: transparent !important;
+    box-shadow: none !important;
   }
 
-  /* Primary: Base blue, glossy, with a blue glow under it. */
   .key-primary {
     color: #fff;
     background-color: var(--brand);
-    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.06) 0%, rgb(255 255 255 / 0) 45%, rgb(0 0 0 / 0.12) 100%);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.32),
-      inset 0 -1px 0 rgb(0 0 0 / 0.2),
-      0 0 0 1px rgb(0 45 170 / 0.55),
-      0 1px 2px rgb(0 30 120 / 0.3),
-      0 6px 16px -6px rgb(0 82 255 / 0.65);
-    text-shadow: 0 1px 0 rgb(0 30 120 / 0.25);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
   }
   .key-primary:active:not(:disabled) {
-    box-shadow:
-      inset 0 2px 5px rgb(0 20 90 / 0.4),
-      inset 0 -1px 0 rgb(255 255 255 / 0.08),
-      0 0 0 1px rgb(0 45 170 / 0.6),
-      0 1px 2px -1px rgb(0 82 255 / 0.4);
+    background-color: var(--brand-press);
   }
 
-  /* A light sweep across the primary key on hover. */
-  .key-primary::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.16) 48%, rgb(255 255 255 / 0.04) 56%, transparent 70%);
-    transform: translateX(-130%);
-    pointer-events: none;
-  }
-
-  /* Ink: the dark (or, in dark mode, light) key. */
   .key-ink {
     color: var(--canvas);
     background-color: var(--ink);
-    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0) 55%);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.18),
-      inset 0 -1px 0 rgb(0 0 0 / 0.3),
-      0 1px 2px rgb(0 0 0 / 0.25),
-      0 6px 14px -8px rgb(0 0 0 / 0.5);
-  }
-  .key-ink:active:not(:disabled) {
-    box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.45), 0 1px 1px rgb(0 0 0 / 0.2);
   }
 
-  /* Secondary and danger: a raised surface key. */
+  /* Secondary (outline): surface fill, hairline ring. */
   .key-surface {
     background-color: var(--surface);
-    background-image: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
     box-shadow:
-      inset 0 1px 0 var(--key-hi),
-      inset 0 -1px 0 var(--key-lo),
-      0 0 0 1px var(--key-edge),
-      var(--key-drop);
+      inset 0 0 0 1px var(--line-strong),
+      var(--shadow-xs);
   }
   .key-surface:active:not(:disabled) {
-    background-image: none;
-    background-color: var(--sunken);
-    box-shadow:
-      var(--key-press),
-      0 0 0 1px var(--key-edge);
+    background-image: linear-gradient(var(--press), var(--press));
   }
   .key-danger {
     box-shadow:
-      inset 0 1px 0 var(--key-hi),
-      inset 0 -1px 0 var(--key-lo),
-      0 0 0 1px color-mix(in srgb, var(--danger) 35%, transparent),
-      var(--key-drop);
+      inset 0 0 0 1px color-mix(in srgb, var(--danger) 32%, transparent),
+      var(--shadow-xs);
   }
 
-  /* Ghost: flat until pressed. */
+  /* Soft (tertiary): sunken fill, no border. */
+  .key-soft {
+    background-color: var(--sunken);
+  }
+  .key-soft:active:not(:disabled) {
+    background-image: linear-gradient(var(--press), var(--press));
+  }
+
+  /* Ghost: no fill until hovered or pressed. */
   .key-ghost:active:not(:disabled) {
-    box-shadow: var(--key-press);
+    background-color: var(--press);
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .key-primary:hover:not(:disabled),
-    .key-ink:hover:not(:disabled),
-    .key-surface:hover:not(:disabled) {
-      transform: translateY(-1px);
-    }
-    .key-primary:hover:not(:disabled) {
-      box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.36),
-        inset 0 -1px 0 rgb(0 0 0 / 0.2),
-        0 0 0 1px rgb(0 45 170 / 0.55),
-        0 2px 4px rgb(0 30 120 / 0.3),
-        0 10px 24px -8px rgb(0 82 255 / 0.75);
-    }
-    .key-primary:hover:not(:disabled)::after {
-      transform: translateX(130%);
-      transition: transform 700ms var(--ease-out);
-    }
-    .key-surface:hover:not(:disabled) {
-      box-shadow:
-        inset 0 1px 0 var(--key-hi),
-        inset 0 -1px 0 var(--key-lo),
-        0 0 0 1px var(--key-edge),
-        0 2px 3px rgb(15 23 42 / 0.06),
-        var(--key-drop-hover);
+    .key-primary:hover:not(:disabled):not(:active) {
+      background-color: var(--brand-strong);
     }
     .key-ink:hover:not(:disabled) {
-      background-color: var(--ink-soft);
+      background-color: color-mix(in srgb, var(--ink) 86%, var(--canvas));
+    }
+    .key-surface:hover:not(:disabled) {
+      background-image: linear-gradient(var(--hover), var(--hover));
+      box-shadow:
+        inset 0 0 0 1px var(--line-hover),
+        var(--shadow-xs);
+    }
+    .key-danger:hover:not(:disabled) {
+      background-image: none;
+      background-color: var(--danger-soft);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent);
+    }
+    .key-soft:hover:not(:disabled) {
+      background-image: linear-gradient(var(--hover), var(--hover));
+    }
+    .key-ghost:hover:not(:disabled) {
+      background-color: var(--hover);
     }
   }
 
@@ -681,256 +543,106 @@ dialog.sheet::backdrop {
 
   .card {
     background-color: var(--surface);
-    background-image: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-    box-shadow: var(--card-hi), var(--card-edge), var(--card-drop);
+    box-shadow:
+      0 0 0 1px var(--line),
+      var(--shadow-xs);
   }
 
-  /* Selectable tiles (asset pickers, plan options): raised, then pressed in when chosen. */
+  /* Summary panel: the one hero number on a page. A standard card with the faintest brand tint. */
+  .summary {
+    background-color: color-mix(in srgb, var(--brand) 2.5%, var(--surface));
+    box-shadow:
+      0 0 0 1px var(--line),
+      var(--shadow-xs);
+  }
+  /* Older name for the summary panel, kept so existing markup keeps working. */
+  .feature {
+    background-color: color-mix(in srgb, var(--brand) 2.5%, var(--surface));
+    box-shadow:
+      0 0 0 1px var(--line),
+      var(--shadow-xs);
+  }
+
+  /* Selectable tiles (asset pickers, plan options, chips): outlined, then tinted when chosen. */
   .tile {
     background-color: var(--surface);
-    box-shadow: inset 0 1px 0 var(--key-hi), 0 0 0 1px var(--key-edge), var(--key-drop);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
     transition:
-      transform 160ms var(--ease-out),
-      box-shadow 160ms var(--ease-out),
-      background-color 160ms ease;
+      transform 100ms var(--ease-out),
+      box-shadow 120ms ease,
+      background-color 120ms ease;
   }
   .tile[aria-pressed="true"],
   .tile[aria-checked="true"] {
     background-color: var(--brand-soft);
-    box-shadow:
-      inset 0 1px 3px rgb(0 40 160 / 0.18),
-      0 0 0 2px var(--brand);
+    box-shadow: inset 0 0 0 1.5px var(--brand);
   }
   .tile:active {
     transform: scale(0.98);
   }
   @media (hover: hover) and (pointer: fine) {
     .tile:not([aria-pressed="true"]):not([aria-checked="true"]):hover {
-      transform: translateY(-1px);
-      box-shadow:
-        inset 0 1px 0 var(--key-hi),
-        0 0 0 1px var(--key-edge),
-        var(--key-drop-hover);
+      background-image: linear-gradient(var(--hover), var(--hover));
+      box-shadow: inset 0 0 0 1px var(--line-hover);
     }
   }
 
-  /* ---------- Wells (inputs, tracks) ---------- */
+  /* ---------- Inputs and tracks ---------- */
 
   .well {
     background-color: var(--surface);
-    box-shadow: var(--well);
-    transition: box-shadow 150ms ease;
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    transition: box-shadow 120ms ease;
   }
-  .well:focus-within {
+  @media (hover: hover) and (pointer: fine) {
+    .well:hover {
+      box-shadow: inset 0 0 0 1px var(--line-hover);
+    }
+  }
+  .well:focus-within,
+  select.well:focus {
     box-shadow:
-      var(--well),
-      0 0 0 2px var(--brand),
-      0 0 0 5px var(--brand-soft);
+      inset 0 0 0 1px var(--brand),
+      0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
   }
   .track {
     background-color: var(--sunken);
-    box-shadow: inset 0 1px 3px rgb(15 23 42 / 0.1);
-  }
-  :root[data-theme="dark"] .track {
-    box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .track {
-      box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
-    }
   }
   .thumb {
     background-color: var(--thumb);
     box-shadow:
-      inset 0 1px 0 var(--key-hi),
-      0 0 0 1px var(--key-edge),
-      0 1px 2px rgb(15 23 42 / 0.12),
-      0 3px 8px -2px rgb(15 23 42 / 0.15);
+      0 0 0 1px var(--line),
+      var(--shadow-xs);
   }
 
-  /* ---------- Feature panel shine ---------- */
-
-  /* Fine grain, so the deep blue reads as a material rather than a flat fill. */
-  .feature {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-  }
-  .feature::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.05;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  }
-
-  /* A soft light that follows the pointer (set by the Spotlight component). */
-  .spotlight {
-    position: absolute;
-    left: -420px;
-    top: -420px;
-    width: 840px;
-    height: 840px;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0;
-    background: radial-gradient(circle closest-side, rgb(143 177 255 / 0.2), transparent 70%);
-    transition: opacity 300ms ease;
-    will-change: transform;
-  }
-  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-    .feature:hover > .spotlight {
-      opacity: 1;
-    }
-  }
-  /* A thin highlight along the top edge. */
-  .feature-edge {
-    position: absolute;
-    inset: 0 12% auto;
-    height: 1px;
-    z-index: 0;
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent, rgb(199 216 255 / 0.7), transparent);
-  }
-
-  /* Big numbers on the feature panel get a faint metallic gradient. */
-  .money-sheen {
-    background-image: linear-gradient(180deg, #ffffff 30%, #c9d8ff 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-
-  /* Selected navigation item: a soft blue key, slightly pressed in. */
+  /* Selected navigation item: a neutral pressed fill. No blue, no ring. */
   .nav-active {
-    background-color: var(--brand-soft);
-    box-shadow:
-      inset 0 1px 2px rgb(0 40 160 / 0.12),
-      inset 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent);
+    background-color: var(--press);
+    color: var(--ink);
   }
-
 
   /* ---------- Money and positions ---------- */
   .money {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  /* Only in display-sized figures (hero numbers): a smaller, raised unit and smaller cents. */
+  /* Hero figures only: the $ sits on the baseline; cents are a little smaller and softer. */
   .font-display .money-unit {
-    font-size: 0.5em;
-    vertical-align: 0.7em;
-    margin-right: 0.04em;
-    letter-spacing: 0;
+    margin-right: 0.02em;
   }
   .font-display .money-cents {
-    font-size: 0.55em;
+    font-size: 0.72em;
+    color: var(--muted);
     letter-spacing: 0;
-    margin-left: 0.02em;
   }
-  .split-seg {
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -1px 0 rgb(0 0 0 / 0.15);
-  }
-  /* Health zones: below 1.00 is red, 1.00 to 1.25 is amber, on a 0.8 to 3.0 scale. */
+  /* Health zones on a 0.8 to 3.0 scale: below 1.00 and 1.00 to 1.25 get flat soft fills. */
   .health-zones {
     background: linear-gradient(
       90deg,
-      color-mix(in srgb, var(--danger) 22%, transparent) 0 9.09%,
-      color-mix(in srgb, var(--warn) 18%, transparent) 9.09% 20.45%,
+      var(--danger-soft) 0 9.09%,
+      var(--warn-soft) 9.09% 20.45%,
       transparent 20.45%
     );
-  }
-  .health-fill {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--meter) 75%, white) 0%, var(--meter) 65%);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.35),
-      0 0 12px -2px color-mix(in srgb, var(--meter) 70%, transparent);
-  }
-  .health-knob {
-    background: linear-gradient(180deg, var(--surface), var(--surface-2));
-    box-shadow:
-      inset 0 1px 0 var(--key-hi),
-      0 0 0 1px var(--key-edge),
-      0 0 0 4px color-mix(in srgb, var(--meter) 22%, transparent),
-      0 2px 6px rgb(15 23 42 / 0.2);
-  }
-  .health-knob::after {
-    content: "";
-    position: absolute;
-    inset: 6px;
-    border-radius: 9999px;
-    background: var(--meter);
-  }
-
-  /* ---------- Pushable key: the one hero call to action ----------
-     Three layers: a soft shadow on the floor, a darker edge (the side of the key),
-     and the face that sits 4px above it. Hover raises the face, press pushes it down. */
-  .pushable {
-    position: relative;
-    display: inline-block;
-    border-radius: 9999px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    margin-top: 4px;
-    outline-offset: 6px;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    user-select: none;
-  }
-  .push-shadow,
-  .push-edge {
-    position: absolute;
-    inset: 0;
-    border-radius: 9999px;
-  }
-  .push-shadow {
-    background: transparent;
-    box-shadow: 0 2px 6px hsl(221 60% 10% / 0.3);
-    transform: translateY(2px);
-    transition: transform 600ms cubic-bezier(0.3, 0.7, 0.4, 1);
-  }
-  .push-edge {
-    background: linear-gradient(to left, hsl(221 100% 20%) 0%, hsl(221 100% 34%) 8%, hsl(221 100% 34%) 92%, hsl(221 100% 20%) 100%);
-  }
-  .push-front {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    min-height: 3rem;
-    padding: 0 1.75rem;
-    border-radius: 9999px;
-    color: #fff;
-    font-weight: 600;
-    font-size: 15px;
-    background: linear-gradient(180deg, hsl(221 100% 53%) 0%, hsl(221 100% 47%) 100%);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
-    text-shadow: 0 1px 0 rgb(0 30 120 / 0.3);
-    transform: translateY(-4px);
-    transition: transform 600ms cubic-bezier(0.3, 0.7, 0.4, 1);
-    will-change: transform;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .pushable:hover .push-front {
-      transform: translateY(-6px);
-      transition: transform 250ms cubic-bezier(0.3, 0.7, 0.4, 1.5);
-    }
-    .pushable:hover .push-shadow {
-      transform: translateY(4px);
-      transition: transform 250ms cubic-bezier(0.3, 0.7, 0.4, 1.5);
-    }
-  }
-  .pushable:active .push-front {
-    transform: translateY(-1px);
-    transition-duration: 34ms;
-  }
-  .pushable:active .push-shadow {
-    transform: translateY(1px);
-    transition-duration: 34ms;
   }
 }
 
@@ -939,11 +651,11 @@ dialog.sheet::backdrop {
   .key,
   .tile,
   .well,
-  .thumb,
-  .push-front {
+  .thumb {
     border: 1px solid ButtonBorder;
   }
   .card,
+  .summary,
   .feature {
     border: 1px solid CanvasText;
   }
@@ -961,17 +673,6 @@ dialog.sheet::backdrop {
   .well:focus-within {
     outline: 2px solid Highlight;
   }
-  .push-shadow,
-  .push-edge,
-  .spotlight,
-  .feature::before,
-  .feature-edge,
-  .key-primary::after {
-    display: none;
-  }
-  .push-front {
-    transform: none !important;
-  }
 }
 
 /* Reduced motion: keep fades that explain change, drop movement. */
@@ -985,6 +686,10 @@ dialog.sheet::backdrop {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .key:active:not(:disabled),
+  .tile:active {
+    transform: none;
+  }
 }
 
 /* TradingView price widgets (real market prices). They draw inside a shadow root and read these
@@ -996,7 +701,7 @@ dialog.sheet::backdrop {
   --tv-widget-accent-color: var(--chart-line);
   --tv-widget-font-family: var(--font-sans);
   --tv-widget-scales-font-color: var(--muted);
-  --tv-widget-popup-background-color: var(--surface);
+  --tv-widget-popup-background-color: var(--popover);
   --tv-widget-tooltip-text-color: var(--surface);
   --tv-widget-tooltip-background-color: var(--ink);
   --tv-widget-positive-color: var(--grow);
