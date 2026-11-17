@@ -27,14 +27,9 @@ import { useNames } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
+import { SplitPicker } from "@/components/split-picker";
+import { splitToBps, type Split } from "@/lib/split";
 
-type Alloc = Record<string, number>; // asset symbol -> percent of salary
-
-const PRESETS = [
-  { pct: 0, label: "Keep it all" },
-  { pct: 10, label: "10%", hint: "A good start" },
-  { pct: 20, label: "20%", hint: "Builds faster" },
-];
 
 /** The fee only applies to the "every payday" plan; a one-time choice is free (Payroll.sol). */
 const feeOn = (usdc: bigint, recurring: boolean) => (recurring ? (usdc * SIP_FEE_BPS) / 10_000n : 0n);
@@ -53,7 +48,7 @@ export default function PayPage() {
   const me = viewer.address;
   const names = useNames(p.schedulesPayingMe.map((s) => s.employer));
   const [runIndex, setRunIndex] = useState(0);
-  const [alloc, setAlloc] = useState<Alloc>({ [ASSETS[0].symbol]: 10 });
+  const [split, setSplit] = useState<Split>({ pct: 10, symbols: [ASSETS[0].symbol] });
   const [frequency, setFrequency] = useState<"once" | "always">("once");
   const [recipient, setRecipient] = useState("");
   const [now, setNow] = useState(0);
@@ -67,17 +62,18 @@ export default function PayPage() {
 
   const claim = p.claims[Math.min(runIndex, Math.max(0, p.claims.length - 1))];
   const amount = claim?.amount ?? 0n;
-  const total = Object.values(alloc).reduce((a, b) => a + b, 0);
+  const plan = splitToBps(split);
+  const total = plan.bps.reduce((a, b) => a + b, 0) / 100;
   const to = recipient.trim() || me || "";
   const due = p.schedulesPayingMe.filter((s) => s.active && now > 0 && s.nextPayAt <= now);
 
   const legs = useMemo(
     () =>
-      p.positions
-        .map((pos) => ({ pos, pct: alloc[pos.asset.symbol] ?? 0 }))
-        .filter((l) => l.pct > 0)
+      plan.symbols
+        .map((sym, i) => ({ pos: p.positions.find((x) => x.asset.symbol === sym)!, bps: plan.bps[i] }))
+        .filter((l) => !!l.pos)
         .map((l) => {
-          const usdc = (amount * BigInt(l.pct)) / 100n;
+          const usdc = (amount * BigInt(l.bps)) / 10_000n;
           const fee = feeOn(usdc, frequency === "always");
           return {
             ...l,
@@ -86,41 +82,22 @@ export default function PayPage() {
             est: l.pos.price ? assetForUsdc(usdc - fee, l.pos.price, l.pos.asset.decimals) : 0n,
           };
         }),
-    [p.positions, alloc, amount, frequency],
+    [p.positions, plan, amount, frequency],
   );
   const sipUsdc = legs.reduce((a, l) => a + l.usdc, 0n);
   const feeUsdc = legs.reduce((a, l) => a + l.fee, 0n);
 
-  function setPreset(pct: number) {
-    if (pct === 0) return setAlloc({});
-    const chosen = Object.keys(alloc).filter((s) => alloc[s] > 0);
-    const symbols = chosen.length ? chosen : [ASSETS[0].symbol];
-    const each = Math.floor(pct / symbols.length);
-    const next: Alloc = {};
-    symbols.forEach((s, i) => (next[s] = each + (i === 0 ? pct - each * symbols.length : 0)));
-    setAlloc(next);
-  }
-
-  // Payroll accepts at most 6 assets in one payday split (MAX_ALLOCATIONS in Payroll.sol).
-  const MAX_ASSETS = 6;
-  const chosenCount = Object.values(alloc).filter((v) => v > 0).length;
-
-  function setPct(symbol: string, pct: number) {
-    const others = total - (alloc[symbol] ?? 0);
-    const clamped = Math.max(0, Math.min(100 - others, Math.round(pct)));
-    setAlloc((a) => ({ ...a, [symbol]: clamped }));
-  }
 
   async function submit() {
     if (!claim) return;
     const tokens = legs.map((l) => l.pos.asset.token);
-    const bps = legs.map((l) => l.pct * 100);
+    const bps = legs.map((l) => l.bps);
     let mins = legs.map((l) => minOut(l.usdc, l.pos.price, l.pos.asset.decimals, frequency === "always"));
     if (p.emergencyActive && p.emergencyRule) {
       // The contract sends the whole SIP share to the loan's asset, so only that minimum applies.
       const rule = p.emergencyRule;
       const pos = p.positions.find((x) => x.asset.token.toLowerCase() === rule.asset.toLowerCase());
-      const share = BigInt(total * 100) > rule.bps ? BigInt(total * 100) : rule.bps;
+      const share = BigInt(Math.round(total * 100)) > rule.bps ? BigInt(Math.round(total * 100)) : rule.bps;
       mins = [pos ? minOut((amount * share) / 10_000n, pos.price, pos.asset.decimals, frequency === "always") : 0n];
     }
     const calls: Call[] = [];
@@ -218,70 +195,7 @@ export default function PayPage() {
               )}
             </div>
 
-            <div>
-              <h3 className="text-sm font-semibold">How much of this salary should go to work?</h3>
-              <p className="mt-1 text-sm text-muted">
-                Optional. You can change it every payday.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {PRESETS.map((preset) => (
-                  <Chip key={preset.pct} active={total === preset.pct} onClick={() => setPreset(preset.pct)}>
-                    {preset.label}
-                    {preset.hint && <span className="font-normal opacity-70">{preset.hint}</span>}
-                  </Chip>
-                ))}
-                {!PRESETS.some((x) => x.pct === total) && <Chip active>{total}% custom</Chip>}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold">What should it buy?</h3>
-              <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
-                {p.positions.map((pos) => {
-                  const pct = alloc[pos.asset.symbol] ?? 0;
-                  return (
-                    <div
-                      key={pos.asset.symbol}
-                      className={`rounded-2xl border p-3.5 transition-[border-color,background-color] duration-200 ${
-                        pct > 0 ? "border-ink bg-surface" : "border-line bg-surface/60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <AssetIcon asset={pos.asset} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold">{pos.asset.name}</div>
-                          <div className="text-xs text-muted">
-                            {pos.asset.kind === "stock" ? "Tokenized stock" : pos.asset.kind === "commodity" ? "Tokenized gold" : "Crypto"} · stands in for {pos.asset.realTicker}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label={`Less ${pos.asset.name}`}
-                            onClick={() => setPct(pos.asset.symbol, pct - 5)}
-                            disabled={pct === 0}
-                            className="grid h-8 w-8 place-items-center rounded-full border border-line-strong text-lg leading-none transition-colors hover:border-ink disabled:opacity-30"
-                          >
-                            −
-                          </button>
-                          <span className="w-11 text-center text-sm font-semibold tabular-nums">{pct}%</span>
-                          <button
-                            type="button"
-                            aria-label={`More ${pos.asset.name}`}
-                            onClick={() => setPct(pos.asset.symbol, pct + 5)}
-                            disabled={total >= 100 || (pct === 0 && chosenCount >= MAX_ASSETS)}
-                            title={pct === 0 && chosenCount >= MAX_ASSETS ? "Up to 6 assets per payday." : undefined}
-                            className="grid h-8 w-8 place-items-center rounded-full border border-line-strong text-lg leading-none transition-colors hover:border-ink disabled:opacity-30"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <SplitPicker value={split} onChange={setSplit} assets={ASSETS} label="How much of this salary should go to work?" />
 
             <div className="grid gap-5 sm:grid-cols-2">
               <Segmented
@@ -317,7 +231,7 @@ export default function PayPage() {
               <div className="mt-3">
                 <Row label="Cash you receive">{fmtUsdc(amount - sipUsdc)} USDC</Row>
                 {legs.map((l) => (
-                  <Row key={l.pos.asset.symbol} label={`${l.pct}% into ${l.pos.asset.name}`}>
+                  <Row key={l.pos.asset.symbol} label={`${fmtPct(BigInt(l.bps))} into ${l.pos.asset.name}`}>
                     about {fmtAsset(l.est, l.pos.asset.decimals)} {l.pos.asset.symbol}
                   </Row>
                 ))}

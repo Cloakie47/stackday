@@ -348,9 +348,9 @@ export default function DocsPage() {
                       <td className="py-1.5">-</td>
                     </tr>
                     <tr>
-                      <td className="py-1.5 pr-4">Borrowing, once, from the borrowed USDC</td>
-                      <td className="py-1.5 pr-4 text-ink">{borrowFeePct}</td>
-                      <td className="py-1.5">Borrow 1,000, receive {1000 - Number(D.borrowFeeBps ?? 0) / 10}, owe 1,000</td>
+                      <td className="py-1.5 pr-4">Borrowing, a year on the loan, paid when you repay</td>
+                      <td className="py-1.5 pr-4 text-ink">{borrowFeePct}{Number(D.borrowFeeBps ?? 0) > 0 ? " a year" : ""}</td>
+                      <td className="py-1.5">Borrow 1,000 and receive 1,000; repay after a year and pay about {Number(D.borrowFeeBps ?? 0) / 10} on top of Morpho&apos;s interest</td>
                     </tr>
                     <tr>
                       <td className="py-1.5 pr-4">Idle USDC earning interest</td>

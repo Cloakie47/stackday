@@ -17,8 +17,9 @@ import {
   Row,
   Stat,
 } from "@/components/ui";
+import { apyPpm } from "@/lib/basket";
 import { ADDR, ASSETS, BORROW_FEE_BPS, EXPLORER, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
-import { WAD, ago, aprFromPerSecond, assetValue, fmtAsset, fmtPct, fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
+import { WAD, ago, assetValue, fmtAsset, fmtPct, fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { BRAND } from "@/lib/brand";
 
@@ -66,8 +67,11 @@ export default function RiskPage() {
   const liquidationPrice = isFinite(health) && health > 0 ? Number(price) / 1e8 / health : 0;
   const dropToLiquidation = isFinite(health) ? Math.max(0, (1 - 1 / health) * 100) : 100;
   const defaultSurvives = (1 - Number(p.borrowCapBps) / 10_000) * 100;
-  const apr = aprFromPerSecond(pos.ratePerSecond);
-  const yearlyCost = apr !== undefined ? (Number(debt) / 1e6) * (apr / 100) : undefined;
+  // Morpho compounds every second, so the APY (not the simple rate) is the real yearly cost.
+  const morphoApy = pos.ratePerSecond !== undefined ? apyPpm(pos.ratePerSecond) / 10_000 : undefined;
+  const feePct = Number(BORROW_FEE_BPS) / 100;
+  const apy = morphoApy !== undefined ? morphoApy + feePct : undefined;
+  const yearlyCost = apy !== undefined ? (Number(debt) / 1e6) * (apy / 100) : undefined;
 
   const scenario = (gapPct: number) => {
     const h = health * (1 - gapPct / 100);
@@ -115,12 +119,14 @@ export default function RiskPage() {
 
       <div className="grid gap-6 sm:grid-cols-2">
         <Card title="Borrowing cost">
-          <Row label="Interest rate now">{apr !== undefined ? `${apr.toFixed(2)}% per year` : "…"}</Row>
+          <Row label="Borrow APY now">{apy !== undefined ? `${apy.toFixed(2)}% a year` : "…"}</Row>
+          <Row label="  Morpho interest, compounding">{morphoApy !== undefined ? `${morphoApy.toFixed(2)}%` : "…"}</Row>
+          <Row label={`  ${BRAND.name} fee`}>{BORROW_FEE_BPS > 0n ? `${feeLabel(BORROW_FEE_BPS)} a year, fixed, paid when you repay` : "None"}</Row>
           <Row label="Cost of this loan at that rate">{yearlyCost !== undefined ? `about $${yearlyCost.toFixed(2)} per year` : "…"}</Row>
-          <Row label={`${BRAND.name} fee on borrowing`}>{BORROW_FEE_BPS > 0n ? `${feeLabel(BORROW_FEE_BPS)} once, fixed` : "None"}</Row>
           <Row label={`${BRAND.name} fee on recurring buys`}>{feeLabel(SIP_FEE_BPS)}, fixed</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            Set by the market. It goes to lenders, not to {BRAND.name}.
+            Morpho&apos;s interest is set by the market and goes to lenders. The {BRAND.name} fee is a fixed share of the loan per
+            year, built up by the second and paid before the loan when you repay.
           </p>
         </Card>
 

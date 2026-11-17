@@ -5,7 +5,7 @@ import {BaseTest} from "./Base.t.sol";
 import {EmployeeVault} from "../src/EmployeeVault.sol";
 import {VaultFactory} from "../src/VaultFactory.sol";
 
-/// Small fees (issue #45): 0.1% of borrowed USDC once, and 0.1% a year on USDC earning interest,
+/// Small fees (issues #45, #56): 0.1% a year on the outstanding loan, paid on repayment, and 0.1% a year on USDC earning interest,
 /// taken only out of the interest. Both fixed at deployment and capped at 0.2%.
 contract SmallFeesTest is BaseTest {
     address internal treasury = makeAddr("treasury");
@@ -31,21 +31,84 @@ contract SmallFeesTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_borrowFee_isOneTenthPercent_ofBorrowed() public {
+    /// The person receives everything they borrow: the fee is a yearly rate paid on repayment (issue #56).
+    function test_borrowFee_personReceivesTheFullAmount() public {
         vm.prank(alice);
         vault.borrow(address(stock), 0, 1000 * U, aliceBank);
-        assertEq(usdc.balanceOf(treasury), 1 * U, "0.1% of 1,000 USDC");
-        assertEq(usdc.balanceOf(aliceBank), 999 * U, "the person receives the rest");
-        assertApproxEqAbs(vault.debtOf(address(stock)), 1000 * U, 1, "and owes the full amount");
-        assertEq(usdc.balanceOf(address(vault)), 0, "nothing stays in the vault");
+        assertEq(usdc.balanceOf(aliceBank), 1000 * U, "nothing taken at the start");
+        assertEq(usdc.balanceOf(treasury), 0);
+        assertEq(vault.borrowFeeOf(address(stock)), 0, "no time passed, no fee");
+        assertEq(usdc.balanceOf(address(vault)), 0);
+    }
+
+    function test_borrowFee_isOneTenthPercentAYear_paidOnRepay() public {
+        vm.prank(alice);
+        vault.borrow(address(stock), 0, 1000 * U, aliceBank);
+        vm.warp(block.timestamp + 365 days);
+        uint256 owed = vault.borrowFeeOf(address(stock));
+        // 0.1% of the loan for a year; the loan itself grew by Morpho's interest, so a little above 1 USDC.
+        assertGe(owed, 1 * U);
+        assertLe(owed, 1.2e6);
+        uint256 total = vault.totalOwed(address(stock));
+        // Anyone may repay; the fee is paid first, then the whole loan.
+        usdc.mint(bob, total);
+        vm.startPrank(bob);
+        usdc.approve(address(vault), type(uint256).max);
+        vault.repay(address(stock), type(uint256).max);
+        vm.stopPrank();
+        assertApproxEqAbs(usdc.balanceOf(treasury), owed, 1, "the fee went to the fee wallet");
+        assertEq(vault.debtOf(address(stock)), 0, "loan closed");
+        assertEq(vault.borrowFeeOwed(address(stock)), 0);
+        assertLe(usdc.balanceOf(address(vault)), 1, "nothing stays in the vault");
+    }
+
+    function test_borrowFee_partialRepay_paysTheFeeFirst() public {
+        vm.prank(alice);
+        vault.borrow(address(stock), 0, 1000 * U, aliceBank);
+        vm.warp(block.timestamp + 182 days);
+        uint256 fee = vault.borrowFeeOf(address(stock));
+        assertGt(fee, 0.45e6);
+        uint256 debtBefore = vault.debtOf(address(stock));
+        usdc.mint(alice, 10 * U);
+        vm.startPrank(alice);
+        usdc.approve(address(vault), 10 * U);
+        uint256 toLoan = vault.repay(address(stock), 10 * U);
+        vm.stopPrank();
+        assertApproxEqAbs(usdc.balanceOf(treasury), fee, 1, "fee paid first");
+        assertApproxEqAbs(toLoan, 10 * U - fee, 1, "the rest went to the loan");
+        assertApproxEqAbs(vault.debtOf(address(stock)), debtBefore - toLoan, 2);
+        assertEq(vault.borrowFeeOwed(address(stock)), 0);
     }
 
     function test_borrowFee_neverTouchesVaultMoney() public {
         usdc.mint(address(vault), 500 * U); // USDC already in the vault
         vm.prank(alice);
         vault.borrow(address(stock), 0, 1000 * U, aliceBank);
-        assertEq(usdc.balanceOf(address(vault)), 500 * U, "vault USDC untouched");
-        assertEq(usdc.balanceOf(aliceBank), 999 * U);
+        vm.warp(block.timestamp + 365 days);
+        uint256 total = vault.totalOwed(address(stock));
+        usdc.mint(alice, total);
+        vm.startPrank(alice);
+        usdc.approve(address(vault), type(uint256).max);
+        vault.repay(address(stock), type(uint256).max);
+        vm.stopPrank();
+        assertApproxEqAbs(usdc.balanceOf(address(vault)), 500 * U, 1, "vault USDC untouched");
+        assertGt(usdc.balanceOf(treasury), 0);
+    }
+
+    /// A loan that ends without going through the vault (for example a liquidation) leaves no fee owed.
+    function test_borrowFee_droppedWhenTheLoanEndsElsewhere() public {
+        vm.prank(alice);
+        vault.borrow(address(stock), 0, 1000 * U, aliceBank);
+        vm.warp(block.timestamp + 365 days);
+        assertGt(vault.borrowFeeOf(address(stock)), 0);
+        (, uint128 shares,) = morpho.position(adapter.marketId(), address(vault));
+        usdc.mint(bob, 2000 * U);
+        vm.startPrank(bob);
+        usdc.approve(address(morpho), type(uint256).max);
+        morpho.repay(adapter.marketParams(), 0, shares, address(vault), "");
+        vm.stopPrank();
+        assertEq(vault.debtOf(address(stock)), 0);
+        assertEq(vault.borrowFeeOf(address(stock)), 0, "nothing owed once the loan is gone");
     }
 
     function test_earnFee_isOneTenthPercentAYear_fromInterest() public {

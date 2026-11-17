@@ -61,13 +61,16 @@ export function usePrivatePayWaiting(address: string | undefined) {
 }
 
 /** A person's standing split for private paydays. Percentages only, never amounts. Kept on this device. */
-export type PrivateSplit = { pct: number; symbol: string; rest: "keep" | "withdraw" };
+export type PrivateSplit = { pct: number; symbols: string[]; weights?: Record<string, number>; rest: "keep" | "withdraw" };
 const SPLIT_KEY = (a: string) => `stackday-private-split-${a.toLowerCase()}`;
 export function loadPrivateSplit(address: string | undefined): PrivateSplit | undefined {
   if (!address) return undefined;
   try {
     const v = JSON.parse(window.localStorage.getItem(SPLIT_KEY(address)) ?? "null");
-    return v && typeof v.pct === "number" && typeof v.symbol === "string" ? v : undefined;
+    if (!v || typeof v.pct !== "number") return undefined;
+    // Earlier saves held one asset as `symbol`.
+    const symbols: string[] = Array.isArray(v.symbols) ? v.symbols : typeof v.symbol === "string" ? [v.symbol] : [];
+    return symbols.length ? { pct: v.pct, symbols, weights: v.weights, rest: v.rest === "withdraw" ? "withdraw" : "keep" } : undefined;
   } catch {
     return undefined;
   }

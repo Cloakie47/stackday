@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { capLimitOf, splitBorrow, splitRepay, summarize, yearly, type Leg } from "./basket.ts";
+import { apyPpm, capLimitOf, splitBorrow, splitRepay, summarize, yearly, type Leg } from "./basket.ts";
 
 const WAD = 10n ** 18n;
 const usd = (n: number) => BigInt(Math.round(n * 1e6));
@@ -66,6 +66,17 @@ test("yield is dividends earned minus interest paid", () => {
     { ...crypto(1000), dividendBps: 0, ratePerSecond: perSecond },
   ]);
   assert.equal(y.earn, usd(4));
-  assert.ok(y.cost > usd(4.99) && y.cost <= usd(5));
+  // Interest is the compounded APY on each leg's debt (checked exactly in the next test).
+  assert.ok(y.cost > 0n);
   assert.equal(y.net, y.earn - y.cost);
+});
+
+test("borrow APY compounds every second, and the Stackday fee adds on top", () => {
+  const perSecond = (5n * WAD) / 100n / 31_536_000n; // 5% simple a year
+  assert.ok(Math.abs(apyPpm(perSecond) - 51_271) <= 2, `got ${apyPpm(perSecond)}`); // e^0.05 - 1 = 5.1271%
+  const leg = { ...crypto(1000), debt: usd(1000), dividendBps: 0, ratePerSecond: perSecond };
+  const without = yearly([leg]).cost;
+  const withFee = yearly([leg], 10n).cost;
+  assert.ok(without > usd(51.26) && without < usd(51.28), `cost ${without}`);
+  assert.equal(withFee - without, usd(1), "0.1% a year on a 1,000 loan");
 });

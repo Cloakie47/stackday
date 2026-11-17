@@ -16,7 +16,8 @@ contract VaultFactory {
     address public immutable yieldAdapter;
     /// @notice Most any Stackday fee can ever be: 0.2% (founder decision, November 17, 2026).
     uint16 public constant MAX_FEE_BPS = 20;
-    /// @notice One-time fee on borrowed USDC, in basis points (10 = 0.1%). Fixed forever.
+    /// @notice Yearly fee on the outstanding loan, in basis points (10 = 0.1% a year), built up in each
+    /// vault and paid on repayment (issue #56). Fixed forever.
     uint16 public immutable borrowFeeBps;
     /// @notice Yearly fee on USDC earning interest, in basis points of the amount, taken only out of the
     /// interest (10 = 0.1% a year). Fixed forever.
