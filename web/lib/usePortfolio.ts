@@ -65,6 +65,7 @@ export function usePortfolio(user: Address | undefined) {
       { address: ADDR.payroll, abi: payrollAbi, functionName: "employerBalance", args: [who] },
       { address: ADDR.payroll, abi: payrollAbi, functionName: "schedulesOfEmployee", args: [who] },
       { address: ADDR.payroll, abi: payrollAbi, functionName: "schedulesOfEmployer", args: [who] },
+      { address: ADDR.usdc, abi: erc20Abi, functionName: "allowance", args: [who, ADDR.router] },
     ] as unknown as Calls,
     query: { refetchInterval: REFRESH },
   });
@@ -198,6 +199,8 @@ export function usePortfolio(user: Address | undefined) {
     vaultUsdc,
     walletUsdc: user ? (r<bigint>(base.data, 6) ?? 0n) : 0n,
     employerBalance: user ? (r<bigint>(base.data, 7) ?? 0n) : 0n,
+    /** USDC the recurring buys may still take from the wallet (the approval). It is what ends a plan. */
+    routerAllowance: user ? (r<bigint>(base.data, 10) ?? 0n) : 0n,
     /** Standing instruction: share of every salary per asset. */
     sipPlan: plan && user ? plan[0].map((asset, i) => ({ asset, bps: BigInt(plan[1][i]) })) : [],
     emergencyRule:
