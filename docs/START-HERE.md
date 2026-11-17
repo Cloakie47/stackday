@@ -50,6 +50,7 @@ Built, tested and live on testnet:
 | Borrowing | Lock collateral as one basket of any assets, then borrow, repay, unlock, withdraw through real Morpho markets. Conservative limit. Emergency rule | src/adapters/MorphoLendingAdapter.sol |
 | Investing without an employer | One-time and recurring buys from a wallet, one plan per asset | src/SipRouter.sol |
 | Interest on idle USDC | USDC in the vault can be lent out | src/adapters/ERC4626YieldAdapter.sol |
+| Private pay | Fairblock confidential transfers (real on Base Sepolia, beside Payroll): set up from the team invite, private payday for the whole team with readiness badges and a normal-pay fallback, collect and invest a share in one flow on My pay | web/lib/confidential.ts, web/components/private-payday.tsx, web/components/private-collect.tsx |
 | Revenue | Small fixed fees, 0.2 percent at most: 0.15 percent on recurring buys (one-time free), 0.1 percent once on borrowing, 0.1 percent a year from interest on idle USDC | Payroll, SipRouter, EmployeeVault (settings in VaultFactory) |
 | Web app | Landing, Start (Personal or Business), Home, My pay, Invest (with real price chart), Borrow (collateral basket), Risk, Payroll, Docs, Testnet tools | web/app |
 | Account database | Unique name per wallet, saved team lists, attendance check-in. Connected on the live site | web/app/api, supabase/schema.sql |
@@ -65,7 +66,7 @@ What is real and what is mocked on testnet:
 
 - The Themes weekly live news refresh (plan in docs/themes/weekly-plan.md). Selling is not possible in the contracts yet: they only buy (issue #35, after the deadline).
 - Aave, for borrowing or for interest.
-- Confidential salaries.
+- Confidential salaries inside the Payroll contract (private pay runs beside it through Fairblock, phase 1 built).
 - An automation service to release paydays. Today someone presses a button when a payday is due.
 - The six security fixes in docs/SECURITY-CHECKLIST.md.
 - The submission pack (README polish, video script, X posts, form answers).

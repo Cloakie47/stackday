@@ -1,5 +1,7 @@
 "use client";
 
+import { PrivatePay } from "@/components/private-pay";
+import { PrivatePayday } from "@/components/private-payday";
 import Link from "next/link";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
@@ -287,18 +289,24 @@ export default function EmployerPage() {
       "Treasury returned to your wallet.",
     );
 
-  async function payOnce() {
-    const fromTreasury = total > p.employerBalance ? p.employerBalance : total;
-    const toDeposit = total - fromTreasury;
+  /** One-off payday through the Payroll contract for these people (treasury first, wallet tops up the rest). */
+  async function payMembers(list: { wallet: string; salary: string }[]) {
+    const who = list.map((m) => m.wallet as Address);
+    const how = list.map((m) => parseUsdc(m.salary));
+    const sum = how.reduce((a, b) => a + b, 0n);
+    const fromTreasury = sum > p.employerBalance ? p.employerBalance : sum;
+    const toDeposit = sum - fromTreasury;
     const calls: Call[] = [];
     if (toDeposit > 0n) {
       calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, `Allow ${BRAND.name} to take the USDC`)));
-      calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "depositAndCreateRun", args: [toDeposit, employees, amounts] });
+      calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "depositAndCreateRun", args: [toDeposit, who, how] });
     } else {
-      calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [employees, amounts] });
+      calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [who, how] });
     }
-    await tx.run(calls, "Payday created. Your team can claim now.");
+    return tx.run(calls, "Payday created. Your team can claim now.");
   }
+
+  const payOnce = () => payMembers(payable);
 
   const startSchedule = () =>
     tx.run(
@@ -586,6 +594,15 @@ export default function EmployerPage() {
           </div>
         )}
       </Card>
+
+      <PrivatePayday
+        team={payable.map((m) => ({ wallet: m.wallet, name: m.name, salary: m.salary }))}
+        address={me}
+        canAct={viewer.canAct}
+        walletUsdc={p.walletUsdc}
+        onPayNormally={payMembers}
+      />
+      <PrivatePay address={me} canAct={viewer.canAct} role="employer" team={team.filter((m) => isAddress(m.wallet)).map((m) => ({ wallet: m.wallet, name: m.name }))} />
 
       <Card title="Past paydays">
         <PastRuns employer={me} />

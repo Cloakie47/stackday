@@ -12,11 +12,11 @@ test("production headers block framing, sniffing and outside scripts", () => {
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /object-src 'none'/);
   assert.match(csp, /base-uri 'self'/);
-  // Only our own scripts plus TradingView's chart widgets, nothing wider.
-  assert.match(csp, /script-src 'self' 'unsafe-inline' https:\/\/widgets\.tradingview-widget\.com https:\/\/www\.tradingview-widget\.com(;|$)/);
+  // Only our own scripts, the Fairblock proof engine (WebAssembly) and TradingView's chart widgets.
+  assert.match(csp, /script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:\/\/widgets\.tradingview-widget\.com https:\/\/www\.tradingview-widget\.com(;|$)/);
   assert.match(csp, /frame-src https:\/\/widgets\.tradingview-widget\.com https:\/\/www\.tradingview-widget\.com https:\/\/s\.tradingview\.com https:\/\/www\.tradingview\.com(;|$)/);
   assert.doesNotMatch(csp, /script-src[^;]*\*/);
-  assert.doesNotMatch(csp, /unsafe-eval/);
+  assert.doesNotMatch(csp, /'unsafe-eval'/);
   assert.equal(get(h, "X-Frame-Options"), "DENY");
   assert.equal(get(h, "X-Content-Type-Options"), "nosniff");
   assert.equal(get(h, "Referrer-Policy"), "strict-origin-when-cross-origin");
@@ -24,7 +24,7 @@ test("production headers block framing, sniffing and outside scripts", () => {
 });
 
 test("the browser may reach the chain RPC, including a custom one", () => {
-  assert.match(contentSecurityPolicy(prod), /connect-src 'self' https:\/\/sepolia\.base\.org [^;]*tradingview[^;]*(;|$)/);
+  assert.match(contentSecurityPolicy(prod), /connect-src 'self' https:\/\/sepolia\.base\.org [^;]*tradingview[^;]* https:\/\/stabletrust-backend-api\.fairblock\.network(;|$)/);
   const custom = contentSecurityPolicy({ isDev: false, rpcUrl: "https://rpc.example.org/v1/abc?key=1" });
   assert.match(custom, /connect-src 'self' https:\/\/sepolia\.base\.org [^;]* https:\/\/rpc\.example\.org;/);
   // A key in the RPC path or query never ends up in the header.
