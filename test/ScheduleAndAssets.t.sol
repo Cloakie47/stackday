@@ -324,8 +324,8 @@ contract MultiAssetRouterTest is BaseTest {
 
     function test_twoPlans_twoAssets_independent() public {
         vm.startPrank(carol);
-        router.setPlan(address(stock), uint96(100 * U), 7 days, 100);
-        router.setPlan(address(eth), uint96(50 * U), 1 days, 100);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 100, 0);
+        router.setPlan(address(eth), uint96(50 * U), 1 days, 100, 0);
         vm.stopPrank();
 
         router.executePlan(carol, address(stock));

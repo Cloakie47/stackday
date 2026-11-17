@@ -4,14 +4,19 @@ import { PriceChart } from "@/components/price-chart";
 import { AssetSelect } from "@/components/asset-select";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
+import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Empty, Field, FillAmount, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
-import { factoryAbi, routerAbi, vaultAbi } from "@/lib/abis";
+import { factoryAbi, mockSwapAbi, routerAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until, usdcInput } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
+import { DEFAULT_SLOT, SLOT_DAYS, SLOT_TIMES, nextSlot, slotLabel } from "@/lib/slots";
+
+/** Above this, a manual buy shows "Slippage is too high" (the buy itself refuses to fill past 1%). */
+const MAX_SLIPPAGE_BPS = 100n;
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
   return (
@@ -34,6 +39,8 @@ export default function InvestPage() {
   const [amt, setAmt] = useState("");
   const [perBuy, setPerBuy] = useState("");
   const [interval, setIntervalDays] = useState("7");
+  const [slotDay, setSlotDay] = useState(String(DEFAULT_SLOT.day));
+  const [slotTime, setSlotTime] = useState<string>(DEFAULT_SLOT.time);
   const [earnAmt, setEarnAmt] = useState("");
   const [now, setNow] = useState(0);
 
@@ -52,6 +59,21 @@ export default function InvestPage() {
   // A one-time buy is free; only recurring buys pay the SIP fee (SipRouter.sol).
   const min = (v: bigint) => (pos.price ? (assetForUsdc(v, pos.price, asset.decimals) * 99n) / 100n : 0n);
 
+  // Manual buys work at any hour. Show the rate the exchange gives right now and flag high slippage.
+  // On testnet the exchange is the mock; a mainnet quote source plugs in here later.
+  const quotes = useReadContracts({
+    contracts: [
+      { address: ADDR.mockSwap, abi: mockSwapAbi, functionName: "quote", args: [asset.token, amount] },
+      { address: ADDR.router, abi: routerAbi, functionName: "quoteAtOracle", args: [asset.token, amount] },
+    ],
+    query: { enabled: !!ADDR.mockSwap && amount > 0n },
+  });
+  const exchangeOut = amount > 0n ? (quotes.data?.[0]?.result as bigint | undefined) : undefined;
+  const oracleOut = amount > 0n ? (quotes.data?.[1]?.result as bigint | undefined) : undefined;
+  const slippageBps = exchangeOut !== undefined && oracleOut ? (oracleOut > exchangeOut ? ((oracleOut - exchangeOut) * 10_000n) / oracleOut : 0n) : undefined;
+  const slippageTooHigh = slippageBps !== undefined && slippageBps > MAX_SLIPPAGE_BPS;
+  const rate = exchangeOut && exchangeOut > 0n ? (amount * 10n ** BigInt(asset.decimals) * 100n) / exchangeOut : undefined; // USDC per token, 8 decimals
+
   async function buyOnce() {
     const calls: Call[] = [
       ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
@@ -59,6 +81,9 @@ export default function InvestPage() {
     ];
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
   }
+
+  /** The first buy is the next chosen weekday and time in New York; later buys keep that slot. */
+  const firstBuyAt = () => nextSlot(Number(slotDay), slotTime, Math.floor(Date.now() / 1000));
 
   async function savePlan() {
     const calls: Call[] = [
@@ -68,10 +93,10 @@ export default function InvestPage() {
         address: ADDR.router,
         abi: routerAbi,
         functionName: "setPlan",
-        args: [asset.token, recurringAmount, Number(interval) * 86400, 100],
+        args: [asset.token, recurringAmount, Number(interval) * 86400, 100, firstBuyAt()],
       },
     ];
-    if (await tx.run(calls, "Recurring plan saved. The first buy can run now.")) setPerBuy("");
+    if (await tx.run(calls, `Recurring plan saved. Buys run ${slotLabel(Number(slotDay), slotTime)} New York time.`)) setPerBuy("");
   }
 
   const runPlan = (x: Position) =>
@@ -143,9 +168,11 @@ export default function InvestPage() {
                 onChange={(e) => setAmt(e.target.value)}
                 hint={
                   <>
-                    {amount > 0n && pos.price
-                      ? `About ${fmtAsset(assetForUsdc(amount, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}. `
-                      : ""}
+                    {amount > 0n && exchangeOut !== undefined && rate !== undefined
+                      ? `Rate $${fmtPrice(rate)} per ${asset.symbol}. About ${fmtAsset(exchangeOut, asset.decimals)} ${asset.symbol}. `
+                      : amount > 0n && pos.price
+                        ? `About ${fmtAsset(assetForUsdc(amount, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}. `
+                        : ""}
                     Wallet:{" "}
                     <FillAmount onFill={() => setAmt(usdcInput(p.walletUsdc))} label="Use all USDC in your wallet">
                       ${fmtUsdc(p.walletUsdc)}
@@ -154,10 +181,15 @@ export default function InvestPage() {
                 }
               />
             </div>
-            <Button className="mt-3 w-full" disabled={!viewer.canAct || amount === 0n || amount > p.walletUsdc || tx.state.busy} onClick={buyOnce}>
+            <Button
+              className="mt-3 w-full"
+              disabled={!viewer.canAct || amount === 0n || amount > p.walletUsdc || slippageTooHigh || tx.state.busy}
+              onClick={buyOnce}
+            >
               Buy {asset.name}
             </Button>
             {amount > p.walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet does not hold that much USDC.</p>}
+            {slippageTooHigh && <p className="mt-2 text-xs text-danger">Slippage is too high.</p>}
           </div>
 
           <div className="rounded-2xl border border-line p-4">
@@ -187,13 +219,20 @@ export default function InvestPage() {
                 value={interval}
                 onChange={setIntervalDays}
                 options={[
-                  { value: "1", label: "Daily" },
                   { value: "7", label: "Weekly" },
                   { value: "14", label: "Every 2 weeks" },
-                  { value: "30", label: "Monthly" },
+                  { value: "28", label: "Every 4 weeks" },
                 ]}
               />
+              <Select
+                label="Day"
+                value={slotDay}
+                onChange={setSlotDay}
+                options={SLOT_DAYS.map((d) => ({ value: String(d.value), label: d.label }))}
+              />
+              <Select label="Time (New York)" value={slotTime} onChange={setSlotTime} options={SLOT_TIMES.map((t) => ({ value: t.value, label: t.label }))} />
             </div>
+            <p className="mt-2 text-xs text-muted">Buys run while the US market is open, when prices are steadiest.</p>
             <Button variant="ink" className="mt-3 w-full" disabled={!viewer.canAct || recurringAmount === 0n || tx.state.busy} onClick={savePlan}>
               {pos.recurring ? "Replace the recurring buy" : "Start a recurring buy"}
             </Button>

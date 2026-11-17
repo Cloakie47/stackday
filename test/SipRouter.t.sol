@@ -43,7 +43,7 @@ contract SipRouterTest is BaseTest {
 
     function test_recurringPlan_runsOncePerInterval_byAnyone() public {
         vm.prank(carol);
-        router.setPlan(address(stock), uint96(100 * U), 7 days, 100);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 100, 0);
 
         vm.prank(keeper);
         uint256 out1 = router.executePlan(carol, address(stock));
@@ -63,13 +63,47 @@ contract SipRouterTest is BaseTest {
         assertEq(usdc.balanceOf(attacker), 0);
     }
 
+    /// The person picks the slot (for example Monday 11:00 New York time); the first buy waits for it.
+    function test_recurringPlan_firstBuyWaitsForChosenSlot() public {
+        uint40 slot = uint40(block.timestamp + 2 days);
+        vm.prank(carol);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 100, slot);
+        vm.expectRevert(abi.encodeWithSelector(SipRouter.NotDueYet.selector, uint256(slot)));
+        router.executePlan(carol, address(stock));
+        vm.warp(slot);
+        router.executePlan(carol, address(stock));
+        (,,, uint40 nextBuyAt,) = router.planOf(carol, address(stock));
+        assertEq(nextBuyAt, slot + 7 days);
+    }
+
+    /// A late trigger does not move the slot: the next buy is still on the chosen weekday and time,
+    /// and missed weeks are not bought all at once.
+    function test_recurringPlan_lateRunKeepsTheSlot() public {
+        uint40 slot = uint40(block.timestamp + 1 days);
+        vm.prank(carol);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 100, slot);
+        vm.warp(uint256(slot) + 15 days + 3 hours); // two weeks and a bit late
+        router.executePlan(carol, address(stock));
+        (,,, uint40 nextBuyAt,) = router.planOf(carol, address(stock));
+        assertEq(nextBuyAt, slot + 21 days, "next slot after now, same weekday and time");
+        vm.expectRevert(abi.encodeWithSelector(SipRouter.NotDueYet.selector, uint256(slot + 21 days)));
+        router.executePlan(carol, address(stock));
+        assertEq(usdc.balanceOf(carol), 9900 * U, "only one buy for the missed weeks");
+    }
+
+    function test_recurringPlan_firstBuyAtMostAMonthAhead() public {
+        vm.prank(carol);
+        vm.expectRevert(SipRouter.BadFirstBuy.selector);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 100, uint40(block.timestamp + 32 days));
+    }
+
     /// Founder decision (issue #29): a recurring buy stays free even with a loan open.
     function test_recurringPlan_staysFreeWhenLoanOpen() public {
         vm.startPrank(carol);
         uint256 out = router.invest(address(stock), 1000 * U, 0);
         EmployeeVault vault = _vault(carol);
         vault.borrow(address(stock), out, 300 * U, carol);
-        router.setPlan(address(stock), uint96(500 * U), 30 days, 100);
+        router.setPlan(address(stock), uint96(500 * U), 30 days, 100, 0);
         vm.stopPrank();
         uint256 healthBefore = vault.healthFactor(address(stock));
         uint256 collateralBefore = vault.collateralOf(address(stock));
@@ -86,7 +120,7 @@ contract SipRouterTest is BaseTest {
         router.executePlan(carol, address(stock));
 
         vm.startPrank(carol);
-        router.setPlan(address(stock), uint96(100 * U), 7 days, 100);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 100, 0);
         router.cancelPlan(address(stock));
         vm.stopPrank();
         vm.prank(keeper);
@@ -97,7 +131,7 @@ contract SipRouterTest is BaseTest {
 
     function test_planStopsWhenUserRevokesAllowance_orTokenPaused() public {
         vm.startPrank(carol);
-        router.setPlan(address(stock), uint96(100 * U), 7 days, 100);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 100, 0);
         usdc.approve(address(router), 0);
         vm.stopPrank();
         vm.prank(keeper);
@@ -119,13 +153,13 @@ contract SipRouterTest is BaseTest {
     function test_planValidation() public {
         vm.startPrank(carol);
         vm.expectRevert(SipRouter.BadInterval.selector);
-        router.setPlan(address(stock), uint96(100 * U), 1 hours, 100);
+        router.setPlan(address(stock), uint96(100 * U), 1 hours, 100, 0);
         vm.expectRevert(SipRouter.BadSlippage.selector);
-        router.setPlan(address(stock), uint96(100 * U), 7 days, 1001);
+        router.setPlan(address(stock), uint96(100 * U), 7 days, 1001, 0);
         vm.expectRevert(SipRouter.ZeroAmount.selector);
-        router.setPlan(address(stock), 0, 7 days, 100);
+        router.setPlan(address(stock), 0, 7 days, 100, 0);
         vm.expectRevert(abi.encodeWithSelector(SipRouter.UnsupportedStock.selector, address(usdc)));
-        router.setPlan(address(usdc), uint96(100 * U), 7 days, 100);
+        router.setPlan(address(usdc), uint96(100 * U), 7 days, 100, 0);
         vm.expectRevert(abi.encodeWithSelector(SipRouter.UnsupportedStock.selector, address(usdc)));
         router.invest(address(usdc), 100 * U, 0);
         vm.stopPrank();
@@ -146,7 +180,7 @@ contract SipRouterTest is BaseTest {
         );
         vm.startPrank(carol);
         usdc.approve(address(guarded), type(uint256).max);
-        guarded.setPlan(address(stock), uint96(100 * U), 7 days, 100);
+        guarded.setPlan(address(stock), uint96(100 * U), 7 days, 100, 0);
         vm.stopPrank();
 
         // Fresh price: the buy runs.

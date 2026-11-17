@@ -87,7 +87,7 @@ contract SipFeeTest is BaseTest {
         assertEq(usdc.balanceOf(treasury), 0);
 
         vm.prank(carol);
-        feeRouter.setPlan(address(stock), uint96(400 * U), 7 days, 0); // zero tolerance still fills at oracle price
+        feeRouter.setPlan(address(stock), uint96(400 * U), 7 days, 0, 0); // zero tolerance still fills at oracle price
         feeRouter.executePlan(carol, address(stock));
         assertEq(usdc.balanceOf(treasury), 1e6, "0.25% of the 400 USDC recurring buy");
         assertEq(usdc.balanceOf(carol), 8600 * U);
@@ -98,7 +98,7 @@ contract SipFeeTest is BaseTest {
     function test_router_investedOf_countsEveryBuy() public {
         vm.startPrank(carol);
         feeRouter.invest(address(stock), 1000 * U, 0);
-        feeRouter.setPlan(address(stock), uint96(400 * U), 7 days, 0);
+        feeRouter.setPlan(address(stock), uint96(400 * U), 7 days, 0, 0);
         vm.stopPrank();
         feeRouter.executePlan(carol, address(stock));
         assertEq(feeRouter.investedOf(carol, address(stock)), 1400 * U);
