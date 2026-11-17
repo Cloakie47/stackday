@@ -23,23 +23,23 @@ Status: contracts are deployed on Base Sepolia (testnet) and the web app is live
 
 ## Revenue model
 
-Status: only the first line is built. The rest is the plan, to be confirmed by the founder. The figures are illustrations to show the size of each stream, not forecasts.
+Status: streams 1, 3 and 5 are built (small fees, 0.2 percent at most, founder decision November 17, 2026). The rest is the plan. The figures are illustrations to show the size of each stream, not forecasts.
 
 | Stream | Who pays | How it works | Status |
 |---|---|---|---|
-| 1. SIP fee | The person investing | 0.25 percent of the USDC that a recurring plan puts into assets (an every payday plan, or a recurring buy). One-time buys are free. Fixed in the contract, cannot be changed, never charged on salary paid out | Built and live |
+| 1. SIP fee | The person investing | 0.15 percent of the USDC that a recurring plan puts into assets (an every payday plan, or a recurring buy). One-time buys are free. Fixed in the contract, cannot be changed, never charged on salary paid out | Built (0.25 percent on the live testnet until the next redeploy) |
 | 2. Business subscription | The employer | A monthly price per employee for running payroll through Stackday, billed off-chain or in USDC. Needs no contract change | Planned. Expected to be the main income |
-| 3. Borrowing fee | The borrower | A small one-time fee when a loan is opened (for example 0.25 percent of the amount borrowed), taken from the borrowed USDC before it is sent out. Never taken from the vault. Fixed at deployment like the SIP fee | Not built. Needs a contract change and a redeploy |
-| 4. Lending income | Lenders, through a share of interest | Stackday curates its own USDC vault on Morpho that lends against tokenized stocks, and keeps a share of the interest it earns (for example 10 percent). Lenders can be anyone, including employers with idle treasury | Not built. A larger project with real risk management duties |
-| 5. Interest share on idle USDC | The saver | A share of the interest that vault USDC earns. Comes for free if stream 4 exists, because idle USDC would go into Stackday's own vault | Not built |
+| 3. Borrowing fee | The borrower | 0.1 percent once, taken from the borrowed USDC before it is sent out (borrow 1,000, receive 999, owe 1,000). Never taken from the vault or collateral. Fixed at deployment | Built, live after the next redeploy |
+| 4. Lending income | Lenders | Stackday curates its own USDC vault on Morpho that lends against tokenized stocks, with a fee of 0.1 to 0.2 percent of the vault a year. Lenders can be anyone, including employers with idle treasury | Not built. A larger project with real risk management duties |
+| 5. Fee on idle USDC earning | The saver | 0.1 percent a year of the amount earning, taken only out of the interest, never the deposit. If interest is lower, the fee is only the interest | Built, live after the next redeploy |
 | 6. Themes plan | The individual | A monthly price for the Themes layer (suggestions by theme, rebalance proposals) | Not built, depends on Themes |
 
 Rough sizes, to compare the streams. Take a business with 20 employees paid 3,000 USDC a month, each investing 15 percent:
 
-- SIP fee: 9,000 USDC a month goes into assets, so the fee is about 22 USDC a month.
+- SIP fee: 9,000 USDC a month goes into assets, so the fee is about 13.5 USDC a month.
 - Subscription at 4 USDC per employee: 80 USDC a month.
-- Borrowing fee: if 6 of them borrow 2,000 USDC once, about 30 USDC in total, one time.
-- Lending income: for every 1,000,000 USDC lent at 6 percent interest, a 10 percent share is about 6,000 USDC a year.
+- Borrowing fee: if 6 of them borrow 2,000 USDC once, 12 USDC in total, one time.
+- Lending income: for every 1,000,000 USDC in a Stackday vault at 0.15 percent a year, about 1,500 USDC a year.
 
 What this shows: the SIP fee alone is small. Subscriptions pay for the payroll side, and lending income is what grows with the money on the platform.
 
@@ -153,7 +153,7 @@ MOCKS (testnet stand-ins, owned by the demo wallet so stress scenarios can be tr
 | Mock exchange | 0xeaadf286272177Cc027015A21d78FF49D997e427 |
 | Mock interest vault | 0x9BcD325b4feb3A81272a93C338D82e5B0517a524 |
 
-SIP fee: 0.25 percent, fixed. Fee wallet on testnet: the demo wallet 0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df. Shortest payroll rhythm on testnet: 60 seconds (so a schedule can be shown in a demo). On mainnet it would be 1 day.
+SIP fee: 0.25 percent, fixed (0.15 percent plus the 0.1 percent borrow and earn fees from the next redeploy). Fee wallet on testnet: the demo wallet 0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df. Shortest payroll rhythm on testnet: 60 seconds (so a schedule can be shown in a demo). On mainnet it would be 1 day.
 
 ### The judges' sequence on testnet (November 14, 2026)
 

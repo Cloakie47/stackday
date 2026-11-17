@@ -23,7 +23,9 @@ contract Deploy is Script {
     /// Liquidation limits, matching the main real Morpho markets on Base for each kind of asset.
     uint256 internal constant STOCK_LLTV = 0.625e18;
     uint256 internal constant CRYPTO_LLTV = 0.86e18;
-    uint16 internal constant SIP_FEE_BPS = 25;
+    uint16 internal constant SIP_FEE_BPS = 15; // 0.15% on recurring buys
+    uint16 internal constant BORROW_FEE_BPS = 10; // 0.1% of borrowed USDC, once
+    uint16 internal constant EARN_FEE_BPS = 10; // 0.1% a year, only out of interest
     /// Off on testnet: the mock price feed is only updated when the demo operator changes it.
     /// On mainnet this must be about 26 hours (the real feeds update at least every 24 hours while markets are open).
     uint32 internal constant MAX_PRICE_AGE = 0;
@@ -75,7 +77,7 @@ contract Deploy is Script {
 
         MockYieldVault yieldVault = new MockYieldVault(USDC);
         ERC4626YieldAdapter yieldAdapter = new ERC4626YieldAdapter(yieldVault);
-        VaultFactory factory = new VaultFactory(assets, lendingAdapters, address(yieldAdapter));
+        VaultFactory factory = new VaultFactory(assets, lendingAdapters, address(yieldAdapter), feeRecipient, BORROW_FEE_BPS, EARN_FEE_BPS);
         MockSwapAdapter swapAdapter = new MockSwapAdapter(USDC, IPriceAdapter(address(priceAdapter)), deployer);
         for (uint256 i; i < assets.length; ++i) {
             MockStockToken(assets[i]).setMinter(address(swapAdapter), true);
@@ -92,6 +94,8 @@ contract Deploy is Script {
         vm.serializeAddress(k, "deployer", deployer);
         vm.serializeAddress(k, "feeRecipient", feeRecipient);
         vm.serializeUint(k, "sipFeeBps", SIP_FEE_BPS);
+        vm.serializeUint(k, "borrowFeeBps", BORROW_FEE_BPS);
+        vm.serializeUint(k, "earnFeeBps", EARN_FEE_BPS);
         vm.serializeUint(k, "minScheduleInterval", MIN_SCHEDULE_INTERVAL);
         vm.serializeAddress(k, "usdc", address(USDC));
         vm.serializeAddress(k, "morpho", address(MORPHO));

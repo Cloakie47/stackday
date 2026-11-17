@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Empty, Field, FillAmount, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, routerAbi, vaultAbi } from "@/lib/abis";
-import { ADDR, ASSETS, MAX_UINT, SIP_FEE_BPS } from "@/lib/contracts";
+import { ADDR, ASSETS, EARN_FEE_BPS, MAX_UINT, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until, usdcInput } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
@@ -238,7 +238,9 @@ export default function InvestPage() {
 
       <Card title="Earn interest on idle USDC" badge={<MockBadge>Mock interest venue</MockBadge>}>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          Lend idle vault USDC to earn interest. Not guaranteed. <LearnMore href="/docs#earn" />
+          Lend idle vault USDC to earn interest. Not guaranteed.
+          {EARN_FEE_BPS > 0n && ` Stackday fee: ${feeLabel(EARN_FEE_BPS)} a year, taken only out of the interest.`}{" "}
+          <LearnMore href="/docs#earn" />
         </p>
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Stat label="Earning now" value={`$${fmtUsdc(p.earning, 4)}`} />

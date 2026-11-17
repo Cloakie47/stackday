@@ -103,7 +103,7 @@ abstract contract BaseTest is Test {
         adapters[1] = address(ethAdapter);
         yieldVault = new MockYieldVault(IERC20(address(usdc)));
         yieldAdapter = new ERC4626YieldAdapter(yieldVault);
-        factory = new VaultFactory(tokens, adapters, address(yieldAdapter));
+        factory = new VaultFactory(tokens, adapters, address(yieldAdapter), address(0), 0, 0);
         swapAdapter = new MockSwapAdapter(IERC20(address(usdc)), IPriceAdapter(address(priceAdapter)), demoAdmin);
         payroll = new Payroll(IERC20(address(usdc)), factory, swapAdapter, address(0), 0, 1 days);
         vm.stopPrank();

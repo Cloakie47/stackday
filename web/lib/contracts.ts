@@ -18,6 +18,12 @@ export const ADDR = {
 };
 
 export const SIP_FEE_BPS = BigInt(d.sipFeeBps as number);
+/** One-time fee on borrowed USDC (0 on deployments before issue #45). */
+export const BORROW_FEE_BPS = BigInt((d.borrowFeeBps as number | undefined) ?? 0);
+/** Yearly fee on USDC earning interest, taken only out of the interest (0 before issue #45). */
+export const EARN_FEE_BPS = BigInt((d.earnFeeBps as number | undefined) ?? 0);
+/** "0.15%" style label for a fee in basis points. */
+export const feeLabel = (bps: bigint) => `${Number(bps) / 100}%`;
 /** Shortest payroll schedule the contract allows on this network, in seconds. */
 export const MIN_SCHEDULE_INTERVAL = Number(d.minScheduleInterval ?? 86400);
 

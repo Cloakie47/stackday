@@ -10,6 +10,9 @@ import {ILendingAdapter, IYieldAdapter} from "./interfaces/IAdapters.sol";
 interface IVaultFactory {
     function lendingAdapterOf(address stock) external view returns (address);
     function yieldAdapter() external view returns (address);
+    function borrowFeeBps() external view returns (uint16);
+    function earnFeeBps() external view returns (uint16);
+    function feeRecipient() external view returns (address);
 }
 
 /// @title EmployeeVault
@@ -32,6 +35,12 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     /// @notice Share of the liquidation limit the owner allows themself to borrow, in basis points.
     uint16 public borrowCapBps;
     mapping(address adapter => bool) public adapterReady;
+    /// @notice USDC put to work and not yet taken back (the part the earn fee is measured on).
+    uint256 public earnPrincipal;
+    /// @notice Earn fee built up so far and not yet taken. It is only ever taken out of interest.
+    uint256 public earnFeeOwed;
+    /// @notice When `earnFeeOwed` was last brought up to date.
+    uint40 public earnFeeUpdatedAt;
 
     error NotOwner();
     error NotFactory();
@@ -53,6 +62,7 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     event BorrowCapSet(uint16 bps);
     event EarningStarted(uint256 usdcAmount);
     event EarningStopped(uint256 usdcAmount, address indexed to);
+    event FeePaid(string kind, uint256 usdcAmount);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -135,7 +145,20 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
         ILendingAdapter adapter = _adapter(stock);
         if (collateralToAdd > 0) _supply(adapter, stock, collateralToAdd);
         _ready(adapter);
-        adapter.borrow(usdcAmount, receiver);
+        // Fixed 0.1%-style fee from the borrowed USDC (never from the vault): the person owes
+        // `usdcAmount` and receives it minus the fee.
+        uint256 fee = (usdcAmount * factory.borrowFeeBps()) / 10_000;
+        if (fee == 0) {
+            adapter.borrow(usdcAmount, receiver);
+        } else {
+            IERC20 usdc = IERC20(adapter.loanToken());
+            uint256 before = usdc.balanceOf(address(this));
+            adapter.borrow(usdcAmount, address(this));
+            uint256 received = usdc.balanceOf(address(this)) - before;
+            usdc.safeTransfer(factory.feeRecipient(), fee);
+            usdc.safeTransfer(receiver, received - fee);
+            emit FeePaid("borrow", fee);
+        }
         _checkCap(adapter);
         emit Borrowed(stock, usdcAmount, receiver);
     }
@@ -169,9 +192,11 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
         IERC20 usdc = IERC20(y.asset());
         uint256 idle = usdc.balanceOf(address(this));
         if (amount > idle) usdc.safeTransferFrom(msg.sender, address(this), amount - idle);
+        _accrueEarnFee();
         usdc.forceApprove(address(y), amount);
         y.deposit(amount);
         usdc.forceApprove(address(y), 0);
+        earnPrincipal += amount;
         emit EarningStarted(amount);
     }
 
@@ -182,11 +207,25 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
         IYieldAdapter y = _yield();
         IERC20 position = IERC20(y.positionToken());
         position.forceApprove(address(y), type(uint256).max);
+        // The fee comes only out of interest: never more than the balance above what was put in.
+        _accrueEarnFee();
+        uint256 bal = y.balanceOf(address(this));
+        uint256 interest = bal > earnPrincipal ? bal - earnPrincipal : 0;
+        uint256 fee = earnFeeOwed < interest ? earnFeeOwed : interest;
+        if (fee > 0) {
+            y.withdraw(fee, factory.feeRecipient());
+            emit FeePaid("earn", fee);
+        }
         if (amount == type(uint256).max) {
             out = y.withdrawAll(to);
+            earnPrincipal = 0;
+            earnFeeOwed = 0; // anything the interest could not cover is forgiven
         } else {
+            earnFeeOwed -= fee;
             y.withdraw(amount, to);
             out = amount;
+            earnPrincipal = amount >= earnPrincipal ? 0 : earnPrincipal - amount;
+            if (earnPrincipal == 0) earnFeeOwed = 0;
         }
         position.forceApprove(address(y), 0);
         emit EarningStopped(out, to);
@@ -230,6 +269,15 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     }
 
     // ----------------------------------------------------------------- internal
+
+    /// @dev Builds up the yearly earn fee on the principal since the last update.
+    function _accrueEarnFee() internal {
+        uint16 bps = factory.earnFeeBps();
+        if (bps != 0 && earnPrincipal != 0 && earnFeeUpdatedAt != 0) {
+            earnFeeOwed += (earnPrincipal * bps * (block.timestamp - earnFeeUpdatedAt)) / (10_000 * 365 days);
+        }
+        earnFeeUpdatedAt = uint40(block.timestamp);
+    }
 
     function _yield() internal view returns (IYieldAdapter) {
         address y = factory.yieldAdapter();

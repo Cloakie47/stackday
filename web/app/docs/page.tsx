@@ -33,6 +33,8 @@ const ASSET_NAMES: Record<string, string> = {
   mWETH: "Ether (WETH)",
 };
 const feePct = `${Number(D.sipFeeBps) / 100}%`;
+const borrowFeePct = Number(D.borrowFeeBps ?? 0) > 0 ? `${Number(D.borrowFeeBps) / 100}%` : "None yet";
+const earnFeePct = Number(D.earnFeeBps ?? 0) > 0 ? `${Number(D.earnFeeBps) / 100}%` : "None yet";
 const pct = (wad: string | number) => `${(Number(wad) / 1e16).toFixed(1).replace(/\.0$/, "")}%`;
 
 const SECTIONS: DocsSection[] = [
@@ -322,10 +324,45 @@ export default function DocsPage() {
               <p>USDC in your vault can be lent to an interest vault (ERC-4626) and earns while it waits. On testnet this venue is a mock.</p>
               <H3 id="fees">Fees</H3>
               <p>
-                One fee: <strong className="text-ink">{feePct}</strong> of the USDC that a recurring plan puts into assets (an
-                &quot;every payday&quot; plan, or a recurring buy). One-time buys are free. It is fixed in the contract and cannot be
-                changed. Salary paid out is never charged, and no
-                fee is ever taken from a vault. Borrowing has no {BRAND.name} fee; interest goes to the market&apos;s lenders.
+                {BRAND.name} coordinates buying, locking, borrowing and earning, and takes small fees for it. Every fee is fixed in
+                the contracts when they are deployed, capped at 0.2% in the code, and can never be changed.
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-muted">
+                    <tr>
+                      <th className="py-1.5 pr-4 font-medium">What</th>
+                      <th className="py-1.5 pr-4 font-medium">Fee</th>
+                      <th className="py-1.5 font-medium">Example</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    <tr>
+                      <td className="py-1.5 pr-4">Recurring buys (every payday, or a schedule)</td>
+                      <td className="py-1.5 pr-4 text-ink">{feePct}</td>
+                      <td className="py-1.5">{feePct} of a 100 USDC buy</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 pr-4">One-time buys</td>
+                      <td className="py-1.5 pr-4 text-ink">Free</td>
+                      <td className="py-1.5">-</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 pr-4">Borrowing, once, from the borrowed USDC</td>
+                      <td className="py-1.5 pr-4 text-ink">{borrowFeePct}</td>
+                      <td className="py-1.5">Borrow 1,000, receive {1000 - 10 * Number(D.borrowFeeBps ?? 0)}, owe 1,000</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 pr-4">Idle USDC earning interest</td>
+                      <td className="py-1.5 pr-4 text-ink">{earnFeePct} a year</td>
+                      <td className="py-1.5">Taken only out of the interest, never the deposit</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3">
+                Never charged: salary paid out, money already in your vault, collateral. Loan interest goes to the market&apos;s
+                lenders, not to {BRAND.name}.
               </p>
             </Section>
 

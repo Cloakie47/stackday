@@ -14,6 +14,15 @@ contract VaultFactory {
     address public immutable implementation;
     /// @notice Where idle USDC can earn interest. Zero address means the feature is off.
     address public immutable yieldAdapter;
+    /// @notice Most any Stackday fee can ever be: 0.2% (founder decision, November 17, 2026).
+    uint16 public constant MAX_FEE_BPS = 20;
+    /// @notice One-time fee on borrowed USDC, in basis points (10 = 0.1%). Fixed forever.
+    uint16 public immutable borrowFeeBps;
+    /// @notice Yearly fee on USDC earning interest, in basis points of the amount, taken only out of the
+    /// interest (10 = 0.1% a year). Fixed forever.
+    uint16 public immutable earnFeeBps;
+    /// @notice Wallet that receives fees. It has no power over any vault.
+    address public immutable feeRecipient;
     address[] public stocks;
     mapping(address stock => address adapter) public lendingAdapterOf;
     mapping(address employee => address vault) public vaultOf;
@@ -22,10 +31,23 @@ contract VaultFactory {
     error AdapterMismatch(address stock);
     error DuplicateStock(address stock);
     error ZeroAddress();
+    error BadFee();
 
     event VaultCreated(address indexed employee, address vault);
 
-    constructor(address[] memory stocks_, address[] memory adapters_, address yieldAdapter_) {
+    constructor(
+        address[] memory stocks_,
+        address[] memory adapters_,
+        address yieldAdapter_,
+        address feeRecipient_,
+        uint16 borrowFeeBps_,
+        uint16 earnFeeBps_
+    ) {
+        if (borrowFeeBps_ > MAX_FEE_BPS || earnFeeBps_ > MAX_FEE_BPS) revert BadFee();
+        if ((borrowFeeBps_ > 0 || earnFeeBps_ > 0) && feeRecipient_ == address(0)) revert BadFee();
+        borrowFeeBps = borrowFeeBps_;
+        earnFeeBps = earnFeeBps_;
+        feeRecipient = feeRecipient_;
         yieldAdapter = yieldAdapter_;
         if (stocks_.length != adapters_.length) revert LengthMismatch();
         for (uint256 i; i < stocks_.length; ++i) {

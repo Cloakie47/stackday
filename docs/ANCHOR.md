@@ -25,7 +25,7 @@ The planned "Themes" layer: the app learns what the person is interested in (for
 
 What Stackday is not: it runs no lending pool and no pooled fund, it holds nobody's money (each vault belongs to its owner), and it launches no token.
 
-How it earns: a fixed 0.25 percent fee on USDC that a recurring plan puts into assets (one-time buys are free), set in the contract and impossible to change. A per-employee subscription for businesses is planned.
+How it earns: small fixed fees, 0.2 percent at most (issue #45): 0.15 percent on recurring buys (one-time buys are free), 0.1 percent once on borrowed USDC, and 0.1 percent a year on USDC earning interest, taken only out of the interest. All set in the contracts and impossible to change. A per-employee subscription for businesses is planned.
 
 ## 2. The anchor
 
