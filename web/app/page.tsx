@@ -3,7 +3,7 @@ import { LearnMore } from "@/components/learn-more";
 import { Logo, TestnetBanner, WalletButton } from "@/components/shell";
 import { buttonClass } from "@/components/styles";
 import { ThemeToggle } from "@/components/theme";
-import { Badge } from "@/components/ui";
+import { Badge, Spotlight } from "@/components/ui";
 
 /** Public demo wallet from the README, opened read-only so anyone can look around without a wallet. */
 const DEMO_VIEW = "/dashboard?view=0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df";
@@ -44,10 +44,12 @@ function PaydayStack() {
   const bars = [18, 26, 31, 40, 46, 55, 61, 70, 76, 85, 91, 100];
   return (
     <figure className="feature relative mx-auto w-full max-w-md rounded-[2rem] p-6 sm:p-7" aria-label="Illustration: a vault growing every payday">
+      <Spotlight />
+      <span className="feature-edge" aria-hidden />
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-[13px] font-medium text-muted">Vault value after 12 paydays</div>
-          <div className="mt-1.5 font-display text-5xl font-semibold leading-none tracking-[-0.03em] tabular-nums">$4,320</div>
+          <div className="mt-1.5 font-display text-5xl font-semibold leading-none tracking-[-0.03em] tabular-nums"><span className="money-sheen">$4,320</span></div>
         </div>
         <span className="rounded-full bg-white/12 px-2.5 py-1 text-xs font-semibold text-white/90">15% of salary</span>
       </div>
@@ -149,8 +151,10 @@ export default function Home() {
                 instead of selling.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
-                <Link href="/start" className={buttonClass("primary", "lg", "shadow-brand")}>
-                  Get started
+                <Link href="/start" className="pushable">
+                  <span className="push-shadow" aria-hidden />
+                  <span className="push-edge" aria-hidden />
+                  <span className="push-front">Get started</span>
                 </Link>
                 <Link href="/dashboard" className={buttonClass("secondary", "lg")}>
                   I have an account
@@ -173,7 +177,7 @@ export default function Home() {
             </div>
             <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {STEPS.map((s, i) => (
-                <li key={s.title} className="flex flex-col rounded-3xl border border-line bg-canvas p-6">
+                <li key={s.title} className="card flex flex-col rounded-3xl p-6">
                   <div className="flex items-center justify-between">
                     <StepIcon d={s.icon} />
                     <span className="text-sm font-semibold tabular-nums text-muted" aria-hidden>
@@ -200,7 +204,7 @@ export default function Home() {
             </div>
             <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {TRUST.map((t) => (
-                <li key={t.title} className="rounded-3xl border border-line bg-surface p-6 shadow-xs">
+                <li key={t.title} className="card rounded-3xl p-6">
                   <svg viewBox="0 0 24 24" className="h-5 w-5 text-brand-ink" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4" />
                   </svg>
@@ -221,6 +225,8 @@ export default function Home() {
         {/* Closing call to action */}
         <section className="px-4 pb-20 sm:px-8 sm:pb-24">
           <div className="feature mx-auto flex max-w-6xl flex-col items-start gap-8 rounded-[2rem] p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
+            <Spotlight />
+            <span className="feature-edge" aria-hidden />
             <div className="max-w-xl">
               <h2 className="font-display text-4xl font-semibold leading-[1.05] tracking-[-0.025em] sm:text-5xl">Try it with test USDC</h2>
               <p className="mt-3 text-[17px] text-muted">Connect a wallet on Base Sepolia.</p>

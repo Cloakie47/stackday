@@ -336,8 +336,8 @@ function WalletMenu({ address, label, light }: { address: string; label: string;
         aria-expanded={open}
         aria-label={`Connected as ${label}. Open wallet menu`}
         className={cx(
-          "inline-flex min-h-9 max-w-48 items-center gap-2 rounded-full border px-3 text-[13px] font-semibold transition-[background-color,border-color] duration-150 active:scale-[0.97]",
-          light ? "border-white/25 text-white hover:bg-white/10" : "border-line-strong bg-surface text-ink shadow-xs hover:bg-sunken",
+          "inline-flex min-h-9 max-w-48 items-center gap-2 rounded-full px-3 text-[13px] font-semibold",
+          light ? "border border-white/25 text-white transition-colors hover:bg-white/10 active:scale-[0.97]" : "key key-surface text-ink",
         )}
       >
         <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
@@ -439,7 +439,7 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
                 aria-current={isActive(item.href) ? "page" : undefined}
                 className={cx(
                   "flex min-h-12 items-center gap-3 rounded-2xl px-3 text-[15px] font-semibold transition-colors duration-150",
-                  isActive(item.href) ? "bg-brand-soft text-brand-ink" : "text-ink active:bg-sunken",
+                  isActive(item.href) ? "nav-active text-brand-ink" : "text-ink active:bg-sunken",
                 )}
               >
                 <Icon d={item.icon} />
@@ -506,7 +506,7 @@ export function Shell({ children }: { children: ReactNode }) {
               aria-current={isActive(item.href) ? "page" : undefined}
               className={cx(
                 "group flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors duration-150",
-                isActive(item.href) ? "bg-brand-soft font-semibold text-brand-ink" : "text-muted hover:bg-sunken hover:text-ink",
+                isActive(item.href) ? "nav-active font-semibold text-brand-ink" : "text-muted hover:bg-sunken hover:text-ink",
               )}
             >
               <Icon d={item.icon} />
@@ -595,7 +595,9 @@ export function Shell({ children }: { children: ReactNode }) {
               isActive(item.href) ? "text-brand-ink" : "text-muted",
             )}
           >
-            <Icon d={item.icon} className="h-[22px] w-[22px]" />
+            <span className={cx("grid h-7 w-14 place-items-center rounded-full transition-colors duration-150", isActive(item.href) && "nav-active")}>
+              <Icon d={item.icon} className="h-[22px] w-[22px]" />
+            </span>
             {item.short ?? item.label}
           </Link>
         ))}

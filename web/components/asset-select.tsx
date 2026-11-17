@@ -86,7 +86,7 @@ export function AssetSelect({
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => (open ? setOpen(false) : show())}
-        className="mt-1.5 flex min-h-12 w-full items-center gap-3 rounded-2xl border border-line-strong bg-surface px-3.5 text-left transition-[border-color,box-shadow] duration-150 focus-visible:border-brand focus-visible:shadow-[0_0_0_4px_var(--color-brand-soft)] focus-visible:outline-none"
+        className="mt-1.5 flex min-h-12 w-full items-center gap-3 key key-surface rounded-2xl px-3.5 text-left"
       >
         <AssetIcon asset={selected} size={26} />
         <span className="min-w-0 flex-1">

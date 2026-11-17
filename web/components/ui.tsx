@@ -42,10 +42,16 @@ export function Card({
     <section
       className={cx(
         "rounded-3xl p-5 sm:p-6",
-        tone === "surface" ? "border border-line bg-surface shadow-xs" : "feature",
+        tone === "surface" ? "card" : "feature",
         className,
       )}
     >
+      {tone !== "surface" && (
+        <>
+          <Spotlight />
+          <span className="feature-edge" aria-hidden />
+        </>
+      )}
       {(title || action) && (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -183,7 +189,7 @@ export function Field({
   return (
     <label className="block min-w-0">
       <span className="text-[13px] font-medium text-ink-soft">{label}</span>
-      <span className="mt-1.5 flex items-center rounded-2xl border border-line-strong bg-surface transition-[border-color,box-shadow] duration-150 focus-within:border-brand focus-within:shadow-[0_0_0_4px_var(--color-brand-soft)]">
+      <span className="well mt-1.5 flex items-center rounded-2xl">
         <input
           {...props}
           className="min-h-11 w-full min-w-0 rounded-2xl bg-transparent px-3.5 text-base text-ink outline-none placeholder:text-muted/60"
@@ -212,7 +218,7 @@ export function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 min-h-11 w-full rounded-2xl border border-line-strong bg-surface px-3 text-base text-ink outline-none transition-[border-color,box-shadow] duration-150 focus:border-brand focus:shadow-[0_0_0_4px_var(--color-brand-soft)]"
+        className="well mt-1.5 min-h-11 w-full rounded-2xl px-3 text-base text-ink outline-none focus:shadow-[var(--well),0_0_0_1.5px_var(--brand),0_0_0_5px_var(--brand-soft)]"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -250,12 +256,12 @@ export function Segmented<T extends string>({
       <div
         role="radiogroup"
         aria-label={ariaLabel ?? label}
-        className="relative grid rounded-full bg-sunken p-1"
+        className="track relative grid rounded-full p-1"
         style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
       >
         <span
           aria-hidden
-          className="absolute inset-y-1 rounded-full bg-surface shadow-sm transition-transform duration-[250ms] ease-[var(--ease-out)] dark:bg-line-strong"
+          className="thumb absolute inset-y-1 rounded-full transition-transform duration-[250ms] ease-[var(--ease-out)]"
           style={{
             width: `calc((100% - 0.5rem) / ${options.length})`,
             left: "0.25rem",
@@ -295,8 +301,8 @@ export function Chip({
       aria-pressed={active}
       {...props}
       className={cx(
-        "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97]",
-        active ? "border-brand bg-brand-soft text-brand-ink" : "border-line-strong bg-surface text-ink hover:bg-sunken",
+        "tile inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold",
+        active ? "text-brand-ink" : "text-ink",
       )}
     >
       {children}
@@ -469,4 +475,39 @@ export function Empty({ children }: { children: ReactNode }) {
 /** A grey placeholder in the shape of the content that is loading. */
 export function Skeleton({ className = "" }: { className?: string }) {
   return <span aria-hidden className={cx("skeleton block", className)} />;
+}
+
+/**
+ * A soft light that follows the pointer across a feature panel. Mouse and trackpad only:
+ * touch screens and reduced-motion users never see it move.
+ */
+export function Spotlight() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    const host = el?.parentElement;
+    if (!el || !host) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    let x = 0;
+    let y = 0;
+    const paint = () => {
+      raf = 0;
+      el.style.setProperty("--mx", `${x}px`);
+      el.style.setProperty("--my", `${y}px`);
+    };
+    const move = (e: PointerEvent) => {
+      const r = host.getBoundingClientRect();
+      x = e.clientX - r.left;
+      y = e.clientY - r.top;
+      if (!raf) raf = requestAnimationFrame(paint);
+    };
+    host.addEventListener("pointermove", move);
+    return () => {
+      host.removeEventListener("pointermove", move);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+  return <span ref={ref} className="spotlight" aria-hidden />;
 }
