@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConnect } from "wagmi";
 import { Logo, TestnetBanner, WalletButton } from "@/components/shell";
-import { Button, Field, Notice, Spinner, cx } from "@/components/ui";
+import { Button, Field, Notice, Responsive, Spinner, cx } from "@/components/ui";
+import { BRAND } from "@/lib/brand";
 import { homeFor, rememberMode, saveAccountType, saveBusiness, useAccountState, type Mode } from "@/lib/useAccount";
 
 type BusinessRole = "owner" | "employee";
@@ -20,31 +21,37 @@ const MODES: { id: Mode; title: string; text: string; points: string[] }[] = [
   {
     id: "business",
     title: "Business",
-    text: "Payroll in USDC, for the people who run it and the people it pays.",
-    points: ["Pay a team once or on a schedule", "Each person sends a share of their pay into assets", "Claim to any wallet you choose"],
+    text: "USDC payroll for owners and their teams.",
+    points: ["Pay a team once or on a schedule", "Each person can invest a share of their pay", "Claim to any wallet"],
   },
 ];
 
 const BUSINESS_ROLES: { id: BusinessRole; title: string; text: string }[] = [
-  { id: "owner", title: "I run the business", text: "Fund a treasury, add your team by their Stackday ID, set a payday rhythm." },
-  { id: "employee", title: "I get paid by a business", text: "Claim your salary and send a share of it to work. Give your employer your Stackday ID." },
+  { id: "owner", title: "I run the business", text: `Fund a treasury, add your team by ${BRAND.name} ID, choose how often you pay.` },
+  { id: "employee", title: "I get paid by a business", text: `Claim your salary and invest a share. Share your ${BRAND.name} ID with your employer.` },
 ];
 
 function Step({ n, title, done, active, children }: { n: number; title: string; done: boolean; active: boolean; children?: React.ReactNode }) {
   return (
-    <section className={cx("rounded-3xl border p-5 transition-colors duration-300 sm:p-6", active ? "border-ink/20 bg-surface shadow-sm" : "border-line bg-surface/60")}>
+    <section className={cx("rounded-3xl p-4 transition-colors duration-200 sm:p-5", active ? "card" : "border border-line")}>
       <div className="flex items-center gap-3">
         <span
           className={cx(
-            "grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold transition-colors duration-300",
-            done ? "bg-grow text-white" : active ? "bg-ink text-canvas" : "bg-sunken text-muted",
+            "grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold tabular-nums transition-colors duration-200",
+            done ? "bg-grow-soft text-grow" : active ? "bg-ink text-canvas" : "border border-line-strong text-muted",
           )}
         >
-          {done ? "✓" : n}
+          {done ? (
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Done">
+              <path d="M3.5 8.5l3 3 6-7" />
+            </svg>
+          ) : (
+            n
+          )}
         </span>
-        <h2 className={cx("text-base font-semibold tracking-tight", !active && !done && "text-muted")}>{title}</h2>
+        <h2 className={cx("text-base font-semibold tracking-[-0.01em]", !active && !done && "text-muted")}>{title}</h2>
       </div>
-      {active && <div className="mt-4 animate-[var(--animate-rise)]">{children}</div>}
+      {active && <div className="mt-4 animate-[var(--animate-fade)] sm:pl-9">{children}</div>}
     </section>
   );
 }
@@ -53,12 +60,10 @@ function Option({
   selected,
   onSelect,
   children,
-  tone,
 }: {
   selected: boolean;
   onSelect: () => void;
   children: React.ReactNode;
-  tone: "grow" | "brand";
 }) {
   return (
     <button
@@ -66,10 +71,7 @@ function Option({
       role="radio"
       aria-checked={selected}
       onClick={onSelect}
-      className={cx(
-        "flex flex-col rounded-2xl border-2 p-4 text-left transition-[border-color,background-color,transform] duration-200 active:scale-[0.99] sm:p-5",
-        selected ? (tone === "grow" ? "border-grow bg-grow-soft/40" : "border-brand bg-brand-soft/50") : "border-line bg-surface hover:border-line-strong",
-      )}
+      className="tile flex flex-col rounded-2xl p-4 text-left"
     >
       {children}
     </button>
@@ -91,6 +93,8 @@ export default function StartPage() {
 
   // Returning wallets see their current choice pre-selected.
   useEffect(() => {
+    // Existing behaviour, unchanged in the redesign: prefill once the saved account loads.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedMode && !mode) setMode(savedMode);
     if (savedRole === "owner" && !businessRole) setBusinessRole("owner");
     if (savedRole === "employee" && !businessRole) setBusinessRole("employee");
@@ -128,27 +132,33 @@ export default function StartPage() {
   return (
     <div className="min-h-dvh">
       <TestnetBanner />
-      <header className="mx-auto flex max-w-3xl items-center justify-between px-5 py-5 sm:px-8">
-        <Logo />
-        <WalletButton />
+      <header className="border-b border-line">
+        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4 sm:px-6">
+          <Logo />
+          <WalletButton variant="secondary" />
+        </div>
       </header>
 
-      <main className="stagger mx-auto max-w-3xl space-y-4 px-5 pb-16 pt-4 sm:px-8">
-        <div className="pb-2">
-          <h1 className="font-display text-5xl font-semibold leading-none tracking-[-0.025em] sm:text-6xl">Let&apos;s set you up</h1>
-          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">Three short steps. Nothing here costs anything or moves any money.</p>
+      <main id="main" className="mx-auto max-w-2xl space-y-3 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+        <div className="pb-3">
+          <h1 className="text-2xl font-semibold leading-[30px] tracking-[-0.02em] sm:text-[28px] sm:leading-[34px]">Let&apos;s set you up</h1>
+          <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">Three steps. Free, and no money moves.</p>
         </div>
 
         <Step n={1} title="Connect your wallet" done={connected} active={step === 1}>
-          <p className="text-sm leading-relaxed text-muted">Your wallet is your account. What you buy sits in a vault only your wallet controls.</p>
+          <p className="text-sm leading-relaxed text-muted">
+            <Responsive m="Your wallet is your account." d="Your wallet is your account. Only it can move funds out of your vault." />
+          </p>
           <Button className="mt-4" size="lg" disabled={isPending || !connectors[0]} onClick={() => connectors[0] && connect({ connector: connectors[0] })}>
             {isPending ? "Connecting…" : "Connect wallet"}
           </Button>
-          {!connectors[0] && <p className="mt-2 text-sm text-danger">No wallet found. Install a browser wallet such as Coinbase Wallet or MetaMask.</p>}
+          {!connectors[0] && <p className="mt-2 text-sm text-danger">No wallet found. Install Coinbase Wallet or MetaMask.</p>}
         </Step>
 
-        <Step n={2} title="Prove it is yours" done={signedIn} active={step === 2}>
-          <p className="text-sm leading-relaxed text-muted">Sign one message to create your profile and your Stackday ID. It is a free signature, not a transaction.</p>
+        <Step n={2} title="Sign in" done={signedIn} active={step === 2}>
+          <p className="text-sm leading-relaxed text-muted">
+            <Responsive m="Free signature, not a transaction." d={`Sign a message to create your ${BRAND.name} ID. It's free and not a transaction.`} />
+          </p>
           <Button className="mt-4" size="lg" variant="ink" disabled={session.busy} onClick={session.signIn}>
             {session.busy ? (
               <>
@@ -161,23 +171,22 @@ export default function StartPage() {
           {session.error && <p className="mt-2 text-sm text-danger">{session.error}</p>}
         </Step>
 
-        <Step n={3} title="Choose how you use Stackday" done={false} active={step === 3}>
+        <Step n={3} title={`Choose how to use ${BRAND.name}`} done={false} active={step === 3}>
           {me && (
             <p className="mb-4 text-sm text-muted">
-              Your Stackday ID is <strong className="font-mono text-ink">{me.profile.uid}</strong>.
+              Your {BRAND.name} ID is <strong className="font-mono font-medium text-ink">{me.profile.uid}</strong>.
             </p>
           )}
 
           <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Interface">
             {MODES.map((m) => (
-              <Option key={m.id} selected={mode === m.id} onSelect={() => setMode(m.id)} tone={m.id === "personal" ? "grow" : "brand"}>
-                <span className={cx("h-2.5 w-2.5 rounded-full", m.id === "personal" ? "bg-grow" : "bg-brand")} aria-hidden />
-                <span className="mt-3 font-display text-2xl font-semibold tracking-tight">{m.title}</span>
+              <Option key={m.id} selected={mode === m.id} onSelect={() => setMode(m.id)}>
+                <span className="text-base font-semibold tracking-[-0.01em] text-ink">{m.title}</span>
                 <span className="mt-1 text-sm leading-relaxed text-muted">{m.text}</span>
                 <ul className="mt-3 space-y-1.5 text-[13px] leading-snug text-ink-soft">
                   {m.points.map((pt) => (
                     <li key={pt} className="flex gap-2">
-                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-line-strong" />
+                      <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-faint" />
                       {pt}
                     </li>
                   ))}
@@ -187,12 +196,12 @@ export default function StartPage() {
           </div>
 
           {mode === "business" && (
-            <div className="mt-5 animate-[var(--animate-rise)]">
-              <h3 className="text-sm font-semibold">Which side are you on?</h3>
+            <div className="mt-5 animate-[var(--animate-fade)]">
+              <h3 className="text-sm font-semibold">Your role</h3>
               <div className="mt-2.5 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Business role">
                 {BUSINESS_ROLES.map((r) => (
-                  <Option key={r.id} selected={businessRole === r.id} onSelect={() => setBusinessRole(r.id)} tone="brand">
-                    <span className="text-[15px] font-semibold tracking-tight">{r.title}</span>
+                  <Option key={r.id} selected={businessRole === r.id} onSelect={() => setBusinessRole(r.id)}>
+                    <span className="text-[15px] font-semibold text-ink">{r.title}</span>
                     <span className="mt-1 text-sm leading-relaxed text-muted">{r.text}</span>
                   </Option>
                 ))}
@@ -201,17 +210,17 @@ export default function StartPage() {
           )}
 
           {ownerNeedsName && (
-            <div className="mt-5 grid animate-[var(--animate-rise)] gap-4">
+            <div className="mt-5 grid animate-[var(--animate-fade)] gap-4">
               <Field label="Business name" placeholder="Northwind Studio" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
               <label className="block">
-                <span className="text-[13px] font-medium text-ink-soft">What does it do? (optional)</span>
+                <span className="text-[13px] font-medium text-ink-soft">Description (optional)</span>
                 <textarea
                   value={description}
                   maxLength={400}
                   rows={3}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="A short description your team will see."
-                  className="mt-1.5 w-full well rounded-2xl px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-muted/70 focus:shadow-[var(--well),0_0_0_2px_var(--brand),0_0_0_5px_var(--brand-soft)]"
+                  className="well mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-faint"
                 />
               </label>
             </div>
@@ -225,9 +234,11 @@ export default function StartPage() {
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button size="lg" disabled={!canFinish || busy} onClick={finish}>
-              {busy ? "Saving…" : mode === "business" ? (businessRole === "owner" ? "Open Business: payroll" : "Open Business: my pay") : "Open Personal"}
+              {busy ? "Saving…" : mode === "business" ? (businessRole === "owner" ? "Open Payroll" : "Open My pay") : "Open Personal"}
             </Button>
-            <p className="text-xs text-muted">You can switch between Personal and Business at any time.</p>
+            <p className="text-xs text-muted">
+              <Responsive m="Switch any time." d="Switch between Personal and Business any time." />
+            </p>
           </div>
           {error && <p className="mt-3 text-sm text-danger">{error}</p>}
         </Step>
