@@ -470,9 +470,10 @@ export default function DocsPage() {
               </p>
               <p>
                 Each team member turns on private pay once (the team invite on Home offers it), so their account is ready
-                before the first private payday. On Payroll, the Private payday panel shows who is ready, pays them all in one
-                go (it tops up the employer&apos;s private balance from their wallet, then sends each person an encrypted amount)
-                and can pay anyone not set up yet the normal way. Only the sender and the receiver can read an amount; each
+                before the first private payday. On Payroll, Pay the team with &quot;Once, now&quot; lists everyone with a Private
+                tick box: ticked for people who are ready, and anyone not set up yet is paid the normal way. One Pay all button
+                pays the normal ones first (from the treasury), then the private ones (it tops up the employer&apos;s private
+                balance from their wallet, then sends each person an encrypted amount). Scheduled paydays are paid the normal way. Only the sender and the receiver can read an amount; each
                 decrypts it in their own browser with keys made from one wallet signature. Wallet addresses still show.
               </p>
               <p>
