@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useViewer } from "@/components/providers";
+import { DEFAULT_SLOT, nextSlot } from "@/lib/slots";
 import { Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus } from "@/components/ui";
 import { payrollAbi, routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS, CHAIN_ID, SIP_FEE_BPS, type Asset } from "@/lib/contracts";
@@ -467,7 +468,7 @@ export default function ThemesPage() {
         address: ADDR.router,
         abi: routerAbi,
         functionName: "setPlan",
-        args: [a.token, b.usdc, Number(interval) * 86400, 100],
+        args: [a.token, b.usdc, Number(interval) * 86400, 100, nextSlot(DEFAULT_SLOT.day, DEFAULT_SLOT.time, Math.floor(Date.now() / 1000))],
       });
     }
     if (await tx.run(calls, "Recurring plans saved, one per asset. They show on the Invest page.")) setPerBuy("");
@@ -600,10 +601,9 @@ export default function ThemesPage() {
                     value={interval}
                     onChange={setIntervalDays}
                     options={[
-                      { value: "1", label: "Daily" },
                       { value: "7", label: "Weekly" },
                       { value: "14", label: "Every 2 weeks" },
-                      { value: "30", label: "Monthly" },
+                      { value: "28", label: "Every 4 weeks" },
                     ]}
                   />
                 </div>

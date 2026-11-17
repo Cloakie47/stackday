@@ -25,6 +25,8 @@ contract SipRouter is ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     uint32 public constant MIN_INTERVAL = 1 days;
+    /// The first buy can be scheduled at most this far ahead.
+    uint32 public constant MAX_FIRST_BUY_DELAY = 31 days;
     uint16 public constant MAX_SLIPPAGE_BPS = 1000;
     uint16 public constant MAX_SIP_FEE_BPS = 20; // the fee can never be deployed above 0.2%
 
@@ -58,6 +60,7 @@ contract SipRouter is ReentrancyGuardTransient {
     error ZeroAmount();
     error UnsupportedStock(address stock);
     error BadInterval();
+    error BadFirstBuy();
     error BadSlippage();
     error NoPlan();
     error NotDueYet(uint256 nextBuyAt);
@@ -101,14 +104,20 @@ contract SipRouter is ReentrancyGuardTransient {
         emit Invested(msg.sender, stock, usdcAmount, stockOut, false);
     }
 
-    /// @notice Start or change a recurring plan. The first buy can run immediately.
-    /// The caller must also approve this contract to spend their USDC.
-    function setPlan(address stock, uint96 usdcPerBuy, uint32 interval, uint16 maxSlippageBps) external {
+    /// @notice Start or change a recurring plan. The caller must also approve this contract to spend their USDC.
+    /// @param firstBuyAt when the first buy is due, for example next Monday 11:00 New York time, so buys
+    /// land while the stock market is open. 0 or a past time means now. Later buys keep the same slot:
+    /// every `interval` after it.
+    function setPlan(address stock, uint96 usdcPerBuy, uint32 interval, uint16 maxSlippageBps, uint40 firstBuyAt)
+        external
+    {
         _requireSupported(stock);
         if (usdcPerBuy == 0) revert ZeroAmount();
         if (interval < MIN_INTERVAL) revert BadInterval();
         if (maxSlippageBps > MAX_SLIPPAGE_BPS) revert BadSlippage();
-        planOf[msg.sender][stock] = Plan(stock, usdcPerBuy, interval, uint40(block.timestamp), maxSlippageBps);
+        if (firstBuyAt > block.timestamp + MAX_FIRST_BUY_DELAY) revert BadFirstBuy();
+        uint40 first = firstBuyAt < block.timestamp ? uint40(block.timestamp) : firstBuyAt;
+        planOf[msg.sender][stock] = Plan(stock, usdcPerBuy, interval, first, maxSlippageBps);
         emit PlanSet(msg.sender, stock, usdcPerBuy, interval, maxSlippageBps);
     }
 
@@ -124,7 +133,10 @@ contract SipRouter is ReentrancyGuardTransient {
         Plan memory plan = planOf[user][stock];
         if (plan.usdcPerBuy == 0) revert NoPlan();
         if (block.timestamp < plan.nextBuyAt) revert NotDueYet(plan.nextBuyAt);
-        planOf[user][stock].nextBuyAt = uint40(block.timestamp) + plan.interval;
+        // Stay on the chosen slot (same weekday and time) even if this run is late: the next buy is
+        // the first slot after now, never a slot shifted to whenever the trigger happened to arrive.
+        uint256 missed = (block.timestamp - plan.nextBuyAt) / plan.interval;
+        planOf[user][stock].nextBuyAt = uint40(plan.nextBuyAt + (missed + 1) * plan.interval);
 
         if (maxPriceAge != 0) {
             (,, uint256 updatedAt) = priceAdapter.getPrice(plan.stock);
