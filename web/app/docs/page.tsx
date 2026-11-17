@@ -470,9 +470,10 @@ export default function DocsPage() {
               </p>
               <p>
                 Each team member turns on private pay once (the team invite on Home offers it), so their account is ready
-                before the first private payday. On Payroll, the Private payday panel shows who is ready, pays them all in one
-                go (it tops up the employer&apos;s private balance from their wallet, then sends each person an encrypted amount)
-                and can pay anyone not set up yet the normal way. Only the sender and the receiver can read an amount; each
+                before the first private payday. On Payroll, Pay the team with &quot;Once, now&quot; lists everyone with a Private
+                tick box: ticked for people who are ready, and anyone not set up yet is paid the normal way. One Pay all button
+                pays the normal ones first (from the treasury), then the private ones (it tops up the employer&apos;s private
+                balance from their wallet, then sends each person an encrypted amount). Scheduled paydays are paid the normal way. Only the sender and the receiver can read an amount; each
                 decrypts it in their own browser with keys made from one wallet signature. Wallet addresses still show.
               </p>
               <p>
@@ -481,6 +482,13 @@ export default function DocsPage() {
                 private balance and buys the asset into their vault (a one-time buy, so no {BRAND.name} fee). Whatever stays
                 private never shows on chain. Fairblock&apos;s network confirms each step, usually within a minute on testnet,
                 and may charge a small fee on withdrawals.
+              </p>
+              <p>
+                Choosing &quot;Every payday&quot; saves the split on that device, as percentages only. When new private pay arrives,
+                Home and My pay say so (this reads only that an encrypted incoming balance exists, never the amount), and the saved
+                split is filled in: one tap collects and invests it. The person still presses the button, because only their
+                browser holds their private keys. Employers and team members each keep a private pay record in their own browser,
+                with a CSV export for an accountant or auditor.
               </p>
               <p>
                 Private pay runs beside {BRAND.name}&apos;s payroll contract, not inside it, because the keys live in each

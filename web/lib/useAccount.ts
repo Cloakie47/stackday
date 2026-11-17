@@ -251,7 +251,8 @@ export function rememberMode(address: string | undefined, mode: Mode, businessRo
 
 /** Where each mode opens. */
 export function homeFor(mode: Mode | undefined, role: Role | undefined) {
-  if (mode === "business") return role === "owner" ? "/employer" : "/pay";
+  // Team members land on Home like everyone else; it shows salary waiting with a Claim button.
+  if (mode === "business") return role === "owner" ? "/employer" : "/dashboard";
   return "/dashboard";
 }
 

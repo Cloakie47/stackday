@@ -11,7 +11,7 @@
  * This runs beside Stackday's Payroll contract, not inside it: the keys live in each person's
  * browser, so a contract cannot send private payments by itself. Stackday holds nothing here.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWalletClient } from "wagmi";
 import type { ConfidentialTransferClient as Client } from "@fairblock/stabletrust";
@@ -35,6 +35,114 @@ export type PrivateStatus = "off" | "confirming" | "processing" | "on";
 
 /** Round down to whole cents, the smallest amount Fairblock moves. */
 export const toCents = (v: bigint) => (v / CENT) * CENT;
+
+/**
+ * Has new private pay arrived that is not collected yet? Reads the encrypted incoming ("pending")
+ * balance, which anyone can see exists but nobody can read: no signature, no amount. It is empty
+ * once the person collects (a withdrawal applies it).
+ */
+export function usePrivatePayWaiting(address: string | undefined) {
+  return useQuery({
+    queryKey: ["private-waiting", address?.toLowerCase()],
+    enabled: !!address,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const c = await getClient();
+      const info = await c.getAccountInfo(address!);
+      if (!info.exists) return false;
+      // The SDK exposes the contract; getPending returns the two encrypted parts, "0x" when empty.
+      const [c1] = (await (c as unknown as { contract: { getPending: (a: string, t: string) => Promise<[string, string]> } }).contract.getPending(
+        address!,
+        ADDR.usdc,
+      )) as [string, string];
+      return !!c1 && c1 !== "0x";
+    },
+  });
+}
+
+/** A person's standing split for private paydays. Percentages only, never amounts. Kept on this device. */
+export type PrivateSplit = { pct: number; symbol: string; rest: "keep" | "withdraw" };
+const SPLIT_KEY = (a: string) => `stackday-private-split-${a.toLowerCase()}`;
+export function loadPrivateSplit(address: string | undefined): PrivateSplit | undefined {
+  if (!address) return undefined;
+  try {
+    const v = JSON.parse(window.localStorage.getItem(SPLIT_KEY(address)) ?? "null");
+    return v && typeof v.pct === "number" && typeof v.symbol === "string" ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+export function savePrivateSplit(address: string | undefined, split: PrivateSplit | undefined) {
+  if (!address) return;
+  try {
+    if (split) window.localStorage.setItem(SPLIT_KEY(address), JSON.stringify(split));
+    else window.localStorage.removeItem(SPLIT_KEY(address));
+  } catch {
+    /* private window: not remembered */
+  }
+}
+
+/**
+ * A record of private payments on this device, for the person's own books and for sharing with an
+ * accountant or auditor. Amounts are only stored here, in this browser; nothing goes to Stackday.
+ */
+export type PrivateRecord = {
+  at: number;
+  kind: "paid" | "collected" | "invested";
+  who?: string;
+  name?: string;
+  amount: string;
+  tx?: string;
+  /** Which payday a payment belongs to (its start time), so the log can group them. */
+  payday?: number;
+  /** True for a private (Fairblock) payment, false for a normal Payroll payment. */
+  private?: boolean;
+};
+const RECORDS_KEY = (a: string) => `stackday-private-records-${a.toLowerCase()}`;
+const RECORDS_EVENT = "stackday-private-records";
+export function loadPrivateRecords(address: string | undefined): PrivateRecord[] {
+  if (!address) return [];
+  try {
+    const v = JSON.parse(window.localStorage.getItem(RECORDS_KEY(address)) ?? "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+export function addPrivateRecord(address: string | undefined, r: PrivateRecord) {
+  if (!address) return;
+  try {
+    const all = [r, ...loadPrivateRecords(address)].slice(0, 500);
+    window.localStorage.setItem(RECORDS_KEY(address), JSON.stringify(all));
+    window.dispatchEvent(new Event(RECORDS_EVENT));
+  } catch {
+    /* private window: not recorded */
+  }
+}
+export function usePrivateRecords(address: string | undefined) {
+  const [records, setRecords] = useState<PrivateRecord[]>([]);
+  useEffect(() => {
+    const read = () => setRecords(loadPrivateRecords(address));
+    read();
+    window.addEventListener(RECORDS_EVENT, read);
+    return () => window.removeEventListener(RECORDS_EVENT, read);
+  }, [address]);
+  return records;
+}
+/** CSV of the records, for an accountant or auditor. */
+export function recordsCsv(records: PrivateRecord[]) {
+  const head = "date,payday,type,private,person,wallet,amount_usdc,transaction";
+  const esc = (s: string | undefined) => `"${(s ?? "").replace(/"/g, '""')}"`;
+  const rows = records.map((r) =>
+    [new Date(r.at).toISOString(), r.payday ? new Date(r.payday).toISOString() : "", r.kind, r.private === undefined ? "" : r.private ? "yes" : "no", esc(r.name), r.who ?? "", r.amount, r.tx ?? ""].join(","),
+  );
+  return [head, ...rows].join("\n");
+}
+export const fmt6 = (v: bigint) => (Number(v) / 1e6).toFixed(2);
+const txHash = (r: unknown) => {
+  const x = r as { hash?: string; transactionHash?: string } | undefined;
+  return x?.hash ?? x?.transactionHash;
+};
 
 /**
  * Wait until Fairblock has finished the account's last step (each deposit, transfer or withdrawal is
@@ -109,6 +217,7 @@ export function usePrivatePay(address: string | undefined) {
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["private-status"] });
+    queryClient.invalidateQueries({ queryKey: ["private-waiting"] });
     queryClient.invalidateQueries({ queryKey: ["portfolio"] });
   }, [queryClient]);
 
@@ -175,7 +284,7 @@ export function usePrivatePay(address: string | undefined) {
      * Private payday: top up the private balance from the wallet if needed, then pay each person in
      * turn, waiting for Fairblock between steps. `onProgress` reports how many are done.
      */
-    payMany: (items: { to: string; amount: bigint }[], onProgress: (done: number, note: string) => void) =>
+    payMany: (items: { to: string; amount: bigint; name?: string }[], onProgress: (done: number, note: string) => void, payday = Date.now()) =>
       act(
         "Paying your team privately",
         async (c, s) => {
@@ -192,8 +301,9 @@ export function usePrivatePay(address: string | undefined) {
           }
           for (let i = 0; i < items.length; i++) {
             onProgress(i, `Paying ${i + 1} of ${items.length}`);
-            await c.confidentialTransfer(s, items[i].to, ADDR.usdc, items[i].amount, { waitForFinalization: false });
+            const r = await c.confidentialTransfer(s, items[i].to, ADDR.usdc, items[i].amount, { waitForFinalization: false });
             await waitForFairblock(me);
+            addPrivateRecord(me, { at: Date.now(), kind: "paid", who: items[i].to, name: items[i].name, amount: fmt6(items[i].amount), tx: txHash(r), payday, private: true });
           }
           onProgress(items.length, "Done");
         },
@@ -208,9 +318,10 @@ export function usePrivatePay(address: string | undefined) {
           const me = await s.getAddress();
           await c.ensureAccount(s, { waitForFinalization: false });
           onProgress("Withdrawing from your private balance");
-          await c.withdraw(s, ADDR.usdc, amount, { waitForFinalization: false });
+          const r = await c.withdraw(s, ADDR.usdc, amount, { waitForFinalization: false });
           onProgress("Waiting for Fairblock to deliver it (usually a few minutes)");
           await waitForFairblock(me);
+          addPrivateRecord(me, { at: Date.now(), kind: "collected", amount: fmt6(amount), tx: txHash(r) });
         },
         "Collected. The USDC is in your wallet.",
       ),

@@ -1,7 +1,8 @@
 "use client";
 
 import { PrivatePay } from "@/components/private-pay";
-import { PrivatePayday } from "@/components/private-payday";
+import { PaydayLog, PayNow } from "@/components/private-payday";
+import { addPrivateRecord, fmt6 } from "@/lib/confidential";
 import Link from "next/link";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
@@ -290,7 +291,7 @@ export default function EmployerPage() {
     );
 
   /** One-off payday through the Payroll contract for these people (treasury first, wallet tops up the rest). */
-  async function payMembers(list: { wallet: string; salary: string }[]) {
+  async function payMembers(list: { wallet: string; salary: string; name?: string }[], payday = Date.now()) {
     const who = list.map((m) => m.wallet as Address);
     const how = list.map((m) => parseUsdc(m.salary));
     const sum = how.reduce((a, b) => a + b, 0n);
@@ -303,10 +304,15 @@ export default function EmployerPage() {
     } else {
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [who, how] });
     }
-    return tx.run(calls, "Payday created. Your team can claim now.");
+    const result = await tx.run(calls, "Payday created. Your team can claim now.");
+    if (result) {
+      const hash = typeof result === "string" ? result : undefined;
+      for (const m of list)
+        addPrivateRecord(me, { at: Date.now(), kind: "paid", who: m.wallet, name: m.name, amount: fmt6(parseUsdc(m.salary)), tx: hash, payday, private: false });
+    }
+    return result;
   }
 
-  const payOnce = () => payMembers(payable);
 
   const startSchedule = () =>
     tx.run(
@@ -486,34 +492,34 @@ export default function EmployerPage() {
           />
           {mode === "recurring" && <Select label="Payday rhythm" value={interval} onChange={setIntervalValue} options={INTERVALS} />}
         </div>
-        <div className="mt-5 rounded-2xl bg-sunken/70 p-4">
-          <Row label="People paid">{payable.length}</Row>
-          <Row label="Each payday costs">{fmtUsdc(total)} USDC</Row>
-          {mode === "recurring" ? (
+        {mode === "recurring" && (
+          <div className="mt-5 rounded-2xl bg-sunken/70 p-4">
+            <Row label="People paid">{payable.length}</Row>
+            <Row label="Each payday costs">{fmtUsdc(total)} USDC</Row>
             <Row label="Your treasury covers">{total > 0n ? `${(Number(p.employerBalance) / Number(total)).toFixed(1)} paydays` : "…"}</Row>
-          ) : (
-            <Row label="Taken from your wallet now">{fmtUsdc(total > p.employerBalance ? total - p.employerBalance : 0n)} USDC</Row>
-          )}
-        </div>
+          </div>
+        )}
         {mode === "recurring" ? (
           <>
             <Button size="lg" className="mt-5" disabled={!viewer.canAct || payable.length === 0 || tx.state.busy} onClick={startSchedule}>
               Start {intervalLabel(Number(interval)).toLowerCase()} payroll
             </Button>
             <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-              A due payday waits until someone presses pay, and until the treasury covers it.{" "}
-              <LearnMore href="/docs#businesses" />
+              A due payday waits until someone presses pay, and until the treasury covers it. Scheduled paydays are paid the normal way:
+              private pay needs your browser, so use Once, now for it. <LearnMore href="/docs#businesses" />
             </p>
           </>
         ) : (
-          <Button
-            size="lg"
-            className="mt-5"
-            disabled={!viewer.canAct || payable.length === 0 || tx.state.busy || (total > p.employerBalance && total - p.employerBalance > p.walletUsdc)}
-            onClick={payOnce}
-          >
-            Pay {fmtUsdc(total)} USDC now
-          </Button>
+          <div className="mt-5">
+            <PayNow
+              team={payable.map((m) => ({ wallet: m.wallet, name: m.name, salary: m.salary }))}
+              address={me}
+              canAct={viewer.canAct && !tx.state.busy}
+              walletUsdc={p.walletUsdc}
+              treasury={p.employerBalance}
+              onPayNormally={payMembers}
+            />
+          </div>
         )}
         <TxStatus state={tx.state} />
       </Card>
@@ -595,13 +601,7 @@ export default function EmployerPage() {
         )}
       </Card>
 
-      <PrivatePayday
-        team={payable.map((m) => ({ wallet: m.wallet, name: m.name, salary: m.salary }))}
-        address={me}
-        canAct={viewer.canAct}
-        walletUsdc={p.walletUsdc}
-        onPayNormally={payMembers}
-      />
+      <PaydayLog address={me} />
       <PrivatePay address={me} canAct={viewer.canAct} role="employer" team={team.filter((m) => isAddress(m.wallet)).map((m) => ({ wallet: m.wallet, name: m.name }))} />
 
       <Card title="Past paydays">
