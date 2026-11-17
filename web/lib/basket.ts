@@ -126,7 +126,8 @@ export function splitRepay(amount: bigint, legs: Leg[], capBps: bigint): bigint[
 export function yearly(legs: (Leg & { dividendBps: number; ratePerSecond?: bigint })[]) {
   let earn = 0n, cost = 0n;
   for (const l of legs) {
-    earn += (l.value * BigInt(l.dividendBps)) / 10_000n;
+    // dividendBps may be fractional (net of fees and tax): keep two more decimals of precision.
+    earn += (l.value * BigInt(Math.round(l.dividendBps * 100))) / 1_000_000n;
     if (l.ratePerSecond !== undefined) cost += (l.debt * l.ratePerSecond * YEAR) / WAD;
   }
   return { earn, cost, net: earn - cost };

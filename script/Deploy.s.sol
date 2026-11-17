@@ -23,6 +23,8 @@ contract Deploy is Script {
     /// Liquidation limits, matching the main real Morpho markets on Base for each kind of asset.
     uint256 internal constant STOCK_LLTV = 0.625e18;
     uint256 internal constant CRYPTO_LLTV = 0.86e18;
+    /// The real GOOGLc market on Morpho (Base mainnet) liquidates at 77%, the other stock markets at 62.5%.
+    uint256 internal constant GOOGL_LLTV = 0.77e18;
     uint16 internal constant SIP_FEE_BPS = 15; // 0.15% on recurring buys
     uint16 internal constant BORROW_FEE_BPS = 10; // 0.1% of borrowed USDC, once
     uint16 internal constant EARN_FEE_BPS = 10; // 0.1% a year, only out of interest
@@ -46,7 +48,10 @@ contract Deploy is Script {
         address deployer = vm.addr(pk);
         address feeRecipient = vm.envOr("FEE_RECIPIENT", deployer);
         uint256 liquidity = vm.envOr("MARKET_LIQUIDITY_USDC", uint256(2e6));
-        require(MORPHO.isLltvEnabled(STOCK_LLTV) && MORPHO.isLltvEnabled(CRYPTO_LLTV), "LLTV not enabled on Morpho");
+        require(
+            MORPHO.isLltvEnabled(STOCK_LLTV) && MORPHO.isLltvEnabled(CRYPTO_LLTV) && MORPHO.isLltvEnabled(GOOGL_LLTV),
+            "LLTV not enabled on Morpho"
+        );
 
         vm.startBroadcast(pk);
 
@@ -58,7 +63,7 @@ contract Deploy is Script {
         _asset(deployer, "Mock Tesla (Stackday test)", "mTSLA", 8, 430e8, STOCK_LLTV);
         _asset(deployer, "Mock Microsoft (Stackday test)", "mMSFT", 8, 510e8, STOCK_LLTV);
         _asset(deployer, "Mock Amazon (Stackday test)", "mAMZN", 8, 235e8, STOCK_LLTV);
-        _asset(deployer, "Mock Alphabet (Stackday test)", "mGOOGL", 8, 280e8, STOCK_LLTV);
+        _asset(deployer, "Mock Alphabet (Stackday test)", "mGOOGL", 8, 280e8, GOOGL_LLTV);
         _asset(deployer, "Mock Meta (Stackday test)", "mMETA", 8, 640e8, STOCK_LLTV);
         require(USDC.balanceOf(deployer) >= assets.length * liquidity, "Need more test USDC (faucet.circle.com)");
         ChainlinkPriceAdapter priceAdapter = new ChainlinkPriceAdapter(assets, feeds);

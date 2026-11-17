@@ -12,8 +12,9 @@ import { vaultBatch } from "@/lib/batch";
 import { useTx, type Call } from "@/lib/useTx";
 
 /**
- * Approximate yearly dividend of the real share each token tracks, in basis points. Tokenized stocks
- * reinvest dividends into the token, so locked tokens keep earning them. cbBTC and Ether pay none.
+ * Approximate yearly dividend of the real share each token tracks, in basis points (gross). Tokenized stocks
+ * reinvest dividends into the token through an on-chain multiplier, so locked tokens keep earning them.
+ * cbBTC and Ether pay none. What reaches holders is less: see NET_DIVIDEND_SHARE.
  * The testnet mock tokens pay no dividends at all; the UI says so.
  */
 const DIVIDEND_BPS: Record<string, number> = {
@@ -27,6 +28,13 @@ const DIVIDEND_BPS: Record<string, number> = {
   mcbBTC: 0,
   mWETH: 0,
 };
+
+/**
+ * Share of a gross dividend that reaches a holder of a Coinbase tokenized stock: the issuer keeps 5% as a
+ * distribution fee and US withholding tax (up to 30%, lower under some tax treaties) is taken before the
+ * rest is reinvested. 0.95 x 0.70 = 66.5%, the cautious case.
+ */
+const NET_DIVIDEND_PER_MILLE = 665;
 
 type Tab = "lock" | "borrow" | "repay";
 
@@ -81,7 +89,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const now = summarize(legs, cap);
   // True when market cash, not the borrow cap, is what stops a bigger loan.
   const cashLimited = now.locked > 0n && now.available < (now.limit > now.debt ? now.limit - now.debt : 0n);
-  const earnings = yearly(positions.map((x, i) => ({ ...legs[i], dividendBps: DIVIDEND_BPS[x.asset.symbol] ?? 0, ratePerSecond: x.ratePerSecond })));
+  const earnings = yearly(positions.map((x, i) => ({ ...legs[i], dividendBps: ((DIVIDEND_BPS[x.asset.symbol] ?? 0) * NET_DIVIDEND_PER_MILLE) / 1000, ratePerSecond: x.ratePerSecond })));
 
   // ---- lock: dollars per asset to token amounts, capped by what is free
   const lockPlan = positions.map((x) => {
@@ -479,12 +487,13 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
       <TxStatus state={tx.state} />
 
       <div className="mt-6 grid gap-4 border-t border-line pt-6 sm:grid-cols-3">
-        <Stat label="Dividends a year" value={`+$${fmtUsdc(earnings.earn)}`} hint="Reinvested into the tokens" />
+        <Stat label="Dividends a year" value={`+$${fmtUsdc(earnings.earn)}`} hint="After issuer fee and US tax" />
         <Stat label="Interest a year" value={`-$${fmtUsdc(earnings.cost)}`} hint="Live Morpho rate on your loan" />
         <Stat label="Net a year" value={`${earnings.net < 0n ? "-" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`} hint="At today's prices, before price moves" />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted">
-        Estimated with each real share&apos;s yearly dividend. The test tokens pay none.
+        Estimated with each real share&apos;s yearly dividend, after the issuer&apos;s 5% fee and up to 30% US withholding tax (reinvested into
+        the token, not paid in cash). The test tokens pay none.
       </p>
     </Card>
   );

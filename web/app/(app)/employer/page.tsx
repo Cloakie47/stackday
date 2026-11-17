@@ -1,6 +1,5 @@
 "use client";
 
-import { PrivatePay } from "@/components/private-pay";
 import { PaydayLog, PayNow } from "@/components/private-payday";
 import { addPrivateRecord, fmt6 } from "@/lib/confidential";
 import Link from "next/link";
@@ -505,8 +504,9 @@ export default function EmployerPage() {
               Start {intervalLabel(Number(interval)).toLowerCase()} payroll
             </Button>
             <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-              A due payday waits until someone presses pay, and until the treasury covers it. Scheduled paydays are paid the normal way:
-              private pay needs your browser, so use Once, now for it. <LearnMore href="/docs#businesses" />
+              Paid automatically: a trigger bot pays every due payday on weekdays at 16:00 UTC, once the treasury covers it. You can also
+              press Pay now on a schedule below. Your team then claims their pay. Scheduled paydays are paid the normal way, because
+              private pay needs your browser; use Once, now for it. <LearnMore href="/docs#businesses" />
             </p>
           </>
         ) : (
@@ -602,7 +602,6 @@ export default function EmployerPage() {
       </Card>
 
       <PaydayLog address={me} />
-      <PrivatePay address={me} canAct={viewer.canAct} role="employer" team={team.filter((m) => isAddress(m.wallet)).map((m) => ({ wallet: m.wallet, name: m.name }))} />
 
       <Card title="Past paydays">
         <PastRuns employer={me} />

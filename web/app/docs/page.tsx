@@ -425,8 +425,7 @@ export default function DocsPage() {
                 weakest part as well as the total. With no loan open, you can unlock everything in one go.
               </p>
               <p>
-                The page also shows what the basket earns in a year: reinvested dividends (using each real share&apos;s
-                approximate dividend; the testnet tokens pay none) minus the live interest on the loan.
+                The page also shows what the basket earns in a year: reinvested dividends (each real share&apos;s approximate dividend after the issuer&apos;s 5% fee and up to 30% US tax; the testnet tokens pay none) minus the live interest on the loan.
               </p>
               <H3 id="health">Loan health</H3>
               <p>
