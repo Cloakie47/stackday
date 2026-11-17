@@ -20,11 +20,10 @@ import { useTx, type Call } from "@/lib/useTx";
 const DIVIDEND_BPS: Record<string, number> = {
   mAAPL: 40,
   mNVDA: 2,
-  mMSFT: 70,
   mGOOGL: 30,
   mMETA: 30,
-  mTSLA: 0,
-  mAMZN: 0,
+  mSPCX: 0,
+  mPAXG: 0,
   mcbBTC: 0,
   mWETH: 0,
 };
@@ -376,8 +375,8 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
               {level === "high" && (
                 <div className="mt-2 space-y-1 text-xs leading-relaxed text-danger">
                   {raiseCap && <p>This raises your vault&apos;s safety cap from {Number(cap) / 100}% to 65% of the liquidation limit, in the same signature.</p>}
-                  {positions.some((x) => x.collateral > 0n && x.asset.kind === "stock") && (
-                    <p>Tokenized stocks do not trade at weekends, so a price can jump on Monday. A liquidation costs about 12.7% of the collateral taken.</p>
+                  {positions.some((x) => x.collateral > 0n && x.asset.kind !== "crypto") && (
+                    <p>Tokenized stocks and gold do not trade at weekends, so a price can jump on Monday. A liquidation costs about 12.7% of the collateral taken.</p>
                   )}
                   {!p.emergencyRule && (p.schedulesPayingMe.length > 0 || p.claims.length > 0) && (
                     <p className="text-muted">

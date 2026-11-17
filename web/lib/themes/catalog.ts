@@ -81,11 +81,9 @@ export const COMING_SOON = ["Clean energy", "Healthcare", "Global stocks"];
 export const MOCK_FOR: Record<string, string> = {
   AAPLc: "mAAPL",
   NVDAc: "mNVDA",
-  TSLAc: "mTSLA",
-  MSFTc: "mMSFT",
-  AMZNc: "mAMZN",
   GOOGLc: "mGOOGL",
   METAc: "mMETA",
+  SPCXc: "mSPCX",
   cbBTC: "mcbBTC",
   WETH: "mWETH",
 };

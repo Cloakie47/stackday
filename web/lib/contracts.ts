@@ -32,7 +32,7 @@ export type Asset = {
   name: string;
   /** The real token this mock stands in for on Base mainnet. */
   realTicker: string;
-  kind: "stock" | "crypto";
+  kind: "stock" | "commodity" | "crypto";
   decimals: number;
   token: Address;
   feed: Address;
@@ -53,11 +53,10 @@ const META: Record<string, Pick<Asset, "name" | "realTicker" | "kind" | "decimal
   mNVDA: { name: "NVIDIA", realTicker: "NVDAc", kind: "stock", decimals: 8, startPrice: 190n * 10n ** 8n, color: "#76b900", icon: "NVDA" },
   mcbBTC: { name: "cbBTC", realTicker: "cbBTC", kind: "crypto", decimals: 8, startPrice: 100_000n * 10n ** 8n, color: "#f7931a", icon: "BTC" },
   mWETH: { name: "Ether", realTicker: "WETH", kind: "crypto", decimals: 18, startPrice: 3500n * 10n ** 8n, color: "#627eea", icon: "ETH" },
-  mTSLA: { name: "Tesla", realTicker: "TSLAc", kind: "stock", decimals: 8, startPrice: 430n * 10n ** 8n, color: "#cc0000", icon: "TSLA" },
-  mMSFT: { name: "Microsoft", realTicker: "MSFTc", kind: "stock", decimals: 8, startPrice: 510n * 10n ** 8n, color: "#0067b8", icon: "MSFT" },
-  mAMZN: { name: "Amazon", realTicker: "AMZNc", kind: "stock", decimals: 8, startPrice: 235n * 10n ** 8n, color: "#e47911", icon: "AMZN" },
   mGOOGL: { name: "Alphabet", realTicker: "GOOGLc", kind: "stock", decimals: 8, startPrice: 280n * 10n ** 8n, color: "#4285f4", icon: "GOOGL" },
   mMETA: { name: "Meta", realTicker: "METAc", kind: "stock", decimals: 8, startPrice: 640n * 10n ** 8n, color: "#0866ff", icon: "META" },
+  mSPCX: { name: "SpaceX", realTicker: "SPCXc", kind: "stock", decimals: 8, startPrice: 200n * 10n ** 8n, color: "#005288", icon: "SPCX" },
+  mPAXG: { name: "Gold", realTicker: "PAXG", kind: "commodity", decimals: 18, startPrice: 4060n * 10n ** 8n, color: "#c9a227", icon: "Au" },
 };
 
 /** Mock asset tokens on Base Sepolia. On Base mainnet these would be the real tokens named in `realTicker`. */

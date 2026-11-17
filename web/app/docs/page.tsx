@@ -24,11 +24,10 @@ const SYMBOLS = D.assetSymbols as string[];
 const ASSET_NAMES: Record<string, string> = {
   mAAPL: "Apple (AAPLc)",
   mNVDA: "NVIDIA (NVDAc)",
-  mTSLA: "Tesla (TSLAc)",
-  mMSFT: "Microsoft (MSFTc)",
-  mAMZN: "Amazon (AMZNc)",
   mGOOGL: "Alphabet (GOOGLc)",
   mMETA: "Meta (METAc)",
+  mSPCX: "SpaceX (SPCXc)",
+  mPAXG: "Gold (PAX Gold, PAXG)",
   mcbBTC: "cbBTC (Coinbase Wrapped BTC)",
   mWETH: "Ether (WETH)",
 };

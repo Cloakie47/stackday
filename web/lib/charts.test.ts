@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_TIMEFRAME, TIMEFRAMES, TV_SYMBOLS, timeframe, tvSymbol } from "./charts.ts";
+import { DEFAULT_TIMEFRAME, NO_PUBLIC_CHART, TIMEFRAMES, TV_SYMBOLS, timeframe, tvSymbol } from "./charts.ts";
 import d from "./deployment.json" with { type: "json" };
 
 test("every deployed asset has a real market symbol to chart", () => {
-  for (const s of d.assetSymbols as string[]) assert.ok(TV_SYMBOLS[s], `no chart symbol for ${s}`);
+  for (const s of d.assetSymbols as string[]) assert.ok(TV_SYMBOLS[s] || NO_PUBLIC_CHART.has(s), `no chart symbol for ${s}`);
   assert.equal(tvSymbol("mcbBTC"), "COINBASE:BTCUSD");
   assert.equal(tvSymbol("unknown"), undefined);
 });
