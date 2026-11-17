@@ -23,8 +23,9 @@ contract Deploy is Script {
     /// Liquidation limits, matching the main real Morpho markets on Base for each kind of asset.
     uint256 internal constant STOCK_LLTV = 0.625e18;
     uint256 internal constant CRYPTO_LLTV = 0.86e18;
-    /// The real GOOGLc market on Morpho (Base mainnet) liquidates at 77%, the other stock markets at 62.5%.
-    uint256 internal constant GOOGL_LLTV = 0.77e18;
+    /// The real GOOGLc and PAXG (gold) markets on Morpho (Base mainnet) liquidate at 77%; AAPLc, NVDAc,
+    /// METAc and SPCXc at 62.5%; cbBTC and WETH at 86%.
+    uint256 internal constant LLTV_77 = 0.77e18;
     uint16 internal constant SIP_FEE_BPS = 15; // 0.15% on recurring buys
     uint16 internal constant BORROW_FEE_BPS = 10; // 0.1% of borrowed USDC, once
     uint16 internal constant EARN_FEE_BPS = 10; // 0.1% a year, only out of interest
@@ -49,7 +50,7 @@ contract Deploy is Script {
         address feeRecipient = vm.envOr("FEE_RECIPIENT", deployer);
         uint256 liquidity = vm.envOr("MARKET_LIQUIDITY_USDC", uint256(2e6));
         require(
-            MORPHO.isLltvEnabled(STOCK_LLTV) && MORPHO.isLltvEnabled(CRYPTO_LLTV) && MORPHO.isLltvEnabled(GOOGL_LLTV),
+            MORPHO.isLltvEnabled(STOCK_LLTV) && MORPHO.isLltvEnabled(CRYPTO_LLTV) && MORPHO.isLltvEnabled(LLTV_77),
             "LLTV not enabled on Morpho"
         );
 
@@ -60,11 +61,14 @@ contract Deploy is Script {
         _asset(deployer, "Mock Coinbase BTC (Stackday test)", "mcbBTC", 8, 100_000e8, CRYPTO_LLTV);
         _asset(deployer, "Mock Wrapped Ether (Stackday test)", "mWETH", 18, 3500e8, CRYPTO_LLTV);
         // Added November 16, 2026. Real Coinbase tokenized stocks on Base: TSLAc, MSFTc, AMZNc, GOOGLc, METAc.
-        _asset(deployer, "Mock Tesla (Stackday test)", "mTSLA", 8, 430e8, STOCK_LLTV);
-        _asset(deployer, "Mock Microsoft (Stackday test)", "mMSFT", 8, 510e8, STOCK_LLTV);
-        _asset(deployer, "Mock Amazon (Stackday test)", "mAMZN", 8, 235e8, STOCK_LLTV);
-        _asset(deployer, "Mock Alphabet (Stackday test)", "mGOOGL", 8, 280e8, GOOGL_LLTV);
+        // Only assets with a real Morpho market on Base mainnet (checked November 17, 2026). Tesla,
+        // Microsoft and Amazon have Coinbase tokens but no Morpho market, so they are not listed.
+        _asset(deployer, "Mock Alphabet (Stackday test)", "mGOOGL", 8, 280e8, LLTV_77);
         _asset(deployer, "Mock Meta (Stackday test)", "mMETA", 8, 640e8, STOCK_LLTV);
+        // SpaceX is not publicly traded: the mock price is a placeholder, not a market price.
+        _asset(deployer, "Mock SpaceX (Stackday test)", "mSPCX", 8, 200e8, STOCK_LLTV);
+        // PAX Gold: one token is one troy ounce of gold, 18 decimals like the real PAXG.
+        _asset(deployer, "Mock PAX Gold (Stackday test)", "mPAXG", 18, 4060e8, LLTV_77);
         require(USDC.balanceOf(deployer) >= assets.length * liquidity, "Need more test USDC (faucet.circle.com)");
         ChainlinkPriceAdapter priceAdapter = new ChainlinkPriceAdapter(assets, feeds);
 

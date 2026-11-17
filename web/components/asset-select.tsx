@@ -9,6 +9,7 @@ const subtitle = (a: Asset) => `Test token, stands in for ${a.realTicker}`;
 
 const GROUPS: { kind: Asset["kind"]; label: string }[] = [
   { kind: "stock", label: "Stocks" },
+  { kind: "commodity", label: "Commodities" },
   { kind: "crypto", label: "Crypto" },
 ];
 

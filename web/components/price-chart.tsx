@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { TvWidget, type WidgetState } from "@/components/tradingview";
 import { Button, RealBadge, Segmented, Skeleton, cx } from "@/components/ui";
-import { DEFAULT_TIMEFRAME, TIMEFRAMES, timeframe, tvSymbol } from "@/lib/charts";
+import { DEFAULT_TIMEFRAME, NO_PUBLIC_CHART, TIMEFRAMES, timeframe, tvSymbol } from "@/lib/charts";
 import type { Asset } from "@/lib/contracts";
 import { fmtPrice } from "@/lib/format";
 
@@ -68,7 +68,13 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
     }
   }
 
-  if (!symbol) return null;
+  if (!symbol)
+    return NO_PUBLIC_CHART.has(asset.symbol) ? (
+      <p className="mt-5 rounded-2xl border border-line p-4 text-sm leading-relaxed text-muted">
+        {asset.name} is a private company, so there is no public market price to chart. On testnet the price is a placeholder
+        {testnetPrice ? ` ($${fmtPrice(testnetPrice)})` : ""}; on Base mainnet {asset.realTicker} has its own market and Morpho price feed.
+      </p>
+    ) : null;
   const t = timeframe(tf);
 
   return (

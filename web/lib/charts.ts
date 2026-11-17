@@ -16,14 +16,15 @@ export const TV_SCRIPT_BASE = "https://widgets.tradingview-widget.com/w/en";
 export const TV_SYMBOLS: Record<string, string> = {
   mAAPL: "NASDAQ:AAPL",
   mNVDA: "NASDAQ:NVDA",
-  mTSLA: "NASDAQ:TSLA",
-  mMSFT: "NASDAQ:MSFT",
-  mAMZN: "NASDAQ:AMZN",
   mGOOGL: "NASDAQ:GOOGL",
   mMETA: "NASDAQ:META",
+  mPAXG: "OANDA:XAUUSD",
   mcbBTC: "COINBASE:BTCUSD",
   mWETH: "COINBASE:ETHUSD",
 };
+
+/** Assets with no public market to chart (SpaceX is a private company): the chart is left out. */
+export const NO_PUBLIC_CHART = new Set(["mSPCX"]);
 
 /** `range` empty means "let the candle size decide the window" (a window can override the candle size). */
 export type Timeframe = { id: string; label: string; interval: string; range: string };

@@ -161,8 +161,8 @@ export default function RiskPage() {
 
       <Card title="Stress test: overnight or weekend price gap">
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          {asset.kind === "stock"
-            ? "Stock markets close at night and on weekends, and can reopen much lower in one step."
+          {asset.kind !== "crypto"
+            ? `${asset.kind === "commodity" ? "The gold market closes" : "Stock markets close"} at night and on weekends, and can reopen much lower in one step.`
             : "Crypto trades around the clock but can still fall very fast."}
         </p>
         <div className="mt-5 overflow-x-auto">

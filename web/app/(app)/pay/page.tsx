@@ -251,7 +251,7 @@ export default function PayPage() {
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-semibold">{pos.asset.name}</div>
                           <div className="text-xs text-muted">
-                            {pos.asset.kind === "stock" ? "Tokenized stock" : "Crypto"} · stands in for {pos.asset.realTicker}
+                            {pos.asset.kind === "stock" ? "Tokenized stock" : pos.asset.kind === "commodity" ? "Tokenized gold" : "Crypto"} · stands in for {pos.asset.realTicker}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
