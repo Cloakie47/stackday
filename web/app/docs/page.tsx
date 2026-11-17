@@ -483,6 +483,13 @@ export default function DocsPage() {
                 and may charge a small fee on withdrawals.
               </p>
               <p>
+                Choosing &quot;Every payday&quot; saves the split on that device, as percentages only. When new private pay arrives,
+                Home and My pay say so (this reads only that an encrypted incoming balance exists, never the amount), and the saved
+                split is filled in: one tap collects and invests it. The person still presses the button, because only their
+                browser holds their private keys. Employers and team members each keep a private pay record in their own browser,
+                with a CSV export for an accountant or auditor.
+              </p>
+              <p>
                 Private pay runs beside {BRAND.name}&apos;s payroll contract, not inside it, because the keys live in each
                 person&apos;s browser and a contract cannot send a private payment on its own. {BRAND.name} never holds this money.
                 Amounts move in whole cents.

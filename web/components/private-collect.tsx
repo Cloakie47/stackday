@@ -1,11 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { AssetSelect } from "@/components/asset-select";
 import { Badge, Button, Card, Field, Notice, Row, Segmented, Spinner, Stat, TxStatus } from "@/components/ui";
 import { routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS } from "@/lib/contracts";
-import { toCents, usePrivatePay, withdrawQuote } from "@/lib/confidential";
+import {
+  addPrivateRecord,
+  loadPrivateSplit,
+  recordsCsv,
+  savePrivateSplit,
+  toCents,
+  usePrivatePay,
+  usePrivatePayWaiting,
+  usePrivateRecords,
+  withdrawQuote,
+} from "@/lib/confidential";
 import { assetForUsdc, fmtAsset, fmtUsdc } from "@/lib/format";
 import type { Portfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
@@ -14,6 +25,7 @@ import { BRAND } from "@/lib/brand";
 type Share = "0" | "10" | "20" | "custom";
 type Rest = "keep" | "withdraw";
 type Step = "idle" | "collecting" | "buying" | "done";
+type Repeat = "once" | "always";
 
 /**
  * Team member: collect private pay and invest a share of it, on one screen.
@@ -31,6 +43,24 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
   const [symbol, setSymbol] = useState(ASSETS[0].symbol);
   const [step, setStep] = useState<Step>("idle");
   const [note, setNote] = useState<string>();
+  const [repeat, setRepeat] = useState<Repeat>("once");
+  const [saved, setSaved] = useState(false);
+  const waiting = usePrivatePayWaiting(address);
+
+  // A saved "every payday" split fills the choices in, so collecting is one tap.
+  useEffect(() => {
+    const sp = loadPrivateSplit(address);
+    setSaved(!!sp);
+    if (!sp) return;
+    setRepeat("always");
+    setRest(sp.rest);
+    if (ASSETS.some((a) => a.symbol === sp.symbol)) setSymbol(sp.symbol);
+    if (sp.pct === 0 || sp.pct === 10 || sp.pct === 20) setShare(String(sp.pct) as Share);
+    else {
+      setShare("custom");
+      setCustom(String(sp.pct));
+    }
+  }, [address]);
 
   const status = pp.status;
   const balance = pp.balance;
@@ -45,6 +75,8 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
 
   async function collectAndInvest() {
     if (toWithdraw === 0n) return;
+    savePrivateSplit(address, repeat === "always" ? { pct, symbol, rest } : undefined);
+    setSaved(repeat === "always");
     const walletBefore = p.walletUsdc;
     // What actually reaches the wallet after Fairblock's withdrawal fee.
     let investNet = investGross;
@@ -71,6 +103,7 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
       { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min] },
     ];
     const bought = await tx.run(calls, `Collected and invested $${fmtUsdc(amount)} in ${asset.name}.`);
+    if (bought) addPrivateRecord(address, { at: Date.now(), kind: "invested", name: asset.name, amount: (Number(amount) / 1e6).toFixed(2) });
     setStep(bought ? "done" : "idle");
     pp.reveal();
   }
@@ -86,6 +119,11 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
         invest a share in the same step. Whatever you do not withdraw stays private.
       </p>
 
+      {waiting.data && step === "idle" && (
+        <div className="mt-4">
+          <Notice tone="grow">New private pay has arrived. Check it below and collect it{saved ? " with your usual split" : ""}.</Notice>
+        </div>
+      )}
       {!address ? (
         <div className="mt-5">
           <Notice>Connect your wallet to use private pay.</Notice>
@@ -168,6 +206,15 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
                 />
               )}
               {investGross > 0n && <AssetSelect label="Invest in" assets={ASSETS} value={symbol} onChange={setSymbol} />}
+              <Segmented
+                label="Use this split"
+                value={repeat}
+                onChange={setRepeat}
+                options={[
+                  { value: "once", label: "Just this payday" },
+                  { value: "always", label: "Every payday" },
+                ]}
+              />
 
               <div className="rounded-2xl bg-sunken/70 p-4 text-sm">
                 {investGross > 0n && (
@@ -178,11 +225,19 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
                 )}
                 <Row label={rest === "keep" ? "Stays private" : "To your wallet"}>${fmtUsdc(restAmount)}</Row>
                 <Row label={`${BRAND.name} fee`}>None (one-time buy)</Row>
+                {repeat === "always" && (
+                  <p className="mt-2 text-xs text-muted">
+                    Saved on this device as percentages only. Next payday it is filled in for you; you still press Collect, because only your
+                    browser holds your private keys.
+                  </p>
+                )}
                 <p className="mt-2 text-xs text-muted">Fairblock takes a small fee on each withdrawal. Amounts that leave the private balance are visible on chain.</p>
               </div>
 
               <Button className="w-full sm:w-auto" disabled={busy || toWithdraw === 0n} onClick={collectAndInvest}>
-                {investGross > 0n ? `Collect and invest $${fmtUsdc(investGross)}` : `Collect $${fmtUsdc(toWithdraw)} to my wallet`}
+                {investGross > 0n
+                  ? `Collect and invest $${fmtUsdc(investGross)}${saved && repeat === "always" ? " as usual" : ""}`
+                  : `Collect $${fmtUsdc(toWithdraw)} to my wallet`}
               </Button>
             </>
           )}
@@ -232,5 +287,66 @@ export function PrivatePaySetup({ address, canAct }: { address: string | undefin
       </Button>
       {pp.error && <p className="w-full text-xs text-danger">{pp.error}</p>}
     </div>
+  );
+}
+
+/** A person's private pay record on this device, with a CSV export for an accountant or auditor. */
+export function PrivateRecords({ address, role }: { address: string | undefined; role: "employer" | "member" }) {
+  const records = usePrivateRecords(address);
+  if (!address || records.length === 0) return null;
+  function exportCsv() {
+    const blob = new Blob([recordsCsv(records)], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stackday-private-pay-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  const label = { paid: "Paid privately", collected: "Collected", invested: "Invested" } as const;
+  return (
+    <Card
+      title={role === "employer" ? "Private payroll record" : "Private pay record"}
+      action={
+        <Button size="sm" variant="secondary" onClick={exportCsv}>
+          Export CSV
+        </Button>
+      }
+    >
+      <p className="text-xs leading-relaxed text-muted">
+        Kept in this browser only, for your own books. Export it to share with an accountant or auditor. Amounts on chain stay encrypted; this
+        record is the readable copy.{" "}
+        <a className="text-brand underline-offset-4 hover:underline" href="https://docs.fairblock.network/ct/how-it-works/compliance" target="_blank" rel="noreferrer">
+          Fairblock compliance
+        </a>
+      </p>
+      <div className="mt-3 divide-y divide-line">
+        {records.slice(0, 12).map((r, i) => (
+          <div key={`${r.at}-${i}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <span>
+              {label[r.kind]}
+              {r.name ? ` · ${r.name}` : ""}
+              <span className="ml-2 text-xs text-muted">{new Date(r.at).toLocaleString()}</span>
+            </span>
+            <span className="font-semibold tabular-nums">{r.amount} USDC</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** Home: a reminder when new private pay has arrived and is not collected yet. */
+export function PrivatePayWaiting({ address }: { address: string | undefined }) {
+  const waiting = usePrivatePayWaiting(address);
+  if (!waiting.data) return null;
+  const split = loadPrivateSplit(address);
+  return (
+    <Notice tone="grow">
+      New private pay has arrived.{" "}
+      <Link href="/pay" className="font-semibold underline underline-offset-2">
+        {split && split.pct > 0 ? `Collect it and invest ${split.pct}% as usual` : "Collect it on My pay"}
+      </Link>
+    </Notice>
   );
 }

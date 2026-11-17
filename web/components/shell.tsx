@@ -75,11 +75,12 @@ const NAVS: Record<Role | "all", NavItem[]> = {
     { href: "/employer", label: "Payroll", icon: ICON.payroll },
     { href: "/risk", label: "Risk", icon: ICON.risk },
   ],
+  // In the order of the journey: overview, get paid, invest, borrow, check the risk.
   employee: [
+    { href: "/dashboard", label: "Home", icon: ICON.home },
     { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
     { href: "/invest", label: "Invest", icon: ICON.invest },
     { href: "/themes", label: "Themes", icon: ICON.themes },
-    { href: "/dashboard", label: "Home", icon: ICON.holdings },
     { href: "/borrow", label: "Borrow", icon: ICON.borrow },
     { href: "/risk", label: "Risk", icon: ICON.risk },
   ],

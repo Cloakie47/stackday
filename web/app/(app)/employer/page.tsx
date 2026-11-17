@@ -1,7 +1,8 @@
 "use client";
 
 import { PrivatePay } from "@/components/private-pay";
-import { PrivatePayday } from "@/components/private-payday";
+import { PaydayLog, PrivatePayday } from "@/components/private-payday";
+import { addPrivateRecord, fmt6 } from "@/lib/confidential";
 import Link from "next/link";
 import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
@@ -290,7 +291,7 @@ export default function EmployerPage() {
     );
 
   /** One-off payday through the Payroll contract for these people (treasury first, wallet tops up the rest). */
-  async function payMembers(list: { wallet: string; salary: string }[]) {
+  async function payMembers(list: { wallet: string; salary: string; name?: string }[], payday = Date.now()) {
     const who = list.map((m) => m.wallet as Address);
     const how = list.map((m) => parseUsdc(m.salary));
     const sum = how.reduce((a, b) => a + b, 0n);
@@ -303,7 +304,13 @@ export default function EmployerPage() {
     } else {
       calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [who, how] });
     }
-    return tx.run(calls, "Payday created. Your team can claim now.");
+    const result = await tx.run(calls, "Payday created. Your team can claim now.");
+    if (result) {
+      const hash = typeof result === "string" ? result : undefined;
+      for (const m of list)
+        addPrivateRecord(me, { at: Date.now(), kind: "paid", who: m.wallet, name: m.name, amount: fmt6(parseUsdc(m.salary)), tx: hash, payday, private: false });
+    }
+    return result;
   }
 
   const payOnce = () => payMembers(payable);
@@ -602,6 +609,7 @@ export default function EmployerPage() {
         walletUsdc={p.walletUsdc}
         onPayNormally={payMembers}
       />
+      <PaydayLog address={me} />
       <PrivatePay address={me} canAct={viewer.canAct} role="employer" team={team.filter((m) => isAddress(m.wallet)).map((m) => ({ wallet: m.wallet, name: m.name }))} />
 
       <Card title="Past paydays">

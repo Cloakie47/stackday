@@ -1,7 +1,7 @@
 "use client";
 
 import { LearnMore } from "@/components/learn-more";
-import { PrivatePaySetup } from "@/components/private-collect";
+import { PrivatePaySetup, PrivatePayWaiting } from "@/components/private-collect";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -386,6 +386,7 @@ export default function DashboardPage() {
       />
 
       {!viewer.address && <Notice>Connect your wallet (top right) to see your dashboard.</Notice>}
+      {viewer.address && <PrivatePayWaiting address={viewer.address} />}
 
       {businessMode && p.totalClaimable > 0n && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-brand p-5 text-white shadow-brand sm:p-6">

@@ -104,7 +104,7 @@ export function useTx() {
           if (result.status !== "success") throw new Error("The batch failed on-chain. Nothing in it was applied.");
           await queryClient.invalidateQueries();
           setState({ busy: false, hash, done: doneMessage });
-          return true;
+          return hash ?? true;
         }
         for (const call of calls) {
           setState({ busy: true, step: call.label });
@@ -129,7 +129,7 @@ export function useTx() {
         }
         await queryClient.invalidateQueries();
         setState({ busy: false, hash, done: doneMessage });
-        return true;
+        return hash ?? true;
       } catch (e) {
         setState({ busy: false, error: explain(e), hash });
         return false;

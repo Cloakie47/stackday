@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Button, Card, Notice, Spinner } from "@/components/ui";
-import { isCents, readyToReceive, toCents, usePrivatePay } from "@/lib/confidential";
+import { isCents, readyToReceive, recordsCsv, toCents, usePrivatePay, usePrivateRecords, type PrivateRecord } from "@/lib/confidential";
 import { fmtUsdc, parseUsdc, shortAddr } from "@/lib/format";
 
 type Member = { wallet: string; name: string; salary: string };
@@ -24,7 +24,8 @@ export function PrivatePayday({
   address: string | undefined;
   canAct: boolean;
   walletUsdc: bigint;
-  onPayNormally: (members: Member[]) => Promise<boolean>;
+  /** Pays these people through the Payroll contract; returns the transaction hash (or true) on success. */
+  onPayNormally: (members: Member[], payday: number) => Promise<boolean | string>;
 }) {
   const pp = usePrivatePay(address);
   const [progress, setProgress] = useState<{ done: number; note: string }>();
@@ -44,13 +45,28 @@ export function PrivatePayday({
   const busy = !!pp.busy || !canAct;
   const unevenCents = privateList.some((m) => !isCents(parseUsdc(m.salary)));
 
-  async function payPrivately() {
+  async function payPrivately(payday = Date.now()) {
     setProgress({ done: 0, note: "Starting" });
     await pp.payMany(
-      privateList.map((m) => ({ to: m.wallet, amount: amountOf(m) })),
+      privateList.map((m) => ({ to: m.wallet, amount: amountOf(m), name: m.name })),
       (done, note) => setProgress({ done, note }),
+      payday,
     );
   }
+
+  /** Pay everyone in one go: the normal payments first (one transaction), then the private ones. */
+  async function payAll() {
+    const payday = Date.now();
+    if (normalList.length > 0) {
+      setProgress({ done: 0, note: `Paying ${normalList.length} the normal way` });
+      const ok = await onPayNormally(normalList, payday);
+      if (!ok) return setProgress(undefined);
+    }
+    if (privateList.length > 0) await payPrivately(payday);
+    else setProgress(undefined);
+  }
+  const allTotal = payable.reduce((a, m) => a + amountOf(m), 0n);
+  const canPayAll = status === "on" && privateList.length > 0 && normalList.length > 0 && privateTotal <= walletUsdc;
 
   return (
     <Card title="Private payday">
@@ -92,11 +108,20 @@ export function PrivatePayday({
             </div>
           ) : (
             <div className="mt-5 flex flex-wrap gap-3">
-              <Button disabled={busy || status !== "on" || privateList.length === 0 || privateTotal > walletUsdc} onClick={payPrivately}>
+              {canPayAll && (
+                <Button disabled={busy} onClick={payAll}>
+                  Pay all {payable.length} · ${fmtUsdc(allTotal)}
+                </Button>
+              )}
+              <Button
+                variant={canPayAll ? "secondary" : undefined}
+                disabled={busy || status !== "on" || privateList.length === 0 || privateTotal > walletUsdc}
+                onClick={() => payPrivately()}
+              >
                 Pay {privateList.length} privately · ${fmtUsdc(privateTotal)}
               </Button>
               {normalList.length > 0 && (
-                <Button variant="secondary" disabled={busy} onClick={() => onPayNormally(normalList)}>
+                <Button variant="secondary" disabled={busy} onClick={() => onPayNormally(normalList, Date.now())}>
                   Pay the {normalList.length} not set up the normal way
                 </Button>
               )}
@@ -122,6 +147,97 @@ export function PrivatePayday({
       )}
       {pp.done && !pp.busy && <p className="mt-4 text-sm text-grow">{pp.done}</p>}
       {pp.error && !pp.busy && <p className="mt-4 text-sm text-danger">{pp.error}</p>}
+    </Card>
+  );
+}
+
+const BASESCAN_TX = "https://sepolia.basescan.org/tx/";
+
+/**
+ * Employer: one entry per payday, each opening to show every payment, whether it was private or
+ * normal, and its transaction. Kept in this browser (private amounts are encrypted on chain, so this
+ * is the readable copy); paydays run by the trigger bot are not listed here.
+ */
+export function PaydayLog({ address }: { address: string | undefined }) {
+  const records = usePrivateRecords(address).filter((r) => r.kind === "paid");
+  if (!address) return null;
+  const groups = new Map<number, PrivateRecord[]>();
+  for (const r of records) {
+    const key = r.payday ?? r.at;
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  const paydays = [...groups.entries()].sort((a, b) => b[0] - a[0]);
+  function exportCsv() {
+    const blob = new Blob([recordsCsv(records)], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stackday-payday-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  return (
+    <Card
+      title="Payday log"
+      action={
+        records.length > 0 ? (
+          <Button size="sm" variant="secondary" onClick={exportCsv}>
+            Export CSV
+          </Button>
+        ) : undefined
+      }
+    >
+      {paydays.length === 0 ? (
+        <Notice>Paydays you pay from this browser appear here, private and normal, with each transaction.</Notice>
+      ) : (
+        <div className="divide-y divide-line">
+          {paydays.map(([day, list]) => {
+            const total = list.reduce((a, r) => a + Number(r.amount), 0);
+            const priv = list.filter((r) => r.private).length;
+            return (
+              <details key={day} className="group py-3 first:pt-0">
+                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-semibold">
+                    {new Date(day).toLocaleString()}
+                    <span className="ml-2 font-normal text-muted">
+                      {list.length} {list.length === 1 ? "payment" : "payments"}
+                      {priv > 0 ? ` · ${priv} private` : ""}
+                      {list.length - priv > 0 ? ` · ${list.length - priv} normal` : ""}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2 text-sm font-semibold tabular-nums">
+                    {total.toFixed(2)} USDC
+                    <span className="text-muted transition-transform group-open:rotate-180" aria-hidden>
+                      ▾
+                    </span>
+                  </span>
+                </summary>
+                <div className="mt-3 space-y-2 rounded-2xl bg-sunken/70 p-3">
+                  {list.map((r, i) => (
+                    <div key={i} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">{r.name || shortAddr(r.who ?? "")}</span>
+                        <Badge tone={r.private ? "grow" : "neutral"}>{r.private ? "Private" : "Normal"}</Badge>
+                      </span>
+                      <span className="flex items-center gap-3">
+                        <span className="tabular-nums">{r.amount} USDC</span>
+                        {r.tx ? (
+                          <a className="font-mono text-xs text-brand underline-offset-4 hover:underline" href={BASESCAN_TX + r.tx} target="_blank" rel="noreferrer">
+                            {r.tx.slice(0, 10)}…
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted">no hash</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                  {priv > 0 && <p className="pt-1 text-xs text-muted">Private amounts are encrypted on chain: the transaction shows who was paid, not how much.</p>}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
