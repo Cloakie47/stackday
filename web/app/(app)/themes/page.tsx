@@ -307,7 +307,7 @@ function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string
             type="button"
             aria-pressed={on}
             onClick={() => toggle(t.id)}
-            className="tile rounded-2xl p-4 text-left"
+            className="tile flex flex-col rounded-2xl p-4 text-left"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold text-ink">{t.name}</span>
@@ -319,7 +319,7 @@ function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string
                 <span
                   key={x}
                   className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
-                    live.includes(x) ? "bg-ink text-canvas" : "bg-sunken text-muted"
+                    live.includes(x) ? "bg-surface text-ink shadow-[inset_0_0_0_1px_var(--line-strong)]" : "bg-sunken text-muted"
                   }`}
                   title={live.includes(x) ? "Buyable on testnet (mock)" : "Preview only on this network"}
                 >
@@ -492,7 +492,7 @@ export default function ThemesPage() {
 
       <Card title="1. Pick your themes" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
         <ThemePicker picked={picked} toggle={toggle} />
-        <p className="mt-3 text-xs text-muted">Dark: buyable on testnet (mock). Grey: preview only.</p>
+        <p className="mt-3 text-xs text-muted">Outlined: buyable on testnet (mock). Grey: preview only.</p>
       </Card>
 
       <Card title="2. Your risk level">

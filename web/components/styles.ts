@@ -26,7 +26,7 @@ export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize
     lg: "min-h-12 rounded-xl px-5 text-[15px] font-semibold",
   }[size];
   return cx(
-    "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap disabled:cursor-not-allowed",
+    "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:text-muted",
     styles,
     sizes,
     className,

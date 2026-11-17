@@ -274,7 +274,7 @@ export default function InvestPage() {
                 options={SLOT_DAYS.map((d) => ({ value: String(d.value), label: d.label }))}
               />
             </div>
-            <div className="mt-3 flex flex-wrap gap-2" aria-label="Quick amounts">
+            <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Quick amounts">
               {["5", "10", "25", "50"].map((v) => (
                 <Button key={v} size="sm" variant="soft" aria-label={`${v} USDC per buy`} onClick={() => setPerBuy(v)}>
                   ${v}
@@ -387,10 +387,10 @@ export default function InvestPage() {
               </>
             }
           />
-          <Button className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || earn === 0n || fromWallet > p.walletUsdc || tx.state.busy} onClick={startEarning}>
+          <Button className="min-h-11 sm:mt-6" disabled={!viewer.canAct || earn === 0n || fromWallet > p.walletUsdc || tx.state.busy} onClick={startEarning}>
             Start earning
           </Button>
-          <Button variant="secondary" className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || p.earning === 0n || tx.state.busy} onClick={stopEarning}>
+          <Button variant="secondary" className="min-h-11 sm:mt-6" disabled={!viewer.canAct || p.earning === 0n || tx.state.busy} onClick={stopEarning}>
             Withdraw all
           </Button>
         </div>

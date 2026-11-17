@@ -151,7 +151,7 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
           onClick={() => go(m)}
           className={cx(
             "relative z-10 rounded-lg font-medium transition-colors duration-150",
-            compact ? "min-h-7 text-[12px]" : "min-h-8 text-[13px] pointer-coarse:min-h-10",
+            compact ? "min-h-7 text-[12px] pointer-coarse:min-h-9" : "min-h-8 text-[13px] pointer-coarse:min-h-10",
             account.mode === m ? "text-ink" : "text-muted hover:text-ink",
           )}
         >

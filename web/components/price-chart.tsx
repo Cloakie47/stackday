@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TvWidget, type WidgetState } from "@/components/tradingview";
 import { Button, RealBadge, Segmented, Skeleton, cx } from "@/components/ui";
 import { DEFAULT_TIMEFRAME, NO_PUBLIC_CHART, TIMEFRAMES, timeframe, tvSymbol } from "@/lib/charts";
+import { BRAND } from "@/lib/brand";
 import type { Asset } from "@/lib/contracts";
 import { fmtPrice } from "@/lib/format";
 
@@ -145,7 +146,7 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
       </div>
 
       <p className="mt-3 text-[11px] leading-relaxed text-muted">
-        {marketWords(asset, symbol)} Stackday runs on testnet with test prices, so buys and loans here use ${fmtPrice(testnetPrice)}.
+        {marketWords(asset, symbol)} {BRAND.name} runs on testnet with test prices, so buys and loans here use ${fmtPrice(testnetPrice)}.
         {state === "error" && " Chart by TradingView."}
       </p>
     </section>

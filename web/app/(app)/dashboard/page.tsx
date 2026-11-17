@@ -18,6 +18,7 @@ import {
   Field,
   HealthMeter,
   Money,
+  visibleColor,
   Notice,
   PageHeader,
   Responsive,
@@ -403,7 +404,7 @@ function ShareBar({ share, color }: { share: number; color: string }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span className="block h-1 w-16 overflow-hidden rounded-full bg-sunken" aria-hidden>
-        <span className="block h-full rounded-full" style={{ width: `${share}%`, background: color }} />
+        <span className="block h-full rounded-full" style={{ width: `${share}%`, background: visibleColor(color) }} />
       </span>
       <span className="w-12 text-right text-xs tabular-nums text-muted">{share.toFixed(1)}%</span>
     </span>
@@ -609,7 +610,7 @@ export default function DashboardPage() {
               <div key={s.label} className={cx("min-w-0 md:px-6", i > 0 && "border-l border-line pl-4", i === 2 && "md:pr-0")}>
                 <dt className="text-[13px] font-medium text-muted">{s.label}</dt>
                 <dd className="mt-1 truncate text-lg font-semibold tabular-nums tracking-[-0.015em] text-ink sm:text-[22px] sm:leading-7">
-                  ${fmtUsdc(s.value)}
+                  <Money value={s.value} animate={false} />
                 </dd>
               </div>
             ))}
@@ -637,20 +638,20 @@ export default function DashboardPage() {
         ) : (
           <>
             {p.totalPutIn > 0n && (
-              <dl className="mb-4 grid grid-cols-3">
+              <div className="mb-4 grid grid-cols-2 gap-y-3 sm:grid-cols-3">
                 <div className="min-w-0 pr-4">
                   <Stat label="Total invested" value={`$${fmtUsdc(p.totalPutIn)}`} />
                 </div>
-                <div className="min-w-0 border-l border-line px-4">
+                <div className="min-w-0 border-l border-line pl-4 sm:pr-4">
                   <Stat label="Worth now" value={`$${fmtUsdc(p.totalAssetValue)}`} />
                 </div>
-                <div className="min-w-0 border-l border-line pl-4">
+                <div className="col-span-2 min-w-0 border-t border-line pt-3 sm:col-span-1 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
                   <div className="text-[13px] font-medium leading-[18px] text-muted">Change</div>
                   <div className="mt-1.5">
                     <Change now={p.totalAssetValue} putIn={p.totalPutIn} />
                   </div>
                 </div>
-              </dl>
+              </div>
             )}
             {held.length > 1 && (
               <div className="mb-4">

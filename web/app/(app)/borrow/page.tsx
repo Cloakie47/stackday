@@ -125,10 +125,10 @@ export default function BorrowPage() {
                 : "No loan. Withdraw any amount."
             }
           />
-          <Button variant="ghost" className="min-h-11 sm:mt-[25.5px]" disabled={totalHeld === 0n} onClick={() => setWithdrawAmt(fmtAsset(totalHeld, asset.decimals, asset.decimals).replace(/,/g, ""))}>
+          <Button variant="ghost" className="min-h-11 sm:mt-6" disabled={totalHeld === 0n} onClick={() => setWithdrawAmt(fmtAsset(totalHeld, asset.decimals, asset.decimals).replace(/,/g, ""))}>
             Max
           </Button>
-          <Button variant="secondary" className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || !vault || withdraw === 0n || withdraw > totalHeld || tx.state.busy} onClick={doWithdraw}>
+          <Button variant="secondary" className="min-h-11 sm:mt-6" disabled={!viewer.canAct || !vault || withdraw === 0n || withdraw > totalHeld || tx.state.busy} onClick={doWithdraw}>
             Withdraw
           </Button>
         </div>

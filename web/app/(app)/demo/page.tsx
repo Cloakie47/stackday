@@ -126,7 +126,7 @@ export default function DemoPage() {
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
           <Field label="Or set an exact price" inputMode="decimal" placeholder="0.00" suffix="USD" value={custom} onChange={(e) => setCustom(e.target.value)} />
-          <Button variant="secondary" className="min-h-11 sm:mt-[25.5px]" disabled={disabled || parseUsdc(custom) === 0n} onClick={() => setPrice(parseUsdc(custom) * 100n, `Set the ${asset.name} price`)}>
+          <Button variant="secondary" className="min-h-11 sm:mt-6" disabled={disabled || parseUsdc(custom) === 0n} onClick={() => setPrice(parseUsdc(custom) * 100n, `Set the ${asset.name} price`)}>
             Set price
           </Button>
         </div>
@@ -192,7 +192,7 @@ export default function DemoPage() {
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
           <Field label="Salary" inputMode="decimal" suffix="USDC" value={payday} onChange={(e) => setPayday(e.target.value)} hint={`Wallet: ${fmtUsdc(p.walletUsdc)} USDC.`} />
-          <Button className="min-h-11 sm:mt-[25.5px]" disabled={!viewer.canAct || tx.state.busy || parseUsdc(payday) === 0n || parseUsdc(payday) > p.walletUsdc} onClick={runPayday}>
+          <Button className="min-h-11 sm:mt-6" disabled={!viewer.canAct || tx.state.busy || parseUsdc(payday) === 0n || parseUsdc(payday) > p.walletUsdc} onClick={runPayday}>
             Create payday
           </Button>
         </div>
@@ -210,7 +210,7 @@ export default function DemoPage() {
           />
           <Button
             variant="secondary"
-            className="min-h-11 sm:mt-[25.5px]"
+            className="min-h-11 sm:mt-6"
             disabled={!viewer.canAct || tx.state.busy || parseUsdc(interest) === 0n}
             onClick={() =>
               tx.run(

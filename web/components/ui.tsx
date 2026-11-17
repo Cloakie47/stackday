@@ -216,11 +216,11 @@ export function Field({
 }: InputHTMLAttributes<HTMLInputElement> & { label: string; suffix?: string; hint?: ReactNode }) {
   return (
     <label className="block min-w-0">
-      <span className="text-[13px] font-medium text-ink-soft">{label}</span>
+      <span className="block text-[13px] font-medium leading-[18px] text-ink-soft">{label}</span>
       <span className="well mt-1.5 flex items-center rounded-xl">
         <input
           {...props}
-          className="min-h-11 w-full min-w-0 rounded-xl bg-transparent px-3.5 text-base tabular-nums text-ink outline-none placeholder:text-faint"
+          className="min-h-11 w-full min-w-0 rounded-xl bg-transparent px-3.5 text-base tabular-nums text-ink outline-none placeholder:text-muted"
         />
         {suffix && <span className="whitespace-nowrap pr-3.5 text-sm text-muted">{suffix}</span>}
       </span>
@@ -242,7 +242,7 @@ export function Select({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="text-[13px] font-medium text-ink-soft">{label}</span>
+      <span className="block text-[13px] font-medium leading-[18px] text-ink-soft">{label}</span>
       <span className="relative mt-1.5 block">
         <select
           value={value}
@@ -396,7 +396,7 @@ export function SplitBar({ parts, height = 6 }: { parts: { key: string; value: n
           key={p.key}
           title={`${p.label ?? p.key} ${pct(p.value)}%`}
           className="h-full transition-[flex-grow] duration-300 ease-[var(--ease-out)] first:rounded-l-full last:rounded-r-full"
-          style={{ flexGrow: p.value, flexBasis: 0, minWidth: 4, background: p.color }}
+          style={{ flexGrow: p.value, flexBasis: 0, minWidth: 4, background: visibleColor(p.color) }}
         />
       ))}
     </div>
@@ -573,4 +573,9 @@ export function Skeleton({ className = "" }: { className?: string }) {
  */
 export function Spotlight() {
   return null;
+}
+
+/** Near-black asset colours (Apple) vanish on dark surfaces; draw them in the ink colour instead. */
+export function visibleColor(c: string) {
+  return /^#(1{3}|1{6}|000000|000)$/i.test(c) ? "var(--ink)" : c;
 }

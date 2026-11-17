@@ -170,11 +170,10 @@ export default function Home() {
             {FACTS.map((f, i) => (
               <div
                 key={f.label}
-                className={cx("border-line py-5 lg:py-6", FACT_CELL[i])}
+                className={cx("flex flex-col-reverse border-line py-5 lg:py-6", FACT_CELL[i])}
               >
-                <dt className="sr-only">{f.label}</dt>
+                <dt className="mt-0.5 text-[13px] text-muted">{f.label}</dt>
                 <dd className="text-xl font-semibold tracking-[-0.015em] text-ink">{f.value}</dd>
-                <dd className="mt-0.5 text-[13px] text-muted">{f.label}</dd>
               </div>
             ))}
           </dl>
@@ -185,7 +184,7 @@ export default function Home() {
           <div className="mx-auto max-w-[75rem] px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
             <SectionHead id="how" title="How it works" link={{ href: "/docs#how-it-works" }} />
             <ol className="relative mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-              <span aria-hidden className="absolute left-3 right-3 top-3 hidden h-px bg-line-strong lg:block" />
+              <span aria-hidden className="absolute left-3 right-[calc((100%-4.5rem)/4-0.75rem)] top-3 hidden h-px bg-line-strong lg:block" />
               {STEPS.map((s, i) => (
                 <li key={s.title} className="relative">
                   <span className="relative grid h-6 w-6 place-items-center rounded-full border border-line-strong bg-canvas text-xs font-semibold tabular-nums text-muted">

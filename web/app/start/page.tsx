@@ -220,7 +220,7 @@ export default function StartPage() {
                   rows={3}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="A short description your team will see."
-                  className="well mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-faint"
+                  className="well mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-muted"
                 />
               </label>
             </div>
