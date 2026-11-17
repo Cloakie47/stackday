@@ -124,3 +124,14 @@ $$;
 -- Only the server (service role) may call it. The browser's public key cannot.
 revoke all on function rate_limit_hit(text, integer) from public, anon, authenticated;
 grant execute on function rate_limit_hit(text, integer) to service_role;
+
+-- Recurring buys the trigger bot should run (web/app/api/keeper). A row is only a reminder: the
+-- bot re-reads the plan on the blockchain before every buy, and drops rows whose plan was cancelled.
+create table if not exists recurring_plans (
+  wallet      text not null check (wallet ~ '^0x[0-9a-f]{40}$'),
+  asset       text not null check (asset ~ '^0x[0-9a-f]{40}$'),
+  created_at  timestamptz not null default now(),
+  primary key (wallet, asset)
+);
+alter table recurring_plans enable row level security;
+-- No policies: only the server (service role) reads or writes it.
