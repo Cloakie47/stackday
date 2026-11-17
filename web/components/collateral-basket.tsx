@@ -71,6 +71,9 @@ function freeOf(pos: Position) {
   return pos.transfersPaused ? 0n : pos.idle + pos.wallet;
 }
 
+/** "+$1.20" or "-$1.20", and a plain "$0.00" under one cent, so zero never looks like a gain or a loss. */
+const signedUsd = (v: bigint) => (v > -10_000n && v < 10_000n ? "$0.00" : `${v < 0n ? "-" : "+"}$${fmtUsdc(v < 0n ? -v : v)}`);
+
 export function CollateralBasket({ p }: { p: Portfolio }) {
   const viewer = useViewer();
   const tx = useTx();
@@ -218,7 +221,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   return (
     <Card title="Collateral basket">
       <p className="max-w-2xl text-sm leading-relaxed text-muted">
-        Lock any mix of your assets as one pot of collateral, then borrow against the total. New buys stay free in your vault until you lock them here. Locking more, for example each payday's buy, makes a loan safer.
+        Lock any mix of your assets as one pot of collateral, then borrow against the total. New buys stay free in your vault until you lock them here. Locking more, for example each payday&apos;s buy, makes a loan safer.
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
@@ -229,7 +232,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
           hint={cashLimited ? "Limited by the USDC the markets have to lend" : "Under your borrow limit"}
         />
         <Stat label="Loan" value={`$${fmtUsdc(now.debt)}`} />
-        <Stat label="Health" value={now.health !== undefined ? fmtHealth(now.health) : "No loan"} hint="Whole basket. Below 1.00 can be liquidated" />
+        <Stat label="Health" value={now.health !== undefined ? fmtHealth(now.health) : <span className="text-muted">No loan</span>} hint="Whole basket. Below 1.00 can be liquidated" />
       </div>
       {parts.length > 0 && (
         <div className="mt-5">
@@ -486,9 +489,11 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
       <TxStatus state={tx.state} />
 
       <div className="mt-6 grid gap-4 border-t border-line pt-6 sm:grid-cols-3">
-        <Stat label="Dividends a year" value={`+$${fmtUsdc(earnings.earn)}`} hint="After issuer fee and US tax" />
-        <Stat label="Interest a year" value={`-$${fmtUsdc(earnings.cost)}`} hint="Live Morpho rate on your loan" />
-        <Stat label="Net a year" value={`${earnings.net < 0n ? "-" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`} hint="At today's prices, before price moves" />
+        <Stat label="Dividends a year" value={signedUsd(earnings.earn)} hint="After issuer fee and US tax" />
+        <Stat label="Interest a year" value={signedUsd(-earnings.cost)} hint="Live Morpho rate on your loan" />
+        <Stat
+          label="Net a year"
+          value={<span className={earnings.net >= 10_000n ? "text-grow" : earnings.net <= -10_000n ? "text-danger" : ""}>{signedUsd(earnings.net)}</span>} hint="At today's prices, before price moves" />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted">
         Estimated with each real share&apos;s yearly dividend, after the issuer&apos;s 5% fee and up to 30% US withholding tax (reinvested into

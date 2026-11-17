@@ -33,10 +33,10 @@ const STEPS = [
 ];
 
 const TRUST = [
-  { title: "One vault per person", text: "Only your wallet can move funds out." },
-  { title: "No lending pool of ours", text: "Loans come from an existing Morpho market." },
-  { title: "Tiny fees, fixed", text: "0.2% at most, set in the contracts forever. One-time buys are free. Never on salary." },
-  { title: "Testnet, not audited", text: "Mock tokens and prices are labelled everywhere." },
+  { title: "One vault per person", text: "Only your wallet can move funds out.", icon: "M5 11h14v10H5zM8 11V7a4 4 0 018 0v4" },
+  { title: "No lending pool of ours", text: "Loans come from an existing Morpho market.", icon: "M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18" },
+  { title: "Tiny fees, fixed", text: "0.2% at most, set in the contracts forever. One-time buys are free. Never on salary.", icon: "M19 5L5 19M7.5 9.5a2 2 0 100-4 2 2 0 000 4zM16.5 18.5a2 2 0 100-4 2 2 0 000 4z" },
+  { title: "Testnet, not audited", text: "Mock tokens and prices are labelled everywhere.", icon: "M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3" },
 ];
 
 /** The memorable thing: a vault that grows one bar per payday while the loan against it gets safer. */
@@ -150,7 +150,7 @@ export default function Home() {
                 Payroll in USDC that invests a share of each salary into a vault only you control. Borrow against it
                 instead of selling.
               </p>
-              <div className="mt-9 flex flex-wrap gap-3">
+              <div className="mt-9 flex flex-wrap items-start gap-3">
                 <Link href="/start" className="pushable">
                   <span className="push-shadow" aria-hidden />
                   <span className="push-edge" aria-hidden />
@@ -169,7 +169,7 @@ export default function Home() {
         </section>
 
         {/* How it works */}
-        <section className="border-t border-line bg-surface">
+        <section className="border-t border-line">
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-8 sm:py-24">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <SectionHead id="how" title="How it works" />
@@ -180,8 +180,8 @@ export default function Home() {
                 <li key={s.title} className="card flex flex-col rounded-3xl p-6">
                   <div className="flex items-center justify-between">
                     <StepIcon d={s.icon} />
-                    <span className="text-sm font-semibold tabular-nums text-muted" aria-hidden>
-                      {i + 1}/4
+                    <span className="font-display text-4xl font-semibold leading-none tabular-nums text-line-strong" aria-hidden>
+                      0{i + 1}
                     </span>
                   </div>
                   <h3 className="mt-6 flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight">
@@ -205,9 +205,7 @@ export default function Home() {
             <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {TRUST.map((t) => (
                 <li key={t.title} className="card rounded-3xl p-6">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 text-brand-ink" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4" />
-                  </svg>
+                  <StepIcon d={t.icon} />
                   <h3 className="mt-4 text-lg font-semibold tracking-tight">{t.title}</h3>
                   <p className="mt-1 text-[15px] leading-relaxed text-muted">{t.text}</p>
                 </li>
@@ -223,8 +221,8 @@ export default function Home() {
         </section>
 
         {/* Closing call to action */}
-        <section className="px-4 pb-20 sm:px-8 sm:pb-24">
-          <div className="feature mx-auto flex max-w-6xl flex-col items-start gap-8 rounded-[2rem] p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
+        <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-8 sm:pb-24">
+          <div className="feature flex flex-col items-start gap-8 rounded-[2rem] p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
             <Spotlight />
             <span className="feature-edge" aria-hidden />
             <div className="max-w-xl">
@@ -232,10 +230,10 @@ export default function Home() {
               <p className="mt-3 text-[17px] text-muted">Connect a wallet on Base Sepolia.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <WalletButton light />
+              <WalletButton light size="lg" />
               <Link
                 href="/docs"
-                className="inline-flex min-h-9 items-center rounded-full border border-white/25 px-3.5 text-[13px] font-semibold text-white transition-colors duration-150 hover:bg-white/10"
+                className={buttonClass("secondary", "lg")}
               >
                 Read the docs
               </Link>

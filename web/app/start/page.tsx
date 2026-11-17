@@ -211,7 +211,7 @@ export default function StartPage() {
                   rows={3}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="A short description your team will see."
-                  className="mt-1.5 w-full well rounded-2xl px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-muted/70 focus:shadow-[var(--well),0_0_0_1.5px_var(--brand),0_0_0_5px_var(--brand-soft)]"
+                  className="mt-1.5 w-full well rounded-2xl px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-muted/70 focus:shadow-[var(--well),0_0_0_2px_var(--brand),0_0_0_5px_var(--brand-soft)]"
                 />
               </label>
             </div>

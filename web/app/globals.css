@@ -292,13 +292,14 @@ input[type="range"] {
 }
 
 /* Keyboard focus is always visible: a crisp blue ring with a gap, in both themes. */
-:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-  border-radius: 0.5rem;
-}
-.feature :focus-visible {
-  outline-color: white;
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+  .feature :focus-visible {
+    outline-color: white;
+  }
 }
 
 /* Skip link: hidden until focused by keyboard. */
@@ -328,21 +329,34 @@ input[type="range"] {
   --canvas: #ffffff;
   --ink: #ffffff;
   --ink-soft: rgb(255 255 255 / 0.86);
-  --muted: rgb(255 255 255 / 0.68);
+  --muted: rgb(255 255 255 / 0.78);
   --line: rgb(255 255 255 / 0.14);
   --line-strong: rgb(255 255 255 / 0.28);
   --surface: rgb(255 255 255 / 0.08);
   --sunken: rgb(255 255 255 / 0.1);
   --brand-soft: rgb(255 255 255 / 0.16);
   --brand-ink: #c7d8ff;
+  /* Keys inside the panel become frosted glass. */
+  --surface-2: rgb(255 255 255 / 0.04);
+  --key-hi: rgb(255 255 255 / 0.16);
+  --key-lo: rgb(0 0 0 / 0.28);
+  --key-edge: rgb(255 255 255 / 0.22);
+  --key-drop: 0 1px 2px rgb(0 0 0 / 0.3);
+  --danger: #ff9aa0;
+  --danger-soft: rgb(255 112 118 / 0.16);
   color: #ffffff;
   background:
-    radial-gradient(120% 140% at 100% 0%, rgb(31 95 255 / 0.6) 0%, rgb(31 95 255 / 0) 55%),
-    radial-gradient(80% 120% at 0% 100%, rgb(0 82 255 / 0.28) 0%, rgb(0 82 255 / 0) 60%),
-    linear-gradient(180deg, #0b1633 0%, #050a18 100%);
+    radial-gradient(720px 380px at 92% -18%, rgb(58 116 255 / 0.62), transparent 70%),
+    radial-gradient(560px 300px at -8% 118%, rgb(0 82 255 / 0.24), transparent 70%),
+    linear-gradient(180deg, #0c1838 0%, #060b1c 100%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.12),
-    var(--shadow-lg);
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 0 0 1px rgb(143 177 255 / 0.12),
+    0 1px 2px rgb(0 20 80 / 0.18),
+    0 28px 56px -24px rgb(0 40 150 / 0.5);
+}
+.feature .key-ink {
+  color: #0b1633;
 }
 
 /* Glass bars (sticky headers, the phone tab bar). */
@@ -460,33 +474,51 @@ dialog.sheet::backdrop {
   border-radius: 0.5rem;
 }
 
-/* ------------------------------------------------------------------
-   Tactile layer: controls that look and feel like physical keys.
+@layer components {
+  /* ------------------------------------------------------------------
+     Tactile layer: controls that look and feel like physical keys.
 
-   Light comes from above. Every raised control has
-     1. a top highlight (inset, white),
-     2. a bottom bevel (inset, dark),
-     3. a crisp 1px edge, and
-     4. a soft drop shadow that is tinted, never grey.
-   Hover lifts 1px and brightens. Press sinks 1px, the drop shadow
-   collapses and an inner shadow appears, so the key looks pushed in.
-   Motion is transform and box-shadow only, under 200ms.
-   ------------------------------------------------------------------ */
+     Light comes from above. Every raised control has
+       1. a top highlight (inset, white),
+       2. a bottom bevel (inset, dark),
+       3. a crisp 1px edge, and
+       4. a soft drop shadow that is tinted, never grey.
+     Hover lifts 1px and brightens. Press sinks 1px, the drop shadow
+     collapses and an inner shadow appears, so the key looks pushed in.
+     Motion is transform and box-shadow only, under 200ms.
+     ------------------------------------------------------------------ */
 
-:root {
-  --key-hi: rgb(255 255 255 / 0.9);
-  --key-lo: rgb(15 23 42 / 0.06);
-  --key-edge: rgb(15 23 42 / 0.1);
-  --key-drop: 0 1px 1px rgb(15 23 42 / 0.06), 0 2px 4px -1px rgb(15 23 42 / 0.08);
-  --key-press: inset 0 1px 2px rgb(15 23 42 / 0.12);
-  --well: inset 0 1px 2px rgb(15 23 42 / 0.07), inset 0 0 0 1px var(--line-strong);
-  --card-hi: inset 0 1px 0 rgb(255 255 255 / 0.9);
-  --card-edge: 0 0 0 1px rgb(15 23 42 / 0.07);
-  --card-drop: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(30 50 110 / 0.14);
-  --surface-2: #fbfcfe;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root {
+    --key-hi: rgb(255 255 255 / 0.9);
+    --key-lo: rgb(15 23 42 / 0.06);
+    --key-edge: rgb(15 23 42 / 0.1);
+    --key-drop: 0 1px 1px rgb(15 23 42 / 0.06), 0 2px 4px -1px rgb(15 23 42 / 0.08);
+    --key-press: inset 0 1px 2px rgb(15 23 42 / 0.12);
+    --well: inset 0 1px 2px rgb(15 23 42 / 0.07), inset 0 0 0 1px var(--line-strong);
+    --card-hi: inset 0 1px 0 rgb(255 255 255 / 0.9);
+    --card-edge: 0 0 0 1px rgb(15 23 42 / 0.07);
+    --card-drop: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(30 50 110 / 0.14);
+    --surface-2: #fbfcfe;
+    --key-drop-hover: 0 2px 3px rgb(15 23 42 / 0.06), 0 8px 16px -8px rgb(30 50 110 / 0.22);
+    --thumb: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --key-hi: rgb(255 255 255 / 0.09);
+      --key-lo: rgb(0 0 0 / 0.35);
+      --key-edge: rgb(255 255 255 / 0.1);
+      --key-drop: 0 1px 1px rgb(0 0 0 / 0.5), 0 3px 8px -2px rgb(0 0 0 / 0.6);
+      --key-press: inset 0 2px 4px rgb(0 0 0 / 0.5);
+      --well: inset 0 2px 4px rgb(0 0 0 / 0.45), inset 0 0 0 1px var(--line-strong);
+      --card-hi: inset 0 1px 0 rgb(255 255 255 / 0.06);
+      --card-edge: 0 0 0 1px rgb(255 255 255 / 0.07);
+      --card-drop: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -16px rgb(0 0 0 / 0.8);
+      --surface-2: #16191e;
+      --key-drop-hover: 0 2px 4px rgb(0 0 0 / 0.5), 0 10px 20px -8px rgb(0 0 0 / 0.7);
+      --thumb: #2a2f38;
+    }
+  }
+  :root[data-theme="dark"] {
     --key-hi: rgb(255 255 255 / 0.09);
     --key-lo: rgb(0 0 0 / 0.35);
     --key-edge: rgb(255 255 255 / 0.1);
@@ -497,354 +529,449 @@ dialog.sheet::backdrop {
     --card-edge: 0 0 0 1px rgb(255 255 255 / 0.07);
     --card-drop: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -16px rgb(0 0 0 / 0.8);
     --surface-2: #16191e;
+    --key-drop-hover: 0 2px 4px rgb(0 0 0 / 0.5), 0 10px 20px -8px rgb(0 0 0 / 0.7);
+    --thumb: #2a2f38;
   }
-}
-:root[data-theme="dark"] {
-  --key-hi: rgb(255 255 255 / 0.09);
-  --key-lo: rgb(0 0 0 / 0.35);
-  --key-edge: rgb(255 255 255 / 0.1);
-  --key-drop: 0 1px 1px rgb(0 0 0 / 0.5), 0 3px 8px -2px rgb(0 0 0 / 0.6);
-  --key-press: inset 0 2px 4px rgb(0 0 0 / 0.5);
-  --well: inset 0 2px 4px rgb(0 0 0 / 0.45), inset 0 0 0 1px var(--line-strong);
-  --card-hi: inset 0 1px 0 rgb(255 255 255 / 0.06);
-  --card-edge: 0 0 0 1px rgb(255 255 255 / 0.07);
-  --card-drop: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -16px rgb(0 0 0 / 0.8);
-  --surface-2: #16191e;
-}
 
-/* ---------- Keys (buttons) ---------- */
+  /* ---------- Keys (buttons) ---------- */
 
-.key {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  transform: translateY(0);
-  transition:
-    transform 160ms var(--ease-out),
-    box-shadow 160ms var(--ease-out),
-    filter 160ms ease,
-    background-color 160ms ease,
-    color 160ms ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.key:active:not(:disabled) {
-  transform: translateY(1px) scale(0.985);
-  transition-duration: 60ms;
-}
-.key:disabled {
-  box-shadow: none !important;
-  background-image: none !important;
-  filter: none !important;
-}
-
-/* Primary: Base blue, glossy, with a blue glow under it. */
-.key-primary {
-  color: #fff;
-  background-color: var(--brand);
-  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0) 45%, rgb(0 0 0 / 0.12) 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.32),
-    inset 0 -1px 0 rgb(0 0 0 / 0.2),
-    0 0 0 1px rgb(0 45 170 / 0.55),
-    0 1px 2px rgb(0 30 120 / 0.3),
-    0 6px 16px -6px rgb(0 82 255 / 0.65);
-  text-shadow: 0 1px 0 rgb(0 30 120 / 0.25);
-}
-.key-primary:active:not(:disabled) {
-  box-shadow:
-    inset 0 2px 5px rgb(0 20 90 / 0.4),
-    inset 0 -1px 0 rgb(255 255 255 / 0.08),
-    0 0 0 1px rgb(0 45 170 / 0.6),
-    0 1px 2px -1px rgb(0 82 255 / 0.4);
-}
-
-/* A light sweep across the primary key on hover. */
-.key-primary::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.28) 48%, rgb(255 255 255 / 0.05) 56%, transparent 70%);
-  transform: translateX(-130%);
-  pointer-events: none;
-}
-
-/* Ink: the dark (or, in dark mode, light) key. */
-.key-ink {
-  color: var(--canvas);
-  background-color: var(--ink);
-  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0) 55%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.18),
-    inset 0 -1px 0 rgb(0 0 0 / 0.3),
-    0 1px 2px rgb(0 0 0 / 0.25),
-    0 6px 14px -8px rgb(0 0 0 / 0.5);
-}
-.key-ink:active:not(:disabled) {
-  box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.45), 0 1px 1px rgb(0 0 0 / 0.2);
-}
-
-/* Secondary and danger: a raised surface key. */
-.key-surface {
-  background-color: var(--surface);
-  background-image: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-  box-shadow:
-    inset 0 1px 0 var(--key-hi),
-    inset 0 -1px 0 var(--key-lo),
-    0 0 0 1px var(--key-edge),
-    var(--key-drop);
-}
-.key-surface:active:not(:disabled) {
-  background-image: none;
-  background-color: var(--sunken);
-  box-shadow:
-    var(--key-press),
-    0 0 0 1px var(--key-edge);
-}
-.key-danger {
-  box-shadow:
-    inset 0 1px 0 var(--key-hi),
-    inset 0 -1px 0 var(--key-lo),
-    0 0 0 1px color-mix(in srgb, var(--danger) 35%, transparent),
-    var(--key-drop);
-}
-
-/* Ghost: flat until pressed. */
-.key-ghost:active:not(:disabled) {
-  box-shadow: var(--key-press);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .key-primary:hover:not(:disabled),
-  .key-ink:hover:not(:disabled),
-  .key-surface:hover:not(:disabled) {
-    transform: translateY(-1px);
+  .key {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    transform: translateY(0);
+    transition:
+      transform 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out),
+      background-color 160ms ease,
+      color 160ms ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .key-primary:hover:not(:disabled) {
-    filter: brightness(1.06) saturate(1.05);
+  .key:active:not(:disabled) {
+    transform: translateY(1px) scale(0.985);
+    transition-duration: 60ms;
+  }
+  /* Disabled keys go flat and grey with a hairline edge, so they never look pressable. */
+  .key:disabled {
+    color: var(--muted);
+    background-image: none !important;
+    box-shadow: inset 0 0 0 1px var(--line-strong) !important;
+    text-shadow: none !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  .key-primary:disabled,
+  .key-ink:disabled,
+  .key-surface:disabled {
+    background-color: var(--sunken);
+  }
+  .key:disabled::after {
+    display: none;
+  }
+
+  /* Primary: Base blue, glossy, with a blue glow under it. */
+  .key-primary {
+    color: #fff;
+    background-color: var(--brand);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.06) 0%, rgb(255 255 255 / 0) 45%, rgb(0 0 0 / 0.12) 100%);
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.36),
+      inset 0 1px 0 rgb(255 255 255 / 0.32),
       inset 0 -1px 0 rgb(0 0 0 / 0.2),
       0 0 0 1px rgb(0 45 170 / 0.55),
-      0 2px 4px rgb(0 30 120 / 0.3),
-      0 10px 24px -8px rgb(0 82 255 / 0.75);
+      0 1px 2px rgb(0 30 120 / 0.3),
+      0 6px 16px -6px rgb(0 82 255 / 0.65);
+    text-shadow: 0 1px 0 rgb(0 30 120 / 0.25);
   }
-  .key-primary:hover:not(:disabled)::after {
-    transform: translateX(130%);
-    transition: transform 700ms var(--ease-out);
+  .key-primary:active:not(:disabled) {
+    box-shadow:
+      inset 0 2px 5px rgb(0 20 90 / 0.4),
+      inset 0 -1px 0 rgb(255 255 255 / 0.08),
+      0 0 0 1px rgb(0 45 170 / 0.6),
+      0 1px 2px -1px rgb(0 82 255 / 0.4);
   }
-  .key-surface:hover:not(:disabled) {
+
+  /* A light sweep across the primary key on hover. */
+  .key-primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.16) 48%, rgb(255 255 255 / 0.04) 56%, transparent 70%);
+    transform: translateX(-130%);
+    pointer-events: none;
+  }
+
+  /* Ink: the dark (or, in dark mode, light) key. */
+  .key-ink {
+    color: var(--canvas);
+    background-color: var(--ink);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0) 55%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      inset 0 -1px 0 rgb(0 0 0 / 0.3),
+      0 1px 2px rgb(0 0 0 / 0.25),
+      0 6px 14px -8px rgb(0 0 0 / 0.5);
+  }
+  .key-ink:active:not(:disabled) {
+    box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.45), 0 1px 1px rgb(0 0 0 / 0.2);
+  }
+
+  /* Secondary and danger: a raised surface key. */
+  .key-surface {
+    background-color: var(--surface);
+    background-image: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
     box-shadow:
       inset 0 1px 0 var(--key-hi),
       inset 0 -1px 0 var(--key-lo),
       0 0 0 1px var(--key-edge),
-      0 2px 3px rgb(15 23 42 / 0.06),
-      0 8px 16px -8px rgb(30 50 110 / 0.22);
+      var(--key-drop);
   }
-  .key-ink:hover:not(:disabled) {
-    filter: brightness(1.12);
+  .key-surface:active:not(:disabled) {
+    background-image: none;
+    background-color: var(--sunken);
+    box-shadow:
+      var(--key-press),
+      0 0 0 1px var(--key-edge);
   }
-}
+  .key-danger {
+    box-shadow:
+      inset 0 1px 0 var(--key-hi),
+      inset 0 -1px 0 var(--key-lo),
+      0 0 0 1px color-mix(in srgb, var(--danger) 35%, transparent),
+      var(--key-drop);
+  }
 
-/* ---------- Cards ---------- */
+  /* Ghost: flat until pressed. */
+  .key-ghost:active:not(:disabled) {
+    box-shadow: var(--key-press);
+  }
 
-.card {
-  background-color: var(--surface);
-  background-image: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-  box-shadow: var(--card-hi), var(--card-edge), var(--card-drop);
-}
+  @media (hover: hover) and (pointer: fine) {
+    .key-primary:hover:not(:disabled),
+    .key-ink:hover:not(:disabled),
+    .key-surface:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+    .key-primary:hover:not(:disabled) {
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.36),
+        inset 0 -1px 0 rgb(0 0 0 / 0.2),
+        0 0 0 1px rgb(0 45 170 / 0.55),
+        0 2px 4px rgb(0 30 120 / 0.3),
+        0 10px 24px -8px rgb(0 82 255 / 0.75);
+    }
+    .key-primary:hover:not(:disabled)::after {
+      transform: translateX(130%);
+      transition: transform 700ms var(--ease-out);
+    }
+    .key-surface:hover:not(:disabled) {
+      box-shadow:
+        inset 0 1px 0 var(--key-hi),
+        inset 0 -1px 0 var(--key-lo),
+        0 0 0 1px var(--key-edge),
+        0 2px 3px rgb(15 23 42 / 0.06),
+        var(--key-drop-hover);
+    }
+    .key-ink:hover:not(:disabled) {
+      background-color: var(--ink-soft);
+    }
+  }
 
-/* Selectable tiles (asset pickers, plan options): raised, then pressed in when chosen. */
-.tile {
-  background-color: var(--surface);
-  box-shadow: inset 0 1px 0 var(--key-hi), 0 0 0 1px var(--key-edge), var(--key-drop);
-  transition:
-    transform 160ms var(--ease-out),
-    box-shadow 160ms var(--ease-out),
-    background-color 160ms ease;
-}
-.tile[aria-pressed="true"],
-.tile[aria-checked="true"] {
-  background-color: var(--brand-soft);
-  box-shadow:
-    inset 0 1px 3px rgb(0 40 160 / 0.18),
-    0 0 0 1.5px var(--brand);
-}
-.tile:active {
-  transform: scale(0.98);
-}
-@media (hover: hover) and (pointer: fine) {
-  .tile:not([aria-pressed="true"]):not([aria-checked="true"]):hover {
-    transform: translateY(-1px);
+  /* ---------- Cards ---------- */
+
+  .card {
+    background-color: var(--surface);
+    background-image: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+    box-shadow: var(--card-hi), var(--card-edge), var(--card-drop);
+  }
+
+  /* Selectable tiles (asset pickers, plan options): raised, then pressed in when chosen. */
+  .tile {
+    background-color: var(--surface);
+    box-shadow: inset 0 1px 0 var(--key-hi), 0 0 0 1px var(--key-edge), var(--key-drop);
+    transition:
+      transform 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out),
+      background-color 160ms ease;
+  }
+  .tile[aria-pressed="true"],
+  .tile[aria-checked="true"] {
+    background-color: var(--brand-soft);
+    box-shadow:
+      inset 0 1px 3px rgb(0 40 160 / 0.18),
+      0 0 0 2px var(--brand);
+  }
+  .tile:active {
+    transform: scale(0.98);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .tile:not([aria-pressed="true"]):not([aria-checked="true"]):hover {
+      transform: translateY(-1px);
+      box-shadow:
+        inset 0 1px 0 var(--key-hi),
+        0 0 0 1px var(--key-edge),
+        var(--key-drop-hover);
+    }
+  }
+
+  /* ---------- Wells (inputs, tracks) ---------- */
+
+  .well {
+    background-color: var(--surface);
+    box-shadow: var(--well);
+    transition: box-shadow 150ms ease;
+  }
+  .well:focus-within {
+    box-shadow:
+      var(--well),
+      0 0 0 2px var(--brand),
+      0 0 0 5px var(--brand-soft);
+  }
+  .track {
+    background-color: var(--sunken);
+    box-shadow: inset 0 1px 3px rgb(15 23 42 / 0.1);
+  }
+  :root[data-theme="dark"] .track {
+    box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .track {
+      box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
+    }
+  }
+  .thumb {
+    background-color: var(--thumb);
     box-shadow:
       inset 0 1px 0 var(--key-hi),
       0 0 0 1px var(--key-edge),
-      0 8px 16px -8px rgb(30 50 110 / 0.25);
+      0 1px 2px rgb(15 23 42 / 0.12),
+      0 3px 8px -2px rgb(15 23 42 / 0.15);
+  }
+
+  /* ---------- Feature panel shine ---------- */
+
+  /* Fine grain, so the deep blue reads as a material rather than a flat fill. */
+  .feature {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .feature::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* A soft light that follows the pointer (set by the Spotlight component). */
+  .spotlight {
+    position: absolute;
+    left: -420px;
+    top: -420px;
+    width: 840px;
+    height: 840px;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(circle closest-side, rgb(143 177 255 / 0.2), transparent 70%);
+    transition: opacity 300ms ease;
+    will-change: transform;
+  }
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .feature:hover > .spotlight {
+      opacity: 1;
+    }
+  }
+  /* A thin highlight along the top edge. */
+  .feature-edge {
+    position: absolute;
+    inset: 0 12% auto;
+    height: 1px;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgb(199 216 255 / 0.7), transparent);
+  }
+
+  /* Big numbers on the feature panel get a faint metallic gradient. */
+  .money-sheen {
+    background-image: linear-gradient(180deg, #ffffff 30%, #c9d8ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+
+  /* Selected navigation item: a soft blue key, slightly pressed in. */
+  .nav-active {
+    background-color: var(--brand-soft);
+    box-shadow:
+      inset 0 1px 2px rgb(0 40 160 / 0.12),
+      inset 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+
+
+  /* ---------- Money and positions ---------- */
+  .money {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* Only in display-sized figures (hero numbers): a smaller, raised unit and smaller cents. */
+  .font-display .money-unit {
+    font-size: 0.5em;
+    vertical-align: 0.7em;
+    margin-right: 0.04em;
+    letter-spacing: 0;
+  }
+  .font-display .money-cents {
+    font-size: 0.55em;
+    letter-spacing: 0;
+    margin-left: 0.02em;
+  }
+  .split-seg {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -1px 0 rgb(0 0 0 / 0.15);
+  }
+  /* Health zones: below 1.00 is red, 1.00 to 1.25 is amber, on a 0.8 to 3.0 scale. */
+  .health-zones {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--danger) 22%, transparent) 0 9.09%,
+      color-mix(in srgb, var(--warn) 18%, transparent) 9.09% 20.45%,
+      transparent 20.45%
+    );
+  }
+  .health-fill {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--meter) 75%, white) 0%, var(--meter) 65%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 0 12px -2px color-mix(in srgb, var(--meter) 70%, transparent);
+  }
+  .health-knob {
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    box-shadow:
+      inset 0 1px 0 var(--key-hi),
+      0 0 0 1px var(--key-edge),
+      0 0 0 4px color-mix(in srgb, var(--meter) 22%, transparent),
+      0 2px 6px rgb(15 23 42 / 0.2);
+  }
+  .health-knob::after {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border-radius: 9999px;
+    background: var(--meter);
+  }
+
+  /* ---------- Pushable key: the one hero call to action ----------
+     Three layers: a soft shadow on the floor, a darker edge (the side of the key),
+     and the face that sits 4px above it. Hover raises the face, press pushes it down. */
+  .pushable {
+    position: relative;
+    display: inline-block;
+    border-radius: 9999px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    margin-top: 4px;
+    outline-offset: 6px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+  .push-shadow,
+  .push-edge {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+  }
+  .push-shadow {
+    background: transparent;
+    box-shadow: 0 2px 6px hsl(221 60% 10% / 0.3);
+    transform: translateY(2px);
+    transition: transform 600ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  }
+  .push-edge {
+    background: linear-gradient(to left, hsl(221 100% 20%) 0%, hsl(221 100% 34%) 8%, hsl(221 100% 34%) 92%, hsl(221 100% 20%) 100%);
+  }
+  .push-front {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding: 0 1.75rem;
+    border-radius: 9999px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+    background: linear-gradient(180deg, hsl(221 100% 53%) 0%, hsl(221 100% 47%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
+    text-shadow: 0 1px 0 rgb(0 30 120 / 0.3);
+    transform: translateY(-4px);
+    transition: transform 600ms cubic-bezier(0.3, 0.7, 0.4, 1);
+    will-change: transform;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .pushable:hover .push-front {
+      transform: translateY(-6px);
+      transition: transform 250ms cubic-bezier(0.3, 0.7, 0.4, 1.5);
+    }
+    .pushable:hover .push-shadow {
+      transform: translateY(4px);
+      transition: transform 250ms cubic-bezier(0.3, 0.7, 0.4, 1.5);
+    }
+  }
+  .pushable:active .push-front {
+    transform: translateY(-1px);
+    transition-duration: 34ms;
+  }
+  .pushable:active .push-shadow {
+    transform: translateY(1px);
+    transition-duration: 34ms;
   }
 }
 
-/* ---------- Wells (inputs, tracks) ---------- */
-
-.well {
-  background-color: var(--surface);
-  box-shadow: var(--well);
-  transition: box-shadow 150ms ease;
-}
-.well:focus-within {
-  box-shadow:
-    var(--well),
-    0 0 0 1.5px var(--brand),
-    0 0 0 5px var(--brand-soft);
-}
-.track {
-  background-color: var(--sunken);
-  box-shadow: inset 0 1px 3px rgb(15 23 42 / 0.1);
-}
-:root[data-theme="dark"] .track {
-  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .track {
-    box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
+/* Windows high contrast: shadows are removed, so draw real borders. */
+@media (forced-colors: active) {
+  .key,
+  .tile,
+  .well,
+  .thumb,
+  .push-front {
+    border: 1px solid ButtonBorder;
   }
-}
-.thumb {
-  background-image: linear-gradient(180deg, var(--surface), var(--surface-2));
-  box-shadow:
-    inset 0 1px 0 var(--key-hi),
-    0 0 0 1px var(--key-edge),
-    0 1px 2px rgb(15 23 42 / 0.12),
-    0 3px 8px -2px rgb(15 23 42 / 0.15);
-}
-
-/* ---------- Feature panel shine ---------- */
-
-/* Fine grain, so the deep blue reads as a material rather than a flat fill. */
-.feature {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-}
-.feature::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.08;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-}
-
-/* A soft light that follows the pointer (set by the Spotlight component). */
-.spotlight {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgb(143 177 255 / 0.22), transparent 60%);
-  transition: opacity 300ms ease;
-}
-.feature:hover > .spotlight {
-  opacity: 1;
-}
-/* A thin highlight along the top edge. */
-.feature-edge {
-  position: absolute;
-  inset: 0 12% auto;
-  height: 1px;
-  z-index: 0;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgb(199 216 255 / 0.7), transparent);
-}
-
-/* Big numbers on the feature panel get a faint metallic gradient. */
-.money-sheen {
-  background-image: linear-gradient(180deg, #ffffff 30%, #c9d8ff 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-
-/* Selected navigation item: a soft blue key, slightly pressed in. */
-.nav-active {
-  background-color: var(--brand-soft);
-  box-shadow:
-    inset 0 1px 2px rgb(0 40 160 / 0.12),
-    inset 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent);
-}
-
-/* ---------- Pushable key: the one hero call to action ----------
-   Three layers: a soft shadow on the floor, a darker edge (the side of the key),
-   and the face that sits 4px above it. Hover raises the face, press pushes it down. */
-.pushable {
-  position: relative;
-  display: inline-block;
-  border-radius: 9999px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  outline-offset: 4px;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  user-select: none;
-}
-.push-shadow,
-.push-edge {
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-}
-.push-shadow {
-  background: hsl(221 60% 10% / 0.28);
-  filter: blur(3px);
-  transform: translateY(2px);
-  transition: transform 600ms cubic-bezier(0.3, 0.7, 0.4, 1);
-}
-.push-edge {
-  background: linear-gradient(to left, hsl(221 100% 20%) 0%, hsl(221 100% 34%) 8%, hsl(221 100% 34%) 92%, hsl(221 100% 20%) 100%);
-}
-.push-front {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 3rem;
-  padding: 0 1.75rem;
-  border-radius: 9999px;
-  color: #fff;
-  font-weight: 600;
-  font-size: 15px;
-  background: linear-gradient(180deg, hsl(221 100% 53%) 0%, hsl(221 100% 47%) 100%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
-  text-shadow: 0 1px 0 rgb(0 30 120 / 0.3);
-  transform: translateY(-4px);
-  transition: transform 600ms cubic-bezier(0.3, 0.7, 0.4, 1);
-  will-change: transform;
-}
-@media (hover: hover) and (pointer: fine) {
-  .pushable:hover .push-front {
-    transform: translateY(-6px);
-    transition: transform 250ms cubic-bezier(0.3, 0.7, 0.4, 1.5);
+  .card,
+  .feature {
+    border: 1px solid CanvasText;
   }
-  .pushable:hover .push-shadow {
-    transform: translateY(4px);
-    transition: transform 250ms cubic-bezier(0.3, 0.7, 0.4, 1.5);
+  .key:disabled {
+    border-color: GrayText;
+    color: GrayText;
   }
-  .pushable:hover {
-    filter: brightness(1.08);
+  .tile[aria-pressed="true"],
+  .tile[aria-checked="true"],
+  [role="radio"][aria-checked="true"],
+  [aria-current="page"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
-}
-.pushable:active .push-front {
-  transform: translateY(-1px);
-  transition-duration: 34ms;
-}
-.pushable:active .push-shadow {
-  transform: translateY(1px);
-  transition-duration: 34ms;
+  .well:focus-within {
+    outline: 2px solid Highlight;
+  }
+  .push-shadow,
+  .push-edge,
+  .spotlight,
+  .feature::before,
+  .feature-edge,
+  .key-primary::after {
+    display: none;
+  }
+  .push-front {
+    transform: none !important;
+  }
 }
 
 /* Reduced motion: keep fades that explain change, drop movement. */
@@ -854,6 +981,7 @@ dialog.sheet::backdrop {
   *::after {
     animation-duration: 0.01ms !important;
     animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }

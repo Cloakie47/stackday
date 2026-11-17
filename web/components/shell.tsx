@@ -11,7 +11,7 @@ import { homeFor, useAccountState, useNames, useSwitchMode, type Mode, type Role
 import { LearnMore } from "./learn-more";
 import { useViewer } from "./providers";
 import { ThemeToggle } from "./theme";
-import { Button, cx } from "./ui";
+import { Button, cx, type ButtonSize } from "./ui";
 
 type NavItem = { href: string; label: string; short?: string; icon: string };
 
@@ -265,7 +265,7 @@ export function Logo({ light = false }: { light?: boolean }) {
   );
 }
 
-export function WalletButton({ light = false }: { light?: boolean }) {
+export function WalletButton({ light = false, size = "sm" }: { light?: boolean; size?: ButtonSize }) {
   const { address, chainId, isConnected } = useAccount();
   const { connectors, connect, isPending, error } = useConnect();
   const { switchChain } = useSwitchChain();
@@ -281,7 +281,7 @@ export function WalletButton({ light = false }: { light?: boolean }) {
   const connector = connectors[0];
   return (
     <div className="text-right">
-      <Button size="sm" disabled={isPending || !connector} onClick={() => connector && connect({ connector })}>
+      <Button size={size} disabled={isPending || !connector} onClick={() => connector && connect({ connector })}>
         {isPending ? "Connecting…" : "Connect wallet"}
       </Button>
       {error && (

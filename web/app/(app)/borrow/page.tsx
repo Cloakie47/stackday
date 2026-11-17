@@ -79,7 +79,7 @@ export default function BorrowPage() {
           </>
         }
         aside={
-          <Link href="/risk" className={buttonClass("ink")}>
+          <Link href="/risk" className={buttonClass("secondary")}>
             Risk screen and stress test
           </Link>
         }

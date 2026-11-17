@@ -83,7 +83,7 @@ const LABELS: Record<ThemeChoice, string> = { system: "Match system", light: "Li
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const { choice, set } = useTheme();
   return (
-    <div role="radiogroup" aria-label="Colour theme" className={cx("inline-flex rounded-full bg-sunken p-0.5", className)}>
+    <div role="radiogroup" aria-label="Colour theme" className={cx("track inline-flex rounded-full p-0.5", className)}>
       {(Object.keys(ICONS) as ThemeChoice[]).map((c) => (
         <button
           key={c}
@@ -95,7 +95,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
           onClick={() => set(c)}
           className={cx(
             "grid h-8 w-8 place-items-center rounded-full transition-[background-color,color,box-shadow] duration-150",
-            choice === c ? "bg-surface text-ink shadow-xs" : "text-muted hover:text-ink",
+            choice === c ? "thumb text-ink" : "text-muted hover:text-ink",
           )}
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

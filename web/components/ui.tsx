@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode } from "react";
 import { ASSET_LOGOS } from "@/lib/asset-logos";
 import { EXPLORER, type Asset } from "@/lib/contracts";
 import type { TxState } from "@/lib/useTx";
@@ -120,11 +120,13 @@ export function Money({ value, decimals = 2, prefix = "$" }: { value: bigint | u
     return () => cancelAnimationFrame(raf);
   }, [target]);
 
-  if (target === undefined) return <span className="skeleton inline-block min-w-20">0</span>;
+  if (target === undefined) return <span className="skeleton inline-block w-[4.5ch] align-baseline">0</span>;
+  const [whole, cents] = shown.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).split(".");
   return (
-    <span className="tabular-nums">
-      {prefix}
-      {shown.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
+    <span className="money">
+      {prefix && <span className="money-unit">{prefix}</span>}
+      {whole}
+      {cents !== undefined && <span className="money-cents">.{cents}</span>}
     </span>
   );
 }
@@ -192,7 +194,7 @@ export function Field({
       <span className="well mt-1.5 flex items-center rounded-2xl">
         <input
           {...props}
-          className="min-h-11 w-full min-w-0 rounded-2xl bg-transparent px-3.5 text-base text-ink outline-none placeholder:text-muted/60"
+          className="min-h-11 w-full min-w-0 rounded-2xl bg-transparent px-3.5 text-base text-ink outline-none placeholder:text-muted"
         />
         {suffix && <span className="whitespace-nowrap pr-3.5 text-sm text-muted">{suffix}</span>}
       </span>
@@ -218,7 +220,7 @@ export function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="well mt-1.5 min-h-11 w-full rounded-2xl px-3 text-base text-ink outline-none focus:shadow-[var(--well),0_0_0_1.5px_var(--brand),0_0_0_5px_var(--brand-soft)]"
+        className="well mt-1.5 min-h-11 w-full rounded-2xl px-3 text-base text-ink outline-none focus:shadow-[var(--well),0_0_0_2px_var(--brand),0_0_0_5px_var(--brand-soft)]"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -277,9 +279,9 @@ export function Segmented<T extends string>({
             aria-label={o.ariaLabel}
             onClick={() => onChange(o.value)}
             className={cx(
-              "relative z-10 min-h-9 rounded-full text-[13px] font-semibold transition-colors duration-200",
+              "relative z-10 min-h-9 rounded-full text-[13px] transition-colors duration-200 pointer-coarse:min-h-11",
               compact ? "px-0.5 sm:px-3" : "truncate px-3",
-              o.value === value ? "text-ink" : "text-muted hover:text-ink",
+              o.value === value ? "font-bold text-ink" : "font-semibold text-muted hover:text-ink",
             )}
           >
             {o.label}
@@ -301,7 +303,7 @@ export function Chip({
       aria-pressed={active}
       {...props}
       className={cx(
-        "tile inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold",
+        "tile inline-flex min-h-9 pointer-coarse:min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold",
         active ? "text-brand-ink" : "text-ink",
       )}
     >
@@ -348,19 +350,24 @@ export function AssetIcon({ asset, size = 36 }: { asset: Asset; size?: number })
 /** Stacked bar showing how a total splits across parts. */
 export function SplitBar({ parts, height = 10 }: { parts: { key: string; value: number; color: string; label?: string }[]; height?: number }) {
   const total = parts.reduce((a, p) => a + p.value, 0);
+  const shown = total > 0 ? parts.filter((p) => p.value > 0) : [];
+  const pct = (v: number) => Math.round((v / total) * 100);
+  const summary = shown.map((p) => `${p.label ?? p.key} ${pct(p.value)}%`).join(", ");
   return (
-    <div className="flex w-full gap-0.5 overflow-hidden rounded-full bg-sunken" style={{ height }} role="img" aria-label="Split">
-      {total > 0 &&
-        parts
-          .filter((p) => p.value > 0)
-          .map((p) => (
-            <span
-              key={p.key}
-              title={p.label}
-              className="h-full transition-[width] duration-500 ease-[var(--ease-out-quint)] first:rounded-l-full last:rounded-r-full"
-              style={{ width: `${(p.value / total) * 100}%`, background: p.color }}
-            />
-          ))}
+    <div
+      className="track flex w-full gap-[3px] overflow-hidden rounded-full p-[2px]"
+      style={{ height: height + 4 }}
+      role="img"
+      aria-label={summary ? `Split: ${summary}` : "Nothing yet"}
+    >
+      {shown.map((p) => (
+        <span
+          key={p.key}
+          title={`${p.label ?? p.key} ${pct(p.value)}%`}
+          className="split-seg h-full rounded-full transition-[flex-grow] duration-500 ease-[var(--ease-out-quint)]"
+          style={{ flexGrow: p.value, flexBasis: 0, minWidth: 6, background: p.color }}
+        />
+      ))}
     </div>
   );
 }
@@ -368,24 +375,40 @@ export function SplitBar({ parts, height = 10 }: { parts: { key: string; value: 
 /** Loan health on a line from "liquidation" to "very safe". */
 export function HealthMeter({ health }: { health: number | undefined }) {
   const has = health !== undefined && isFinite(health);
-  const pct = has ? Math.max(2, Math.min(100, ((health! - 0.8) / (3 - 0.8)) * 100)) : 0;
-  const tone = !has ? "bg-line-strong" : health! < 1 ? "bg-danger" : health! < 1.25 ? "bg-warn" : "bg-grow";
+  const at = (h: number) => ((h - 0.8) / (3 - 0.8)) * 100;
+  const pct = has ? Math.max(2, Math.min(100, at(health!))) : 0;
+  const level = !has ? "none" : health! < 1 ? "danger" : health! < 1.25 ? "warn" : "grow";
+  const meter = { "--meter": { none: "var(--line-strong)", danger: "var(--danger)", warn: "var(--warn)", grow: "var(--grow)" }[level] } as CSSProperties;
   const label = !has ? "No loan" : health! < 1 ? "Can be liquidated" : health! < 1.25 ? "Close to liquidation" : "Safe";
   return (
     <div>
-      <div className="relative h-2.5 rounded-full bg-sunken">
-        {/* liquidation line at 1.0 */}
-        <span className="absolute inset-y-[-3px] w-0.5 rounded bg-danger/60" style={{ left: `${((1 - 0.8) / (3 - 0.8)) * 100}%` }} />
+      <div
+        className="track relative h-3 rounded-full"
+        role="meter"
+        aria-label="Loan health"
+        aria-valuemin={0.8}
+        aria-valuemax={3}
+        aria-valuenow={has ? Math.min(3, health!) : undefined}
+        aria-valuetext={has ? `${health!.toFixed(2)}, ${label}` : label}
+      >
+        <span aria-hidden className="health-zones absolute inset-0 rounded-full" />
         <span
-          className={cx("absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-700 ease-[var(--ease-out-quint)]", tone)}
-          style={{ width: `${pct}%` }}
+          aria-hidden
+          className="health-fill absolute inset-y-[2px] left-[2px] rounded-full transition-[width] duration-700 ease-[var(--ease-out-quint)]"
+          style={{ ...meter, width: `calc(${pct}% - 4px)` }}
         />
+        <span aria-hidden className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-danger" style={{ left: `${at(1)}%` }} />
+        {has && (
+          <span
+            aria-hidden
+            className="health-knob absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full transition-[left] duration-700 ease-[var(--ease-out-quint)]"
+            style={{ ...meter, left: `${pct}%` }}
+          />
+        )}
       </div>
-      <div className="mt-1.5 flex justify-between text-[11px] text-muted">
+      <div className="mt-2 flex justify-between text-[11px] text-muted">
         <span>Liquidation at 1.00</span>
-        <span className={cx("font-semibold", !has ? "" : health! < 1 ? "text-danger" : health! < 1.25 ? "text-warn" : "text-grow")}>
-          {label}
-        </span>
+        <span className={cx("font-semibold", level === "danger" ? "text-danger" : level === "warn" ? "text-warn" : level === "grow" ? "text-grow" : "")}>{label}</span>
       </div>
     </div>
   );
@@ -401,30 +424,40 @@ export function Spinner() {
 }
 
 export function TxStatus({ state }: { state: TxState }) {
-  if (state.busy)
-    return (
-      <p className="mt-4 flex animate-[var(--animate-pop)] items-center gap-2 rounded-2xl bg-brand-soft px-3.5 py-2.5 text-sm text-brand-ink" role="status">
-        <Spinner /> {state.step}. Confirm in your wallet and wait for it to finish.
-      </p>
-    );
-  if (state.error)
-    return (
-      <p className="mt-4 animate-[var(--animate-pop)] break-words rounded-2xl bg-danger-soft px-3.5 py-2.5 text-sm text-danger" role="alert">
-        {state.error}
-      </p>
-    );
-  if (state.done)
-    return (
-      <p className="mt-4 animate-[var(--animate-pop)] rounded-2xl bg-grow-soft px-3.5 py-2.5 text-sm text-grow" role="status">
-        {state.done}{" "}
-        {state.hash && (
-          <a className="font-semibold underline" href={`${EXPLORER}/tx/${state.hash}`} target="_blank" rel="noreferrer">
-            View transaction
-          </a>
+  const kind = state.busy ? "busy" : state.error ? "error" : state.done ? "done" : null;
+  if (!kind) return null;
+  const badge = { busy: "bg-brand-soft text-brand-ink", error: "bg-danger-soft text-danger", done: "bg-grow-soft text-grow" }[kind];
+  return (
+    <div className="card mt-4 flex animate-[var(--animate-pop)] items-start gap-3 rounded-2xl p-3.5" role={kind === "error" ? "alert" : "status"}>
+      <span aria-hidden className={cx("grid h-8 w-8 shrink-0 place-items-center rounded-full", badge)}>
+        {kind === "busy" ? (
+          <Spinner />
+        ) : (
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d={kind === "done" ? "M3.5 8.5l3 3 6-7" : "M4.5 4.5l7 7M11.5 4.5l-7 7"} />
+          </svg>
         )}
-      </p>
-    );
-  return null;
+      </span>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className={cx("text-sm font-semibold", kind === "error" ? "text-danger" : "text-ink")}>
+          {kind === "busy" ? state.step : kind === "done" ? state.done : "That did not go through"}
+        </p>
+        {kind !== "done" && (
+          <p className="mt-0.5 break-words text-[13px] leading-relaxed text-muted">
+            {kind === "busy" ? "Confirm in your wallet, then wait for it to finish." : state.error}
+          </p>
+        )}
+      </div>
+      {state.hash && kind !== "busy" && (
+        <a className={buttonClass("secondary", "sm", "shrink-0")} href={`${EXPLORER}/tx/${state.hash}`} target="_blank" rel="noreferrer">
+          View
+          <svg aria-hidden viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M4 8l4-4M5 4h3v3" />
+          </svg>
+        </a>
+      )}
+    </div>
+  );
 }
 
 export function Notice({ tone = "info", children }: { tone?: "info" | "warn" | "danger" | "grow"; children: ReactNode }) {
@@ -458,7 +491,7 @@ export function Row({ label, children }: { label: ReactNode; children: ReactNode
 export function AddressLink({ address, label }: { address: string; label?: string }) {
   return (
     <a
-      className="font-mono text-xs text-brand-ink underline decoration-brand-ink/30 underline-offset-2 transition-colors hover:decoration-brand-ink"
+      className={cx(label ? "text-[13px] font-semibold" : "font-mono text-xs", "text-brand-ink underline decoration-brand-ink/30 underline-offset-2 transition-colors hover:decoration-brand-ink")}
       href={`${EXPLORER}/address/${address}`}
       target="_blank"
       rel="noreferrer"
@@ -468,8 +501,18 @@ export function AddressLink({ address, label }: { address: string; label?: strin
   );
 }
 
-export function Empty({ children }: { children: ReactNode }) {
-  return <p className="rounded-2xl border border-dashed border-line-strong px-4 py-6 text-center text-sm text-muted">{children}</p>;
+export function Empty({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="track flex flex-col items-center gap-3 rounded-2xl px-5 py-7 text-center">
+      <span aria-hidden className="thumb grid h-10 w-10 place-items-center rounded-full text-muted">
+        <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M4 7.5 10 4l6 3.5v5L10 16l-6-3.5zM4 7.5l6 3.5 6-3.5M10 11v5" />
+        </svg>
+      </span>
+      <div className="max-w-sm text-sm leading-relaxed text-muted">{children}</div>
+      {action}
+    </div>
+  );
 }
 
 /** A grey placeholder in the shape of the content that is loading. */
@@ -492,19 +535,23 @@ export function Spotlight() {
     let raf = 0;
     let x = 0;
     let y = 0;
+    let r = host.getBoundingClientRect();
+    const enter = () => {
+      r = host.getBoundingClientRect();
+    };
     const paint = () => {
       raf = 0;
-      el.style.setProperty("--mx", `${x}px`);
-      el.style.setProperty("--my", `${y}px`);
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     };
     const move = (e: PointerEvent) => {
-      const r = host.getBoundingClientRect();
       x = e.clientX - r.left;
       y = e.clientY - r.top;
       if (!raf) raf = requestAnimationFrame(paint);
     };
+    host.addEventListener("pointerenter", enter);
     host.addEventListener("pointermove", move);
     return () => {
+      host.removeEventListener("pointerenter", enter);
       host.removeEventListener("pointermove", move);
       cancelAnimationFrame(raf);
     };

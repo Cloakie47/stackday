@@ -16,7 +16,7 @@ export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize
     ghost: "key key-ghost text-ink hover:bg-sunken disabled:text-muted",
     danger: "key key-surface key-danger text-danger hover:text-danger disabled:text-muted",
   }[variant];
-  const sizes = { sm: "min-h-9 px-3.5 text-[13px]", md: "min-h-11 px-5 text-sm", lg: "min-h-12 px-6 text-[15px]" }[size];
+  const sizes = { sm: "min-h-9 pointer-coarse:min-h-11 px-3.5 text-[13px]", md: "min-h-11 px-5 text-sm", lg: "min-h-12 px-6 text-[15px]" }[size];
   return cx(
     "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold disabled:cursor-not-allowed",
     styles,

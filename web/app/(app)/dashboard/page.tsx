@@ -10,6 +10,9 @@ import {
   AddressLink,
   AssetIcon,
   Button,
+  buttonClass,
+  cx,
+  Skeleton,
   Card,
   Empty,
   Field,
@@ -349,12 +352,55 @@ function Change({ now, putIn }: { now: bigint; putIn: bigint }) {
   if (putIn === 0n) return <span className="text-muted">-</span>;
   const diff = now - putIn;
   const pct = Number((diff * 10_000n) / putIn) / 100;
+  // Amounts are shown in whole cents, so under one cent is flat, not a red "-$0.00".
+  const flat = diff > -10_000n && diff < 10_000n;
   const up = diff >= 0n;
   return (
-    <span className={up ? "text-grow" : "text-danger"}>
-      {up ? "+" : "-"}${fmtUsdc(up ? diff : -diff)} ({up ? "+" : ""}
-      {pct.toFixed(1)}%)
+    <span
+      className={cx(
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 font-semibold tabular-nums",
+        flat ? "bg-sunken text-muted" : up ? "bg-grow-soft text-grow" : "bg-danger-soft text-danger",
+      )}
+    >
+      {!flat && (
+        <svg aria-hidden viewBox="0 0 12 12" className={cx("h-2.5 w-2.5", !up && "rotate-180")}>
+          <path d="M6 2.5 10 8H2z" fill="currentColor" />
+        </svg>
+      )}
+      <span className="sr-only">{flat ? "No change" : up ? "Up" : "Down"}</span>
+      {flat ? (
+        "$0.00 (0.0%)"
+      ) : (
+        <>
+          {up ? "+" : "-"}${fmtUsdc(up ? diff : -diff)} ({up ? "+" : ""}
+          {pct.toFixed(1)}%)
+        </>
+      )}
     </span>
+  );
+}
+
+function HoldingsSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading holdings">
+      <Skeleton className="h-3.5 w-full rounded-full" />
+      <div className="mt-5 divide-y divide-line">
+        {[0, 1].map((i) => (
+          <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 py-3.5 first:pt-0 last:pb-0">
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-3.5 w-32" />
+              <Skeleton className="h-3 w-44" />
+              <Skeleton className="h-1.5 w-40 rounded-full" />
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-5 w-24 rounded-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -370,6 +416,7 @@ export default function DashboardPage() {
   const netWorth = p.totalAssetValue + cash - p.totalDebt;
   const held = p.positions.filter((x) => x.idle + x.collateral > 0n);
   const loans = p.positions.filter((x) => x.debt > 0n);
+  const heldTotal = held.reduce((a, x) => a + x.value, 0n);
   const name = names.nameOf(viewer.address);
 
   return (
@@ -409,18 +456,18 @@ export default function DashboardPage() {
         <div className="grid gap-8 sm:grid-cols-[1.2fr_1fr] sm:items-end">
           <div>
             <div className="text-[13px] font-medium text-muted">Net worth in your vault</div>
-            <div className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
+            <div className="money-sheen mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
               <Money value={viewer.address ? netWorth : 0n} />
             </div>
             <p className="mt-3 text-sm text-muted">Assets plus cash, minus loans.</p>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 divide-x divide-line rounded-2xl bg-white/[0.04] py-3 shadow-[inset_0_0_0_1px_var(--line)]">
             {[
               { label: "Assets", value: p.totalAssetValue },
               { label: "Cash", value: cash },
               { label: "Borrowed", value: p.totalDebt },
             ].map((s) => (
-              <div key={s.label}>
+              <div key={s.label} className="px-4">
                 <div className="text-[13px] font-medium text-muted">{s.label}</div>
                 <div className="mt-1 text-xl font-semibold tabular-nums">
                   <Money value={s.value} />
@@ -439,14 +486,16 @@ export default function DashboardPage() {
           </Link>
         }
       >
-        {held.length === 0 ? (
-          <Empty>
+        {held.length === 0 && p.loading && viewer.address ? (
+          <HoldingsSkeleton />
+        ) : held.length === 0 ? (
+          <Empty action={<Link href="/invest" className={buttonClass("primary", "sm")}>Make your first buy</Link>}>
             {businessMode ? "Nothing in your vault yet. Your first share of pay or purchase creates it." : "Nothing in your vault yet. Your first purchase creates it."}
           </Empty>
         ) : (
           <>
             {p.totalPutIn > 0n && (
-              <div className="mb-5 grid grid-cols-3 gap-4 rounded-2xl bg-sunken/70 p-4">
+              <div className="mb-5 grid grid-cols-2 gap-4 rounded-2xl bg-sunken/70 p-4 sm:grid-cols-3">
                 <Stat label="Total invested" value={`$${fmtUsdc(p.totalPutIn)}`} />
                 <Stat label="Worth now" value={`$${fmtUsdc(p.totalAssetValue)}`} />
                 <div>
@@ -462,31 +511,49 @@ export default function DashboardPage() {
               height={12}
             />
             <div className="mt-5 divide-y divide-line">
-              {held.map((x) => (
-                <div key={x.asset.symbol} className="flex items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
-                  <div className="flex min-w-0 items-center gap-3">
+              {held.map((x) => {
+                const share = heldTotal > 0n ? Number((x.value * 1000n) / heldTotal) / 10 : 0;
+                return (
+                  <div key={x.asset.symbol} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 py-3.5 first:pt-0 last:pb-0">
                     <AssetIcon asset={x.asset} />
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">
-                        {x.asset.name} <span className="font-normal text-muted">{x.asset.symbol}</span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-semibold">{x.asset.name}</span>
+                        <span className="hidden shrink-0 rounded-md bg-sunken px-1.5 py-px font-mono text-[11px] text-muted sm:inline">{x.asset.symbol}</span>
+                        {x.collateral > 0n && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-2 py-px text-[11px] font-semibold text-brand-ink">
+                            <svg aria-hidden viewBox="0 0 12 12" className="h-2.5 w-2.5">
+                              <rect x="2" y="5.5" width="8" height="5" rx="1.2" fill="currentColor" />
+                              <path d="M4 5.5V4a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                            </svg>
+                            {x.idle > 0n ? "Part locked" : "Locked"}
+                          </span>
+                        )}
                       </div>
-                      <div className="text-xs text-muted">
+                      <div className="mt-0.5 truncate text-xs tabular-nums text-muted">
                         {fmtAsset(x.idle + x.collateral, x.asset.decimals)} at ${fmtPrice(x.price)}
-                        {x.collateral > 0n && " · locked as collateral"}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="track block h-1.5 w-full max-w-40 overflow-hidden rounded-full">
+                          <span className="split-seg block h-full rounded-full" style={{ width: `${share}%`, background: x.asset.color }} />
+                        </span>
+                        <span className="text-[11px] tabular-nums text-muted">{share.toFixed(1)}%</span>
                       </div>
                     </div>
+                    <div className="flex flex-col items-end gap-1 tabular-nums">
+                      <div className="text-[15px] font-semibold">${fmtUsdc(x.value)}</div>
+                      {x.putIn > 0n && (
+                        <>
+                          <div className="text-xs">
+                            <Change now={x.value} putIn={x.putIn} />
+                          </div>
+                          <div className="text-[11px] text-muted">put in ${fmtUsdc(x.putIn)}</div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right tabular-nums">
-                    <div className="text-sm font-semibold">${fmtUsdc(x.value)}</div>
-                    {x.putIn > 0n && (
-                      <div className="text-xs">
-                        <span className="text-muted">put in ${fmtUsdc(x.putIn)} · </span>
-                        <Change now={x.value} putIn={x.putIn} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
