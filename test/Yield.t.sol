@@ -82,7 +82,7 @@ contract IdleUsdcYieldTest is BaseTest {
         address[] memory adapters = new address[](1);
         tokens[0] = address(stock);
         adapters[0] = address(adapter);
-        VaultFactory plain = new VaultFactory(tokens, adapters, address(0));
+        VaultFactory plain = new VaultFactory(tokens, adapters, address(0), address(0), 0, 0);
         EmployeeVault v = EmployeeVault(plain.createVault(alice));
         assertEq(v.earningBalance(), 0);
         vm.prank(alice);

@@ -17,7 +17,7 @@ import {
   Row,
   Stat,
 } from "@/components/ui";
-import { ADDR, ASSETS, EXPLORER } from "@/lib/contracts";
+import { ADDR, ASSETS, BORROW_FEE_BPS, EXPLORER, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { WAD, ago, aprFromPerSecond, assetValue, fmtAsset, fmtPct, fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { BRAND } from "@/lib/brand";
@@ -117,8 +117,8 @@ export default function RiskPage() {
         <Card title="Borrowing cost">
           <Row label="Interest rate now">{apr !== undefined ? `${apr.toFixed(2)}% per year` : "…"}</Row>
           <Row label="Cost of this loan at that rate">{yearlyCost !== undefined ? `about $${yearlyCost.toFixed(2)} per year` : "…"}</Row>
-          <Row label={`${BRAND.name} fee on borrowing`}>None</Row>
-          <Row label={`${BRAND.name} fee on purchases`}>0.25%, fixed</Row>
+          <Row label={`${BRAND.name} fee on borrowing`}>{BORROW_FEE_BPS > 0n ? `${feeLabel(BORROW_FEE_BPS)} once, fixed` : "None"}</Row>
+          <Row label={`${BRAND.name} fee on recurring buys`}>{feeLabel(SIP_FEE_BPS)}, fixed</Row>
           <p className="mt-3 text-xs leading-relaxed text-muted">
             Set by the market. It goes to lenders, not to {BRAND.name}.
           </p>

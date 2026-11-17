@@ -19,14 +19,14 @@ import {EmployeeVault} from "./EmployeeVault.sol";
 /// Anyone may trigger a due plan (an automation service, or the user), but a trigger can only
 /// ever do what the user's plan says: that amount, that stock, into that user's own vault,
 /// at a price within the user's chosen distance from the oracle price. No owner.
-/// The only fee is a SIP fee fixed forever at deployment (at most 1%) on the USDC a recurring plan puts
+/// The only fee is a SIP fee fixed forever at deployment (at most 0.2%) on the USDC a recurring plan puts
 /// into stock. One-time buys are free.
 contract SipRouter is ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     uint32 public constant MIN_INTERVAL = 1 days;
     uint16 public constant MAX_SLIPPAGE_BPS = 1000;
-    uint16 public constant MAX_SIP_FEE_BPS = 100; // the fee can never be deployed above 1%
+    uint16 public constant MAX_SIP_FEE_BPS = 20; // the fee can never be deployed above 0.2%
 
     IERC20 public immutable usdc;
     VaultFactory public immutable factory;
