@@ -1,8 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useRef, useState, type ReactNode } from "react";
 import { useViewer } from "@/components/providers";
-import { AssetIcon, Button, Card, Field, FillAmount, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
+import {
+  AssetIcon,
+  Badge,
+  BeforeAfter,
+  Button,
+  Card,
+  Chip,
+  DimCents,
+  FillAmount,
+  HealthMeter,
+  LabelTip,
+  PillTabs,
+  RiskNote,
+  Row,
+  SplitBar,
+  Stat,
+  TxStatus,
+  cx,
+  splitColor,
+} from "@/components/ui";
+import { BRAND } from "@/lib/brand";
 import { factoryAbi, vaultAbi } from "@/lib/abis";
 import { apyPpm, splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
 import { MAX_UINT, ADDR, BORROW_FEE_BPS, feeLabel } from "@/lib/contracts";
@@ -63,7 +84,8 @@ const dropOf = (health: bigint | undefined) => (health === undefined || health =
 
 const toNum = (v: bigint | undefined) => (v === undefined ? undefined : Number(v / 10n ** 14n) / 10_000);
 
-function legOf(pos: Position, extraValue = 0n, extraDebt = 0n): Leg {
+/** One market of the basket, as the basket maths sees it. Exported so Portfolio shows the same numbers. */
+export function legOf(pos: Position, extraValue = 0n, extraDebt = 0n): Leg {
   const value = pos.price ? assetValue(pos.collateral, pos.price, pos.asset.decimals) : 0n;
   return { value: value + extraValue, lltv: pos.asset.lltv, debt: pos.debt + extraDebt, liquidity: pos.liquidity };
 }
@@ -73,13 +95,13 @@ function freeOf(pos: Position) {
   return pos.transfersPaused ? 0n : pos.idle + pos.wallet;
 }
 
-export function CollateralBasket({ p }: { p: Portfolio }) {
+export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and title, shown above the figures. */ head?: ReactNode }) {
   const viewer = useViewer();
   const tx = useTx();
   const me = viewer.address;
   const vault = p.vault;
   const cap = p.borrowCapBps;
-  const [tab, setTab] = useState<Tab>("lock");
+  const [tab, setTab] = useState<Tab>("borrow");
   const [lockUsd, setLockUsd] = useState<Record<string, string>>({});
   const [borrowAmt, setBorrowAmt] = useState("");
   const [level, setLevel] = useState<Level | null>(null);
@@ -222,123 +244,123 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const can = viewer.canAct && !!vault;
   const weakestPos = positions.find((x) => x.debt > 0n && x.health !== undefined && x.health === positions.filter((y) => y.debt > 0n).reduce((m, y) => (y.health! < m ? y.health! : m), MAX_UINT));
 
+  // ---- display only: rates and the before and after summary
+  const fee = Number(BORROW_FEE_BPS) / 100;
+  const weighted = (items: { rate?: bigint; w: bigint }[]) => {
+    const sum = items.reduce((a, x) => a + x.w, 0n);
+    return sum > 0n ? items.reduce((a, x) => a + apyPpm(x.rate) * Number(x.w), 0) / Number(sum) / 10_000 : undefined;
+  };
+  const rateNow =
+    weighted(positions.map((x) => ({ rate: x.ratePerSecond, w: x.debt }))) ??
+    weighted(positions.map((x, i) => ({ rate: x.ratePerSecond, w: legs[i].value }))) ??
+    (positions.length ? positions.reduce((a, x) => a + apyPpm(x.ratePerSecond), 0) / positions.length / 10_000 : 0);
+  const borrowMorpho = borrowSplit ? weighted(positions.map((x, i) => ({ rate: x.ratePerSecond, w: borrowSplit[i] }))) : undefined;
+  const rateAfter = (borrowMorpho ?? rateNow) + fee;
+  const healthTone = (h: bigint | undefined) => {
+    const n = toNum(h);
+    return n === undefined ? undefined : n < 1 ? ("danger" as const) : n < 1.25 ? ("warn" as const) : ("grow" as const);
+  };
+  const locked = positions.filter((x, i) => legs[i].value > 0n).sort((a, b) => (b.collateral > a.collateral ? 1 : -1));
+  const rows = [...positions].sort((a, b) => (b.value > a.value ? 1 : b.value < a.value ? -1 : 0));
+  const repayLeft = repay >= owedTotal ? 0n : owedTotal - repay;
+  const stocksLocked = positions.some((x) => x.collateral > 0n && x.asset.kind !== "crypto");
+
+  const panelRef = useRef<HTMLDivElement>(null);
+  function openPanel(next: Tab, focusId?: string) {
+    setTab(next);
+    requestAnimationFrame(() => {
+      if (window.matchMedia("(max-width: 1023px)").matches) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+    });
+  }
+
+  const tabs = (
+    <PillTabs
+      ariaLabel="Action"
+      value={tab}
+      onChange={setTab}
+      options={[
+        { value: "borrow", label: "Borrow" },
+        { value: "repay", label: "Repay" },
+        { value: "lock", label: "Add collateral" },
+      ]}
+    />
+  );
+
   return (
-    <Card title="Collateral basket">
-      <p className="max-w-2xl text-sm leading-relaxed text-muted">
-        Lock any mix of your assets as one pot of collateral, then borrow against the total. New buys stay free in your vault until you lock them here. Locking more, for example each payday's buy, makes a loan safer.
-      </p>
-
-      <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
-        <Stat label="Locked" value={`$${fmtUsdc(now.locked)}`} hint="Collateral value now" />
-        <Stat
-          label="You can borrow"
-          value={`$${fmtUsdc(now.available)}`}
-          hint={cashLimited ? "Limited by the USDC the markets have to lend" : "Under your borrow limit"}
-        />
-        <Stat label="Loan" value={`$${fmtUsdc(now.debt)}`} />
-        <Stat label="Health" value={now.health !== undefined ? fmtHealth(now.health) : "No loan"} hint="Whole basket. Below 1.00 can be liquidated" />
-      </div>
-      {parts.length > 0 && (
-        <div className="mt-5">
-          <SplitBar parts={parts} />
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-            {positions.map((x, i) =>
-              legs[i].value > 0n ? (
-                <span key={x.asset.symbol} className="inline-flex items-center gap-1.5">
-                  <AssetIcon asset={x.asset} size={14} /> {x.asset.name} ${fmtUsdc(legs[i].value)}
-                </span>
-              ) : null,
-            )}
-          </div>
+    <div className="grid gap-x-8 gap-y-7 lg:grid-cols-[minmax(0,1fr)_384px] lg:grid-rows-[auto_1fr] lg:items-start">
+      {/* Market header and figures */}
+      <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+        {head}
+        <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 sm:mt-7 sm:grid-cols-4">
+          <Stat big label="Your loan" value={<DimCents text={`$${fmtUsdc(now.debt)}`} />} hint={`${fmtUsdc(owedTotal)} USDC owed`} />
+          <Stat
+            big
+            label="Available to borrow"
+            tone="brand"
+            tip={cashLimited ? `The lending markets have only $${fmtUsdc(highRoom)} to lend right now.` : "The most you can borrow now, within your borrow limit."}
+            value={<DimCents text={`$${fmtUsdc(now.available)}`} />}
+            hint={cashLimited ? <span className="text-warn">Limited by market cash</span> : `of $${fmtUsdc(now.limit > now.debt ? now.limit - now.debt : 0n)} max`}
+          />
+          <Stat
+            big
+            label="Borrow rate"
+            tip={`${rateNow.toFixed(2)}% Morpho interest, compounding, paid to lenders${fee > 0 ? `, plus a ${feeLabel(BORROW_FEE_BPS)} yearly ${BRAND.name} fee paid when you repay` : ""}. It moves with how much of the market is lent out.`}
+            value={`${(rateNow + fee).toFixed(2)}%`}
+            hint="a year, variable"
+          />
+          <Stat
+            big
+            label="Health"
+            tone={healthTone(now.health)}
+            tip="Health of all your loans together. Each asset is its own market and can be liquidated on its own if its price falls far."
+            value={now.health !== undefined ? fmtHealth(now.health) : "No loan"}
+            hint={
+              weakestPos && locked.length > 1 ? (
+                <LabelTip
+                  label={`Weakest: ${weakestPos.asset.name} ${fmtHealth(now.weakest)}`}
+                  tip="Each asset can be liquidated on its own, so watch the weakest one."
+                />
+              ) : (
+                "Liquidation at 1.00"
+              )
+            }
+          />
         </div>
-      )}
-      {now.debt > 0n && (
-        <div className="mt-5">
-          <HealthMeter health={toNum(now.weakest)} />
-          <p className="mt-2 text-xs text-muted">
-            The bar shows the weakest part{weakestPos ? ` (${weakestPos.asset.name}, health ${fmtHealth(now.weakest)})` : ""}: each asset sits in its own
-            market and can be liquidated on its own if its price falls far.
-          </p>
-        </div>
-      )}
-
-      <div className="mt-6 max-w-md">
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          label="What do you want to do?"
-          options={[
-            { value: "lock", label: "Lock" },
-            { value: "borrow", label: "Borrow" },
-            { value: "repay", label: "Repay" },
-          ]}
-        />
       </div>
 
-      {tab === "lock" && (
-        <div className="mt-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[13px] font-medium text-ink-soft">Quick fill:</span>
-            <Button size="sm" variant="secondary" onClick={() => fillEach("1")}>$1 of each</Button>
-            <Button size="sm" variant="secondary" onClick={() => fillEach("10")}>$10 of each</Button>
-            <Button size="sm" variant="ghost" onClick={fillMax}>Everything free</Button>
-          </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {lockPlan.map((l) => {
-              const a = l.pos.asset;
-              const free = freeOf(l.pos);
-              const freeValue = l.pos.price ? assetValue(free, l.pos.price, a.decimals) : 0n;
-              return (
-                <div key={a.symbol} className="flex items-start gap-3">
-                  <span className="mt-7"><AssetIcon asset={a} size={28} /></span>
-                  <div className="min-w-0 flex-1">
-                    <Field
-                      label={a.name}
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      suffix="USD"
-                      disabled={free === 0n || !l.pos.price}
-                      value={lockUsd[a.symbol] ?? ""}
-                      onChange={(e) => setLockUsd((s) => ({ ...s, [a.symbol]: e.target.value }))}
-                      hint={
-                        l.pos.transfersPaused
-                          ? "Transfers are paused, so it cannot be locked right now."
-                          : free === 0n
-                            ? "None free. Buy some on Invest."
-                            : (
-                              <>
-                                Free:{" "}
-                                <FillAmount onFill={() => setLockUsd((s) => ({ ...s, [a.symbol]: usdcInput(freeValue) }))} label={`Lock all free ${a.name}`}>
-                                  ${fmtUsdc(freeValue)}
-                                </FillAmount>{" "}
-                                ({fmtAsset(free, a.decimals)} {a.symbol}, {l.pos.idle === 0n ? "in your wallet" : l.pos.wallet === 0n ? "in your vault" : "in your vault and wallet"})
-                                {l.tooMuch ? ". Capped at what you have." : ""}
-                              </>
-                            )
-                      }
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-5 rounded-2xl bg-sunken p-4 text-sm">
-            Lock <strong>${fmtUsdc(lockTotal)}</strong>. Afterwards: <strong>${fmtUsdc(afterLock.locked)}</strong> locked, you can borrow up to{" "}
-            <strong>${fmtUsdc(afterLock.available)}</strong>.
-          </div>
-          <Button className="mt-3 w-full sm:w-auto" disabled={!viewer.canAct || !(vault ?? p.predictedVault) || lockTotal === 0n || busy} onClick={doLock}>
-            Lock ${fmtUsdc(lockTotal)} as collateral
-          </Button>
-          {!vault && <p className="mt-2 text-xs text-muted">Your vault is created in the same step.</p>}
-        </div>
-      )}
+      {/* Action panel */}
+      <aside ref={panelRef} aria-label="Borrow and repay" className="min-w-0 scroll-mt-28 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:sticky lg:top-20">
+        <div className="mb-3">{tabs}</div>
 
-      {tab === "borrow" && (
-        <div className="mt-5 max-w-xl">
-          {now.locked > 0n && (
-            <div className="mb-4">
-              <div className="mb-2 text-[13px] font-medium text-muted">Pick a risk level, or type your own amount</div>
-              <div className="grid grid-cols-3 gap-2" role="group" aria-label="Risk level">
+        {tab === "borrow" && (
+          <div className="space-y-2">
+            <div className="rounded-2xl border border-line bg-popover px-4 py-3.5">
+              <div className="flex items-center justify-between text-[13px] text-muted">
+                <LabelTip
+                  label="Collateral"
+                  tip="Lock any mix of assets as collateral, then borrow against the total. New buys stay free until you lock them. Locking more makes a loan safer."
+                />
+                <span>Locked in your vault</span>
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                {locked.length === 0 ? (
+                  <span className="text-[13px] text-muted">Nothing locked yet.</span>
+                ) : (
+                  locked.slice(0, 3).map((x) => (
+                    <span key={x.asset.symbol} className="inline-flex h-[30px] items-center gap-[7px] rounded-full bg-hover pl-1 pr-2.5 text-[12.5px] font-medium">
+                      <AssetIcon asset={x.asset} size={20} />
+                      {x.asset.name}
+                    </span>
+                  ))
+                )}
+                {locked.length > 3 && <span className="text-xs text-muted">+{locked.length - 3}</span>}
+                <span className="ml-auto text-[13px] font-medium tabular-nums">${fmtUsdc(now.locked)}</span>
+              </div>
+            </div>
+
+            {now.locked > 0n && (
+              <div role="group" aria-label="Risk level" className="grid grid-cols-3 gap-1.5">
                 {levelInfo.map((l) => {
                   const active = level === l.key;
                   return (
@@ -348,169 +370,415 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
                       aria-pressed={active}
                       disabled={l.reached || l.amount === 0n}
                       onClick={() => pickLevel(l.key, l.amount)}
-                      className={`rounded-2xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                        active ? "border-brand bg-brand/5" : "border-line hover:border-line-strong"
-                      }`}
+                      className={cx(
+                        "min-h-11 rounded-xl border px-2.5 py-2 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50",
+                        active ? "border-[color-mix(in_srgb,var(--brand)_55%,transparent)] bg-brand-soft" : "border-line bg-popover hover:bg-hover",
+                      )}
                     >
-                      <div className={`text-sm font-semibold ${l.tone}`}>{l.label}</div>
+                      <div className={cx("text-xs font-semibold", l.tone)}>{l.label}</div>
                       {l.reached ? (
-                        <div className="mt-1 text-xs text-muted">Already past this level</div>
+                        <div className="mt-0.5 text-[11px] text-muted">Already past this level</div>
                       ) : (
                         <>
-                          <div className="mt-1 text-base font-semibold tabular-nums text-ink">${fmtUsdc(l.want)}</div>
-                          <div className="text-[11px] text-muted">max borrow</div>
-                          <div className="mt-2 text-xs text-muted">
-                            Risk: {l.ltv.toFixed(0)}% of value ({Number(l.pct)}% of limit)
+                          <div className="mt-0.5 text-[13px] font-medium tabular-nums text-ink">${fmtUsdc(l.cashShort ? l.amount : l.want)}</div>
+                          <div className="text-[11px] text-muted">
+                            {l.cashShort ? "Market cash" : `Liquidation after a ${100 - Number(l.pct)}% drop`}
                           </div>
-                          <div className="text-xs text-muted">Safe until a {100 - Number(l.pct)}% drop</div>
-                          {l.cashShort && (
-                            <div className="mt-1.5 text-xs text-warn">
-                              Market can lend ${fmtUsdc(l.amount)} now{l.amount > 0n ? ` (safe until ${l.drop}%)` : ""}
-                            </div>
-                          )}
                         </>
                       )}
                     </button>
                   );
                 })}
               </div>
-              {levelInfo.some((l) => l.cashShort && !l.reached) && (
-                <p className="mt-2 text-xs leading-relaxed text-muted">
-                  The lending markets have only ${fmtUsdc(highRoom)} to lend right now. Picking a level fills in what can be borrowed today.
-                </p>
+            )}
+            {now.locked > 0n && levelInfo.some((l) => l.cashShort && !l.reached) && (
+              <p className="px-1 text-xs text-warn">Markets can lend only ${fmtUsdc(highRoom)} right now.</p>
+            )}
+
+            <label
+              className={cx(
+                "block rounded-2xl border border-line bg-popover px-4 py-3.5 transition-[border-color,box-shadow] duration-150",
+                "focus-within:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_10%,transparent)]",
               )}
-              {level === "high" && (
-                <div className="mt-2 space-y-1 text-xs leading-relaxed text-danger">
-                  {raiseCap && <p>This raises your vault&apos;s safety cap from {Number(cap) / 100}% to 65% of the liquidation limit, in the same signature.</p>}
-                  {positions.some((x) => x.collateral > 0n && x.asset.kind !== "crypto") && (
-                    <p>Tokenized stocks and gold do not trade at weekends, so a price can jump on Monday. A liquidation costs about 12.7% of the collateral taken.</p>
+            >
+              <span className="flex items-center justify-between text-[13px] text-muted">
+                <LabelTip label="Borrow USDC" tip="Borrows only against assets you locked. You receive the full amount." />
+                <AssetIcon icon="USDC" size={20} />
+              </span>
+              <input
+                id="borrow-amount"
+                inputMode="decimal"
+                placeholder="0.00"
+                autoComplete="off"
+                value={borrowAmt}
+                disabled={now.locked === 0n}
+                onChange={(e) => {
+                  setBorrowAmt(e.target.value);
+                  setLevel(null);
+                }}
+                className="mt-2 w-full bg-transparent font-display text-[32px] leading-[1.15] tracking-[-0.02em] text-ink tabular-nums outline-none placeholder:text-faint disabled:cursor-not-allowed"
+              />
+              <span className="mt-1.5 flex items-center justify-between text-xs text-muted">
+                <span className="tabular-nums">${fmtUsdc(borrow)}</span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="tabular-nums">
+                    {fmtUsdc(upTo)} USDC available{level === "high" && upTo > now.available ? " at High risk" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setBorrowAmt(usdcInput(upTo))}
+                    disabled={now.locked === 0n}
+                    className="rounded-[6px] bg-press px-[7px] py-[3px] text-[11px] font-semibold tracking-[0.02em] text-ink hover:bg-line disabled:opacity-50"
+                  >
+                    MAX
+                  </button>
+                </span>
+              </span>
+            </label>
+
+            <div className="rounded-2xl border border-line bg-popover px-4 py-1.5">
+              <Row label="Loan">
+                <BeforeAfter from={fmtUsdc(now.debt)} to={afterBorrow && borrow > 0n ? `${fmtUsdc(afterBorrow.debt)} USDC` : undefined} />
+                {!(afterBorrow && borrow > 0n) && " USDC"}
+              </Row>
+              <Row
+                label={
+                  <LabelTip
+                    label="Health"
+                    tip={
+                      afterBorrow && borrow > 0n
+                        ? `Weakest asset after this borrow: ${fmtHealth(afterBorrow.weakest)}. Liquidation after about a ${dropOf(afterBorrow.weakest)}% price drop.${stocksLocked ? " Stocks and gold don't trade at weekends, so prices can jump on Monday. A liquidation costs about 12.7% of the collateral taken." : ""}`
+                        : "At 1.00, part of your collateral can be sold to repay the loan."
+                    }
+                  />
+                }
+              >
+                <span className="inline-flex items-center gap-2">
+                  {afterBorrow && borrow > 0n && (
+                    <span className="hidden w-14 sm:block">
+                      <HealthMeter compact health={toNum(afterBorrow.health)} />
+                    </span>
                   )}
-                  {!p.emergencyRule && (p.schedulesPayingMe.length > 0 || p.claims.length > 0) && (
-                    <p className="text-muted">
-                      Tip: turn on the emergency rule on this page, so a payday share goes into this collateral if the loan gets close to liquidation.
-                    </p>
-                  )}
-                </div>
+                  <BeforeAfter
+                    from={now.health !== undefined ? fmtHealth(now.health) : "–"}
+                    to={afterBorrow && borrow > 0n ? fmtHealth(afterBorrow.health) : undefined}
+                    tone={afterBorrow ? healthTone(afterBorrow.health) : undefined}
+                  />
+                </span>
+              </Row>
+              <Row label="Available to borrow">
+                <BeforeAfter from={`$${fmtUsdc(now.available)}`} to={afterBorrow && borrow > 0n ? `$${fmtUsdc(afterBorrow.available)}` : undefined} />
+              </Row>
+              <Row
+                label="Borrow rate"
+                tip={`${(borrowMorpho ?? rateNow).toFixed(2)}% Morpho interest, compounding, paid to lenders${fee > 0 ? `, plus a ${feeLabel(BORROW_FEE_BPS)} yearly ${BRAND.name} fee` : ""}. It moves with how much of the market is lent out.`}
+              >
+                {rateAfter.toFixed(2)}% variable
+              </Row>
+              {fee > 0 && <Row label={`${BRAND.name} fee`}>{feeLabel(BORROW_FEE_BPS)} a year, paid when you repay</Row>}
+              {borrow > 0n && borrowSplit && (
+                <Row label="Split" tip="Your borrow is split across your locked assets so each part has the same health.">
+                  <span className="inline-flex flex-wrap justify-end gap-x-3 gap-y-1">
+                    {positions.map((x, i) =>
+                      borrowSplit[i] > 0n ? (
+                        <span key={x.asset.symbol} className="inline-flex items-center gap-1.5">
+                          <AssetIcon asset={x.asset} size={16} />${fmtUsdc(borrowSplit[i])}
+                        </span>
+                      ) : null,
+                    )}
+                  </span>
+                </Row>
+              )}
+              {borrow > 0n && borrowSplit && <Row label="You receive">${fmtUsdc(borrow)}</Row>}
+            </div>
+
+            {raiseCap && <p className="px-1 text-xs text-danger">Also raises your borrow limit from {Number(cap) / 100}% to 65% of the maximum.</p>}
+            {level === "high" && !p.emergencyRule && (p.schedulesPayingMe.length > 0 || p.claims.length > 0) && (
+              <p className="px-1 text-xs text-muted">
+                <LabelTip label="Consider the emergency rule" tip="Sends part of a payday to this collateral when the loan gets close to liquidation." />
+              </p>
+            )}
+            {borrow > 0n && !borrowSplit && <p className="px-1 text-xs text-danger">More than you can borrow. Lock more first.</p>}
+
+            {now.locked === 0n ? (
+              <Button size="lg" className="w-full" variant="secondary" onClick={() => openPanel("lock")}>
+                Lock collateral first
+              </Button>
+            ) : (
+              <Button size="lg" className="w-full" disabled={!can || !me || borrow === 0n || !borrowSplit || busy} onClick={doBorrow}>
+                {borrow > 0n ? `Borrow ${fmtUsdc(borrow)} USDC` : "Borrow USDC"}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {tab === "repay" && (
+          <div className="space-y-2">
+            <label
+              className={cx(
+                "block rounded-2xl border border-line bg-popover px-4 py-3.5 transition-[border-color,box-shadow] duration-150",
+                "focus-within:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_10%,transparent)]",
+              )}
+            >
+              <span className="flex items-center justify-between text-[13px] text-muted">
+                <LabelTip label="Repay USDC" tip="Repay any amount at any time. No penalty." />
+                <AssetIcon icon="USDC" size={20} />
+              </span>
+              <input
+                id="repay-amount"
+                inputMode="decimal"
+                placeholder="0.00"
+                autoComplete="off"
+                value={repayAmt}
+                onChange={(e) => setRepayAmt(e.target.value)}
+                className="mt-2 w-full bg-transparent font-display text-[32px] leading-[1.15] tracking-[-0.02em] text-ink tabular-nums outline-none placeholder:text-faint"
+              />
+              <span className="mt-1.5 flex items-center justify-between text-xs text-muted">
+                <span className="tabular-nums">${fmtUsdc(repay)}</span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="tabular-nums">{fmtUsdc(owedTotal)} USDC owed</span>
+                  <button
+                    type="button"
+                    onClick={() => setRepayAmt(usdcInput(owedTotal))}
+                    disabled={now.debt === 0n}
+                    className="rounded-[6px] bg-press px-[7px] py-[3px] text-[11px] font-semibold tracking-[0.02em] text-ink hover:bg-line disabled:opacity-50"
+                  >
+                    MAX
+                  </button>
+                </span>
+              </span>
+            </label>
+
+            <div className="rounded-2xl border border-line bg-popover px-4 py-1.5">
+              <Row label="Owed">
+                <BeforeAfter from={fmtUsdc(owedTotal)} to={repay > 0n ? `${fmtUsdc(repayLeft)} USDC` : undefined} />
+                {repay === 0n && " USDC"}
+              </Row>
+              <Row label="Health">{now.health !== undefined ? fmtHealth(now.health) : "No loan"}</Row>
+              {feesOwed >= 100n && (
+                <Row label={`${BRAND.name} fee`} tip="Paid first, before the loan.">
+                  ${fmtUsdc(feesOwed, 4)}
+                </Row>
+              )}
+              {repay > 0n && !repayAll && (
+                <Row label="Split" tip="Pays down the parts closest to their limit first.">
+                  <span className="inline-flex flex-wrap justify-end gap-x-3 gap-y-1">
+                    {positions.map((x, i) =>
+                      repaySplit[i] > 0n ? (
+                        <span key={x.asset.symbol} className="inline-flex items-center gap-1.5">
+                          <AssetIcon asset={x.asset} size={16} />${fmtUsdc(repaySplit[i])}
+                        </span>
+                      ) : null,
+                    )}
+                  </span>
+                </Row>
               )}
             </div>
-          )}
-          <Field
-            label="Borrow"
-            inputMode="decimal"
-            placeholder="0.00"
-            suffix="USDC"
-            value={borrowAmt}
-            onChange={(e) => {
-              setBorrowAmt(e.target.value);
-              setLevel(null);
-            }}
-            hint={
-              now.locked === 0n ? (
-                "Lock collateral first."
-              ) : (
-                <>
-                  Up to <FillAmount onFill={() => setBorrowAmt(usdcInput(upTo))}>${fmtUsdc(upTo)}</FillAmount>
-                  {level === "high" && upTo > now.available ? " at High risk" : ""}. Uses only what you locked.
-                </>
-              )
-            }
-          />
-          {borrow > 0n && borrowSplit && afterBorrow && (
-            <div className="mt-4 rounded-2xl bg-sunken p-4 text-sm">
-              <div className="font-medium">Split so every part stays equally safe:</div>
-              <ul className="mt-2 space-y-1">
-                {positions.map((x, i) =>
-                  borrowSplit[i] > 0n ? (
-                    <li key={x.asset.symbol} className="flex items-center gap-2">
-                      <AssetIcon asset={x.asset} size={16} /> {x.asset.name}: ${fmtUsdc(borrowSplit[i])}
-                    </li>
-                  ) : null,
-                )}
-              </ul>
-              {(() => {
-                // Morpho's compounding rate on the markets this borrow uses, weighted by the split.
-                const used = positions.map((x, i) => ({ x, amt: borrowSplit[i] })).filter(({ amt }) => amt > 0n);
-                const sum = used.reduce((a, u) => a + u.amt, 0n);
-                const morpho = sum > 0n ? used.reduce((a, u) => a + apyPpm(u.x.ratePerSecond) * Number(u.amt), 0) / Number(sum) / 10_000 : 0;
-                const fee = Number(BORROW_FEE_BPS) / 100;
+
+            <div className="grid grid-cols-[1fr_1.4fr] gap-2">
+              <Button size="lg" variant="secondary" disabled={!can || now.debt === 0n || busy} onClick={() => doRepay(true)}>
+                Repay all
+              </Button>
+              <Button size="lg" disabled={!can || repay === 0n || now.debt === 0n || busy} onClick={() => doRepay(repayAll)}>
+                {repay > 0n ? `Repay ${fmtUsdc(repay)} USDC` : "Repay"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tab === "lock" && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-xs text-muted">Quick fill</span>
+              <Chip onClick={() => fillEach("1")}>$1 each</Chip>
+              <Chip onClick={() => fillEach("10")}>$10 each</Chip>
+              <Chip onClick={fillMax}>Everything free</Chip>
+            </div>
+            <div className="divide-y divide-line-soft rounded-2xl border border-line bg-popover">
+              {lockPlan.map((l) => {
+                const a = l.pos.asset;
+                const free = freeOf(l.pos);
+                const freeValue = l.pos.price ? assetValue(free, l.pos.price, a.decimals) : 0n;
                 return (
-                  <div className="mt-2">
-                    You receive the full <strong>${fmtUsdc(borrow)}</strong>. Borrow APY about <strong>{(morpho + fee).toFixed(2)}%</strong>
-                    <span className="text-muted">
-                      {" "}
-                      ({morpho.toFixed(2)}% Morpho, compounding, to lenders{fee > 0 ? ` + ${feeLabel(BORROW_FEE_BPS)} a year Stackday fee, paid when you repay` : ""}).
-                      The rate moves with how much of the market is lent out.
+                  <div key={a.symbol} className="flex items-center gap-3 px-3.5 py-2.5">
+                    <AssetIcon asset={a} size={24} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-medium">{a.name}</div>
+                      <div className="truncate text-[11.5px] text-muted">
+                        {l.pos.transfersPaused ? (
+                          <span className="text-warn">Transfers paused. Can&apos;t lock now.</span>
+                        ) : free === 0n ? (
+                          "None free. Buy some on Invest."
+                        ) : (
+                          <>
+                            Free{" "}
+                            <FillAmount onFill={() => setLockUsd((s) => ({ ...s, [a.symbol]: usdcInput(freeValue) }))} label={`Lock all free ${a.name}`}>
+                              ${fmtUsdc(freeValue)}
+                            </FillAmount>{" "}
+                            · {l.pos.idle === 0n ? "wallet" : l.pos.wallet === 0n ? "vault" : "vault and wallet"}
+                            {l.tooMuch ? " · capped" : ""}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <span className="flex w-28 shrink-0 items-center rounded-[10px] border border-line bg-surface focus-within:border-[color-mix(in_srgb,var(--brand)_55%,transparent)]">
+                      <span className="pl-2.5 text-[13px] text-muted">$</span>
+                      <input
+                        id={`lock-${a.symbol}`}
+                        aria-label={`Dollars of ${a.name} to lock`}
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        disabled={free === 0n || !l.pos.price}
+                        value={lockUsd[a.symbol] ?? ""}
+                        onChange={(e) => setLockUsd((s) => ({ ...s, [a.symbol]: e.target.value }))}
+                        className="min-h-10 w-full min-w-0 bg-transparent px-1.5 text-right text-base tabular-nums text-ink outline-none placeholder:text-faint disabled:cursor-not-allowed"
+                      />
                     </span>
                   </div>
                 );
-              })()}
-              <div className="mt-2 text-muted">
-                Health afterwards: {fmtHealth(afterBorrow.health)} for the basket, {fmtHealth(afterBorrow.weakest)} for the weakest part. Safe until
-                about a {dropOf(afterBorrow.weakest)}% price drop.
+              })}
+            </div>
+            <div className="rounded-2xl border border-line bg-popover px-4 py-1.5">
+              <Row label="Lock">${fmtUsdc(lockTotal)}</Row>
+              <Row label="Locked">
+                <BeforeAfter from={`$${fmtUsdc(now.locked)}`} to={lockTotal > 0n ? `$${fmtUsdc(afterLock.locked)}` : undefined} />
+              </Row>
+              <Row label="Available to borrow">
+                <BeforeAfter from={`$${fmtUsdc(now.available)}`} to={lockTotal > 0n ? `$${fmtUsdc(afterLock.available)}` : undefined} />
+              </Row>
+            </div>
+            {!vault && <p className="px-1 text-xs text-muted">Your vault is created in the same step.</p>}
+            <Button size="lg" className="w-full" disabled={!viewer.canAct || !(vault ?? p.predictedVault) || lockTotal === 0n || busy} onClick={doLock}>
+              Lock ${fmtUsdc(lockTotal)} as collateral
+            </Button>
+          </div>
+        )}
+
+        <TxStatus state={tx.state} />
+        <div className="mt-3">
+          <RiskNote compact />
+        </div>
+      </aside>
+
+      {/* Collateral table and yearly estimate */}
+      <div className="min-w-0 space-y-6 lg:col-start-1 lg:row-start-2">
+        <Card flush>
+          <div className="flex min-h-[52px] flex-wrap items-center gap-x-5 gap-y-1 border-b border-line-soft px-4 py-2 sm:px-5">
+            <div className="flex items-center gap-4 text-[13px]">
+              <h2 className="font-medium text-ink">Collateral</h2>
+              <Link href="/risk" className="text-muted hover:text-ink">
+                Risk
+              </Link>
+            </div>
+            <span className="ml-auto text-xs text-muted">Only assets marked Collateral back this loan</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="dtable min-w-[560px] table-fixed">
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Asset</th>
+                  <th scope="col" className="r">
+                    In vault
+                  </th>
+                  <th scope="col" className="r">
+                    Value
+                  </th>
+                  <th scope="col" className="r">
+                    Use for this loan
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((x) => {
+                  const free = freeOf(x);
+                  return (
+                    <tr key={x.asset.symbol}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <AssetIcon asset={x.asset} size={32} />
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{x.asset.name}</div>
+                            <div className="truncate text-[11.5px] text-muted">{x.asset.symbol}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="r">
+                        {fmtAsset(x.idle + x.collateral, x.asset.decimals, 4)} <span className="text-muted">{x.asset.symbol}</span>
+                      </td>
+                      <td className="r">${fmtUsdc(x.value)}</td>
+                      <td className="r">
+                        {x.collateral > 0n ? (
+                          <span className="inline-flex items-center gap-2">
+                            {free > 0n && (
+                              <button type="button" onClick={() => openPanel("lock", `lock-${x.asset.symbol}`)} className="text-xs font-semibold text-ink hover:text-brand-ink">
+                                Add more
+                              </button>
+                            )}
+                            <Badge>Collateral</Badge>
+                          </span>
+                        ) : x.transfersPaused ? (
+                          <span className="text-xs text-warn">Transfers paused</span>
+                        ) : free > 0n ? (
+                          <button
+                            type="button"
+                            onClick={() => openPanel("lock", `lock-${x.asset.symbol}`)}
+                            className="min-h-9 rounded-lg px-2 text-[13px] font-semibold text-ink hover:bg-hover"
+                          >
+                            Add
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted">None free</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {parts.length > 0 && (
+            <div className="flex items-center gap-4 border-t border-line-soft bg-hover px-4 py-3 sm:px-5">
+              <span className="shrink-0 text-xs text-muted">Locked ${fmtUsdc(now.locked)}</span>
+              <div className="flex-1">
+                <SplitBar parts={parts.map((x, i) => ({ ...x, color: splitColor(i) }))} height={6} />
               </div>
             </div>
           )}
-          {borrow > 0n && !borrowSplit && <p className="mt-2 text-xs text-danger">That is above what you can borrow now. Lock more first.</p>}
-          <Button className="mt-3 w-full sm:w-auto" disabled={!can || !me || borrow === 0n || !borrowSplit || busy} onClick={doBorrow}>
-            Borrow
-          </Button>
-        </div>
-      )}
+        </Card>
 
-      {tab === "repay" && (
-        <div className="mt-5 max-w-xl">
-          <Field
-            label="Repay"
-            inputMode="decimal"
-            placeholder="0.00"
-            suffix="USDC"
-            value={repayAmt}
-            onChange={(e) => setRepayAmt(e.target.value)}
-            hint={
-              now.debt > 0n ? (
-                <>
-                  Any amount, any time. No penalty. Loan:{" "}
-                  <FillAmount onFill={() => setRepayAmt(usdcInput(owedTotal))}>${fmtUsdc(owedTotal)}</FillAmount>
-                  {feesOwed >= 100n ? ` (includes $${fmtUsdc(feesOwed, 4)} Stackday fee, paid first)` : ""}
-                </>
-              ) : (
-                "Any amount, any time. No penalty."
-              )
-            }
-          />
-          {repay > 0n && !repayAll && (
-            <ul className="mt-3 space-y-1 text-sm text-muted">
-              {positions.map((x, i) =>
-                repaySplit[i] > 0n ? (
-                  <li key={x.asset.symbol} className="flex items-center gap-2">
-                    <AssetIcon asset={x.asset} size={16} /> {x.asset.name}: ${fmtUsdc(repaySplit[i])}
-                  </li>
-                ) : null,
-              )}
-            </ul>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="secondary" disabled={!can || repay === 0n || now.debt === 0n || busy} onClick={() => doRepay(repayAll)}>
-              Repay
-            </Button>
-            <Button variant="secondary" disabled={!can || now.debt === 0n || busy} onClick={() => doRepay(true)}>
-              Repay all
-            </Button>
+        <Card title="Per year, at today's prices" badge={<Badge>Est.</Badge>}>
+          <div className="grid grid-cols-3 gap-4">
+            <Stat
+              label="Dividends"
+              tip="After the issuer's 5% fee and up to 30% US withholding tax, reinvested into the token."
+              value={`+$${fmtUsdc(earnings.earn)}`}
+            />
+            <Stat label="Loan cost" tip={`Morpho interest plus the ${BRAND.name} fee.`} value={`−$${fmtUsdc(earnings.cost)}`} />
+            <Stat
+              label="Net"
+              tip="At today's prices, before any price moves."
+              value={`${earnings.net < 0n ? "−" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`}
+            />
           </div>
-        </div>
-      )}
-
-      <TxStatus state={tx.state} />
-
-      <div className="mt-6 grid gap-4 border-t border-line pt-6 sm:grid-cols-3">
-        <Stat label="Dividends a year" value={`+$${fmtUsdc(earnings.earn)}`} hint="After issuer fee and US tax" />
-        <Stat label="Loan cost a year" value={`-$${fmtUsdc(earnings.cost)}`} hint="Morpho APY plus the Stackday fee" />
-        <Stat label="Net a year" value={`${earnings.net < 0n ? "-" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`} hint="At today's prices, before price moves" />
+          <p className="mt-3 text-xs text-muted">Estimate. Test tokens pay no dividends.</p>
+        </Card>
       </div>
-      <p className="mt-3 text-xs leading-relaxed text-muted">
-        Estimated with each real share&apos;s yearly dividend, after the issuer&apos;s 5% fee and up to 30% US withholding tax (reinvested into
-        the token, not paid in cash). The test tokens pay none.
-      </p>
-    </Card>
+
+      {/* Phone: sticky actions above the home indicator */}
+      <div data-action-bar className="glass fixed inset-x-0 bottom-0 z-20 grid grid-cols-[1fr_1.4fr] gap-2 border-t border-line px-4 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-3 lg:hidden">
+        <Button size="lg" variant="secondary" onClick={() => openPanel("repay", "repay-amount")}>
+          Repay
+        </Button>
+        <Button size="lg" onClick={() => openPanel(now.locked === 0n ? "lock" : "borrow", now.locked === 0n ? undefined : "borrow-amount")}>
+          Borrow USDC
+        </Button>
+      </div>
+    </div>
   );
 }
