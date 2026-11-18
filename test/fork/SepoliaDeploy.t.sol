@@ -19,7 +19,7 @@ contract SepoliaDeployRehearsalTest is Test {
         vm.createSelectFork(vm.envOr("BASE_SEPOLIA_RPC_URL", string("https://sepolia.base.org")));
         address me = vm.addr(KEY);
         vm.deal(me, 1 ether);
-        deal(address(USDC), me, 20e6);
+        deal(address(USDC), me, 30e6);
         vm.setEnv("PRIVATE_KEY", vm.toString(bytes32(KEY)));
         vm.setEnv("DEPLOYMENTS_FILE", "deployments/rehearsal.json");
 
@@ -27,14 +27,21 @@ contract SepoliaDeployRehearsalTest is Test {
         string memory json = vm.readFile("deployments/rehearsal.json");
         Payroll payroll = Payroll(vm.parseJsonAddress(json, ".payroll"));
         VaultFactory factory = VaultFactory(vm.parseJsonAddress(json, ".vaultFactory"));
-        assertEq(payroll.sipFeeBps(), 25);
-        assertEq(factory.stockCount(), 4);
-        assertEq(USDC.balanceOf(me), 12e6, "2 USDC lent into each of the four markets");
+        assertEq(payroll.sipFeeBps(), 15);
+        assertEq(factory.stockCount(), 15);
+        assertEq(USDC.balanceOf(me), 12e6, "2 USDC lent into each of the nine markets");
+        // S&P 500 fund token is borrowable at 77% (issue #65); Treasuries stay invest only.
+        address spx = vm.parseJsonAddress(json, ".mSPX");
+        assertTrue(factory.lendingAdapterOf(spx) != address(0), "mSPX has a lending market");
+        assertEq(vm.parseJsonUint(json, ".mSPXLltv"), 0.77e18);
+        address sgov = vm.parseJsonAddress(json, ".mSGOV");
+        assertEq(factory.lendingAdapterOf(sgov), address(0), "mSGOV stays invest only");
+        assertTrue(factory.isSupported(sgov));
 
         new E2E().run();
         assertTrue(factory.vaultOf(me) != address(0));
         assertEq(USDC.balanceOf(address(payroll)), 0);
-        // 20 - 8 lent, minus the SIP share (1 USDC went into stock), minus under 0.01 of interest
+        // 30 - 18 lent, minus the SIP share (1 USDC went into stock), minus under 0.01 of interest
         assertApproxEqAbs(USDC.balanceOf(me), 11e6, 0.01e6);
     }
 }

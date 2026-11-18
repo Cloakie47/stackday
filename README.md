@@ -53,7 +53,7 @@ Local tests (real Morpho code, mock asset tokens, mock price feeds, mock exchang
 
     forge test
 
-Base mainnet fork tests (real AAPLc, real Morpho market, real Aerodrome pool, real Morpho interest vault, costs nothing):
+Base mainnet fork tests (real AAPLc, real Morpho market, real Aerodrome pool, real Morpho interest vault, and borrowing against the real S&P 500 fund token deSPXA in its real Morpho market, costs nothing):
 
     $env:FOUNDRY_PROFILE="fork"; forge test; Remove-Item Env:FOUNDRY_PROFILE
 

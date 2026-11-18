@@ -28,16 +28,18 @@ const ASSET_NAMES: Record<string, string> = {
   mMETA: "Meta (METAc)",
   mSPCX: "SpaceX (SPCXc)",
   mPAXG: "Gold (PAX Gold, PAXG)",
-  mTSLA: "Tesla (TSLAc), invest only",
-  mAMZN: "Amazon (AMZNc), invest only",
-  mMSFT: "Microsoft (MSFTc), invest only",
-  mMSTR: "Strategy (MSTRc), invest only",
-  mAMD: "AMD (AMDc), invest only",
-  mSPX: "S&P 500 fund token (deSPXA), invest only",
-  mSGOV: "0-3 month US Treasuries (wtSGOV), invest only",
+  mTSLA: "Tesla (TSLAc)",
+  mAMZN: "Amazon (AMZNc)",
+  mMSFT: "Microsoft (MSFTc)",
+  mMSTR: "Strategy (MSTRc)",
+  mAMD: "AMD (AMDc)",
+  mSPX: "S&P 500 fund token (deSPXA)",
+  mSGOV: "0-3 month US Treasuries (wtSGOV)",
   mcbBTC: "cbBTC (Coinbase Wrapped BTC)",
   mWETH: "Ether (WETH)",
 };
+/** Invest only when the deployment gives the asset no lending market (issue #60). */
+const investOnly = (s: string) => /^0x0+$/.test(String(D[`${s}LendingAdapter`] ?? "0x0"));
 const feePct = `${Number(D.sipFeeBps) / 100}%`;
 const borrowFeePct = Number(D.borrowFeeBps ?? 0) > 0 ? `${Number(D.borrowFeeBps) / 100}%` : "None yet";
 const earnFeePct = Number(D.earnFeeBps ?? 0) > 0 ? `${Number(D.earnFeeBps) / 100}%` : "None yet";
@@ -212,7 +214,7 @@ export default function DocsPage() {
   ];
   const mocks: [string, string][] = [
     ...SYMBOLS.flatMap((s) => [
-      [`${s} token, stands in for ${ASSET_NAMES[s] ?? s}`, D[s] as string] as [string, string],
+      [`${s} token, stands in for ${ASSET_NAMES[s] ?? s}${investOnly(s) ? ", invest only" : ""}`, D[s] as string] as [string, string],
       [`${s} price feed`, D[`${s}Feed`] as string] as [string, string],
     ]),
     ["Mock exchange", D.mockSwapAdapter as string],

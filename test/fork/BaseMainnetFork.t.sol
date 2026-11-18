@@ -70,7 +70,7 @@ contract BaseMainnetForkTest is Test {
         swapAdapter = new SlipstreamSwapAdapter(USDC, stocks, one);
         one[0] = AAPL_FEED;
         priceAdapter = new ChainlinkPriceAdapter(stocks, one);
-        payroll = new Payroll(USDC, factory, swapAdapter, treasury, 25, 1 days);
+        payroll = new Payroll(USDC, factory, swapAdapter, treasury, 15, 1 days);
 
         deal(address(USDC), employer, 100_000 * U);
         vm.prank(employer);
@@ -109,7 +109,7 @@ contract BaseMainnetForkTest is Test {
         vm.prank(alice);
         payroll.claimWithSip(runId, aliceBank, address(AAPLC), 2000, (fairOut * 98) / 100);
         assertEq(USDC.balanceOf(aliceBank), 4000 * U, "SIP leg must have executed on the real pool");
-        assertEq(USDC.balanceOf(treasury), 2.5e6, "0.25% SIP fee on 1,000 USDC");
+        assertEq(USDC.balanceOf(treasury), 0, "one-time SIP buys are free; only recurring plans pay the fee");
 
         EmployeeVault vault = EmployeeVault(factory.vaultOf(alice));
         uint256 bought = AAPLC.balanceOf(address(vault));
@@ -139,12 +139,16 @@ contract BaseMainnetForkTest is Test {
         vm.expectRevert();
         MORPHO.withdrawCollateral(params, bought, address(vault), attacker);
 
-        // Payday 2 adds collateral automatically and health improves.
+        // Payday 2 buys more. New buys stay free (issue #29); Alice locks them and health improves.
         vm.warp(block.timestamp + 14 days);
         runId = _payday(5000 * U);
         vm.prank(alice);
         payroll.claimWithSip(runId, aliceBank, address(AAPLC), 2000, 0);
-        assertGt(vault.collateralOf(address(AAPLC)), bought);
+        assertEq(vault.collateralOf(address(AAPLC)), bought, "nothing locked automatically");
+        uint256 more = AAPLC.balanceOf(address(vault));
+        assertGt(more, 0);
+        vm.prank(alice);
+        vault.addCollateral(address(AAPLC), more);
         assertEq(AAPLC.balanceOf(address(vault)), 0);
         assertGt(vault.healthFactor(address(AAPLC)), health1);
 
