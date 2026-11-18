@@ -613,6 +613,22 @@ dialog.sheet::backdrop {
   background: rgb(0 0 0 / 0.4);
 }
 
+/* Small controls get a 44px touch area on touch screens without changing their look. */
+@media (pointer: coarse) {
+  .hit {
+    position: relative;
+  }
+  .hit::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* Phone pages with a sticky action bar keep the footer notices above it. */
 @media (max-width: 1023px) {
   body:has([data-action-bar]) .site-footer {

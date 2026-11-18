@@ -86,6 +86,7 @@ export function AssetSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
+        aria-label={`${label}: ${selected.name}`}
         onClick={() => (open ? setOpen(false) : show())}
         className="mt-1.5 flex min-h-12 w-full items-center gap-3 rounded-xl border border-line bg-popover px-3 text-left transition-[border-color,box-shadow] duration-150 focus-visible:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_12%,transparent)] focus-visible:outline-none"
       >

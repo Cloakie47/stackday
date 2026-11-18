@@ -403,9 +403,16 @@ function LoanCard({ p, health, available, rate }: { p: Portfolio; health: number
     <Card
       title="Loan"
       action={
-        <Link href="/borrow" className="text-xs font-semibold text-ink hover:text-brand-ink">
-          {loans.length ? "Repay" : "Borrow"}
-        </Link>
+        <span className="flex items-center gap-4">
+          {loans.length > 0 && (
+            <Link href="/risk" className="hit text-xs font-semibold text-muted hover:text-ink">
+              Stress test
+            </Link>
+          )}
+          <Link href={loans.length ? "/borrow?tab=repay" : "/borrow"} className="text-xs font-semibold text-ink hover:text-brand-ink">
+            {loans.length ? "Repay" : "Borrow"}
+          </Link>
+        </span>
       }
     >
       {loans.length === 0 ? (
@@ -481,7 +488,7 @@ export default function DashboardPage() {
             <Link href="/invest" className={buttonClass("secondary", "sm")}>
               Buy
             </Link>
-            <Link href="/borrow" className={buttonClass("secondary", "sm")}>
+            <Link href="/borrow?tab=repay" className={buttonClass("secondary", "sm")}>
               Repay
             </Link>
             <Link href="/borrow" className={buttonClass("primary", "sm")}>
@@ -555,7 +562,7 @@ export default function DashboardPage() {
         <Link href="/borrow" className={buttonClass("primary", "md")}>
           Borrow
         </Link>
-        <Link href="/borrow" className={buttonClass("secondary", "md")}>
+        <Link href="/borrow?tab=repay" className={buttonClass("secondary", "md")}>
           Repay
         </Link>
       </div>

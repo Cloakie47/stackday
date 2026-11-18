@@ -186,6 +186,7 @@ export function PayNow({
         </Row>
         <Row label="Taken from your wallet now">{fmtUsdc(fromWallet)} USDC</Row>
       </div>
+      {privateList.length > 0 && <p className="mt-2 px-1 text-xs text-muted">Private pay hides amounts only. Wallet addresses still show.</p>}
       {unevenCents && <p className="mt-2 px-1 text-xs text-muted">Private amounts are rounded down to whole cents.</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">

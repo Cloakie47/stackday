@@ -60,6 +60,8 @@ export function InfoTip({
   const self = useRef({});
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<Place | null>(null);
+  // A modal <dialog> sits in the top layer, so a bubble for a tip inside one must render inside it.
+  const [host, setHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -78,6 +80,7 @@ export function InfoTip({
       const run = () => {
         if (openTip && openTip.owner !== self.current) openTip.close();
         openTip = { owner: self.current, close: hide };
+        setHost(buttonRef.current?.closest<HTMLElement>("dialog[open]") ?? document.body);
         setOpen(true);
       };
       if (delay === 0 || Date.now() - lastClosedAt < WARM_MS) run();
@@ -106,9 +109,13 @@ export function InfoTip({
       const fitsTop = b.top - GAP - h >= EDGE;
       const fitsBottom = b.bottom + GAP + h <= vh - EDGE;
       const s = side === "top" ? (fitsTop || !fitsBottom ? "top" : "bottom") : fitsBottom || !fitsTop ? "bottom" : "top";
-      const y = s === "top" ? b.top - GAP - h : b.bottom + GAP;
+      // Neither side fits: keep the top edge inside the viewport.
+      const y = Math.max(EDGE, s === "top" ? b.top - GAP - h : b.bottom + GAP);
       const x = Math.min(Math.max(b.left + b.width / 2 - w / 2, EDGE), Math.max(EDGE, vw - EDGE - w));
-      setPlace({ x: Math.round(x), y: Math.round(y), side: s });
+      // Inside a transformed <dialog>, fixed positions are relative to the dialog's box.
+      const dlg = t.closest("dialog");
+      const off = dlg && getComputedStyle(dlg).transform !== "none" ? dlg.getBoundingClientRect() : { left: 0, top: 0 };
+      setPlace({ x: Math.round(x - off.left), y: Math.round(y - off.top), side: s });
     };
     update();
     window.addEventListener("resize", update);
@@ -153,7 +160,10 @@ export function InfoTip({
         onPointerEnter={(e) => e.pointerType === "mouse" && show(OPEN_DELAY_MS)}
         onPointerLeave={(e) => e.pointerType === "mouse" && hideSoon()}
         onFocus={(e) => e.currentTarget.matches(":focus-visible") && show(0)}
-        onBlur={hide}
+        onBlur={(e) => {
+          if (pinned.current && bubbleRef.current?.contains(e.relatedTarget as Node | null)) return;
+          hide();
+        }}
         onClick={(e) => {
           e.preventDefault(); // inside a <label>, don't focus the field
           e.stopPropagation(); // don't sort a table column or follow a row link
@@ -172,7 +182,7 @@ export function InfoTip({
         {children}
       </span>
       {open &&
-        typeof document !== "undefined" &&
+        host &&
         createPortal(
           <div
             ref={bubbleRef}
@@ -185,7 +195,7 @@ export function InfoTip({
           >
             {children}
           </div>,
-          document.body,
+          host,
         )}
     </>
   );
@@ -430,7 +440,7 @@ export function FillAmount({ onFill, children, label }: { onFill: () => void; ch
       type="button"
       onClick={onFill}
       aria-label={label}
-      className="font-semibold text-brand-ink underline decoration-dotted underline-offset-2 transition-colors hover:decoration-solid"
+      className="hit font-semibold text-brand-ink underline decoration-dotted underline-offset-2 transition-colors hover:decoration-solid"
     >
       {children}
     </button>
@@ -440,11 +450,25 @@ export function FillAmount({ onFill, children, label }: { onFill: () => void; ch
 const INPUT_SHELL =
   "flex items-center rounded-xl border border-line bg-popover transition-[border-color,box-shadow] duration-150 focus-within:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_12%,transparent)]";
 
+/** Label row for a form control: the <label> names the control, the (i) sits beside it, outside the label. */
+export function FieldLabel({ htmlFor, label, tip, className = "" }: { htmlFor: string; label: string; tip?: ReactNode; className?: string }) {
+  return (
+    <span className={cx("inline-flex items-center gap-1 text-[13px]", className || "text-ink-soft")}>
+      <label htmlFor={htmlFor}>{label}</label>
+      {tip && <InfoTip label={label}>{tip}</InfoTip>}
+    </span>
+  );
+}
+
+/** Input classes: 16px on phones (no iOS zoom), 14px from the small breakpoint up. */
+export const INPUT_TEXT = "text-base sm:text-sm";
+
 export function Field({
   label,
   suffix,
   hint,
   tip,
+  id,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   label: string;
@@ -454,20 +478,27 @@ export function Field({
   /** Explanation behind an (i) after the label. */
   tip?: ReactNode;
 }) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
+  const hintId = `${inputId}-hint`;
   return (
-    <label className="block min-w-0">
-      <span className="text-[13px] text-ink-soft">
-        <LabelTip label={label} tip={tip} />
-      </span>
+    <div className="block min-w-0">
+      <FieldLabel htmlFor={inputId} label={label} tip={tip} />
       <span className={cx("mt-1.5", INPUT_SHELL)}>
         <input
           {...props}
-          className="min-h-11 w-full min-w-0 rounded-xl bg-transparent px-3.5 text-base tabular-nums text-ink outline-none placeholder:text-faint"
+          id={inputId}
+          aria-describedby={hint ? hintId : props["aria-describedby"]}
+          className={cx("min-h-[42px] w-full min-w-0 rounded-xl bg-transparent px-3.5 tabular-nums text-ink outline-none placeholder:text-faint", INPUT_TEXT)}
         />
         {suffix && <span className="whitespace-nowrap pr-3.5 text-[13px] text-muted">{suffix}</span>}
       </span>
-      {hint && <span className="mt-1.5 block text-xs leading-relaxed text-muted">{hint}</span>}
-    </label>
+      {hint && (
+        <span id={hintId} className="mt-1.5 block text-xs leading-relaxed text-muted">
+          {hint}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -484,15 +515,18 @@ export function Select({
   options: { value: string; label: string }[];
   tip?: ReactNode;
 }) {
+  const id = useId();
   return (
-    <label className="block min-w-0">
-      <span className="text-[13px] text-ink-soft">
-        <LabelTip label={label} tip={tip} />
-      </span>
+    <div className="block min-w-0">
+      <FieldLabel htmlFor={id} label={label} tip={tip} />
       <select
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 min-h-11 w-full rounded-xl border border-line bg-popover px-3 text-base text-ink outline-none transition-[border-color,box-shadow] duration-150 focus:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_12%,transparent)]"
+        className={cx(
+          "mt-1.5 min-h-11 w-full min-w-0 truncate rounded-xl border border-line bg-popover pl-3 pr-8 text-ink outline-none transition-[border-color,box-shadow] duration-150 focus:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_12%,transparent)]",
+          INPUT_TEXT,
+        )}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -500,7 +534,7 @@ export function Select({
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }
 
@@ -646,7 +680,7 @@ export function AssetIcon({ asset, icon, size = 32 }: { asset?: Asset; icon?: st
   const fg = style === "brand" ? "#ffffff" : style === "mono" ? "var(--logo-mono-fg)" : "var(--mark-fg)";
   const mark = disc.mark ?? key.slice(0, 1);
   const letters = px <= 16 ? mark.slice(0, mark.length > 2 ? 1 : 2) : mark;
-  const g = Math.round(px * GLYPH(px));
+  const g = Math.round(px * (disc.scale ?? GLYPH(px)));
   return (
     <span
       aria-hidden
@@ -738,7 +772,11 @@ export function SplitBar({ parts, height = 8 }: { parts: { key: string; value: n
 
 /** Greyscale ramp for split bars, so the bar stays calm next to the coloured logos. */
 export const SPLIT_COLORS = ["var(--split-1)", "var(--split-2)", "var(--split-3)", "var(--split-4)"];
-export const splitColor = (i: number) => SPLIT_COLORS[Math.min(i, SPLIT_COLORS.length - 1)];
+/** Colour for part `i`. With `n` parts above four, the ramp blends evenly from darkest to lightest. */
+export const splitColor = (i: number, n?: number) =>
+  n && n > SPLIT_COLORS.length
+    ? `color-mix(in srgb, var(--split-1) ${Math.round(100 - (i / (n - 1)) * 100)}%, var(--split-4))`
+    : SPLIT_COLORS[Math.min(i, SPLIT_COLORS.length - 1)];
 
 const H_MIN = 0.8;
 const H_MAX = 3;

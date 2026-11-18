@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useViewer } from "@/components/providers";
 import {
   AssetIcon,
@@ -11,6 +11,7 @@ import {
   Card,
   Chip,
   DimCents,
+  FieldLabel,
   FillAmount,
   HealthMeter,
   LabelTip,
@@ -58,7 +59,7 @@ const DIVIDEND_BPS: Record<string, number> = {
  */
 const NET_DIVIDEND_PER_MILLE = 665;
 
-type Tab = "lock" | "borrow" | "repay";
+export type Tab = "lock" | "borrow" | "repay";
 
 /**
  * Borrow presets as a share of the liquidation limit (the loan size at which Morpho liquidates).
@@ -90,18 +91,52 @@ export function legOf(pos: Position, extraValue = 0n, extraDebt = 0n): Leg {
   return { value: value + extraValue, lltv: pos.asset.lltv, debt: pos.debt + extraDebt, liquidity: pos.liquidity };
 }
 
+/** What a collateral row offers: its status, or a way to lock more. Says where the tokens come from. */
+function UseAction({ x, free, onAdd }: { x: Position; free: bigint; onAdd: () => void }) {
+  const from = x.idle === 0n ? "from wallet" : x.wallet === 0n ? "" : "from vault and wallet";
+  if (x.collateral > 0n)
+    return (
+      <span className="inline-flex items-center gap-2">
+        {free > 0n && (
+          <button type="button" onClick={onAdd} className="hit text-xs font-semibold text-ink hover:text-brand-ink">
+            Add more
+          </button>
+        )}
+        <Badge>Collateral</Badge>
+      </span>
+    );
+  if (x.transfersPaused) return <span className="text-xs text-warn">Transfers paused</span>;
+  if (free > 0n)
+    return (
+      <button type="button" onClick={onAdd} className="min-h-11 whitespace-nowrap rounded-lg px-2 text-[13px] font-semibold text-ink hover:bg-hover sm:min-h-9">
+        {from ? `Add ${from}` : "Add"}
+      </button>
+    );
+  return <span className="text-xs text-muted">None free</span>;
+}
+
 /** Free tokens the person can lock: idle in the vault, then the wallet. Nothing while transfers are paused. */
 function freeOf(pos: Position) {
   return pos.transfersPaused ? 0n : pos.idle + pos.wallet;
 }
 
-export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and title, shown above the figures. */ head?: ReactNode }) {
+export function CollateralBasket({
+  p,
+  head,
+  initialTab = "borrow",
+}: {
+  p: Portfolio;
+  /** Breadcrumb and title, shown above the figures. */
+  head?: ReactNode;
+  /** Which action the panel opens on, for links such as /borrow?tab=repay. */
+  initialTab?: Tab;
+}) {
   const viewer = useViewer();
   const tx = useTx();
   const me = viewer.address;
   const vault = p.vault;
   const cap = p.borrowCapBps;
-  const [tab, setTab] = useState<Tab>("borrow");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [lockUsd, setLockUsd] = useState<Record<string, string>>({});
   const [borrowAmt, setBorrowAmt] = useState("");
   const [level, setLevel] = useState<Level | null>(null);
@@ -266,6 +301,19 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
   const stocksLocked = positions.some((x) => x.collateral > 0n && x.asset.kind !== "crypto");
 
   const panelRef = useRef<HTMLDivElement>(null);
+  // While a field has focus (the phone keyboard is open), the sticky action bar steps aside.
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const isField = (t: EventTarget | null) => t instanceof HTMLElement && t.matches("input, select, textarea");
+    const onIn = (e: FocusEvent) => setTyping(isField(e.target));
+    const onOut = (e: FocusEvent) => setTyping(isField(e.relatedTarget));
+    document.addEventListener("focusin", onIn);
+    document.addEventListener("focusout", onOut);
+    return () => {
+      document.removeEventListener("focusin", onIn);
+      document.removeEventListener("focusout", onOut);
+    };
+  }, []);
   function openPanel(next: Tab, focusId?: string) {
     setTab(next);
     requestAnimationFrame(() => {
@@ -314,9 +362,11 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
             label="Health"
             tone={healthTone(now.health)}
             tip="Health of all your loans together. Each asset is its own market and can be liquidated on its own if its price falls far."
-            value={now.health !== undefined ? fmtHealth(now.health) : "No loan"}
+            value={now.health !== undefined ? fmtHealth(now.health) : <span className="text-muted">–</span>}
             hint={
-              weakestPos && locked.length > 1 ? (
+              now.health === undefined ? (
+                "No loan"
+              ) : weakestPos && locked.length > 1 ? (
                 <LabelTip
                   label={`Weakest: ${weakestPos.asset.name} ${fmtHealth(now.weakest)}`}
                   tip="Each asset can be liquidated on its own, so watch the weakest one."
@@ -395,14 +445,14 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
               <p className="px-1 text-xs text-warn">Markets can lend only ${fmtUsdc(highRoom)} right now.</p>
             )}
 
-            <label
+            <div
               className={cx(
                 "block rounded-2xl border border-line bg-popover px-4 py-3.5 transition-[border-color,box-shadow] duration-150",
                 "focus-within:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_10%,transparent)]",
               )}
             >
               <span className="flex items-center justify-between text-[13px] text-muted">
-                <LabelTip label="Borrow USDC" tip="Borrows only against assets you locked. You receive the full amount." />
+                <FieldLabel htmlFor="borrow-amount" label="Borrow USDC" tip="Borrows only against assets you locked. You receive the full amount." className="text-muted" />
                 <AssetIcon icon="USDC" size={20} />
               </span>
               <input
@@ -428,13 +478,14 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
                     type="button"
                     onClick={() => setBorrowAmt(usdcInput(upTo))}
                     disabled={now.locked === 0n}
-                    className="rounded-[6px] bg-press px-[7px] py-[3px] text-[11px] font-semibold tracking-[0.02em] text-ink hover:bg-line disabled:opacity-50"
+                    aria-label="Use the maximum"
+                    className="hit rounded-[6px] bg-press px-[7px] py-[3px] text-[11px] font-semibold tracking-[0.02em] text-ink hover:bg-line disabled:opacity-50"
                   >
                     MAX
                   </button>
                 </span>
               </span>
-            </label>
+            </div>
 
             <div className="rounded-2xl border border-line bg-popover px-4 py-1.5">
               <Row label="Loan">
@@ -492,6 +543,11 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
               {borrow > 0n && borrowSplit && <Row label="You receive">${fmtUsdc(borrow)}</Row>}
             </div>
 
+            {level === "high" && stocksLocked && (
+              <p className="px-1 text-xs text-danger">
+                Stocks and gold don&apos;t trade at weekends, so prices can jump on Monday. A liquidation costs about 12.7% of the collateral taken.
+              </p>
+            )}
             {raiseCap && <p className="px-1 text-xs text-danger">Also raises your borrow limit from {Number(cap) / 100}% to 65% of the maximum.</p>}
             {level === "high" && !p.emergencyRule && (p.schedulesPayingMe.length > 0 || p.claims.length > 0) && (
               <p className="px-1 text-xs text-muted">
@@ -514,14 +570,14 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
 
         {tab === "repay" && (
           <div className="space-y-2">
-            <label
+            <div
               className={cx(
                 "block rounded-2xl border border-line bg-popover px-4 py-3.5 transition-[border-color,box-shadow] duration-150",
                 "focus-within:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_10%,transparent)]",
               )}
             >
               <span className="flex items-center justify-between text-[13px] text-muted">
-                <LabelTip label="Repay USDC" tip="Repay any amount at any time. No penalty." />
+                <FieldLabel htmlFor="repay-amount" label="Repay USDC" tip="Repay any amount at any time. No penalty." className="text-muted" />
                 <AssetIcon icon="USDC" size={20} />
               </span>
               <input
@@ -541,13 +597,14 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
                     type="button"
                     onClick={() => setRepayAmt(usdcInput(owedTotal))}
                     disabled={now.debt === 0n}
-                    className="rounded-[6px] bg-press px-[7px] py-[3px] text-[11px] font-semibold tracking-[0.02em] text-ink hover:bg-line disabled:opacity-50"
+                    aria-label="Use the maximum"
+                    className="hit rounded-[6px] bg-press px-[7px] py-[3px] text-[11px] font-semibold tracking-[0.02em] text-ink hover:bg-line disabled:opacity-50"
                   >
                     MAX
                   </button>
                 </span>
               </span>
-            </label>
+            </div>
 
             <div className="rounded-2xl border border-line bg-popover px-4 py-1.5">
               <Row label="Owed">
@@ -631,7 +688,7 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
                         disabled={free === 0n || !l.pos.price}
                         value={lockUsd[a.symbol] ?? ""}
                         onChange={(e) => setLockUsd((s) => ({ ...s, [a.symbol]: e.target.value }))}
-                        className="min-h-10 w-full min-w-0 bg-transparent px-1.5 text-right text-base tabular-nums text-ink outline-none placeholder:text-faint disabled:cursor-not-allowed"
+                        className="min-h-10 w-full min-w-0 bg-transparent px-1.5 text-right text-base tabular-nums sm:text-sm text-ink outline-none placeholder:text-faint disabled:cursor-not-allowed"
                       />
                     </span>
                   </div>
@@ -672,13 +729,13 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
             </div>
             <span className="ml-auto text-xs text-muted">Only assets marked Collateral back this loan</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="dtable min-w-[560px] table-fixed">
+          <div className="hidden sm:block">
+            <table className="dtable table-fixed">
               <colgroup>
-                <col className="w-[34%]" />
+                <col className="w-[32%]" />
                 <col className="w-[22%]" />
-                <col className="w-[22%]" />
-                <col className="w-[22%]" />
+                <col className="w-[18%]" />
+                <col className="w-[28%]" />
               </colgroup>
               <thead>
                 <tr>
@@ -695,53 +752,46 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
                 </tr>
               </thead>
               <tbody>
-                {rows.map((x) => {
-                  const free = freeOf(x);
-                  return (
-                    <tr key={x.asset.symbol}>
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <AssetIcon asset={x.asset} size={32} />
-                          <div className="min-w-0">
-                            <div className="truncate font-medium">{x.asset.name}</div>
-                            <div className="truncate text-[11.5px] text-muted">{x.asset.symbol}</div>
+                {rows.map((x) => (
+                  <tr key={x.asset.symbol}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <AssetIcon asset={x.asset} size={32} />
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{x.asset.name}</div>
+                          <div className="truncate text-[11.5px] text-muted">
+                            {x.wallet > 0n ? `${fmtAsset(x.wallet, x.asset.decimals, 4)} in wallet` : x.asset.symbol}
                           </div>
                         </div>
-                      </td>
-                      <td className="r">
-                        {fmtAsset(x.idle + x.collateral, x.asset.decimals, 4)} <span className="text-muted">{x.asset.symbol}</span>
-                      </td>
-                      <td className="r">${fmtUsdc(x.value)}</td>
-                      <td className="r">
-                        {x.collateral > 0n ? (
-                          <span className="inline-flex items-center gap-2">
-                            {free > 0n && (
-                              <button type="button" onClick={() => openPanel("lock", `lock-${x.asset.symbol}`)} className="text-xs font-semibold text-ink hover:text-brand-ink">
-                                Add more
-                              </button>
-                            )}
-                            <Badge>Collateral</Badge>
-                          </span>
-                        ) : x.transfersPaused ? (
-                          <span className="text-xs text-warn">Transfers paused</span>
-                        ) : free > 0n ? (
-                          <button
-                            type="button"
-                            onClick={() => openPanel("lock", `lock-${x.asset.symbol}`)}
-                            className="min-h-9 rounded-lg px-2 text-[13px] font-semibold text-ink hover:bg-hover"
-                          >
-                            Add
-                          </button>
-                        ) : (
-                          <span className="text-xs text-muted">None free</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      </div>
+                    </td>
+                    <td className="r">
+                      {fmtAsset(x.idle + x.collateral, x.asset.decimals, 4)} <span className="text-muted">{x.asset.symbol}</span>
+                    </td>
+                    <td className="r">${fmtUsdc(x.value)}</td>
+                    <td className="r">
+                      <UseAction x={x} free={freeOf(x)} onAdd={() => openPanel("lock", `lock-${x.asset.symbol}`)} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+          <ul className="divide-y divide-line-soft sm:hidden">
+            {rows.map((x) => (
+              <li key={x.asset.symbol} className="flex min-h-[56px] items-center gap-3 px-4 py-2">
+                <AssetIcon asset={x.asset} size={24} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13.5px] font-medium">{x.asset.name}</div>
+                  <div className="truncate text-xs text-muted tabular-nums">
+                    {fmtAsset(x.idle + x.collateral, x.asset.decimals, 4)} in vault · ${fmtUsdc(x.value)}
+                    {x.wallet > 0n ? ` · ${fmtAsset(x.wallet, x.asset.decimals, 4)} in wallet` : ""}
+                  </div>
+                </div>
+                <UseAction x={x} free={freeOf(x)} onAdd={() => openPanel("lock", `lock-${x.asset.symbol}`)} />
+              </li>
+            ))}
+          </ul>
           {parts.length > 0 && (
             <div className="flex items-center gap-4 border-t border-line-soft bg-hover px-4 py-3 sm:px-5">
               <span className="shrink-0 text-xs text-muted">Locked ${fmtUsdc(now.locked)}</span>
@@ -771,7 +821,7 @@ export function CollateralBasket({ p, head }: { p: Portfolio; /** Breadcrumb and
       </div>
 
       {/* Phone: sticky actions above the home indicator */}
-      <div data-action-bar className="glass fixed inset-x-0 bottom-0 z-20 grid grid-cols-[1fr_1.4fr] gap-2 border-t border-line px-4 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-3 lg:hidden">
+      <div data-action-bar hidden={typing} className="glass fixed inset-x-0 bottom-0 z-20 grid grid-cols-[1fr_1.4fr] [&[hidden]]:hidden gap-2 border-t border-line px-4 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-3 lg:hidden">
         <Button size="lg" variant="secondary" onClick={() => openPanel("repay", "repay-amount")}>
           Repay
         </Button>

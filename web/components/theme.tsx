@@ -91,9 +91,10 @@ export function ThemeToggle({ className = "", withLabels = false }: { className?
           role="radio"
           aria-checked={choice === c}
           aria-label={withLabels ? undefined : LABELS[c]}
+          title={LABELS[c]}
           onClick={() => set(c)}
           className={cx(
-            "inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] text-[12px] font-medium transition-[background-color,color,box-shadow] duration-150",
+            "hit inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] text-[12px] font-medium transition-[background-color,color,box-shadow] duration-150",
             withLabels ? "flex-1 px-2.5" : "w-8",
             choice === c ? "bg-popover text-ink shadow-[0_1px_2px_rgb(16_24_40/0.08),0_0_0_0.5px_var(--line)]" : "text-muted hover:text-ink",
           )}

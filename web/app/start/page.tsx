@@ -7,6 +7,7 @@ import { useConnect } from "wagmi";
 import { Logo, NetworkChip, SiteNotices, WalletButton } from "@/components/shell";
 import { Button, Field, LabelTip, Notice, Spinner, cx } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
+import { ThemeToggle } from "@/components/theme";
 import { homeFor, rememberMode, saveAccountType, saveBusiness, useAccountState, type Mode } from "@/lib/useAccount";
 
 type BusinessRole = "owner" | "employee";
@@ -133,7 +134,10 @@ export default function StartPage() {
       <header className="mx-auto flex h-[52px] max-w-3xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-7">
         <Logo />
         <div className="flex items-center gap-2.5">
-          <NetworkChip short />
+          <ThemeToggle />
+          <span className="hidden sm:inline-flex">
+            <NetworkChip short />
+          </span>
           <WalletButton />
         </div>
       </header>
@@ -217,7 +221,7 @@ export default function StartPage() {
                   rows={3}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="A short description your team will see."
-                  className="mt-1.5 w-full rounded-xl border border-line bg-popover px-3.5 py-2.5 text-base text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-faint focus:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_12%,transparent)]"
+                  className="mt-1.5 w-full rounded-xl border border-line bg-popover px-3.5 py-2.5 text-base text-ink outline-none sm:text-sm transition-[border-color,box-shadow] duration-150 placeholder:text-faint focus:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_12%,transparent)]"
                 />
               </label>
             </div>

@@ -1,16 +1,24 @@
 "use client";
 
 import { AssetSelect } from "@/components/asset-select";
-import { CollateralBasket } from "@/components/collateral-basket";
-import { useState } from "react";
+import { CollateralBasket, type Tab } from "@/components/collateral-basket";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState, type ReactNode } from "react";
 import { useViewer } from "@/components/providers";
 import { useAccountState } from "@/lib/useAccount";
 import { Badge, Button, Card, Field, Notice, Row, Select, TxStatus } from "@/components/ui";
 import { payrollAbi, vaultAbi } from "@/lib/abis";
 import { ADDR, ASSETS, BORROWABLE, ZERO, assetByToken } from "@/lib/contracts";
 import { fmtAsset, fmtHealth, fmtPct, fmtUsdc, parseAmount } from "@/lib/format";
-import { usePortfolio } from "@/lib/usePortfolio";
+import { usePortfolio, type Portfolio } from "@/lib/usePortfolio";
 import { useTx } from "@/lib/useTx";
+
+/** Reads ?tab=repay or ?tab=collateral so links can open the panel on that action. */
+function BasketFromUrl({ p, head }: { p: Portfolio; head: ReactNode }) {
+  const q = useSearchParams().get("tab");
+  const tab: Tab = q === "repay" ? "repay" : q === "collateral" || q === "lock" ? "lock" : "borrow";
+  return <CollateralBasket key={tab} p={p} head={head} initialTab={tab} />;
+}
 
 export default function BorrowPage() {
   const personal = useAccountState().mode === "personal";
@@ -82,7 +90,11 @@ export default function BorrowPage() {
         </>
       )}
 
-      {me && <CollateralBasket p={p} head={head} />}
+      {me && (
+        <Suspense fallback={<CollateralBasket p={p} head={head} />}>
+          <BasketFromUrl p={p} head={head} />
+        </Suspense>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Take assets out" tip="Sends assets to your wallet. Locked assets are released only as far as your loan allows.">
@@ -139,7 +151,7 @@ export default function BorrowPage() {
                 Rule: {ruleAsset.name} health ≤ {fmtHealth(rule.threshold)} → {fmtPct(rule.bps)} of salary
               </p>
             )}
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_96px]">
               <Select
                 label="Protect the loan on"
                 value={ruleSymbol}
@@ -147,7 +159,7 @@ export default function BorrowPage() {
                 options={BORROWABLE.map((a) => ({ value: a.symbol, label: a.name }))}
               />
               <Select
-                label="When health is at or below"
+                label="Health at or below"
                 value={threshold}
                 onChange={setThreshold}
                 options={[
@@ -156,7 +168,7 @@ export default function BorrowPage() {
                   { value: "2", label: "2.00 (early)" },
                 ]}
               />
-              <Field label="Share of salary" inputMode="numeric" suffix="%" value={share} onChange={(e) => setShare(e.target.value)} />
+              <Field label="Salary share" inputMode="numeric" suffix="%" value={share} onChange={(e) => setShare(e.target.value)} />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button disabled={!viewer.canAct || ruleBps <= 0 || ruleBps > 10000 || tx.state.busy} onClick={() => saveRule(false)}>

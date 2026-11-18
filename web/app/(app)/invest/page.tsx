@@ -350,7 +350,9 @@ export default function InvestPage() {
         tip={`Lends idle vault USDC to a mock interest venue.${EARN_FEE_BPS > 0n ? ` ${BRAND.name} fee: ${feeLabel(EARN_FEE_BPS)} a year, taken only from the interest.` : ""}`}
         badge={<MockBadge>Mock interest venue</MockBadge>}
       >
-        <p className="text-[13px] text-muted">Variable, not guaranteed.</p>
+        <p className="text-[13px] text-muted">
+          Variable, not guaranteed.{EARN_FEE_BPS > 0n ? ` ${BRAND.name} fee ${feeLabel(EARN_FEE_BPS)} a year, only from interest.` : ""}
+        </p>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Stat label="Earning now" value={`$${fmtUsdc(p.earning, 4)}`} />
           <Stat label="Idle in your vault" value={`$${fmtUsdc(p.vaultUsdc)}`} />

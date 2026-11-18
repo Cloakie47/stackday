@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { DEFAULT_SLOT, nextSlot } from "@/lib/slots";
-import { AssetIcon, Button, Card, Chip, Field, InfoTip, LabelTip, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus, cx } from "@/components/ui";
+import { AssetIcon, Button, Card, Chip, Field, InfoTip, LabelTip, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus, cx, splitColor } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
 import { payrollAbi, routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS, CHAIN_ID, SIP_FEE_BPS, type Asset } from "@/lib/contracts";
@@ -306,16 +306,7 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
 /** The real tickers that have a Stackday token on this network (on testnet: the mocks). */
 const AVAILABLE = ASSETS.map((a) => a.realTicker);
 const assetFor = (ticker: string): Asset | undefined => ASSETS.find((a) => a.realTicker === ticker);
-const CUSHION_COLOR = "var(--split-4)";
-const PREVIEW_COLOR = "var(--split-3)";
-
-function colorOf(ticker: string) {
-  const c = assetFor(ticker)?.color;
-  // Near-black brand colours (Apple, AMD) would vanish in dark mode: use the logo disc token, which flips.
-  if (c && c.toLowerCase() === "#111111") return "var(--logo-mono-bg)";
-  return c ?? PREVIEW_COLOR;
-}
-
+const CUSHION_COLOR = "var(--press)";
 function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string) => void }) {
   return (
     <div className="grid gap-2.5 sm:grid-cols-2">
@@ -385,14 +376,14 @@ function shortWhy(why: string[]) {
 
 function PlanView({ plan }: { plan: Plan }) {
   const parts = [
-    ...plan.holdings.map((h) => ({ key: h.ticker, value: h.bps, color: colorOf(h.ticker), label: `${h.name} ${fmtPct(h.bps)}` })),
+    ...plan.holdings.map((h, i) => ({ key: h.ticker, value: h.bps, color: splitColor(i, plan.holdings.length), label: `${h.name} ${fmtPct(h.bps)}` })),
     { key: "USDC", value: plan.usdcBps, color: CUSHION_COLOR, label: `USDC cushion ${fmtPct(plan.usdcBps)}` },
   ];
   return (
     <div>
       <SplitBar parts={parts} height={8} />
       <ul className="mt-4 divide-y divide-line-soft">
-        {plan.holdings.map((h) => {
+        {plan.holdings.map((h, i) => {
           const a = assetFor(h.ticker);
           return (
             <li key={h.ticker} className="flex min-h-[52px] items-center justify-between gap-4 py-2">
@@ -410,7 +401,7 @@ function PlanView({ plan }: { plan: Plan }) {
                 </div>
               </div>
               <span className="flex shrink-0 items-center gap-2 text-[13px] tabular-nums">
-                <i className="h-2 w-2 rounded-[2px]" style={{ background: colorOf(h.ticker) }} aria-hidden />
+                <i className="h-2 w-2 rounded-[2px]" style={{ background: splitColor(i, plan.holdings.length) }} aria-hidden />
                 {fmtPct(h.bps, 1)}
               </span>
             </li>

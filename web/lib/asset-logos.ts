@@ -21,17 +21,20 @@ export const ASSET_LOGOS: Record<string, string> = {
  *   mono   logo on a near-black disc that turns light in dark mode (Apple, SpaceX)
  *   coin   the logo is already a coin, drawn as it is (Bitcoin)
  *   mark   letters on a neutral disc: no logo, or the brand does not allow its use. Company logos are
- *          never redrawn or cropped, so AMD, Microsoft, Amazon, Strategy, the funds and USDC use letters.
+ *          never redrawn, cropped or recoloured, so AMD, Alphabet, Microsoft, Amazon, Strategy, the funds
+ *          and USDC use letters.
  */
 export type LogoStyle = "brand" | "mono" | "coin" | "mark";
 
-export const ASSET_DISC: Record<string, { style: LogoStyle; bg?: string; mark?: string }> = {
+/** `scale` is the logo size as a share of the circle, for wide logos that read too small at the default. */
+export const ASSET_DISC: Record<string, { style: LogoStyle; bg?: string; mark?: string; scale?: number }> = {
   AAPL: { style: "mono" },
-  SPCX: { style: "mono" },
+  SPCX: { style: "mono", scale: 0.8 },
   BTC: { style: "coin" },
   NVDA: { style: "brand", bg: "#76B900" },
   ETH: { style: "brand", bg: "#627EEA" },
-  GOOGL: { style: "brand", bg: "#4285F4" },
+  // Google does not allow its G to be recoloured, so Alphabet shows a letter like Microsoft and Amazon.
+  GOOGL: { style: "mark", mark: "G" },
   META: { style: "brand", bg: "#0467DF" },
   TSLA: { style: "brand", bg: "#CC0000" },
   AMD: { style: "mark", mark: "AMD" },

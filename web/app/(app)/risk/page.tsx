@@ -37,6 +37,9 @@ function status(health: number) {
   return { label: "Healthy", tone: "text-grow" };
 }
 
+/** Dollars with thousands separators and two decimals, for display only. */
+const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function RiskPage() {
   const personal = useAccountState().mode === "personal";
   const viewer = useViewer();
@@ -151,7 +154,7 @@ export default function RiskPage() {
           </Row>
           <Row label="Morpho interest, compounding">{morphoApy !== undefined ? `${morphoApy.toFixed(2)}%` : "…"}</Row>
           <Row label={`${BRAND.name} fee`}>{BORROW_FEE_BPS > 0n ? `${feeLabel(BORROW_FEE_BPS)} a year, paid when you repay` : "None"}</Row>
-          <Row label="Cost of this loan">{yearlyCost !== undefined ? `about $${yearlyCost.toFixed(2)} a year` : "…"}</Row>
+          <Row label="Cost of this loan">{yearlyCost !== undefined ? `about $${usd2(yearlyCost)} a year` : "…"}</Row>
           <Row label={`${BRAND.name} fee on recurring buys`}>{feeLabel(SIP_FEE_BPS)}, fixed</Row>
         </Card>
 
@@ -170,7 +173,7 @@ export default function RiskPage() {
 
         <Card title="Liquidation risk">
           <Row label={`${asset.name} price now`}>${fmtPrice(pos.price)}</Row>
-          <Row label="Liquidation price">{debt > 0n ? `$${liquidationPrice.toFixed(2)}` : "No loan"}</Row>
+          <Row label="Liquidation price">{debt > 0n ? `$${usd2(liquidationPrice)}` : "No loan"}</Row>
           <Row label="Price drop that triggers it">{debt > 0n ? `${dropToLiquidation.toFixed(1)}%` : "No loan"}</Row>
           <Row label="Liquidation penalty" tip="Extra collateral a liquidator takes when your loan is liquidated.">
             about {bonusPct.toFixed(1)}%
@@ -230,8 +233,8 @@ export default function RiskPage() {
                       {g === 0 ? "Today" : `Down ${g}%`}
                       {i === GAPS.length && <span className="ml-1 text-xs font-normal text-muted">(your pick)</span>}
                     </td>
-                    <td className="r">${s.price.toFixed(2)}</td>
-                    <td className="r">${s.value.toFixed(2)}</td>
+                    <td className="r">${usd2(s.price)}</td>
+                    <td className="r">${usd2(s.value)}</td>
                     <td className="r">{isFinite(s.health) ? s.health.toFixed(2) : "No loan"}</td>
                     <td className={cx("r font-medium", s.tone)}>{s.label}</td>
                   </tr>

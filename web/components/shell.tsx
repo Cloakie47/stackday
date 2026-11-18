@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { BRAND } from "@/lib/brand";
 import { CHAIN_ID } from "@/lib/contracts";
@@ -330,15 +330,25 @@ function MenuBody({ pages, onNavigate }: { pages: NavItem[]; onNavigate?: () => 
 function AccountMenu({ pages, trigger }: { pages: NavItem[]; trigger: "chip" | "icon" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
   const { address } = useAccount();
   const { display } = useNames([address]);
+  const { mode } = useAccountState();
 
   useEffect(() => {
     if (!open) return;
+    // Move focus into the panel so keyboard users land on its first control.
+    panelRef.current?.querySelector<HTMLElement>("button, a[href], [tabindex]:not([tabindex='-1'])")?.focus();
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -351,30 +361,37 @@ function AccountMenu({ pages, trigger }: { pages: NavItem[]; trigger: "chip" | "
     <div ref={ref} className="relative">
       {trigger === "chip" && address ? (
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
-          aria-haspopup="menu"
           aria-expanded={open}
-          aria-label={`Connected as ${display(address)}. Open account menu`}
-          className="inline-flex h-9 max-w-52 items-center gap-2 rounded-[10px] border border-line bg-popover pl-1.5 pr-3 text-[13px] text-ink shadow-pill transition-colors duration-150 hover:bg-hover"
+          aria-controls={panelId}
+          aria-label={`Connected as ${display(address)}${mode ? `, ${MODE_LABEL[mode]}` : ""}. Account menu`}
+          className="inline-flex h-9 max-w-64 items-center gap-2 rounded-[10px] border border-line bg-popover pl-1.5 pr-2 text-[13px] text-ink shadow-pill transition-colors duration-150 hover:bg-hover"
         >
           <Avatar />
           <span className="truncate">{display(address)}</span>
+          {mode && <span className="rounded-[5px] bg-press px-1.5 text-[11px] leading-[18px] text-muted">{MODE_LABEL[mode]}</span>}
         </button>
       ) : (
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
-          aria-haspopup="menu"
           aria-expanded={open}
-          aria-label="Open menu"
+          aria-controls={panelId}
+          aria-label="Menu"
           className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-popover text-ink shadow-pill transition-colors duration-150 hover:bg-hover"
         >
           <MenuIcon />
         </button>
       )}
       {open && (
-        <div role="menu" className="absolute right-0 z-50 mt-2 w-80 animate-[var(--animate-pop)] rounded-[14px] border border-line bg-popover p-1.5 shadow-pop">
+        <div
+          ref={panelRef}
+          id={panelId}
+          className="absolute right-0 z-50 mt-2 w-80 animate-[var(--animate-pop)] rounded-[14px] border border-line bg-popover p-1.5 shadow-pop"
+        >
           <MenuBody pages={pages} onNavigate={() => setOpen(false)} />
         </div>
       )}
@@ -420,9 +437,13 @@ function PhoneMenu({ pages }: { pages: NavItem[] }) {
       >
         <div className="px-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-2.5">
           <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-line" aria-hidden />
-          {!isConnected && (
+          {!isConnected ? (
             <div className="px-1.5 pb-2">
               <WalletButton block />
+            </div>
+          ) : (
+            <div className="px-1.5 pb-2 empty:hidden">
+              <ChainSwitch block />
             </div>
           )}
           <MenuBody pages={pages} onNavigate={close} />
@@ -475,6 +496,18 @@ export function WalletButton({ light = false, block = false }: { light?: boolean
         </p>
       )}
     </div>
+  );
+}
+
+/** "Switch to Base Sepolia" while a connected wallet is on another network. Renders nothing otherwise. */
+export function ChainSwitch({ block = false, compact = false }: { block?: boolean; compact?: boolean }) {
+  const { chainId, isConnected } = useAccount();
+  const { switchChain } = useSwitchChain();
+  if (!isConnected || chainId === CHAIN_ID) return null;
+  return (
+    <Button variant="danger" size="sm" className={block ? "w-full" : ""} onClick={() => switchChain({ chainId: CHAIN_ID })}>
+      {compact ? "Switch network" : "Switch to Base Sepolia"}
+    </Button>
   );
 }
 
@@ -551,7 +584,7 @@ function PhoneSections({ items }: { items: NavItem[] }) {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cx(
-              "flex h-[34px] items-center justify-center rounded-[8px] text-[13px] font-medium transition-colors duration-150",
+              "hit flex h-[34px] items-center justify-center rounded-[8px] text-[13px] font-medium transition-colors duration-150",
               active ? "bg-popover text-ink shadow-[0_1px_2px_rgb(16_24_40/0.08),0_0_0_0.5px_var(--line)]" : "text-muted",
             )}
           >
@@ -610,7 +643,10 @@ export function Shell({ children }: { children: ReactNode }) {
               </span>
             )}
             {isConnected ? (
-              <AccountMenu pages={deskMore} trigger="chip" />
+              <>
+                <ChainSwitch />
+                <AccountMenu pages={deskMore} trigger="chip" />
+              </>
             ) : (
               <>
                 <WalletButton />
@@ -626,6 +662,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <Logo size={24} />
             <div className="ml-auto flex items-center gap-1.5">
               {viewer.readOnly && <span className="text-[11.5px] text-muted">Read-only</span>}
+              <ChainSwitch compact />
               <NetworkChip short />
               <PhoneMenu pages={phoneMore} />
             </div>
