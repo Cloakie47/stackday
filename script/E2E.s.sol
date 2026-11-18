@@ -31,7 +31,9 @@ contract E2E is Script {
         usdc = IERC20(vm.parseJsonAddress(json, ".usdc"));
         payroll = Payroll(vm.parseJsonAddress(json, ".payroll"));
         factory = VaultFactory(vm.parseJsonAddress(json, ".vaultFactory"));
-        stock = vm.parseJsonAddress(json, ".mAAPL");
+        // Any borrowable asset, mAAPL by default (for example E2E_ASSET=mSPX for the S&P 500 fund token).
+        string memory asset = vm.envOr("E2E_ASSET", string("mAAPL"));
+        stock = vm.parseJsonAddress(json, string.concat(".", asset));
 
         salary = vm.envOr("E2E_SALARY_USDC", uint256(5e6));
         borrowAmount = salary / 20; // SIP share is 20% of salary; borrow a quarter of that
@@ -52,7 +54,7 @@ contract E2E is Script {
 
         console2.log("Vault", address(vault));
         console2.log("Run id", runId);
-        console2.log("mAAPL bought and withdrawn (8 decimals)", collateral);
+        console2.log("Asset bought and withdrawn (smallest units)", collateral);
         console2.log("USDC borrowed then repaid (6 decimals)", borrowAmount);
         console2.log("Loan health while borrowed (1e18 = liquidation line)", health);
         require(vault.debtOf(stock) == 0, "debt not cleared");

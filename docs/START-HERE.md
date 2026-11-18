@@ -130,7 +130,7 @@ Settings files, only if you need them. Both are ignored by git and must never be
 
 Things that will trip you up:
 
-- The demo panel's price and pause switches only work for the wallet that deployed the mocks (the founder's test wallet). To use them yourself, deploy your own copy with `script/Deploy.s.sol`. That needs about 8 test USDC from https://faucet.circle.com and a little test ETH.
+- The demo panel's price and pause switches only work for the wallet that deployed the mocks (the founder's test wallet). To use them yourself, deploy your own copy with `script/Deploy.s.sol`. That needs about 36 test USDC (4 for each of the 9 lending markets, or set MARKET_LIQUIDITY_USDC lower) from https://faucet.circle.com and a little test ETH.
 - Testnet lending markets hold 2 test USDC each, so demo loans must be small.
 - Scripts that touch Morpho need a gas margin (`--gas-estimate-multiplier 250`), or they run out of gas.
 - After changing contracts or redeploying, run `forge build` and then `python web/scripts/gen-abis.py` so the site picks up the new addresses.
