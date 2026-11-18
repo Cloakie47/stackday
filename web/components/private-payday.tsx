@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Button, Card, Notice, Row, Spinner } from "@/components/ui";
+import { Badge, Button, Card, InfoTip, LabelTip, Notice, Row, Spinner } from "@/components/ui";
 import { isCents, readyToReceive, recordsCsv, toCents, usePrivatePay, usePrivateRecords, type PrivateRecord } from "@/lib/confidential";
 import { fmtUsdc, parseUsdc, shortAddr } from "@/lib/format";
 
@@ -93,21 +93,21 @@ export function PayNow({
 
   return (
     <div>
-      <div className="divide-y divide-line">
+      <div className="divide-y divide-line-soft rounded-2xl border border-line bg-popover">
         {payable.map((m) => {
           const key = m.wallet.toLowerCase();
           const ok = isReady(m);
           const priv = isPrivate(m);
           return (
-            <div key={m.wallet} className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0">
+            <div key={m.wallet} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold">{m.name || shortAddr(m.wallet)}</div>
+                <div className="truncate text-[13px] font-medium">{m.name || shortAddr(m.wallet)}</div>
                 <div className="text-xs text-muted">
-                  {ready.isLoading ? "Checking private pay…" : ok ? "Private pay ready" : "Not set up for private pay: paid the normal way"}
+                  {ready.isLoading ? "Checking private pay…" : ok ? "Private pay ready" : "Paid the normal way (no private pay yet)"}
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <label className={`flex items-center gap-2 text-xs font-medium ${ok && employerOn ? "cursor-pointer text-ink" : "cursor-not-allowed text-muted"}`}>
+                <label className={`flex min-h-11 items-center gap-2 text-xs font-medium sm:min-h-9 ${ok && employerOn ? "cursor-pointer text-ink" : "cursor-not-allowed text-muted"}`}>
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-[var(--color-brand)]"
@@ -117,7 +117,7 @@ export function PayNow({
                   />
                   Private
                 </label>
-                <span className="w-24 text-right text-sm font-semibold tabular-nums">{fmtUsdc(priv ? toCents(amountOf(m)) : amountOf(m))} USDC</span>
+                <span className="w-24 text-right text-[13px] tabular-nums">{fmtUsdc(priv ? toCents(amountOf(m)) : amountOf(m))} USDC</span>
               </div>
             </div>
           );
@@ -125,8 +125,8 @@ export function PayNow({
       </div>
 
       {anyReady && status === "off" && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sunken/70 p-3.5">
-          <p className="max-w-md text-xs leading-relaxed text-muted">Some of your team can be paid privately. Turn on your own private account first.</p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-popover px-4 py-3">
+          <p className="max-w-md text-xs text-muted">Some of your team can be paid privately. Turn on your own private account first.</p>
           <Button size="sm" variant="secondary" disabled={!!pp.busy || !canAct} onClick={pp.turnOn}>
             Turn on private pay
           </Button>
@@ -135,15 +135,17 @@ export function PayNow({
       {status === "confirming" && <p className="mt-3 text-xs text-muted">Fairblock is confirming your private account; private pay unlocks in a minute.</p>}
 
       {employerOn && anyReady && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line p-3.5">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-popover px-4 py-3">
           <div className="min-w-0">
-            <div className="text-[13px] font-medium text-muted">Private payroll balance</div>
-            <div className="text-sm font-semibold tabular-nums">
+            <div className="text-xs text-muted">
+              <LabelTip label="Private payroll balance" tip="Unlock it once per visit (one signature) to see whether it covers this payday." />
+            </div>
+            <div className="mt-0.5 text-[13px] font-medium tabular-nums">
               {privateSpendable === undefined ? "Hidden until you unlock it" : `$${fmtUsdc(privateSpendable)} ready to pay out`}
             </div>
             <div className="text-xs text-muted">
               {privateShort === undefined
-                ? "Unlock it (one signature per visit) to see whether it covers this payday."
+                ? "Unlock to check it covers this payday."
                 : privateShort > 0n
                   ? `Top it up before payday: $${fmtUsdc(privateShort)} more covers the private pay below.`
                   : "Covers the private pay below: no top-up needed on payday."}
@@ -172,40 +174,43 @@ export function PayNow({
         </div>
       )}
 
-      <div className="mt-5 rounded-2xl bg-sunken/70 p-4">
-        <Row label={`Normal pay · ${normalList.length}`}>{fmtUsdc(normalTotal)} USDC</Row>
-        <Row label={`Private pay · ${privateList.length}`}>{fmtUsdc(privateTotal)} USDC</Row>
+      <div className="mt-3 rounded-2xl border border-line bg-popover px-4 py-1.5">
+        <Row label={`Normal pay · ${normalList.length}`} tip="Comes from your treasury first, then your wallet.">
+          {fmtUsdc(normalTotal)} USDC
+        </Row>
+        <Row
+          label={`Private pay · ${privateList.length}`}
+          tip="Comes from your private payroll balance, topped up from your wallet if it is short. Only each person can read their amount; wallet addresses still show."
+        >
+          {fmtUsdc(privateTotal)} USDC
+        </Row>
         <Row label="Taken from your wallet now">{fmtUsdc(fromWallet)} USDC</Row>
-        <p className="mt-2 text-xs leading-relaxed text-muted">
-          Normal pay comes from your treasury first. Private pay comes from your private payroll balance, topped up from your wallet if it is
-          short; only each person can read their amount, and wallet addresses still show.
-          {unevenCents ? " Private amounts are rounded down to whole cents." : ""}
-        </p>
       </div>
+      {unevenCents && <p className="mt-2 px-1 text-xs text-muted">Private amounts are rounded down to whole cents.</p>}
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button size="lg" disabled={busy || fromWallet > walletUsdc} onClick={payAll}>
           Pay all {payable.length} · ${fmtUsdc(normalTotal + privateTotal)}
         </Button>
-        <span className="text-xs text-muted">
+        <span className="inline-flex items-center gap-1 text-xs text-muted">
           About {signatures} {signatures === 1 ? "signature" : "signatures"}
-          {privateList.length > 0 ? `: Fairblock sends one private payment at a time, each signed` : ""}
+          {privateList.length > 0 && <InfoTip label="Signatures">Fairblock sends one private payment at a time, each signed.</InfoTip>}
         </span>
       </div>
       {fromWallet > walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet holds ${fmtUsdc(walletUsdc)} USDC; this payday needs ${fmtUsdc(fromWallet)} from it.</p>}
 
       {progress && (
-        <p className="mt-4 flex items-center gap-2 text-sm text-muted">
+        <p className="mt-3 flex items-center gap-2 text-[13px] text-muted">
           <Spinner /> {progress.note}…{privateList.length > 0 ? " private steps wait for Fairblock (about a minute each). Keep this page open." : ""}
         </p>
       )}
       {pp.busy && !progress && (
-        <p className="mt-4 flex items-center gap-2 text-sm text-muted">
+        <p className="mt-3 flex items-center gap-2 text-[13px] text-muted">
           <Spinner /> {pp.busy}… check your wallet.
         </p>
       )}
-      {pp.done && !pp.busy && <p className="mt-4 text-sm text-grow">{pp.done}</p>}
-      {pp.error && !pp.busy && <p className="mt-4 text-sm text-danger">{pp.error}</p>}
+      {pp.done && !pp.busy && <p className="mt-3 text-[13px] text-grow">{pp.done}</p>}
+      {pp.error && !pp.busy && <p className="mt-3 text-[13px] text-danger">{pp.error}</p>}
     </div>
   );
 }
@@ -238,6 +243,7 @@ export function PaydayLog({ address }: { address: string | undefined }) {
   return (
     <Card
       title="Payday log"
+      tip="Paydays you pay from this browser, private and normal, with each transaction. Paydays the bot pays are not listed."
       action={
         records.length > 0 ? (
           <Button size="sm" variant="secondary" onClick={exportCsv}>
@@ -247,16 +253,16 @@ export function PaydayLog({ address }: { address: string | undefined }) {
       }
     >
       {paydays.length === 0 ? (
-        <Notice>Paydays you pay from this browser appear here, private and normal, with each transaction.</Notice>
+        <p className="text-[13px] text-muted">No paydays paid from this browser yet.</p>
       ) : (
-        <div className="divide-y divide-line">
+        <div className="divide-y divide-line-soft">
           {paydays.map(([day, list]) => {
             const total = list.reduce((a, r) => a + Number(r.amount), 0);
             const priv = list.filter((r) => r.private).length;
             return (
               <details key={day} className="group py-3 first:pt-0">
-                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-semibold">
+                <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center justify-between gap-2 sm:min-h-9">
+                  <span className="text-[13px] font-medium">
                     {new Date(day).toLocaleString()}
                     <span className="ml-2 font-normal text-muted">
                       {list.length} {list.length === 1 ? "payment" : "payments"}
@@ -264,16 +270,16 @@ export function PaydayLog({ address }: { address: string | undefined }) {
                       {list.length - priv > 0 ? ` · ${list.length - priv} normal` : ""}
                     </span>
                   </span>
-                  <span className="flex items-center gap-2 text-sm font-semibold tabular-nums">
+                  <span className="flex items-center gap-2 text-[13px] tabular-nums">
                     {total.toFixed(2)} USDC
                     <span className="text-muted transition-transform group-open:rotate-180" aria-hidden>
                       ▾
                     </span>
                   </span>
                 </summary>
-                <div className="mt-3 space-y-2 rounded-2xl bg-sunken/70 p-3">
+                <div className="mt-2 space-y-2 rounded-xl border border-line bg-popover p-3">
                   {list.map((r, i) => (
-                    <div key={i} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <div key={i} className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate font-medium">{r.name || shortAddr(r.who ?? "")}</span>
                         <Badge tone={r.private ? "grow" : "neutral"}>{r.private ? "Private" : "Normal"}</Badge>
@@ -281,7 +287,7 @@ export function PaydayLog({ address }: { address: string | undefined }) {
                       <span className="flex items-center gap-3">
                         <span className="tabular-nums">{r.amount} USDC</span>
                         {r.tx ? (
-                          <a className="font-mono text-xs text-brand underline-offset-4 hover:underline" href={BASESCAN_TX + r.tx} target="_blank" rel="noreferrer">
+                          <a className="font-mono text-xs text-brand-ink underline-offset-4 hover:underline" href={BASESCAN_TX + r.tx} target="_blank" rel="noreferrer">
                             {r.tx.slice(0, 10)}…
                           </a>
                         ) : (

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SplitPicker } from "@/components/split-picker";
-import { Badge, Button, Card, Notice, Row, Segmented, Spinner, Stat, TxStatus } from "@/components/ui";
+import { Badge, Button, Card, LabelTip, Notice, Row, Segmented, Spinner, Stat, TxStatus } from "@/components/ui";
 import { routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS } from "@/lib/contracts";
 import {
@@ -114,15 +114,12 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
   }
 
   return (
-    <Card title="Private pay">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="grow">Real on Base Sepolia</Badge>
-        <span className="text-xs text-muted">Confidential transfers by Fairblock. Test USDC.</span>
-      </div>
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-        Your employer can pay you without the amount showing on chain. Only you can read it: it is decrypted in your browser. Collect it here and
-        invest a share in the same step. Whatever you do not withdraw stays private.
-      </p>
+    <Card
+      title="Private pay"
+      tip="Your employer can pay you without the amount showing on chain. Only you can read it: it is decrypted in your browser. Collect it here and invest a share in the same step. Whatever you do not withdraw stays private."
+      badge={<Badge tone="grow">Real on Base Sepolia</Badge>}
+    >
+      <p className="text-xs text-muted">Confidential transfers by Fairblock. Test USDC.</p>
 
       {waiting.data && step === "idle" && (
         <div className="mt-4">
@@ -135,9 +132,11 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
         </div>
       ) : status === "off" ? (
         <div className="mt-5">
-          <p className="text-sm text-muted">
-            Turn it on once, before your first private payday. One signature makes your private keys (kept in your browser), then one transaction
-            opens your account. Fairblock confirms it in about a minute.
+          <p className="text-[13px] text-muted">
+            <LabelTip
+              label="Turn it on once, before your first private payday."
+              tip="One signature makes your private keys (kept in your browser), then one transaction opens your account. Fairblock confirms it in about a minute."
+            />
           </p>
           <Button className="mt-3" disabled={busy} onClick={pp.turnOn}>
             Turn on private pay
@@ -166,7 +165,7 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
             </Button>
           ) : available === 0n ? (
             <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm text-muted">Nothing to collect yet.</p>
+              <p className="text-[13px] text-muted">Nothing to collect yet.</p>
               <Button variant="ghost" size="sm" disabled={busy} onClick={pp.reveal}>
                 Check again
               </Button>
@@ -195,7 +194,7 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
                 />
               </div>
 
-              <div className="rounded-2xl bg-sunken/70 p-4 text-sm">
+              <div className="rounded-2xl border border-line bg-popover px-4 py-1.5">
                 {preview.symbols.map((sym, i) => {
                   const x = posOf(sym);
                   return (
@@ -207,13 +206,17 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
                 })}
                 <Row label={rest === "keep" ? "Stays private" : "To your wallet"}>${fmtUsdc(restAmount)}</Row>
                 <Row label={`${BRAND.name} fee`}>None (one-time buy)</Row>
+              </div>
+              <div className="space-y-1 px-1 text-xs text-muted">
                 {repeat === "always" && (
-                  <p className="mt-2 text-xs text-muted">
-                    Saved on this device as percentages only. Next payday it is filled in for you; you still press Collect, because only your
-                    browser holds your private keys.
+                  <p>
+                    <LabelTip
+                      label="Saved on this device as percentages only."
+                      tip="Next payday it is filled in for you. You still press Collect, because only your browser holds your private keys."
+                    />
                   </p>
                 )}
-                <p className="mt-2 text-xs text-muted">Fairblock takes a small fee on each withdrawal. Amounts that leave the private balance are visible on chain.</p>
+                <p>Fairblock takes a small fee on each withdrawal. Amounts that leave the private balance are visible on chain.</p>
               </div>
 
               <Button className="w-full sm:w-auto" disabled={busy || toWithdraw === 0n} onClick={collectAndInvest}>
@@ -227,7 +230,7 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
       )}
 
       {step !== "idle" && (
-        <ol className="mt-5 space-y-1.5 text-sm">
+        <ol className="mt-4 space-y-1.5 text-[13px]">
           <li className={step === "collecting" ? "text-ink" : "text-muted"}>
             {step === "collecting" ? <Spinner /> : "✓"} 1. Collect from your private balance{step === "collecting" && note ? `: ${note}` : ""}
           </li>
@@ -240,12 +243,12 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
       )}
       <TxStatus state={tx.state} />
       {pp.busy && step === "idle" && (
-        <p className="mt-4 flex items-center gap-2 text-sm text-muted">
+        <p className="mt-3 flex items-center gap-2 text-[13px] text-muted">
           <Spinner /> {pp.busy}… check your wallet.
         </p>
       )}
-      {pp.error && !pp.busy && <p className="mt-4 text-sm text-danger">{pp.error}</p>}
-      {step === "done" && !tx.state.busy && <p className="mt-4 text-sm text-grow">Done. Your vault and wallet update in a few seconds.</p>}
+      {pp.error && !pp.busy && <p className="mt-3 text-[13px] text-danger">{pp.error}</p>}
+      {step === "done" && !tx.state.busy && <p className="mt-3 text-[13px] text-grow">Done. Your vault and wallet update in a few seconds.</p>}
     </Card>
   );
 }
@@ -260,9 +263,12 @@ export function PrivatePaySetup({ address, canAct }: { address: string | undefin
   if (pp.status !== "off")
     return <p className="mt-3 text-xs text-grow">{pp.status === "confirming" ? "Private pay: Fairblock is confirming your account." : "Private pay is on: your employer can pay you privately."}</p>;
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sunken/70 p-3.5">
-      <p className="max-w-md text-xs leading-relaxed text-muted">
-        Turn on private pay now, so your employer can pay you without the amount showing on chain. One signature and one transaction.
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-popover px-4 py-3">
+      <p className="max-w-md text-xs text-muted">
+        <LabelTip
+          label="Turn on private pay now."
+          tip="Your employer can then pay you without the amount showing on chain. One signature and one transaction."
+        />
       </p>
       <Button size="sm" variant="secondary" disabled={!!pp.busy || !canAct} onClick={pp.turnOn}>
         {pp.busy ? "Check your wallet…" : "Turn on private pay"}
@@ -289,28 +295,28 @@ export function PrivateRecords({ address, role }: { address: string | undefined;
   return (
     <Card
       title={role === "employer" ? "Private payroll record" : "Private pay record"}
+      tip="For your own books. Export it to share with an accountant or auditor. Amounts on chain stay encrypted; this record is the readable copy."
       action={
         <Button size="sm" variant="secondary" onClick={exportCsv}>
           Export CSV
         </Button>
       }
     >
-      <p className="text-xs leading-relaxed text-muted">
-        Kept in this browser only, for your own books. Export it to share with an accountant or auditor. Amounts on chain stay encrypted; this
-        record is the readable copy.{" "}
-        <a className="text-brand underline-offset-4 hover:underline" href="https://docs.fairblock.network/ct/how-it-works/compliance" target="_blank" rel="noreferrer">
+      <p className="text-xs text-muted">
+        Kept in this browser only.{" "}
+        <a className="font-semibold text-brand-ink underline-offset-4 hover:underline" href="https://docs.fairblock.network/ct/how-it-works/compliance" target="_blank" rel="noreferrer">
           Fairblock compliance
         </a>
       </p>
-      <div className="mt-3 divide-y divide-line">
+      <div className="mt-3 divide-y divide-line-soft">
         {records.slice(0, 12).map((r, i) => (
-          <div key={`${r.at}-${i}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+          <div key={`${r.at}-${i}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-[13px]">
             <span>
               {label[r.kind]}
               {r.name ? ` · ${r.name}` : ""}
               <span className="ml-2 text-xs text-muted">{new Date(r.at).toLocaleString()}</span>
             </span>
-            <span className="font-semibold tabular-nums">{r.amount} USDC</span>
+            <span className="tabular-nums">{r.amount} USDC</span>
           </div>
         ))}
       </div>

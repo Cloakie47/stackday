@@ -6,7 +6,7 @@ import { useState } from "react";
 import { erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
-import { AddressLink, Button, Card, Field, MockBadge, Notice, PageHeader, Row, TxStatus } from "@/components/ui";
+import { AddressLink, AssetIcon, Badge, Button, Card, Field, MockBadge, Notice, PageHeader, Row, TxStatus } from "@/components/ui";
 import { mockFeedAbi, mockStockAbi, mockSwapAbi, payrollAbi } from "@/lib/abis";
 import { ADDR, ASSETS } from "@/lib/contracts";
 import { fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
@@ -76,13 +76,16 @@ export default function DemoPage() {
   return (
     <>
       <PageHeader
-        title="Demo panel"
-        lead={
+        title="Testnet tools"
+        lead="Switches for stress scenarios. They only change mocks."
+        aside={
           <>
-            Testnet switches to show stress scenarios. They only change mocks. <LearnMore href="/docs#demo" />
+            <MockBadge>Testnet only</MockBadge>
+            <LearnMore href="/docs#demo" className="text-xs">
+              How the demo works
+            </LearnMore>
           </>
         }
-        aside={<MockBadge>Testnet only</MockBadge>}
       />
 
       {isOperator ? (
@@ -95,11 +98,11 @@ export default function DemoPage() {
       )}
 
       <Card title="The story to show">
-        <ol className="space-y-2 text-sm leading-relaxed">
+        <ol className="divide-y divide-line-soft text-[13px]">
           {STORY.map((s, i) => (
-            <li key={s} className="flex gap-3">
-              <span className="font-mono text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
-              {s}
+            <li key={s} className="flex gap-3 py-2 first:pt-0 last:pb-0">
+              <span className="w-5 shrink-0 text-xs tabular-nums text-muted">{String(i + 1).padStart(2, "0")}</span>
+              <span className="text-ink-soft">{s}</span>
             </li>
           ))}
         </ol>
@@ -107,14 +110,21 @@ export default function DemoPage() {
 
       <Card title="Market switches" badge={<MockBadge />}>
         <AssetSelect label="Asset" assets={p.positions.map((x) => x.asset)} value={symbol} onChange={setSymbol} />
-        <div className="mt-4">
-          <Row label="Price now">${fmtPrice(pos.price)}</Row>
+        <div className="mt-4 flex items-center gap-3">
+          <AssetIcon asset={asset} size={32} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-medium">{asset.name}</div>
+            <div className="text-xs text-muted">{asset.symbol}</div>
+          </div>
+          <div className="text-right font-display text-2xl tracking-[-0.02em] tabular-nums">${fmtPrice(pos.price)}</div>
+        </div>
+        <div className="mt-3 rounded-2xl border border-line bg-popover px-4 py-1.5">
           <Row label="Starting price">${fmtPrice(asset.startPrice)}</Row>
-          <Row label="Market">{pos.feedFrozen ? "Closed (price frozen)" : "Open"}</Row>
-          <Row label="Token transfers">{pos.transfersPaused ? "Paused" : "Working"}</Row>
+          <Row label="Market">{pos.feedFrozen ? <Badge tone="warn">Closed, price frozen</Badge> : "Open"}</Row>
+          <Row label="Token transfers">{pos.transfersPaused ? <Badge tone="danger">Paused</Badge> : "Working"}</Row>
         </div>
 
-        <h3 className="mt-6 text-sm font-semibold">Price drop (overnight gap)</h3>
+        <h3 className="mt-6 text-[13px] font-medium text-ink-soft">Price drop (overnight gap)</h3>
         <div className="mt-2.5 flex flex-wrap gap-2">
           {[10n, 20n, 30n].map((pct) => (
             <Button key={pct.toString()} variant="danger" size="sm" disabled={disabled} onClick={() => setPrice((price * (100n - pct)) / 100n, `Drop ${asset.name} by ${pct}%`)}>
@@ -132,7 +142,7 @@ export default function DemoPage() {
           </Button>
         </div>
 
-        <h3 className="mt-6 text-sm font-semibold">Market closed (weekend)</h3>
+        <h3 className="mt-6 text-[13px] font-medium text-ink-soft">Market closed (weekend)</h3>
         <div className="mt-2.5 flex flex-wrap gap-2">
           <Button
             variant="secondary"
@@ -155,7 +165,7 @@ export default function DemoPage() {
           </Button>
         </div>
 
-        <h3 className="mt-6 text-sm font-semibold">Paused collateral transfers</h3>
+        <h3 className="mt-6 text-[13px] font-medium text-ink-soft">Paused collateral transfers</h3>
         <div className="mt-2.5 flex flex-wrap gap-2">
           <Button
             variant="danger"
@@ -187,27 +197,25 @@ export default function DemoPage() {
         <TxStatus state={tx.state} />
       </Card>
 
-      <Card title="Quick payday">
-        <p className="text-sm leading-relaxed text-muted">
-          Pays the connected wallet from its own test USDC.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-          <Field label="Salary" inputMode="decimal" suffix="USDC" value={payday} onChange={(e) => setPayday(e.target.value)} hint={`Wallet: ${fmtUsdc(p.walletUsdc)} USDC.`} />
+      <Card title="Quick payday" tip="Pays the connected wallet from its own test USDC.">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+          <Field label="Salary" inputMode="decimal" suffix="USDC" value={payday} onChange={(e) => setPayday(e.target.value)} />
           <Button disabled={!viewer.canAct || tx.state.busy || parseUsdc(payday) === 0n || parseUsdc(payday) > p.walletUsdc} onClick={runPayday}>
             Create payday
           </Button>
         </div>
+        <p className="mt-1.5 text-xs text-muted">Wallet: {fmtUsdc(p.walletUsdc)} USDC</p>
       </Card>
 
       <Card title="Housekeeping" badge={<MockBadge />}>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
           <Field
             label="Pay interest into the mock interest venue"
+            tip="Sends your own test USDC to the mock venue, so everyone earning there sees interest arrive."
             inputMode="decimal"
             suffix="USDC"
             value={interest}
             onChange={(e) => setInterest(e.target.value)}
-            hint="Sends your own test USDC to the mock venue, so everyone earning there sees interest arrive."
           />
           <Button
             variant="secondary"
@@ -222,9 +230,9 @@ export default function DemoPage() {
             Pay interest
           </Button>
         </div>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-          <p className="text-sm">
-            The mock exchange holds <strong>{fmtUsdc(exchangeUsdc)} USDC</strong> from purchases.
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-4">
+          <p className="text-[13px] text-muted">
+            The mock exchange holds <span className="font-medium tabular-nums text-ink">{fmtUsdc(exchangeUsdc)} USDC</span> from purchases.
           </p>
           <Button
             variant="secondary"
