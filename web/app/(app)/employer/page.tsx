@@ -1,6 +1,6 @@
 "use client";
 
-import { PaydayLog, PayNow } from "@/components/private-payday";
+import { PaydayLog, PayNow, PrivateBalancePanel } from "@/components/private-payday";
 import { addPrivateRecord, fmt6 } from "@/lib/confidential";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -292,12 +292,14 @@ export default function EmployerPage() {
     }
   }
 
-  async function fund() {
+  async function fund(amount: bigint = treasury) {
     const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, treasury, `Allow ${BRAND.name} to take the USDC`)),
-      { label: "Fund the treasury", address: ADDR.payroll, abi: payrollAbi, functionName: "deposit", args: [treasury] },
+      ...(await tx.withApproval(ADDR.usdc, ADDR.payroll, amount, `Allow ${BRAND.name} to take the USDC`)),
+      { label: "Fund the treasury", address: ADDR.payroll, abi: payrollAbi, functionName: "deposit", args: [amount] },
     ];
-    if (await tx.run(calls, "Treasury funded.")) setTreasuryAmt("");
+    const ok = await tx.run(calls, "Treasury funded.");
+    if (ok && amount === treasury) setTreasuryAmt("");
+    return ok;
   }
 
   const withdrawAll = () =>
@@ -306,20 +308,11 @@ export default function EmployerPage() {
       "Treasury returned to your wallet.",
     );
 
-  /** One-off payday through the Payroll contract for these people (treasury first, wallet tops up the rest). */
+  /** One-off payday through the Payroll contract for these people, paid only from the treasury. */
   async function payMembers(list: { wallet: string; salary: string; name?: string }[], payday = Date.now()) {
     const who = list.map((m) => m.wallet as Address);
     const how = list.map((m) => parseUsdc(m.salary));
-    const sum = how.reduce((a, b) => a + b, 0n);
-    const fromTreasury = sum > p.employerBalance ? p.employerBalance : sum;
-    const toDeposit = sum - fromTreasury;
-    const calls: Call[] = [];
-    if (toDeposit > 0n) {
-      calls.push(...(await tx.withApproval(ADDR.usdc, ADDR.payroll, toDeposit, `Allow ${BRAND.name} to take the USDC`)));
-      calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "depositAndCreateRun", args: [toDeposit, who, how] });
-    } else {
-      calls.push({ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [who, how] });
-    }
+    const calls: Call[] = [{ label: "Pay the team now", address: ADDR.payroll, abi: payrollAbi, functionName: "createRun", args: [who, how] }];
     const result = await tx.run(calls, "Payday created. Your team can claim now.");
     if (result) {
       const hash = typeof result === "string" ? result : undefined;
@@ -354,6 +347,10 @@ export default function EmployerPage() {
     );
 
   const shortOf = (s: { total: bigint }) => p.employerBalance < s.total;
+  // Next scheduled payday across active schedules, and how much the treasury lacks for one round of them.
+  const activeSchedules = p.schedulesIRun.filter((s) => s.active);
+  const nextPayAt = activeSchedules.length ? Math.min(...activeSchedules.map((s) => Number(s.nextPayAt))) : 0;
+  const treasuryShortfall = committed > p.employerBalance ? committed - p.employerBalance : 0n;
   const pending = team.filter((m) => m.status !== "accepted").length;
 
   return (
@@ -362,12 +359,24 @@ export default function EmployerPage() {
 
       {!me && <Notice>Connect a wallet to run payroll.</Notice>}
 
-      {/* Treasury */}
+      {treasuryShortfall > 0n && me && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warn/40 bg-warn-soft px-4 py-3">
+          <p className="max-w-xl text-[13px] text-warn">
+            <strong>Top up your treasury.</strong> Your next scheduled payday is {nextPayAt <= now ? "due now" : until(nextPayAt, now)} and needs{" "}
+            {fmtUsdc(committed)} USDC; the treasury holds {fmtUsdc(p.employerBalance)}. Add {fmtUsdc(treasuryShortfall)} USDC so your team is paid on time.
+          </p>
+          <Button size="sm" disabled={!viewer.canAct || tx.state.busy || treasuryShortfall > p.walletUsdc} onClick={() => fund(treasuryShortfall)}>
+            Add ${fmtUsdc(treasuryShortfall)}
+          </Button>
+        </div>
+      )}
+
+      {/* Treasury (public pay) and private balance (private pay), side by side */}
       <Card>
-        <div className="grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-start">
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
           <div>
             <div className="text-[13px] text-muted">
-              <LabelTip label="Treasury" tip="Paydays are paid from here. Withdraw unused funds any time." />
+              <LabelTip label="Treasury" tip="Public pay, once or on a schedule, is paid only from here. Withdraw unused funds any time." />
             </div>
             <div className="mt-2 font-display text-[34px] font-normal leading-[1.1] tracking-[-0.02em] sm:text-[40px]">
               <Money value={me ? p.employerBalance : 0n} dimCents />
@@ -377,33 +386,36 @@ export default function EmployerPage() {
                 Covers {(Number(p.employerBalance) / Number(committed)).toFixed(1)} more paydays of your active schedules ({fmtUsdc(committed)} USDC each).
               </p>
             )}
-          </div>
-          <div>
-            <Field
-              label="Add USDC"
-              inputMode="decimal"
-              placeholder="0.00"
-              suffix="USDC"
-              value={treasuryAmt}
-              onChange={(e) => setTreasuryAmt(e.target.value)}
-              hint={
-                <>
-                  Wallet{" "}
-                  <FillAmount onFill={() => setTreasuryAmt(fmtUsdc(p.walletUsdc).replace(/,/g, ""))} label="Use your whole wallet balance">
-                    {fmtUsdc(p.walletUsdc)}
-                  </FillAmount>{" "}
-                  USDC
-                </>
-              }
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button disabled={!viewer.canAct || treasury === 0n || treasury > p.walletUsdc || tx.state.busy} onClick={fund}>
-                Fund treasury
-              </Button>
-              <Button variant="secondary" disabled={!viewer.canAct || p.employerBalance === 0n || tx.state.busy} onClick={withdrawAll}>
-                Withdraw all
-              </Button>
+            <div className="mt-3">
+              <Field
+                label="Add USDC"
+                inputMode="decimal"
+                placeholder="0.00"
+                suffix="USDC"
+                value={treasuryAmt}
+                onChange={(e) => setTreasuryAmt(e.target.value)}
+                hint={
+                  <>
+                    Wallet{" "}
+                    <FillAmount onFill={() => setTreasuryAmt(fmtUsdc(p.walletUsdc).replace(/,/g, ""))} label="Use your whole wallet balance">
+                      {fmtUsdc(p.walletUsdc)}
+                    </FillAmount>{" "}
+                    USDC
+                  </>
+                }
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button disabled={!viewer.canAct || treasury === 0n || treasury > p.walletUsdc || tx.state.busy} onClick={() => fund()}>
+                  Fund treasury
+                </Button>
+                <Button variant="secondary" disabled={!viewer.canAct || p.employerBalance === 0n || tx.state.busy} onClick={withdrawAll}>
+                  Withdraw all
+                </Button>
+              </div>
             </div>
+          </div>
+          <div className="border-t border-line-soft pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+            <PrivateBalancePanel address={me} canAct={viewer.canAct && !tx.state.busy} walletUsdc={p.walletUsdc} />
           </div>
         </div>
       </Card>
@@ -584,9 +596,9 @@ export default function EmployerPage() {
               team={payable.map((m) => ({ wallet: m.wallet, name: m.name, salary: m.salary }))}
               address={me}
               canAct={viewer.canAct && !tx.state.busy}
-              walletUsdc={p.walletUsdc}
               treasury={p.employerBalance}
               onPayNormally={payMembers}
+              onFundTreasury={fund}
             />
           </div>
         )}
