@@ -3,17 +3,33 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Button, Card, Field, FillAmount, InfoTip, LabelTip, Notice, Row, Spinner } from "@/components/ui";
-import { isCents, readyToReceive, recordsCsv, toCents, usePrivatePay, usePrivateRecords, type PrivateRecord, type PrivateStatus } from "@/lib/confidential";
+import { isCents, readyToReceive, recordsCsv, toCents, useLastPrivateStepAt, usePrivatePay, usePrivateRecords, type PrivateRecord, type PrivateStatus } from "@/lib/confidential";
 import { fmtUsdc, parseUsdc, shortAddr } from "@/lib/format";
 
 type Member = { wallet: string; name: string; salary: string };
 
-/** Why private pay cannot be used right now, in plain words, or undefined when it can. */
-export function privateBlockedReason(status: PrivateStatus | undefined): string | undefined {
+/** "2 h 10 min" style duration. */
+function ago(ms: number) {
+  const m = Math.max(1, Math.round(ms / 60_000));
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return h < 48 ? `${h} h ${m % 60} min` : `${Math.floor(h / 24)} days`;
+}
+
+/**
+ * Why private pay cannot be used right now, in plain words, or undefined when it can.
+ * `lastStepAt` is when the waiting step was sent, if known.
+ */
+export function privateBlockedReason(status: PrivateStatus | undefined, lastStepAt?: number | null): string | undefined {
   if (status === "off") return "Turn on private pay to use a private balance.";
-  if (status === "confirming") return "Fairblock is confirming your private account. This usually takes a minute.";
-  if (status === "processing")
-    return "Fairblock is still processing your last private step (a deposit, payment or withdrawal). Private pay unlocks when it finishes. Your money is safe; if this lasts more than a few minutes, Fairblock's testnet is slow.";
+  if (status === "confirming") return "Your private account is being confirmed. This usually takes about a minute.";
+  if (status === "processing") {
+    const when = lastStepAt
+      ? `, sent at ${new Date(lastStepAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${ago(Date.now() - lastStepAt)} ago),`
+      : "";
+    const late = lastStepAt && Date.now() - lastStepAt > 10 * 60_000 ? " Confirming usually takes about a minute, so this one is taking longer than normal." : "";
+    return `Your last private step (a deposit, payment or withdrawal)${when} is still being confirmed. Private pay unlocks as soon as it is confirmed, and the money stays in your private account meanwhile.${late}`;
+  }
   return undefined;
 }
 
@@ -26,7 +42,8 @@ export function PrivateBalancePanel({ address, canAct, walletUsdc }: { address: 
   const [amt, setAmt] = useState("");
   const amount = toCents(parseUsdc(amt));
   const busy = !!pp.busy || !canAct;
-  const blocked = privateBlockedReason(pp.status);
+  const lastStep = useLastPrivateStepAt(address, pp.status === "processing");
+  const blocked = privateBlockedReason(pp.status, lastStep.data);
   const bal = pp.balance;
 
   return (
@@ -146,7 +163,8 @@ export function PayNow({
   });
   const status = pp.status;
   const employerOn = status === "on";
-  const blocked = privateBlockedReason(status);
+  const lastStep = useLastPrivateStepAt(address, status === "processing");
+  const blocked = privateBlockedReason(status, lastStep.data);
   const isReady = (m: Member) => !!ready.data?.[m.wallet.toLowerCase()];
   const isPrivate = (m: Member) => employerOn && isReady(m) && !publicOverride[m.wallet.toLowerCase()];
   const amountOf = (m: Member) => parseUsdc(m.salary);
@@ -171,7 +189,7 @@ export function PayNow({
     if (ready.isLoading) return "Checking private pay…";
     if (!ok) return "Paid the normal way: they have not turned on private pay in My pay yet";
     if (status === "off") return "Private pay ready: turn on yours to pay them privately";
-    if (status === "confirming" || status === "processing") return "Private pay ready: waiting for Fairblock on your side";
+    if (status === "confirming" || status === "processing") return "Private pay ready: waiting for your last private step to confirm";
     return isPrivate(m) ? "Paid privately" : "Private pay ready";
   }
 

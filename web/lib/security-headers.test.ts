@@ -24,7 +24,7 @@ test("production headers block framing, sniffing and outside scripts", () => {
 });
 
 test("the browser may reach the chain RPC, including a custom one", () => {
-  assert.match(contentSecurityPolicy(prod), /connect-src 'self' https:\/\/sepolia\.base\.org [^;]*tradingview[^;]* https:\/\/stabletrust-backend-api\.fairblock\.network(;|$)/);
+  assert.match(contentSecurityPolicy(prod), /connect-src 'self' https:\/\/sepolia\.base\.org [^;]*tradingview[^;]* https:\/\/stabletrust-backend-api\.fairblock\.network https:\/\/base-sepolia\.blockscout\.com(;|$)/);
   const custom = contentSecurityPolicy({ isDev: false, rpcUrl: "https://rpc.example.org/v1/abc?key=1" });
   assert.match(custom, /connect-src 'self' https:\/\/sepolia\.base\.org [^;]* https:\/\/rpc\.example\.org;/);
   // A key in the RPC path or query never ends up in the header.
