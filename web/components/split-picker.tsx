@@ -11,7 +11,7 @@ const SHARES = [
   { pct: 20, label: "20%", hint: "Builds faster" },
 ];
 
-const KIND_LABEL: Record<Asset["kind"], string> = { stock: "Stock", commodity: "Gold", crypto: "Crypto" };
+const KIND_LABEL: Record<Asset["kind"], string> = { stock: "Stock", fund: "Fund", commodity: "Gold", crypto: "Crypto" };
 
 /**
  * One way to choose a payday split, used by Claim (normal pay) and Collect (private pay):
@@ -105,7 +105,10 @@ export function SplitPicker({
                       ✓
                     </span>
                   )}
-                  <span className="text-[11px] font-normal opacity-70">{KIND_LABEL[a.kind]}</span>
+                  <span className="text-[11px] font-normal opacity-70">
+                    {KIND_LABEL[a.kind]}
+                    {a.borrowable ? "" : " · invest only"}
+                  </span>
                 </button>
               );
             })}

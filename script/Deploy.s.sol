@@ -69,11 +69,31 @@ contract Deploy is Script {
         _asset(deployer, "Mock SpaceX (Stackday test)", "mSPCX", 8, 200e8, STOCK_LLTV);
         // PAX Gold: one token is one troy ounce of gold, 18 decimals like the real PAXG.
         _asset(deployer, "Mock PAX Gold (Stackday test)", "mPAXG", 18, 4060e8, LLTV_77);
-        require(USDC.balanceOf(deployer) >= assets.length * liquidity, "Need more test USDC (faucet.circle.com)");
+        // Invest only (issue #60): real tokens on Base with good buy routes (LI.FI quotes under 1% at
+        // $10,000, November 18, 2026) but no Morpho market, so no lending market here either (lltv 0).
+        _asset(deployer, "Mock Tesla (Stackday test)", "mTSLA", 8, 381e8, 0);
+        _asset(deployer, "Mock Amazon (Stackday test)", "mAMZN", 8, 257e8, 0);
+        _asset(deployer, "Mock Microsoft (Stackday test)", "mMSFT", 8, 502e8, 0);
+        _asset(deployer, "Mock Strategy (Stackday test)", "mMSTR", 8, 98e8, 0);
+        _asset(deployer, "Mock AMD (Stackday test)", "mAMD", 8, 489e8, 0);
+        // Funds: an S&P 500 fund token (deSPXA) and 0-3 month US Treasuries (wtSGOV), 18 decimals.
+        _asset(deployer, "Mock S&P 500 fund (Stackday test)", "mSPX", 18, 742e8, 0);
+        _asset(deployer, "Mock 0-3 Month Treasuries (Stackday test)", "mSGOV", 18, 102e8, 0);
+        uint256 markets;
+        for (uint256 i; i < assets.length; ++i) {
+            if (lltvs[i] != 0) markets++;
+        }
+        require(USDC.balanceOf(deployer) >= markets * liquidity, "Need more test USDC (faucet.circle.com)");
         ChainlinkPriceAdapter priceAdapter = new ChainlinkPriceAdapter(assets, feeds);
 
-        USDC.approve(address(MORPHO), assets.length * liquidity);
+        USDC.approve(address(MORPHO), markets * liquidity);
         for (uint256 i; i < assets.length; ++i) {
+            if (lltvs[i] == 0) {
+                oracles.push(address(0));
+                lendingAdapters.push(address(0));
+                marketIds.push(bytes32(0));
+                continue;
+            }
             FeedOracle oracle = new FeedOracle(IAggregatorV3(feeds[i]), assets[i], address(USDC));
             MarketParams memory params = MarketParams(address(USDC), assets[i], address(oracle), IRM, lltvs[i]);
             MORPHO.createMarket(params);

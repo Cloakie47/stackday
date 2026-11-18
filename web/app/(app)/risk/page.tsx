@@ -18,7 +18,7 @@ import {
   Stat,
 } from "@/components/ui";
 import { apyPpm } from "@/lib/basket";
-import { ADDR, ASSETS, BORROW_FEE_BPS, EXPLORER, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
+import { ADDR, ASSETS, BORROWABLE, BORROW_FEE_BPS, EXPLORER, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { WAD, ago, assetValue, fmtAsset, fmtPct, fmtPrice, fmtUsdc, parseUsdc } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { BRAND } from "@/lib/brand";
@@ -36,7 +36,7 @@ export default function RiskPage() {
   const personal = useAccountState().mode === "personal";
   const viewer = useViewer();
   const p = usePortfolio(viewer.address);
-  const [symbol, setSymbol] = useState(ASSETS[0].symbol);
+  const [symbol, setSymbol] = useState(BORROWABLE[0].symbol);
   const [simCollateral, setSimCollateral] = useState("1000");
   const [simLoan, setSimLoan] = useState("300");
   const [customGap, setCustomGap] = useState(40);
@@ -91,7 +91,7 @@ export default function RiskPage() {
       />
 
 
-      <AssetSelect label="Collateral asset" assets={p.positions.map((x) => x.asset)} value={symbol} onChange={setSymbol} />
+      <AssetSelect label="Collateral asset" assets={BORROWABLE} value={symbol} onChange={setSymbol} />
       <p className="-mt-2 text-xs text-muted">A basket loan is one loan per asset. Pick each asset to see its own numbers.</p>
 
       <Card title="The loan">

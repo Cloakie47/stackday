@@ -5,10 +5,11 @@ import { AssetIcon, cx } from "@/components/ui";
 import type { Asset } from "@/lib/contracts";
 
 /** Second line under the name: the real token this testnet mock stands in for. */
-const subtitle = (a: Asset) => `Test token, stands in for ${a.realTicker}`;
+const subtitle = (a: Asset) => `Test token, stands in for ${a.realTicker}${a.borrowable ? "" : " · invest only"}`;
 
 const GROUPS: { kind: Asset["kind"]; label: string }[] = [
   { kind: "stock", label: "Stocks" },
+  { kind: "fund", label: "Funds" },
   { kind: "commodity", label: "Commodities" },
   { kind: "crypto", label: "Crypto" },
 ];

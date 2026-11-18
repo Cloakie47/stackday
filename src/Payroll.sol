@@ -269,7 +269,7 @@ contract Payroll is ReentrancyGuardTransient {
     function setEmergencyRule(address stock, uint16 sipBps, uint256 healthThreshold) external {
         if (sipBps > MAX_BPS) revert BpsTooHigh();
         if (sipBps > 0) {
-            _requireSupported(stock);
+            _requireBorrowable(stock);
             if (healthThreshold <= 1e18 || healthThreshold > 10e18) revert BadThreshold();
         }
         emergencyRuleOf[msg.sender] = EmergencyRule(stock, sipBps, healthThreshold);
@@ -522,7 +522,13 @@ contract Payroll is ReentrancyGuardTransient {
         else EmployeeVault(vault).depositStock(stock, stockOut);
     }
 
+    /// @dev Any listed asset can be bought, including invest-only ones (issue #60).
     function _requireSupported(address stock) internal view {
+        if (!factory.isSupported(stock)) revert UnsupportedStock(stock);
+    }
+
+    /// @dev The emergency rule locks collateral, so its asset must have a lending market.
+    function _requireBorrowable(address stock) internal view {
         if (factory.lendingAdapterOf(stock) == address(0)) revert UnsupportedStock(stock);
     }
 }

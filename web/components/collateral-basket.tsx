@@ -24,6 +24,8 @@ const DIVIDEND_BPS: Record<string, number> = {
   mMETA: 30,
   mSPCX: 0,
   mPAXG: 0,
+  mMSFT: 70,
+  mAMD: 0,
   mcbBTC: 0,
   mWETH: 0,
 };
@@ -83,7 +85,8 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const [level, setLevel] = useState<Level | null>(null);
   const [repayAmt, setRepayAmt] = useState("");
 
-  const positions = p.positions;
+  // Only assets with a lending market can be locked and borrowed against (issue #60).
+  const positions = p.positions.filter((x) => x.asset.borrowable);
   const legs = positions.map((x) => legOf(x));
   const now = summarize(legs, cap);
   // True when market cash, not the borrow cap, is what stops a bigger loan.

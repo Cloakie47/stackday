@@ -9,6 +9,7 @@ import {ILendingAdapter, IYieldAdapter} from "./interfaces/IAdapters.sol";
 
 interface IVaultFactory {
     function lendingAdapterOf(address stock) external view returns (address);
+    function isSupported(address stock) external view returns (bool);
     function yieldAdapter() external view returns (address);
     function borrowFeeBps() external view returns (uint16);
     function earnFeeBps() external view returns (uint16);
@@ -92,7 +93,8 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     /// the owner locks it (founder decision, issue #29).
     function depositStock(address stock, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        _adapter(stock);
+        // Any listed asset, including invest-only ones with no lending market (issue #60).
+        if (!factory.isSupported(stock)) revert UnsupportedStock(stock);
         IERC20(stock).safeTransferFrom(msg.sender, address(this), amount);
         emit StockDeposited(stock, msg.sender, amount, false);
     }

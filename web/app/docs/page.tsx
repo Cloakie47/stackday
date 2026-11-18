@@ -28,6 +28,13 @@ const ASSET_NAMES: Record<string, string> = {
   mMETA: "Meta (METAc)",
   mSPCX: "SpaceX (SPCXc)",
   mPAXG: "Gold (PAX Gold, PAXG)",
+  mTSLA: "Tesla (TSLAc), invest only",
+  mAMZN: "Amazon (AMZNc), invest only",
+  mMSFT: "Microsoft (MSFTc), invest only",
+  mMSTR: "Strategy (MSTRc), invest only",
+  mAMD: "AMD (AMDc), invest only",
+  mSPX: "S&P 500 fund token (deSPXA), invest only",
+  mSGOV: "0-3 month US Treasuries (wtSGOV), invest only",
   mcbBTC: "cbBTC (Coinbase Wrapped BTC)",
   mWETH: "Ether (WETH)",
 };

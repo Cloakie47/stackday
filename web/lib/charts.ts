@@ -19,6 +19,13 @@ export const TV_SYMBOLS: Record<string, string> = {
   mGOOGL: "NASDAQ:GOOGL",
   mMETA: "NASDAQ:META",
   mPAXG: "OANDA:XAUUSD",
+  mTSLA: "NASDAQ:TSLA",
+  mAMZN: "NASDAQ:AMZN",
+  mMSFT: "NASDAQ:MSFT",
+  mMSTR: "NASDAQ:MSTR",
+  mAMD: "NASDAQ:AMD",
+  mSPX: "AMEX:SPY",
+  mSGOV: "AMEX:SGOV",
   mcbBTC: "COINBASE:BTCUSD",
   mWETH: "COINBASE:ETHUSD",
 };
