@@ -18,7 +18,9 @@ export type Position = {
   idle: bigint; // in vault, not collateral
   wallet: bigint;
   collateral: bigint;
-  debt: bigint; // USDC
+  debt: bigint; // USDC owed to the Morpho market
+  /** Stackday's yearly borrow fee built up on this loan, paid on repayment before the loan (USDC). */
+  fee: bigint;
   maxDebt: bigint; // USDC debt at which liquidation starts
   health?: bigint;
   ratePerSecond?: bigint;
@@ -79,7 +81,7 @@ export function usePortfolio(user: Address | undefined) {
   const scheduleIds = Array.from(new Set([...asEmployee, ...asEmployer].map((x) => x.toString()))).map(BigInt);
   const v = hasVault ? vault! : ZERO;
 
-  const PER = 14;
+  const PER = 15;
   const assetCalls = ASSETS.flatMap((a) => [
     { address: a.feed, abi: mockFeedAbi, functionName: "latestRoundData" },
     { address: a.feed, abi: mockFeedAbi, functionName: "frozen" },
@@ -95,6 +97,7 @@ export function usePortfolio(user: Address | undefined) {
     { address: ADDR.router, abi: routerAbi, functionName: "planOf", args: [who, a.token] },
     { address: ADDR.router, abi: routerAbi, functionName: "investedOf", args: [who, a.token] },
     { address: ADDR.payroll, abi: payrollAbi, functionName: "investedOf", args: [who, a.token] },
+    { address: v, abi: vaultAbi, functionName: "borrowFeeOf", args: [a.token] },
   ]);
   const vaultCalls = hasVault
     ? [
@@ -138,6 +141,7 @@ export function usePortfolio(user: Address | undefined) {
       wallet: user ? (r<bigint>(detail.data, o + 4) ?? 0n) : 0n,
       collateral,
       debt: r<bigint>(detail.data, o + 6) ?? 0n,
+      fee: hasVault ? (r<bigint>(detail.data, o + 14) ?? 0n) : 0n,
       maxDebt: r<bigint>(detail.data, o + 7) ?? 0n,
       health: r<bigint>(detail.data, o + 8),
       ratePerSecond: r<bigint>(detail.data, o + 9),
@@ -214,5 +218,7 @@ export function usePortfolio(user: Address | undefined) {
     /** Lifetime USDC put into assets, all assets together. */
     totalPutIn: positions.reduce((a, p) => a + p.putIn, 0n),
     totalDebt: positions.reduce((a, p) => a + p.debt, 0n),
+    /** Stackday borrow fees owed across all loans, paid on repayment. */
+    totalBorrowFees: positions.reduce((a, p) => a + p.fee, 0n),
   };
 }

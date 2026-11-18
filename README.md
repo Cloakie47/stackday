@@ -29,7 +29,7 @@ Status: streams 1, 3 and 5 are built (small fees, 0.2 percent at most, founder d
 |---|---|---|---|
 | 1. SIP fee | The person investing | 0.15 percent of the USDC that a recurring plan puts into assets (an every payday plan, or a recurring buy). One-time buys are free. Fixed in the contract, cannot be changed, never charged on salary paid out | Built (0.25 percent on the live testnet until the next redeploy) |
 | 2. Business subscription | The employer | A monthly price per employee for running payroll through Stackday, billed off-chain or in USDC. Needs no contract change | Planned. Expected to be the main income |
-| 3. Borrowing fee | The borrower | 0.1 percent once, taken from the borrowed USDC before it is sent out (borrow 1,000, receive 999, owe 1,000). Never taken from the vault or collateral. Fixed at deployment | Built, live after the next redeploy |
+| 3. Borrowing fee | The borrower | 0.1 percent a year on the loan, built up by the second and paid on repayment before the loan (borrow 1,000, receive 1,000, about 1 extra after a year). Shown inside one Borrow APY together with Morpho's interest. Never taken from the vault or collateral. Fixed at deployment | Built and live (issue #56) |
 | 4. Lending income | Lenders | Stackday curates its own USDC vault on Morpho that lends against tokenized stocks, with a fee of 0.1 to 0.2 percent of the vault a year. Lenders can be anyone, including employers with idle treasury | Not built. A larger project with real risk management duties |
 | 5. Fee on idle USDC earning | The saver | 0.1 percent a year of the amount earning, taken only out of the interest, never the deposit. If interest is lower, the fee is only the interest | Built, live after the next redeploy |
 | 6. Themes plan | The individual | A monthly price for the Themes layer (suggestions by theme, rebalance proposals) | Not built, depends on Themes |
@@ -38,7 +38,7 @@ Rough sizes, to compare the streams. Take a business with 20 employees paid 3,00
 
 - SIP fee: 9,000 USDC a month goes into assets, so the fee is about 13.5 USDC a month.
 - Subscription at 4 USDC per employee: 80 USDC a month.
-- Borrowing fee: if 6 of them borrow 2,000 USDC once, 12 USDC in total, one time.
+- Borrowing fee: if 6 of them keep 2,000 USDC borrowed for a year, 12 USDC a year.
 - Lending income: for every 1,000,000 USDC in a Stackday vault at 0.15 percent a year, about 1,500 USDC a year.
 
 What this shows: the SIP fee alone is small. Subscriptions pay for the payroll side, and lending income is what grows with the money on the platform.
@@ -73,7 +73,7 @@ Price charts (Invest page and Holdings) show REAL market prices of the real asse
 
 ## Live on Base Sepolia (testnet)
 
-Deployed November 17, 2026 (tenth deployment: assets with a real Morpho market only, Gold (PAXG) and SpaceX added, Tesla, Microsoft and Amazon removed; eight assets). Machine-readable copy: deployments/base-sepolia.json. Earlier deployments are retired and kept in deployments/base-sepolia-v1-retired.json to deployments/base-sepolia-v9-retired.json.
+Deployed November 18, 2026 (twelfth deployment: invest-only assets, issue #60, plus the yearly borrow fee, issue #56; 15 assets, 8 of them can be borrowed against). Machine-readable copy: deployments/base-sepolia.json. Earlier deployments are retired and kept in deployments/base-sepolia-v1-retired.json to deployments/base-sepolia-v11-retired.json.
 
 Source code of every contract below is verified on Sourcify: https://repo.sourcify.dev/84532/ADDRESS
 
@@ -81,28 +81,28 @@ Stackday contracts (real, no owner):
 
 | Contract | Address |
 |---|---|
-| Payroll | 0xba1fbAB6A3879410290B7883797E6b0AE3b79667 |
-| SipRouter | 0x6bDB1731380bB8e49a5901d85e289Ed135e8f2c4 |
-| VaultFactory | 0x9dB8eB6851d2cF2DD086C30b7e3fC1A775aD2f89 |
-| EmployeeVault (code every vault uses) | 0x641AfEC7053F7a2aAd2105C7b1773c29d8D858eF |
-| Price adapter | 0xc75BF0b8A3942BBa72f6b53B371eF4b5f05e8b3F |
-| Interest adapter (ERC-4626) | 0x6a183d653D234D2eBd040bAE89a71057964f11B4 |
-| Morpho lending adapter, mAAPL | 0x3305c8F5b807A462dD8E1a0157E79fC616180727 |
-| Morpho lending adapter, mNVDA | 0x6e1D4e430a6Fe7504C997f0092E0dD18FfbcB229 |
-| Morpho lending adapter, mcbBTC | 0x51C7696eDb44957e6d38A194d1C22eFec37f4349 |
-| Morpho lending adapter, mWETH | 0x7C576bB732C43b8D3Ee39a8b4153c9ee58be0244 |
-| Morpho lending adapter, mGOOGL | 0x0f0969Fc1d7902D359A3b6De9DB887FC3d1511EB |
-| Morpho lending adapter, mMETA | 0xA64f263Ad1f004a737A7aAF4A244e43b8d70F787 |
-| Morpho lending adapter, mSPCX | 0x3A71dbE612795Face46886E87f613731f87d8510 |
-| Morpho lending adapter, mPAXG | 0x27A021a7Ebb142FDf258B56f95ef40d7c628A4a3 |
-| Price oracle for Morpho, mAAPL | 0x529575c88a0A22eb0Eaf3F8Bd3C5C2bdd63CF2eC |
-| Price oracle for Morpho, mNVDA | 0x3b3E6B6619165c3EeA386F70bb33a58a5cA558F3 |
-| Price oracle for Morpho, mcbBTC | 0xD2B8cb98826A7fdad7967bc226B8Be8C91A5614C |
-| Price oracle for Morpho, mWETH | 0xdf0118BA9e5E2BD5CDe323851248fBECD51a669f |
-| Price oracle for Morpho, mGOOGL | 0xed4E83825e5396E4aF3B80D15710835e98274D29 |
-| Price oracle for Morpho, mMETA | 0xCE260BBd921E62667B0Ece4Dc12990bDf36E0805 |
-| Price oracle for Morpho, mSPCX | 0x76bF54DfEbAE6c852b2D3e132BE6e3EEEB8B658f |
-| Price oracle for Morpho, mPAXG | 0x210E2EBbb65CFc184C34743884b6d4589710Aa57 |
+| Payroll | 0xe682485065f5afccB7606Fd4EFE1747658428798 |
+| SipRouter | 0x6B86A2a0eb156db241d085C85861bBFec3F7c149 |
+| VaultFactory | 0x40fC456Eb518c7F729459a65323bD2F347295CbC |
+| EmployeeVault (code every vault uses) | 0x33Ae7b295461C2cA6Bc3239D84cdF9f72c7da7a0 |
+| Price adapter | 0x3129A660A3d09c89694c374E8483F6Bf21045EB8 |
+| Interest adapter (ERC-4626) | 0x507027301785dbF603f95eE50aB2f2c125883721 |
+| Morpho lending adapter, mAAPL | 0xBBBe52E292Bb65F22D8C5cF9c97DF6e31Ea240c2 |
+| Morpho lending adapter, mNVDA | 0x06f6c642346372da69C06aac1867964f325007F4 |
+| Morpho lending adapter, mcbBTC | 0xDB2a30256988C74E322F13706E80630a841D9ee8 |
+| Morpho lending adapter, mWETH | 0xa69CcC8F4Cb70BB5d7B4A695DE0443BaE6228fc0 |
+| Morpho lending adapter, mGOOGL | 0xc7C0Ed4423D7904797fADfA3593312e499F22c6F |
+| Morpho lending adapter, mMETA | 0xd3eaae7892a331FF62f45C4998020434749eebc4 |
+| Morpho lending adapter, mSPCX | 0xc4C9D609c92f0507d54B1421636f77270F381AbB |
+| Morpho lending adapter, mPAXG | 0xa557509BD37D18C676AccEF632AD8756AF98462c |
+| Price oracle for Morpho, mAAPL | 0xFb31796A37C8bBF902C61b3c79f1Ef0350Ef7A99 |
+| Price oracle for Morpho, mNVDA | 0x57da969759E0Bef659DEFdc86B840D5bff268005 |
+| Price oracle for Morpho, mcbBTC | 0x6c8B2e8313671B42A0c097E6dd943d04e1Ad9F62 |
+| Price oracle for Morpho, mWETH | 0x77D8E40b24451D120Ac1F59afa23f09B2A2fB61c |
+| Price oracle for Morpho, mGOOGL | 0x3D13F6270AeB6F5F0D81494dD3f8d3429A12c963 |
+| Price oracle for Morpho, mMETA | 0xa9CE4F34A2333B65ACAFFB1C4Ae6D903c9AF3004 |
+| Price oracle for Morpho, mSPCX | 0x3CEb30Cd4BE398fc316d1F10eB0faab766eCb5AB |
+| Price oracle for Morpho, mPAXG | 0x63086c854775BCbbFFd0A2c0E69B608dB81d7338 |
 
 Existing protocols used as they are (real):
 
@@ -116,37 +116,51 @@ The exact lending markets (Morpho, USDC loan, created by the Stackday deploy scr
 
 | Market | Liquidation limit | Morpho market id |
 |---|---|---|
-| mAAPL / USDC | 62.5% | 0x4d8f3324234ce1167c21f060ebd97a842acb652349a422c10845aeadd2947c90 |
-| mNVDA / USDC | 62.5% | 0x1c3a4581b805554c18d3fcec795f1ddc17f014c0b11b587b7e1766a5631ffdf3 |
-| mcbBTC / USDC | 86.0% | 0x3a0299b4ccec63265fc576a7876c6159d54bc082a4c04da4156260e4828d5e9a |
-| mWETH / USDC | 86.0% | 0xf6bee3a011930778b5d324e357efb3a9e26851eab52edc23bb85b5325dfc7290 |
-| mGOOGL / USDC | 77.0% | 0xc5d173a4b8bcffc82edd9a81de118afe42ffb0b083a1655893f58f3f8f94a234 |
-| mMETA / USDC | 62.5% | 0x477a761fe8ce604e545713276b944b8a0b92b3eac2bbdca2359bc17c08a51e11 |
-| mSPCX / USDC | 62.5% | 0x1e9ed3c10b0444a47f0df52ce1c3da711ee9f33c98ba04f5f971f06a879bbbf7 |
-| mPAXG / USDC | 77.0% | 0x4a53de07ec0b2b0c5e9c477b0c80c21b7844223e776f513ec5cafa559c3b585d |
+| mAAPL / USDC | 62.5% | 0x65cae300a827b354ae291269cc6c966b834d1830e77a7d835995e9108c8f2e25 |
+| mNVDA / USDC | 62.5% | 0xe87862fc19b063f9106f392c37873c36ce2080c14ee8230c8d95383ad6faaa51 |
+| mcbBTC / USDC | 86.0% | 0x870358bafe82daa6e99e485826983e459bdf04d9c087faf1946405eb220b55ae |
+| mWETH / USDC | 86.0% | 0xe7436c2d9deb5ead7f6a3c5a52cef8a8183509765942556a45cd5b11097f3421 |
+| mGOOGL / USDC | 77.0% | 0x4e34df97e3ac7181b2cc6f031aee20814b95e1abfc7be4b817272976a6a3e144 |
+| mMETA / USDC | 62.5% | 0x3e5fa7739279e1de1cbe6b0b9c60460b98a6f053bb1d3889efb8a9b6bb3a872d |
+| mSPCX / USDC | 62.5% | 0xd7a801035c002a28b255cd7089611b5a68187a0ac45b9c9125cb13f3b89f27b3 |
+| mPAXG / USDC | 77.0% | 0x411e8006c1db46f14db09d1099a26715e23a7e19c9e538101a13c11e8727b25b |
 
 MOCKS (testnet stand-ins, owned by the demo wallet so stress scenarios can be triggered):
 
 | Mock | Address |
 |---|---|
-| mAAPL mock token, stands in for AAPLc (Apple stock) | 0x5908EF5B5b7330734a80FB3ea973DaB4508Ea6Ac |
-| mAAPL mock price feed | 0x521088394E27BC088Ed9aC39f9f98b329926F254 |
-| mNVDA mock token, stands in for NVDAc (NVIDIA stock) | 0xb3618060f78d872a083FF080e39276a04c980b4a |
-| mNVDA mock price feed | 0x499CED99c291BA4f28d266829709E68c246f6f40 |
-| mcbBTC mock token, stands in for cbBTC (Coinbase Wrapped BTC) | 0x2fdF263BE62Dd331C58e14A9BF0a597E4a85B88A |
-| mcbBTC mock price feed | 0xcD30c0052Ef427eB03528969b979c55b2Bc5Bf6c |
-| mWETH mock token, stands in for WETH (Ether) | 0x48cef80740ED13e7f79906EA6b5B4DEBaE200E40 |
-| mWETH mock price feed | 0xA24d1c778d4cd07fE3443f58d9cB50c8A65C9DB3 |
-| mGOOGL mock token, stands in for GOOGLc (Alphabet stock) | 0x091C54127CCD140a44E0da2eF217F8614551c6a1 |
-| mGOOGL mock price feed | 0xb3cEbc6cD03321d6D48cc2b375E1FfBfC401d147 |
-| mMETA mock token, stands in for METAc (Meta stock) | 0x8eFecb6d75ba94f11C495b299151CADfC111f7A3 |
-| mMETA mock price feed | 0x9648F9017FA53b941dEC84f64023e961a3e569eC |
-| mSPCX mock token, stands in for SPCXc (SpaceX tokenized share) | 0x4D59dC0D827d8F36c81E93fD5EC555267dc8b929 |
-| mSPCX mock price feed | 0x3Cc2E9593F0b7DA9F9C910523f0a18Bab3405Eeb |
-| mPAXG mock token, stands in for PAXG (PAX Gold, one troy ounce) | 0x14bBb197a2De7bf86bEA7E3f111aAeBDF13d1fAB |
-| mPAXG mock price feed | 0xfA08Cb21cb78F7E7b4b37cB1F42f19A8D43810C3 |
-| Mock exchange | 0xe9Cf293B6AaE5633C0154b72e4AcDF04b53DfA93 |
-| Mock interest vault | 0x69DC412c1C6fa6a05EF3567dA5B7b3edF673a428 |
+| mAAPL mock token, stands in for AAPLc (Apple stock) | 0x729677D5dD5f5745c4450cD1017C75517231b94B |
+| mAAPL mock price feed | 0x3f20aB2127902f84F38D273258d9faE22c202119 |
+| mNVDA mock token, stands in for NVDAc (NVIDIA stock) | 0x5A2A0be7261c6915D1A6C3C7e55116A5B64CC9eA |
+| mNVDA mock price feed | 0xF0860F4ed33Bb98c64c10459d3BFf92151D66eCb |
+| mcbBTC mock token, stands in for cbBTC (Coinbase Wrapped BTC) | 0xCc34750BCA487838188C31922dAd1b06BFb6648E |
+| mcbBTC mock price feed | 0x5196dFE25E8AC48a0fcf65787a582D3298387009 |
+| mWETH mock token, stands in for WETH (Ether) | 0xcEF01590Fa59514A4c2d6d4Bdb3D5F2F3A960843 |
+| mWETH mock price feed | 0xBe1e8B4EbCF7a92C0d311FFDd107e25A187137a5 |
+| mGOOGL mock token, stands in for GOOGLc (Alphabet stock) | 0x70c72FA27FaAdaDAE0Aaf68960c6a2076dB4851C |
+| mGOOGL mock price feed | 0x62D52EA311A2Bae47b164Db3cCe8E1D0ffe261eb |
+| mMETA mock token, stands in for METAc (Meta stock) | 0x73689283bABcB529260a479Fb2f26F24E8eDED94 |
+| mMETA mock price feed | 0x7E58F0eFB34e3E7187257707548d32345c41553E |
+| mSPCX mock token, stands in for SPCXc (SpaceX tokenized share) | 0x9880747823D3c089185b56336f3B95FB12C2cf30 |
+| mSPCX mock price feed | 0xb42685FB7D52d7D81B6C99C53F05ffC6cf0C11cb |
+| mPAXG mock token, stands in for PAXG (PAX Gold, one troy ounce) | 0x94173e0252e8eCaeDF439a45Bc1538D9B5CA228D |
+| mPAXG mock price feed | 0x970B5fFa47Bd7bb62979D0992ea9D9a542fd76EB |
+| mTSLA mock token, stands in for TSLAc (Tesla stock), invest only | 0x010f0cD31949Ad7719ECE948ec360d2D5cAFd0fC |
+| mTSLA mock price feed | 0xb92F47284C0Dc26D48E83D5DbF8dD88bbdBD9CD3 |
+| mAMZN mock token, stands in for AMZNc (Amazon stock), invest only | 0x5D103061D746Fc9D5EED8F1ca22d4CFb3599C575 |
+| mAMZN mock price feed | 0x1B7fb87ba06BeF3f3608C1714909fb3Df52ec358 |
+| mMSFT mock token, stands in for MSFTc (Microsoft stock), invest only | 0xb91C419d320A69e4BC80Ccfc6e0aa5bd41820a11 |
+| mMSFT mock price feed | 0xcE81c0aC5AAE5B89dd502884Fa5191428aD7e414 |
+| mMSTR mock token, stands in for MSTRc (Strategy stock), invest only | 0x167560e9052131E9bbAc416d8B5F460FbF2B7bF1 |
+| mMSTR mock price feed | 0x17a9d232444D711aE5844910B1C239433c230f05 |
+| mAMD mock token, stands in for AMDc (AMD stock), invest only | 0x1294085CDd75fA5C0710C7De14b43720dC692410 |
+| mAMD mock price feed | 0xe6cDEF1db0662939cC4769Dc84E9021652b301Fd |
+| mSPX mock token, stands in for deSPXA (S&P 500 fund token), invest only | 0x9A055021F7B970474DE97f3FD73Eae010F95d950 |
+| mSPX mock price feed | 0xD42C8abBFE1437f68439A954C4d7938C1E107E3C |
+| mSGOV mock token, stands in for wtSGOV (0-3 month US Treasuries), invest only | 0x9F3111686A9ac285a03179706863DB82180262AC |
+| mSGOV mock price feed | 0x10F755779450DBA4Ab9373aCa804565fF7448193 |
+| Mock exchange | 0xb173ec9585d1a130fbB214E3AaA70d726F416b0E |
+| Mock interest vault | 0x230C070bda9644A761302e7763e0F5437dA5f66d |
 
 SIP fee: 0.25 percent, fixed (0.15 percent plus the 0.1 percent borrow and earn fees from the next redeploy). Fee wallet on testnet: the demo wallet 0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df. Shortest payroll rhythm on testnet: 60 seconds (so a schedule can be shown in a demo). On mainnet it would be 1 day.
 

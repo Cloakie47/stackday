@@ -120,15 +120,26 @@ export function splitRepay(amount: bigint, legs: Leg[], capBps: bigint): bigint[
 }
 
 /**
- * Yearly USDC the basket earns from reinvested dividends and pays in loan interest, at today's
- * values and rates. `dividendBps` is per leg; `ratePerSecond` is Morpho's borrow rate (WAD per second).
+ * Morpho compounds interest every second, so a year at `ratePerSecond` costs e^(rate x year) - 1, the
+ * borrow APY. Returned in parts per million (50_000 = 5%). Undefined rate gives 0.
  */
-export function yearly(legs: (Leg & { dividendBps: number; ratePerSecond?: bigint })[]) {
+export function apyPpm(ratePerSecond: bigint | undefined): number {
+  if (ratePerSecond === undefined) return 0;
+  return Math.round(Math.expm1((Number(ratePerSecond) / 1e18) * Number(YEAR)) * 1_000_000);
+}
+
+/**
+ * Yearly USDC the basket earns from reinvested dividends and pays for its loans, at today's values and
+ * rates. `dividendBps` is per leg; `ratePerSecond` is Morpho's borrow rate (WAD per second), compounded
+ * into an APY; `feeBps` is Stackday's yearly borrow fee on the loan (paid on repayment).
+ */
+export function yearly(legs: (Leg & { dividendBps: number; ratePerSecond?: bigint })[], feeBps = 0n) {
   let earn = 0n, cost = 0n;
   for (const l of legs) {
     // dividendBps may be fractional (net of fees and tax): keep two more decimals of precision.
     earn += (l.value * BigInt(Math.round(l.dividendBps * 100))) / 1_000_000n;
-    if (l.ratePerSecond !== undefined) cost += (l.debt * l.ratePerSecond * YEAR) / WAD;
+    if (l.ratePerSecond !== undefined) cost += (l.debt * BigInt(apyPpm(l.ratePerSecond))) / 1_000_000n;
+    cost += (l.debt * feeBps) / 10_000n;
   }
   return { earn, cost, net: earn - cost };
 }

@@ -184,6 +184,11 @@ export default function InvestPage() {
         <p className="mt-3 text-xs text-muted">
           In your vault: {fmtAsset(pos.idle + pos.collateral, asset.decimals)} {asset.symbol}. Wallet:{" "}
           {fmtUsdc(p.walletUsdc)} USDC.
+          {!asset.borrowable && (
+            <span className="ml-1 font-medium text-ink-soft">
+              Invest only: {asset.name} has no lending market yet, so it cannot be borrowed against.
+            </span>
+          )}
         </p>
         <PriceChart key={asset.symbol} asset={asset} testnetPrice={pos.price} />
 

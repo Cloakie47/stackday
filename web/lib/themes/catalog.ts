@@ -84,6 +84,10 @@ export const MOCK_FOR: Record<string, string> = {
   GOOGLc: "mGOOGL",
   METAc: "mMETA",
   SPCXc: "mSPCX",
+  TSLAc: "mTSLA",
+  MSFTc: "mMSFT",
+  AMZNc: "mAMZN",
+  MSTRc: "mMSTR",
   cbBTC: "mcbBTC",
   WETH: "mWETH",
 };

@@ -9,6 +9,7 @@ import {ILendingAdapter, IYieldAdapter} from "./interfaces/IAdapters.sol";
 
 interface IVaultFactory {
     function lendingAdapterOf(address stock) external view returns (address);
+    function isSupported(address stock) external view returns (bool);
     function yieldAdapter() external view returns (address);
     function borrowFeeBps() external view returns (uint16);
     function earnFeeBps() external view returns (uint16);
@@ -41,6 +42,11 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     uint256 public earnFeeOwed;
     /// @notice When `earnFeeOwed` was last brought up to date.
     uint40 public earnFeeUpdatedAt;
+    /// @notice Borrow fee built up on the loan against each asset and not yet paid (issue #56): a yearly
+    /// rate on the outstanding loan, paid on repayment. Never taken from the vault or collateral.
+    mapping(address stock => uint256) public borrowFeeOwed;
+    /// @notice When `borrowFeeOwed[stock]` was last brought up to date.
+    mapping(address stock => uint40) public borrowFeeUpdatedAt;
 
     error NotOwner();
     error NotFactory();
@@ -87,7 +93,8 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     /// the owner locks it (founder decision, issue #29).
     function depositStock(address stock, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        _adapter(stock);
+        // Any listed asset, including invest-only ones with no lending market (issue #60).
+        if (!factory.isSupported(stock)) revert UnsupportedStock(stock);
         IERC20(stock).safeTransferFrom(msg.sender, address(this), amount);
         emit StockDeposited(stock, msg.sender, amount, false);
     }
@@ -104,6 +111,8 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
     }
 
     /// @notice Repay the loan against `stock`. Anyone may repay. Pass type(uint256).max to repay everything.
+    /// The Stackday borrow fee built up so far is paid first, then the loan; both come out of `amount`
+    /// (pulled from the caller), never out of the vault.
     function repay(address stock, uint256 amount) external nonReentrant returns (uint256 repaid) {
         if (amount == 0) revert ZeroAmount();
         ILendingAdapter adapter = _adapter(stock);
@@ -111,15 +120,23 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
         adapter.accrue();
         uint256 debt = adapter.debtOf(address(this));
         if (debt == 0) return 0;
-        if (amount >= debt) {
-            usdc.safeTransferFrom(msg.sender, address(this), debt);
+        _accrueBorrowFee(stock, adapter);
+        uint256 fee = borrowFeeOwed[stock];
+        if (amount >= debt + fee) {
+            usdc.safeTransferFrom(msg.sender, address(this), debt + fee);
+            _payBorrowFee(stock, usdc, fee);
             usdc.forceApprove(address(adapter), debt);
             repaid = adapter.repayAll();
         } else {
             usdc.safeTransferFrom(msg.sender, address(this), amount);
-            usdc.forceApprove(address(adapter), amount);
-            adapter.repay(amount);
-            repaid = amount;
+            uint256 feePart = amount < fee ? amount : fee;
+            _payBorrowFee(stock, usdc, feePart);
+            uint256 rest = amount - feePart;
+            if (rest > 0) {
+                usdc.forceApprove(address(adapter), rest);
+                adapter.repay(rest);
+            }
+            repaid = rest;
         }
         usdc.forceApprove(address(adapter), 0);
         emit Repaid(stock, msg.sender, repaid);
@@ -145,20 +162,10 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
         ILendingAdapter adapter = _adapter(stock);
         if (collateralToAdd > 0) _supply(adapter, stock, collateralToAdd);
         _ready(adapter);
-        // Fixed 0.1%-style fee from the borrowed USDC (never from the vault): the person owes
-        // `usdcAmount` and receives it minus the fee.
-        uint256 fee = (usdcAmount * factory.borrowFeeBps()) / 10_000;
-        if (fee == 0) {
-            adapter.borrow(usdcAmount, receiver);
-        } else {
-            IERC20 usdc = IERC20(adapter.loanToken());
-            uint256 before = usdc.balanceOf(address(this));
-            adapter.borrow(usdcAmount, address(this));
-            uint256 received = usdc.balanceOf(address(this)) - before;
-            usdc.safeTransfer(factory.feeRecipient(), fee);
-            usdc.safeTransfer(receiver, received - fee);
-            emit FeePaid("borrow", fee);
-        }
+        // The yearly borrow fee is brought up to date on the loan as it was, then the person receives
+        // the full amount they borrow. The fee is paid later, on repayment (issue #56).
+        _accrueBorrowFee(stock, adapter);
+        adapter.borrow(usdcAmount, receiver);
         _checkCap(adapter);
         emit Borrowed(stock, usdcAmount, receiver);
     }
@@ -262,6 +269,23 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
         return (_adapter(stock).maxDebt(address(this)) * borrowCapBps) / 10_000;
     }
 
+    /// @notice Stackday borrow fee owed on the loan against `stock` right now, including the part built
+    /// up since the last update. Paid on repayment, before the loan.
+    function borrowFeeOf(address stock) public view returns (uint256 owed) {
+        owed = borrowFeeOwed[stock];
+        uint256 bps = factory.borrowFeeBps();
+        uint40 at = borrowFeeUpdatedAt[stock];
+        if (bps == 0 || at == 0) return owed;
+        uint256 debt = _adapter(stock).debtOf(address(this));
+        if (debt == 0) return 0;
+        owed += (debt * bps * (block.timestamp - at)) / (10_000 * 365 days);
+    }
+
+    /// @notice Everything needed to close the loan against `stock` now: the loan plus the fee.
+    function totalOwed(address stock) external view returns (uint256) {
+        return _adapter(stock).debtOf(address(this)) + borrowFeeOf(stock);
+    }
+
     /// @notice USDC currently earning interest for this vault, including the interest.
     function earningBalance() external view returns (uint256) {
         address y = factory.yieldAdapter();
@@ -307,6 +331,27 @@ contract EmployeeVault is ReentrancyGuardTransient, Multicall {
         adapter.supplyCollateral(amount);
         IERC20(stock).forceApprove(address(adapter), 0);
         emit CollateralAdded(stock, amount);
+    }
+
+    /// @dev Builds up the yearly borrow fee on the loan since the last update. A loan that ended without
+    /// repayment (for example a liquidation) leaves nothing owed.
+    function _accrueBorrowFee(address stock, ILendingAdapter adapter) internal {
+        uint256 debt = adapter.debtOf(address(this));
+        uint40 at = borrowFeeUpdatedAt[stock];
+        if (debt == 0) {
+            borrowFeeOwed[stock] = 0;
+        } else {
+            uint256 bps = factory.borrowFeeBps();
+            if (bps != 0 && at != 0) borrowFeeOwed[stock] += (debt * bps * (block.timestamp - at)) / (10_000 * 365 days);
+        }
+        borrowFeeUpdatedAt[stock] = uint40(block.timestamp);
+    }
+
+    function _payBorrowFee(address stock, IERC20 usdc, uint256 fee) internal {
+        if (fee == 0) return;
+        borrowFeeOwed[stock] -= fee;
+        usdc.safeTransfer(factory.feeRecipient(), fee);
+        emit FeePaid("borrow", fee);
     }
 
     function _removeCollateral(ILendingAdapter adapter, address stock, uint256 amount) internal {

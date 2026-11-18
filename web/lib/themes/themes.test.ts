@@ -21,22 +21,21 @@ const bpsOf = (plan: ReturnType<typeof buildPlan>, t: string) => plan.holdings.f
 test("the testnet mocks match the deployment list", () => {
   assert.deepEqual(
     Object.values(MOCK_FOR).sort(),
-    ["mAAPL", "mGOOGL", "mMETA", "mNVDA", "mSPCX", "mWETH", "mcbBTC"].sort(),
+    ["mAAPL", "mAMZN", "mGOOGL", "mMETA", "mMSFT", "mMSTR", "mNVDA", "mSPCX", "mTSLA", "mWETH", "mcbBTC"].sort(),
   );
 });
 
-// Since November 17, 2026 the testnet only has stocks with a real Morpho market (Tesla, Microsoft and
-// Amazon were dropped), so AI and big tech share 4 stocks on testnet; the others are preview only.
-test("testnet, Balanced, AI and big tech: 4 stocks, cbBTC and WETH, every cap kept", () => {
+// Since November 18, 2026 (issue #60) Tesla, Microsoft, Amazon and Strategy are back on testnet as
+// invest-only assets, so AI and big tech share 6 stocks; names without a testnet token stay preview only.
+test("testnet, Balanced, AI and big tech: 6 stocks, cbBTC and WETH, every cap kept", () => {
   const themes = ["ai-chips", "big-tech"];
   const plan = buildPlan({ themes, risk: "balanced", available: TESTNET });
   assert.deepEqual(checkPlan(plan, "balanced", themes), []);
   assert.deepEqual(
     plan.holdings.map((h) => [h.ticker, h.bps]),
-    [["GOOGLc", 1401], ["METAc", 1401], ["AAPLc", 1197], ["NVDAc", 1197], ["cbBTC", 800], ["WETH", 400]],
+    [["NVDAc", 1220], ["GOOGLc", 926], ["METAc", 926], ["MSFTc", 926], ["cbBTC", 800], ["AAPLc", 610], ["AMZNc", 610], ["WETH", 400]],
   );
-  assert.equal(plan.usdcBps, 3604);
-  assert.ok(plan.previewOnly.includes("MSFTc"), "Microsoft has no testnet token now: preview only");
+  assert.equal(plan.usdcBps, 3582);
   assert.ok(plan.previewOnly.includes("INTCc"), "names without a testnet token are preview only");
   assert.ok(plan.notes.some((n) => /No single theme may go above 40%/.test(n)));
 });
@@ -129,11 +128,11 @@ test("payday legs: a 20 percent share is split across at most 6 assets, the rest
 test("payday legs on testnet match the plan", () => {
   const plan = buildPlan({ themes: ["ai-chips", "big-tech"], risk: "balanced", available: TESTNET });
   const legs = toSipLegs(plan, 2000);
-  // 6 holdings: all fit in a payday plan (at most 6 assets), nothing is left out.
-  assert.deepEqual(legs.tickers, ["GOOGLc", "METAc", "AAPLc", "NVDAc", "cbBTC", "WETH"]);
-  assert.deepEqual(legs.bps, [280, 280, 239, 239, 160, 80]);
-  assert.deepEqual(legs.dropped, []);
-  assert.equal(legs.cashBps, 8722);
+  // 8 holdings, only 6 fit in a payday plan: the two smallest are left out and paid as USDC.
+  assert.deepEqual(legs.tickers, ["NVDAc", "GOOGLc", "METAc", "MSFTc", "cbBTC", "AAPLc"]);
+  assert.deepEqual(legs.bps, [244, 185, 185, 185, 160, 122]);
+  assert.deepEqual(legs.dropped, ["AMZNc", "WETH"]);
+  assert.equal(legs.cashBps, 8919);
 });
 
 test("splitting a USDC amount never spends more than the amount", () => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Button, Card, Field, FillAmount, HealthMeter, Segmented, SplitBar, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, vaultAbi } from "@/lib/abis";
-import { splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
+import { apyPpm, splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
 import { MAX_UINT, ADDR, BORROW_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc, usdcInput } from "@/lib/format";
 import type { Portfolio, Position } from "@/lib/usePortfolio";
@@ -24,6 +24,8 @@ const DIVIDEND_BPS: Record<string, number> = {
   mMETA: 30,
   mSPCX: 0,
   mPAXG: 0,
+  mMSFT: 70,
+  mAMD: 0,
   mcbBTC: 0,
   mWETH: 0,
 };
@@ -83,12 +85,15 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const [level, setLevel] = useState<Level | null>(null);
   const [repayAmt, setRepayAmt] = useState("");
 
-  const positions = p.positions;
+  // Only assets with a lending market can be locked and borrowed against (issue #60).
+  const positions = p.positions.filter((x) => x.asset.borrowable);
   const legs = positions.map((x) => legOf(x));
   const now = summarize(legs, cap);
   // True when market cash, not the borrow cap, is what stops a bigger loan.
   const cashLimited = now.locked > 0n && now.available < (now.limit > now.debt ? now.limit - now.debt : 0n);
-  const earnings = yearly(positions.map((x, i) => ({ ...legs[i], dividendBps: ((DIVIDEND_BPS[x.asset.symbol] ?? 0) * NET_DIVIDEND_PER_MILLE) / 1000, ratePerSecond: x.ratePerSecond })));
+  const earnings = yearly(positions.map((x, i) => ({ ...legs[i], dividendBps: ((DIVIDEND_BPS[x.asset.symbol] ?? 0) * NET_DIVIDEND_PER_MILLE) / 1000, ratePerSecond: x.ratePerSecond })), BORROW_FEE_BPS);
+  const feesOwed = p.totalBorrowFees;
+  const owedTotal = now.debt + feesOwed;
 
   // ---- lock: dollars per asset to token amounts, capped by what is free
   const lockPlan = positions.map((x) => {
@@ -137,7 +142,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
   const upTo = level === "high" ? highRoom : now.available;
   const borrowSplit = splitBorrow(borrow, legs, borrowCap);
   const afterBorrow = borrowSplit ? summarize(positions.map((x, i) => legOf(x, 0n, borrowSplit[i])), borrowCap) : undefined;
-  const repayAll = repayAmt.trim() === "" ? false : parseUsdc(repayAmt) >= now.debt;
+  const repayAll = repayAmt.trim() === "" ? false : parseUsdc(repayAmt) >= owedTotal;
   const repay = parseUsdc(repayAmt);
   const repaySplit = splitRepay(repay, legs, cap);
 
@@ -198,7 +203,9 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
 
   async function doRepay(all: boolean) {
     if (!vault) return;
-    const amounts = all ? positions.map((x) => x.debt) : repaySplit;
+    // Repaying all covers each loan plus its Stackday fee (paid first), with room for interest that
+    // builds up until the transaction lands.
+    const amounts = all ? positions.map((x) => x.debt + x.fee) : repaySplit;
     const total = amounts.reduce((a, b) => a + b, 0n);
     const approve = all ? total + total / 100n + 1000n : total;
     const calls: Call[] = [
@@ -420,14 +427,23 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
                   ) : null,
                 )}
               </ul>
-              {BORROW_FEE_BPS > 0n && (
-                <div className="mt-2">
-                  You receive <strong>${fmtUsdc(borrow - (borrow * BORROW_FEE_BPS) / 10_000n)}</strong> and owe ${fmtUsdc(borrow)}.{" "}
-                  <span className="text-muted">
-                    Stackday fee {feeLabel(BORROW_FEE_BPS)}: ${fmtUsdc((borrow * BORROW_FEE_BPS) / 10_000n)}, once.
-                  </span>
-                </div>
-              )}
+              {(() => {
+                // Morpho's compounding rate on the markets this borrow uses, weighted by the split.
+                const used = positions.map((x, i) => ({ x, amt: borrowSplit[i] })).filter(({ amt }) => amt > 0n);
+                const sum = used.reduce((a, u) => a + u.amt, 0n);
+                const morpho = sum > 0n ? used.reduce((a, u) => a + apyPpm(u.x.ratePerSecond) * Number(u.amt), 0) / Number(sum) / 10_000 : 0;
+                const fee = Number(BORROW_FEE_BPS) / 100;
+                return (
+                  <div className="mt-2">
+                    You receive the full <strong>${fmtUsdc(borrow)}</strong>. Borrow APY about <strong>{(morpho + fee).toFixed(2)}%</strong>
+                    <span className="text-muted">
+                      {" "}
+                      ({morpho.toFixed(2)}% Morpho, compounding, to lenders{fee > 0 ? ` + ${feeLabel(BORROW_FEE_BPS)} a year Stackday fee, paid when you repay` : ""}).
+                      The rate moves with how much of the market is lent out.
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="mt-2 text-muted">
                 Health afterwards: {fmtHealth(afterBorrow.health)} for the basket, {fmtHealth(afterBorrow.weakest)} for the weakest part. Safe until
                 about a {dropOf(afterBorrow.weakest)}% price drop.
@@ -454,7 +470,8 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
               now.debt > 0n ? (
                 <>
                   Any amount, any time. No penalty. Loan:{" "}
-                  <FillAmount onFill={() => setRepayAmt(usdcInput(now.debt))}>${fmtUsdc(now.debt)}</FillAmount>
+                  <FillAmount onFill={() => setRepayAmt(usdcInput(owedTotal))}>${fmtUsdc(owedTotal)}</FillAmount>
+                  {feesOwed >= 100n ? ` (includes $${fmtUsdc(feesOwed, 4)} Stackday fee, paid first)` : ""}
                 </>
               ) : (
                 "Any amount, any time. No penalty."
@@ -487,7 +504,7 @@ export function CollateralBasket({ p }: { p: Portfolio }) {
 
       <div className="mt-6 grid gap-4 border-t border-line pt-6 sm:grid-cols-3">
         <Stat label="Dividends a year" value={`+$${fmtUsdc(earnings.earn)}`} hint="After issuer fee and US tax" />
-        <Stat label="Interest a year" value={`-$${fmtUsdc(earnings.cost)}`} hint="Live Morpho rate on your loan" />
+        <Stat label="Loan cost a year" value={`-$${fmtUsdc(earnings.cost)}`} hint="Morpho APY plus the Stackday fee" />
         <Stat label="Net a year" value={`${earnings.net < 0n ? "-" : "+"}$${fmtUsdc(earnings.net < 0n ? -earnings.net : earnings.net)}`} hint="At today's prices, before price moves" />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted">

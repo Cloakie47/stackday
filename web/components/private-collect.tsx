@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AssetSelect } from "@/components/asset-select";
-import { Badge, Button, Card, Field, Notice, Row, Segmented, Spinner, Stat, TxStatus } from "@/components/ui";
+import { SplitPicker } from "@/components/split-picker";
+import { Badge, Button, Card, Notice, Row, Segmented, Spinner, Stat, TxStatus } from "@/components/ui";
 import { routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS } from "@/lib/contracts";
 import {
@@ -21,8 +21,8 @@ import { assetForUsdc, fmtAsset, fmtUsdc } from "@/lib/format";
 import type { Portfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
+import { splitAmount, type Split } from "@/lib/split";
 
-type Share = "0" | "10" | "20" | "custom";
 type Rest = "keep" | "withdraw";
 type Step = "idle" | "collecting" | "buying" | "done";
 type Repeat = "once" | "always";
@@ -31,16 +31,14 @@ type Repeat = "once" | "always";
  * Team member: collect private pay and invest a share of it, on one screen.
  * 1. Withdraw the investing share (and the rest, if chosen) from the private balance to the wallet.
  * 2. Wait for Fairblock to deliver it.
- * 3. Buy the chosen asset into the person's own vault (a one-time buy, so no Stackday fee).
+ * 3. Buy the chosen assets into the person's own vault (one-time buys, so no Stackday fee).
  * The rest can stay private, so the full salary never shows on chain.
  */
 export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: string | undefined; canAct: boolean }) {
   const pp = usePrivatePay(address);
   const tx = useTx();
-  const [share, setShare] = useState<Share>("10");
-  const [custom, setCustom] = useState("");
+  const [split, setSplit] = useState<Split>({ pct: 10, symbols: [ASSETS[0].symbol] });
   const [rest, setRest] = useState<Rest>("keep");
-  const [symbol, setSymbol] = useState(ASSETS[0].symbol);
   const [step, setStep] = useState<Step>("idle");
   const [note, setNote] = useState<string>();
   const [repeat, setRepeat] = useState<Repeat>("once");
@@ -54,28 +52,27 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
     if (!sp) return;
     setRepeat("always");
     setRest(sp.rest);
-    if (ASSETS.some((a) => a.symbol === sp.symbol)) setSymbol(sp.symbol);
-    if (sp.pct === 0 || sp.pct === 10 || sp.pct === 20) setShare(String(sp.pct) as Share);
-    else {
-      setShare("custom");
-      setCustom(String(sp.pct));
-    }
+    const symbols = sp.symbols.filter((x) => ASSETS.some((a) => a.symbol === x));
+    setSplit({ pct: sp.pct, symbols: symbols.length ? symbols : [ASSETS[0].symbol], weights: sp.weights });
   }, [address]);
 
   const status = pp.status;
   const balance = pp.balance;
   const available = balance ? balance.total : 0n;
-  const pct = share === "custom" ? Math.min(100, Math.max(0, Number(custom) || 0)) : Number(share);
-  const investGross = toCents((available * BigInt(Math.round(pct * 100))) / 10_000n);
+  const pct = Math.min(100, Math.max(0, split.pct));
+  const investGross = split.symbols.length ? toCents((available * BigInt(Math.round(pct * 100))) / 10_000n) : 0n;
   const restAmount = available - investGross;
   const toWithdraw = toCents(investGross + (rest === "withdraw" ? restAmount : 0n));
-  const pos = p.positions.find((x) => x.asset.symbol === symbol) ?? p.positions[0];
-  const asset = pos.asset;
+  // The invested part per asset, for the summary (before Fairblock's withdrawal fee).
+  const preview = splitAmount(investGross, split);
+  const posOf = (sym: string) => p.positions.find((x) => x.asset.symbol === sym)!;
+  const names = preview.symbols.map((x) => posOf(x).asset.name);
+  const namesText = names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
   const busy = !!pp.busy || step === "collecting" || step === "buying" || !canAct;
 
   async function collectAndInvest() {
     if (toWithdraw === 0n) return;
-    savePrivateSplit(address, repeat === "always" ? { pct, symbol, rest } : undefined);
+    savePrivateSplit(address, repeat === "always" ? { pct, symbols: split.symbols, weights: split.weights, rest } : undefined);
     setSaved(repeat === "always");
     const walletBefore = p.walletUsdc;
     // What actually reaches the wallet after Fairblock's withdrawal fee.
@@ -95,15 +92,23 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
       return pp.reveal();
     }
     setStep("buying");
-    setNote(`Buying ${asset.name} into your vault`);
+    setNote(`Buying ${namesText} into your vault`);
     const amount = investNet < walletBefore + toWithdraw ? investNet : walletBefore + toWithdraw;
-    const min = pos.price ? (assetForUsdc(amount, pos.price, asset.decimals) * 99n) / 100n : 0n;
+    const parts = splitAmount(amount, split);
+    // One approval for the total, then one one-time buy per asset. Wallets that batch sign it all once.
     const calls: Call[] = [
       ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
-      { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min] },
+      ...parts.symbols.map((sym, i) => {
+        const x = posOf(sym);
+        const min = x.price ? (assetForUsdc(parts.amounts[i], x.price, x.asset.decimals) * 99n) / 100n : 0n;
+        return { label: `Buy ${x.asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [x.asset.token, parts.amounts[i], min] } as Call;
+      }),
     ];
-    const bought = await tx.run(calls, `Collected and invested $${fmtUsdc(amount)} in ${asset.name}.`);
-    if (bought) addPrivateRecord(address, { at: Date.now(), kind: "invested", name: asset.name, amount: (Number(amount) / 1e6).toFixed(2) });
+    const bought = await tx.run(calls, `Collected and invested $${fmtUsdc(amount)} in ${namesText}.`);
+    if (bought)
+      parts.symbols.forEach((sym, i) =>
+        addPrivateRecord(address, { at: Date.now(), kind: "invested", name: posOf(sym).asset.name, amount: (Number(parts.amounts[i]) / 1e6).toFixed(2) }),
+      );
     setStep(bought ? "done" : "idle");
     pp.reveal();
   }
@@ -168,33 +173,8 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
             </div>
           ) : (
             <>
+              <SplitPicker value={split} onChange={setSplit} assets={ASSETS} label="How much of this pay goes to work?" />
               <div className="grid gap-5 sm:grid-cols-2">
-                <Segmented
-                  label="Invest a share"
-                  value={share}
-                  onChange={setShare}
-                  options={[
-                    { value: "0", label: "None" },
-                    { value: "10", label: "10%" },
-                    { value: "20", label: "20%" },
-                    { value: "custom", label: "Custom" },
-                  ]}
-                />
-                {share === "custom" ? (
-                  <Field label="Your share" inputMode="decimal" placeholder="15" suffix="%" value={custom} onChange={(e) => setCustom(e.target.value)} />
-                ) : (
-                  <Segmented
-                    label="The rest"
-                    value={rest}
-                    onChange={setRest}
-                    options={[
-                      { value: "keep", label: "Keep private" },
-                      { value: "withdraw", label: "To my wallet" },
-                    ]}
-                  />
-                )}
-              </div>
-              {share === "custom" && (
                 <Segmented
                   label="The rest"
                   value={rest}
@@ -204,25 +184,27 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
                     { value: "withdraw", label: "To my wallet" },
                   ]}
                 />
-              )}
-              {investGross > 0n && <AssetSelect label="Invest in" assets={ASSETS} value={symbol} onChange={setSymbol} />}
-              <Segmented
-                label="Use this split"
-                value={repeat}
-                onChange={setRepeat}
-                options={[
-                  { value: "once", label: "Just this payday" },
-                  { value: "always", label: "Every payday" },
-                ]}
-              />
+                <Segmented
+                  label="Use this split"
+                  value={repeat}
+                  onChange={setRepeat}
+                  options={[
+                    { value: "once", label: "Just this payday" },
+                    { value: "always", label: "Every payday" },
+                  ]}
+                />
+              </div>
 
               <div className="rounded-2xl bg-sunken/70 p-4 text-sm">
-                {investGross > 0n && (
-                  <Row label={`${pct}% into ${asset.name}`}>
-                    ${fmtUsdc(investGross)}
-                    {pos.price ? ` · about ${fmtAsset(assetForUsdc(investGross, pos.price, asset.decimals), asset.decimals)} ${asset.symbol}` : ""}
-                  </Row>
-                )}
+                {preview.symbols.map((sym, i) => {
+                  const x = posOf(sym);
+                  return (
+                    <Row key={sym} label={`Into ${x.asset.name}`}>
+                      ${fmtUsdc(preview.amounts[i])}
+                      {x.price ? ` · about ${fmtAsset(assetForUsdc(preview.amounts[i], x.price, x.asset.decimals), x.asset.decimals)} ${x.asset.symbol}` : ""}
+                    </Row>
+                  );
+                })}
                 <Row label={rest === "keep" ? "Stays private" : "To your wallet"}>${fmtUsdc(restAmount)}</Row>
                 <Row label={`${BRAND.name} fee`}>None (one-time buy)</Row>
                 {repeat === "always" && (
@@ -251,7 +233,7 @@ export function PrivateCollect({ p, address, canAct }: { p: Portfolio; address: 
           </li>
           {investGross > 0n && (
             <li className={step === "buying" ? "text-ink" : "text-muted"}>
-              {step === "buying" ? <Spinner /> : step === "done" ? "✓" : "·"} 2. Buy {asset.name} into your vault
+              {step === "buying" ? <Spinner /> : step === "done" ? "✓" : "·"} 2. Buy {namesText} into your vault
             </li>
           )}
         </ol>

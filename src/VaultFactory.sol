@@ -7,7 +7,9 @@ import {ILendingAdapter} from "./interfaces/IAdapters.sol";
 
 /// @title VaultFactory
 /// @notice Creates exactly one vault per employee at a predictable address.
-/// The list of supported stocks and their lending markets is fixed at deployment.
+/// The list of supported assets and their lending markets is fixed at deployment. An asset with no
+/// lending market (adapter zero) is "invest only": it can be bought, held and withdrawn, but not
+/// locked or borrowed against (issue #60).
 /// There is no owner and nothing can be changed afterwards, so nobody can point
 /// vaults at a different (malicious) market later.
 contract VaultFactory {
@@ -16,7 +18,8 @@ contract VaultFactory {
     address public immutable yieldAdapter;
     /// @notice Most any Stackday fee can ever be: 0.2% (founder decision, November 17, 2026).
     uint16 public constant MAX_FEE_BPS = 20;
-    /// @notice One-time fee on borrowed USDC, in basis points (10 = 0.1%). Fixed forever.
+    /// @notice Yearly fee on the outstanding loan, in basis points (10 = 0.1% a year), built up in each
+    /// vault and paid on repayment (issue #56). Fixed forever.
     uint16 public immutable borrowFeeBps;
     /// @notice Yearly fee on USDC earning interest, in basis points of the amount, taken only out of the
     /// interest (10 = 0.1% a year). Fixed forever.
@@ -24,7 +27,10 @@ contract VaultFactory {
     /// @notice Wallet that receives fees. It has no power over any vault.
     address public immutable feeRecipient;
     address[] public stocks;
+    /// @notice Lending market adapter for an asset, or zero for an invest-only asset.
     mapping(address stock => address adapter) public lendingAdapterOf;
+    /// @notice Every asset that can be bought and held in a vault, with or without a lending market.
+    mapping(address stock => bool) public isSupported;
     mapping(address employee => address vault) public vaultOf;
 
     error LengthMismatch();
@@ -51,9 +57,13 @@ contract VaultFactory {
         yieldAdapter = yieldAdapter_;
         if (stocks_.length != adapters_.length) revert LengthMismatch();
         for (uint256 i; i < stocks_.length; ++i) {
-            if (ILendingAdapter(adapters_[i]).collateralToken() != stocks_[i]) revert AdapterMismatch(stocks_[i]);
-            if (lendingAdapterOf[stocks_[i]] != address(0)) revert DuplicateStock(stocks_[i]);
-            lendingAdapterOf[stocks_[i]] = adapters_[i];
+            if (stocks_[i] == address(0)) revert ZeroAddress();
+            if (isSupported[stocks_[i]]) revert DuplicateStock(stocks_[i]);
+            if (adapters_[i] != address(0)) {
+                if (ILendingAdapter(adapters_[i]).collateralToken() != stocks_[i]) revert AdapterMismatch(stocks_[i]);
+                lendingAdapterOf[stocks_[i]] = adapters_[i];
+            }
+            isSupported[stocks_[i]] = true;
             stocks.push(stocks_[i]);
         }
         implementation = address(new EmployeeVault());

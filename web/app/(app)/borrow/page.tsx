@@ -19,7 +19,7 @@ import {
   buttonClass,
 } from "@/components/ui";
 import { payrollAbi, vaultAbi } from "@/lib/abis";
-import { ADDR, ASSETS, ZERO, assetByToken } from "@/lib/contracts";
+import { ADDR, ASSETS, BORROWABLE, ZERO, assetByToken } from "@/lib/contracts";
 import { fmtAsset, fmtHealth, fmtPct, fmtUsdc, parseAmount } from "@/lib/format";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx } from "@/lib/useTx";
@@ -31,7 +31,7 @@ export default function BorrowPage() {
   const tx = useTx();
   const me = viewer.address;
   const [symbol, setSymbol] = useState(ASSETS[0].symbol);
-  const [ruleSymbol, setRuleSymbol] = useState(ASSETS[0].symbol);
+  const [ruleSymbol, setRuleSymbol] = useState(BORROWABLE[0].symbol);
   const [withdrawAmt, setWithdrawAmt] = useState("");
   const [share, setShare] = useState("50");
   const [threshold, setThreshold] = useState("1.5");
@@ -43,7 +43,7 @@ export default function BorrowPage() {
   const withdraw = parseAmount(withdrawAmt, asset.decimals);
   const rule = p.emergencyRule;
   const ruleAsset = assetByToken(rule?.asset);
-  const ruleToken = (ASSETS.find((a) => a.symbol === ruleSymbol) ?? ASSETS[0]).token;
+  const ruleToken = (BORROWABLE.find((a) => a.symbol === ruleSymbol) ?? BORROWABLE[0]).token;
   const ruleBps = Math.round(Number(share || "0") * 100);
 
   async function doWithdraw() {
@@ -156,7 +156,7 @@ export default function BorrowPage() {
             label="Protect the loan on"
             value={ruleSymbol}
             onChange={setRuleSymbol}
-            options={ASSETS.map((a) => ({ value: a.symbol, label: a.name }))}
+            options={BORROWABLE.map((a) => ({ value: a.symbol, label: a.name }))}
           />
           <Select
             label="When health is at or below"

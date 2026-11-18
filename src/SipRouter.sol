@@ -181,7 +181,8 @@ contract SipRouter is ReentrancyGuardTransient {
         EmployeeVault(vault).depositStock(stock, stockOut);
     }
 
+    /// @dev Any listed asset can be bought, including invest-only ones (issue #60).
     function _requireSupported(address stock) internal view {
-        if (factory.lendingAdapterOf(stock) == address(0)) revert UnsupportedStock(stock);
+        if (!factory.isSupported(stock)) revert UnsupportedStock(stock);
     }
 }
