@@ -189,6 +189,31 @@ export async function readyToReceive(addresses: string[]): Promise<Record<string
   return out;
 }
 
+/**
+ * When the account's latest private step was sent (milliseconds), read from the public block explorer.
+ * Only used to tell people how long a step has been waiting; undefined if the explorer cannot say.
+ */
+export function useLastPrivateStepAt(address: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["private-last-step", address?.toLowerCase()],
+    enabled: !!address && enabled,
+    staleTime: 60_000,
+    queryFn: async (): Promise<number | null> => {
+      try {
+        // The SDK keeps Fairblock's contract address in its config (not in its type definitions).
+        const contract = ((await getClient()) as unknown as { config: { contractAddress: string } }).config.contractAddress.toLowerCase();
+        const r = await fetch(`https://base-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=from`);
+        if (!r.ok) return null;
+        const items: { to?: { hash?: string }; timestamp?: string }[] = (await r.json()).items ?? [];
+        const t = items.find((i) => i.to?.hash?.toLowerCase() === contract)?.timestamp;
+        return t ? Date.parse(t) : null;
+      } catch {
+        return null;
+      }
+    },
+  });
+}
+
 /** Account status for any address (no signature needed). */
 export function usePrivateStatus(address: string | undefined) {
   return useQuery({

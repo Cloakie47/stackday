@@ -41,11 +41,14 @@ export function originOf(url: string): string | null {
 }
 
 const FAIRBLOCK_API = "https://stabletrust-backend-api.fairblock.network";
+/** Base Sepolia block explorer, read only: when a waiting private step was sent. */
+const EXPLORER_API = "https://base-sepolia.blockscout.com";
 
 export function contentSecurityPolicy({ isDev, rpcUrl }: HeaderOptions): string {
   // TradingView price charts (real market prices): widget code, its frames, data and logos.
   // Fairblock private pay: its SDK records each request with Fairblock's own service.
-  const connect = new Set(["'self'", DEFAULT_RPC_URL, ...TRADINGVIEW_CONNECT, FAIRBLOCK_API]);
+  // Block explorer: read-only lookup of when a waiting private step was sent.
+  const connect = new Set(["'self'", DEFAULT_RPC_URL, ...TRADINGVIEW_CONNECT, FAIRBLOCK_API, EXPLORER_API]);
   const rpc = originOf(rpcUrl);
   if (rpc) connect.add(rpc);
   if (isDev) connect.add("ws://localhost:*").add("ws://127.0.0.1:*");
