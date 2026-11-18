@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { DEFAULT_SLOT, nextSlot } from "@/lib/slots";
-import { Button, Card, Chip, Field, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus } from "@/components/ui";
+import { AssetIcon, Button, Card, Chip, Field, InfoTip, LabelTip, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus, cx, splitColor } from "@/components/ui";
+import { BRAND } from "@/lib/brand";
 import { payrollAbi, routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS, CHAIN_ID, SIP_FEE_BPS, type Asset } from "@/lib/contracts";
 import { assetForUsdc, fmtPct, fmtUsdc, parseUsdc } from "@/lib/format";
@@ -29,8 +30,8 @@ import { useTx, type Call } from "@/lib/useTx";
 /** Longer explanations live on the docs page (source text: docs/themes/for-the-docs-page.md). */
 function LearnMore() {
   return (
-    <Link href="/docs#themes" className="text-[13px] font-semibold text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand">
-      Learn more
+    <Link href="/docs#themes" className="inline-flex min-h-11 items-center text-xs font-semibold text-ink hover:text-brand-ink sm:min-h-0">
+      How themes work
     </Link>
   );
 }
@@ -54,20 +55,22 @@ function MoodCard({ picked }: { picked: string[] }) {
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.materiality - a.materiality)
     .slice(0, 3);
   return (
-    <Card title={`Market mood, reading of ${SNAPSHOT.asOf.slice(0, 10)}`} badge={<MockBadge>Snapshot, not live</MockBadge>} action={<LearnMore />}>
-      <p className="text-xs text-muted">{SNAPSHOT.label}</p>
-      <p className="mt-1 text-xs text-muted">Mood summarises recent news. It does not predict prices and does not change your split.</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+    <Card
+      title={`Market mood, ${SNAPSHOT.asOf.slice(0, 10)}`}
+      tip={`${SNAPSHOT.label} Mood summarises recent news. It does not predict prices and does not change your split.`}
+      badge={<MockBadge>Snapshot, not live</MockBadge>}
+    >
+      <div className="grid gap-2 sm:grid-cols-2">
         {picked.map((id) => {
           const t = THEMES.find((x) => x.id === id)!;
           const m = themeMood(SNAPSHOT, id);
           const risky = t.tickers.filter((x) => SNAPSHOT.assets[x]?.materialRisk);
           return (
-            <div key={id} className="rounded-2xl border border-line p-4">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-semibold">{t.name}</span>
-                <span className="text-sm font-semibold">
-                  {moodWord(m)} <span className="font-normal tabular-nums text-muted">({m.toFixed(2)})</span>
+            <div key={id} className="rounded-xl border border-line-soft bg-popover px-3.5 py-3">
+              <div className="flex items-baseline justify-between gap-2 text-[13px]">
+                <span className="font-medium">{t.name}</span>
+                <span>
+                  {moodWord(m)} <span className="tabular-nums text-muted">{m.toFixed(2)}</span>
                 </span>
               </div>
               {risky.length > 0 && (
@@ -78,19 +81,27 @@ function MoodCard({ picked }: { picked: string[] }) {
         })}
       </div>
       {items.length > 0 && (
-        <ul className="mt-4 divide-y divide-line">
-          {items.map((it) => (
-            <li key={it.url + it.ticker} className="py-3 first:pt-0 last:pb-0">
-              <a href={it.url} target="_blank" rel="noreferrer" className="text-sm font-semibold underline decoration-line-strong underline-offset-2 hover:decoration-ink">
-                {it.title}
-              </a>
-              <div className="mt-0.5 text-xs text-muted">
-                {it.source} · {it.publishedAt.slice(0, 10)} · {assetOf(it.ticker)?.name ?? it.ticker} · materiality {it.materiality.toFixed(2)}
-                {it.is_opinion ? " · opinion" : ""}
-              </div>
-              <p className="mt-1 text-xs italic leading-relaxed text-ink-soft">&ldquo;{it.evidence_quote}&rdquo;</p>
-            </li>
-          ))}
+        <ul className="mt-4 divide-y divide-line-soft">
+          {items.map((it) => {
+            const a = assetFor(it.ticker);
+            return (
+              <li key={it.url + it.ticker} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+                {a ? <AssetIcon asset={a} size={24} /> : <AssetIcon icon={it.ticker} size={24} />}
+                <div className="min-w-0">
+                  <a href={it.url} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink">
+                    {it.title}
+                  </a>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted">
+                    {it.source} · {it.publishedAt.slice(0, 10)} · {assetOf(it.ticker)?.name ?? it.ticker}
+                    {it.is_opinion ? " · opinion" : ""}
+                    <InfoTip label="Source quote">
+                      &ldquo;{it.evidence_quote}&rdquo; Materiality {it.materiality.toFixed(2)}.
+                    </InfoTip>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
@@ -182,7 +193,7 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
   async function buyNow() {
     const buys = proposal.buys.map((b) => ({ a: assetFor(b.ticker)!, usdc: BigInt(Math.floor(b.usd * 1e6)) })).filter((b) => b.a && b.usdc > 0n);
     const total = buys.reduce((s, b) => s + b.usdc, 0n);
-    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, "Allow Stackday to take the USDC"))];
+    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, `Allow ${BRAND.name} to take the USDC`))];
     for (const b of buys) {
       const price = p.positions.find((x) => x.asset.symbol === b.a.symbol)?.price;
       const min = price ? (assetForUsdc(b.usdc - (b.usdc * SIP_FEE_BPS) / 10_000n, price, b.a.decimals) * 99n) / 100n : 0n;
@@ -200,59 +211,74 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
     );
 
   return (
-    <Card title="5. Rebalance with new money">
-      <p className="text-sm text-muted">New money tops up what is below target. Nothing is sold.</p>
+    <Card title="5. Rebalance with new money" tip="New money tops up what is below target. Nothing is sold.">
       {drifted.length > 0 && (
-        <div className="mt-3">
+        <div className="mb-3">
           <Notice tone="warn">
             Above target:{" "}
             {drifted.map((d) => `${d.label} is ${(d.now * 100).toFixed(0)}% of your vault (target ${(d.target * 100).toFixed(0)}%)`).join("; ")}. New
-            buys go elsewhere first, but Stackday cannot sell for you, so this can last.
+            buys go elsewhere first, but {BRAND.name} cannot sell for you, so this can last.
           </Notice>
         </div>
       )}
       {invested === 0 ? (
-        <div className="mt-4">
-          <Notice>Nothing to rebalance yet.</Notice>
-        </div>
+        <Notice>Nothing to rebalance yet.</Notice>
       ) : (
         <>
-          <div className="mt-4 max-w-sm">
+          <div className="max-w-sm">
             <Field label="New money to place" inputMode="decimal" placeholder="0.00" suffix="USDC" value={amt} onChange={(e) => setAmt(e.target.value)} />
           </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-left text-sm">
-              <thead className="text-xs text-muted">
+          <div className="-mx-4 mt-4 overflow-x-auto border-t border-line-soft sm:-mx-5">
+            <table className="dtable min-w-[28rem]">
+              <thead>
                 <tr>
-                  <th className="py-2 font-medium">Holding</th>
-                  <th className="py-2 text-right font-medium">Target</th>
-                  <th className="py-2 text-right font-medium">Now</th>
-                  {newMoney > 0 && <th className="py-2 text-right font-medium">After</th>}
-                  <th className="py-2 text-right font-medium">Status</th>
+                  <th scope="col">Holding</th>
+                  <th scope="col" className="r">
+                    Target
+                  </th>
+                  <th scope="col" className="r">
+                    Now
+                  </th>
+                  {newMoney > 0 && (
+                    <th scope="col" className="r">
+                      After
+                    </th>
+                  )}
+                  <th scope="col" className="r">
+                    Status
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
-                {rows.map((r) => (
-                  <tr key={r.ticker}>
-                    <td className="py-2">{r.name}</td>
-                    <td className="py-2 text-right tabular-nums">{(r.targetShare * 100).toFixed(1)}%</td>
-                    <td className="py-2 text-right tabular-nums">{((before[r.ticker]?.currentShare ?? 0) * 100).toFixed(1)}%</td>
-                    {newMoney > 0 && <td className="py-2 text-right tabular-nums">{(r.currentShare * 100).toFixed(1)}%</td>}
-                    <td className={`py-2 text-right text-xs font-semibold ${before[r.ticker]?.outOfBand ? "text-warn" : "text-grow"}`}>
-                      {before[r.ticker]?.outOfBand ? "Off target" : "In range"}
-                    </td>
-                  </tr>
-                ))}
+              <tbody>
+                {rows.map((r) => {
+                  const a = assetFor(r.ticker);
+                  return (
+                    <tr key={r.ticker}>
+                      <td>
+                        <span className="flex items-center gap-2.5">
+                          {a ? <AssetIcon asset={a} size={24} /> : <AssetIcon icon={r.ticker} size={24} />}
+                          <span className="truncate font-medium">{r.name}</span>
+                        </span>
+                      </td>
+                      <td className="r">{(r.targetShare * 100).toFixed(1)}%</td>
+                      <td className="r">{((before[r.ticker]?.currentShare ?? 0) * 100).toFixed(1)}%</td>
+                      {newMoney > 0 && <td className="r">{(r.currentShare * 100).toFixed(1)}%</td>}
+                      <td className={cx("r text-xs font-medium", before[r.ticker]?.outOfBand ? "text-warn" : "text-grow")}>
+                        {before[r.ticker]?.outOfBand ? "Off target" : "In range"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           {newMoney > 0 && (
             <>
-              <ul className="mt-4 space-y-1 text-sm">
+              <ul className="mt-4 space-y-1.5 text-[13px]">
                 {proposal.buys.map((b) => (
-                  <li key={b.ticker}>
-                    <span className="font-semibold tabular-nums">{b.usd.toFixed(2)} USDC</span> into {assetOf(b.ticker)?.name ?? b.ticker}:{" "}
-                    <span className="text-muted">{b.reason}</span>
+                  <li key={b.ticker} className="flex items-center gap-2">
+                    <span className="font-medium tabular-nums">{b.usd.toFixed(2)} USDC</span> into {assetOf(b.ticker)?.name ?? b.ticker}
+                    <InfoTip label={`Why ${assetOf(b.ticker)?.name ?? b.ticker}`}>{b.reason}</InfoTip>
                   </li>
                 ))}
                 {proposal.cashUsd > 0.005 && (
@@ -280,16 +306,10 @@ function RebalanceCard({ plan, p, share, risk }: { plan: Plan; p: Portfolio; sha
 /** The real tickers that have a Stackday token on this network (on testnet: the mocks). */
 const AVAILABLE = ASSETS.map((a) => a.realTicker);
 const assetFor = (ticker: string): Asset | undefined => ASSETS.find((a) => a.realTicker === ticker);
-const CUSHION_COLOR = "#cbd5e1";
-const PREVIEW_COLOR = "#94a3b8";
-
-function colorOf(ticker: string) {
-  return assetFor(ticker)?.color ?? PREVIEW_COLOR;
-}
-
+const CUSHION_COLOR = "var(--press)";
 function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string) => void }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-2.5 sm:grid-cols-2">
       {THEMES.map((t) => {
         const on = picked.includes(t.id);
         const live = t.tickers.filter((x) => AVAILABLE.includes(x));
@@ -299,35 +319,47 @@ function ThemePicker({ picked, toggle }: { picked: string[]; toggle: (id: string
             type="button"
             aria-pressed={on}
             onClick={() => toggle(t.id)}
-            className={`rounded-2xl border p-4 text-left transition-[border-color,background-color,transform] duration-200 active:scale-[0.99] ${
-              on ? "border-ink bg-surface" : "border-line bg-surface/60 hover:border-line-strong"
-            }`}
+            className={cx(
+              "flex flex-col rounded-[14px] border px-4 py-3.5 text-left transition-[border-color,background-color,transform] duration-150 active:scale-[0.99]",
+              on ? "border-[color-mix(in_srgb,var(--brand)_55%,transparent)] bg-brand-soft" : "border-line bg-popover hover:bg-hover",
+            )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold">{t.name}</span>
-              <span className={`text-xs font-semibold ${on ? "text-brand" : "text-muted"}`}>{on ? "Picked" : "Pick"}</span>
+              <span className="text-[13px] font-medium text-ink">{t.name}</span>
+              <span
+                aria-hidden
+                className={cx("grid h-[18px] w-[18px] place-items-center rounded-full border", on ? "border-brand bg-brand text-white" : "border-line bg-surface")}
+              >
+                {on && (
+                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 8.5l2.5 2.5L12 5.5" />
+                  </svg>
+                )}
+              </span>
             </div>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted">{t.thesis}</p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {t.tickers.map((x) => (
-                <span
-                  key={x}
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                    live.includes(x) ? "bg-ink text-canvas" : "bg-sunken text-muted"
-                  }`}
-                  title={live.includes(x) ? "Can be bought here" : "Preview only on this network"}
-                >
-                  {x}
-                </span>
-              ))}
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{t.thesis}</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              {t.tickers.map((x) => {
+                const a = assetFor(x);
+                return live.includes(x) && a ? (
+                  <span key={x} className="inline-flex h-6 items-center gap-1.5 rounded-full bg-hover pl-0.5 pr-2 text-[11px] font-medium text-ink-soft">
+                    <AssetIcon asset={a} size={20} />
+                    {x}
+                  </span>
+                ) : (
+                  <span key={x} className="inline-flex h-6 items-center rounded-full border border-dashed border-line px-2 text-[11px] text-muted">
+                    {x}
+                  </span>
+                );
+              })}
             </div>
           </button>
         );
       })}
       {COMING_SOON.map((name) => (
-        <div key={name} className="rounded-2xl border border-dashed border-line p-4 text-left opacity-70" aria-disabled>
-          <div className="text-sm font-semibold">{name}</div>
-          <p className="mt-1.5 text-xs text-muted">When tokenized on Base</p>
+        <div key={name} className="rounded-[14px] border border-dashed border-line px-4 py-3.5 text-left" aria-disabled>
+          <div className="text-[13px] font-medium text-muted">{name}</div>
+          <p className="mt-1 text-xs text-muted">When tokenized on Base</p>
         </div>
       ))}
     </div>
@@ -344,44 +376,53 @@ function shortWhy(why: string[]) {
 
 function PlanView({ plan }: { plan: Plan }) {
   const parts = [
-    ...plan.holdings.map((h) => ({ key: h.ticker, value: h.bps, color: colorOf(h.ticker), label: `${h.name} ${fmtPct(h.bps)}` })),
+    ...plan.holdings.map((h, i) => ({ key: h.ticker, value: h.bps, color: splitColor(i, plan.holdings.length), label: `${h.name} ${fmtPct(h.bps)}` })),
     { key: "USDC", value: plan.usdcBps, color: CUSHION_COLOR, label: `USDC cushion ${fmtPct(plan.usdcBps)}` },
   ];
   return (
     <div>
-      <SplitBar parts={parts} height={14} />
-      <ul className="mt-5 divide-y divide-line">
-        {plan.holdings.map((h) => {
+      <SplitBar parts={parts} height={8} />
+      <ul className="mt-4 divide-y divide-line-soft">
+        {plan.holdings.map((h, i) => {
           const a = assetFor(h.ticker);
           return (
-            <li key={h.ticker} className="flex items-start justify-between gap-4 py-3 first:pt-0">
-              <div className="flex items-start gap-3">
-                <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: colorOf(h.ticker) }} aria-hidden />
-                <div>
-                  <div className="text-sm font-semibold">
-                    {h.name} <span className="font-normal text-muted">{h.ticker}</span>
-                    {a && <span className="ml-1.5 text-xs font-normal text-muted">(testnet: {a.symbol}, mock)</span>}
+            <li key={h.ticker} className="flex min-h-[52px] items-center justify-between gap-4 py-2">
+              <div className="flex min-w-0 items-center gap-3">
+                {a ? <AssetIcon asset={a} size={24} /> : <AssetIcon icon={h.ticker} size={24} />}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[13px] font-medium">
+                    <span className="truncate">{h.name}</span>
+                    <InfoTip label={`Why ${h.name}`}>{shortWhy(h.why)}</InfoTip>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-muted">{shortWhy(h.why)}</p>
+                  <div className="truncate text-xs text-muted">
+                    {h.ticker}
+                    {a && ` · testnet ${a.symbol}, mock`}
+                  </div>
                 </div>
               </div>
-              <span className="text-sm font-semibold tabular-nums">{fmtPct(h.bps, 1)}</span>
+              <span className="flex shrink-0 items-center gap-2 text-[13px] tabular-nums">
+                <i className="h-2 w-2 rounded-[2px]" style={{ background: splitColor(i, plan.holdings.length) }} aria-hidden />
+                {fmtPct(h.bps, 1)}
+              </span>
             </li>
           );
         })}
-        <li className="flex items-start justify-between gap-4 py-3 last:pb-0">
-          <div className="flex items-start gap-3">
-            <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: CUSHION_COLOR }} aria-hidden />
+        <li className="flex min-h-[52px] items-center justify-between gap-4 py-2 last:pb-0">
+          <div className="flex items-center gap-3">
+            <AssetIcon icon="USDC" size={24} />
             <div>
-              <div className="text-sm font-semibold">USDC cushion</div>
-              <p className="mt-1 text-xs text-muted">Kept as cash, not bought</p>
+              <div className="text-[13px] font-medium">USDC cushion</div>
+              <div className="text-xs text-muted">Kept as cash, not bought</div>
             </div>
           </div>
-          <span className="text-sm font-semibold tabular-nums">{fmtPct(plan.usdcBps, 1)}</span>
+          <span className="flex items-center gap-2 text-[13px] tabular-nums">
+            <i className="h-2 w-2 rounded-[2px]" style={{ background: CUSHION_COLOR }} aria-hidden />
+            {fmtPct(plan.usdcBps, 1)}
+          </span>
         </li>
       </ul>
       {plan.notes.length > 0 && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-3 space-y-2">
           {plan.notes.map((n) => (
             <Notice key={n}>{n}</Notice>
           ))}
@@ -450,7 +491,7 @@ export default function ThemesPage() {
 
   async function buyOnce() {
     const total = onceSplit.buys.reduce((s, b) => s + b.usdc, 0n);
-    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, "Allow Stackday to take the USDC"))];
+    const calls: Call[] = [...(await tx.withApproval(ADDR.usdc, ADDR.router, total, `Allow ${BRAND.name} to take the USDC`))];
     for (const b of onceSplit.buys) {
       const a = assetFor(b.ticker)!;
       calls.push({ label: `Buy ${a.name}`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [a.token, b.usdc, minOut(a, b.usdc)] });
@@ -476,17 +517,13 @@ export default function ThemesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Themes"
-        lead="Pick themes and a risk level. Get a split for your next buys."
-        aside={<LearnMore />}
-      />
+      <PageHeader title="Themes" lead="Pick themes and a risk level. Get a split for your next buys." aside={<LearnMore />} />
 
       {!viewer.address && <Notice>Connect a wallet to use a plan.</Notice>}
 
       <Card title="1. Pick your themes" badge={<MockBadge>Mock tokens on testnet</MockBadge>}>
         <ThemePicker picked={picked} toggle={toggle} />
-        <p className="mt-3 text-xs text-muted">Dark: buyable here (mock). Grey: preview only.</p>
+        <p className="mt-3 text-xs text-muted">With a logo: buyable here (mock). Dashed: preview only.</p>
       </Card>
 
       <Card title="2. Your risk level">
@@ -495,17 +532,13 @@ export default function ThemesPage() {
           onChange={setRisk}
           options={(Object.keys(RISK_LEVELS) as RiskLevel[]).map((k) => ({ value: k, label: RISK_LEVELS[k].label }))}
         />
-        <p className="mt-3 text-sm text-muted">{RISK_LEVELS[risk].blurb}</p>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-          <span className="font-semibold">Targets for new buys:</span>
-          <span>No stock above 15%</span>
-          <span aria-hidden>·</span>
-          <span>No theme above 40%</span>
-          <span aria-hidden>·</span>
-          <span>Crypto at most {fmtPct(RISK_LEVELS[risk].cryptoCap * 10_000)}</span>
-          <span aria-hidden>·</span>
-          <span>Cash cushion at least {fmtPct(RISK_LEVELS[risk].usdcFloor * 10_000)}</span>
-        </div>
+        <p className="mt-3 text-[13px] text-muted">{RISK_LEVELS[risk].blurb}</p>
+        <p className="mt-2 text-xs text-muted">
+          <LabelTip
+            label="Targets for new buys"
+            tip={`No stock above 15%. No theme above 40%. Crypto at most ${fmtPct(RISK_LEVELS[risk].cryptoCap * 10_000)}. Cash cushion at least ${fmtPct(RISK_LEVELS[risk].usdcFloor * 10_000)}.`}
+          />
+        </p>
       </Card>
 
       <Card title="3. Your suggested split">
@@ -540,17 +573,23 @@ export default function ThemesPage() {
                   </Chip>
                 ))}
               </div>
-              <ul className="mt-4 divide-y divide-line text-sm">
+              <ul className="mt-4 divide-y divide-line-soft text-[13px]">
                 {legAssets.map((a, i) => (
-                  <li key={a.symbol} className="flex justify-between py-2">
-                    <span>
-                      {a.name} <span className="text-muted">({a.symbol}, mock)</span>
+                  <li key={a.symbol} className="flex min-h-11 items-center justify-between gap-3 py-1.5">
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <AssetIcon asset={a} size={20} />
+                      <span className="truncate">
+                        {a.name} <span className="text-muted">{a.symbol}, mock</span>
+                      </span>
                     </span>
-                    <span className="tabular-nums">{fmtPct(legs.bps[i])} of each salary</span>
+                    <span className="shrink-0 tabular-nums">{fmtPct(legs.bps[i])} of each salary</span>
                   </li>
                 ))}
-                <li className="flex justify-between py-2">
-                  <span>Paid to you as USDC</span>
+                <li className="flex min-h-11 items-center justify-between gap-3 py-1.5">
+                  <span className="flex items-center gap-2.5">
+                    <AssetIcon icon="USDC" size={20} />
+                    Paid to you as USDC
+                  </span>
                   <span className="tabular-nums">{fmtPct(legs.cashBps)}</span>
                 </li>
               </ul>
@@ -564,8 +603,8 @@ export default function ThemesPage() {
             </div>
           ) : (
             <div className="mt-5 grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-line p-4">
-                <h3 className="text-sm font-semibold">Buy the split once</h3>
+              <div className="rounded-2xl border border-line bg-popover p-4">
+                <h3 className="text-[13px] font-semibold">Buy the split once</h3>
                 <div className="mt-3">
                   <Field
                     label="Amount"
@@ -592,8 +631,8 @@ export default function ThemesPage() {
                 <PriceBlock tickers={blocked} />
               </div>
 
-              <div className="rounded-2xl border border-line p-4">
-                <h3 className="text-sm font-semibold">Buy the split on a schedule</h3>
+              <div className="rounded-2xl border border-line bg-popover p-4">
+                <h3 className="text-[13px] font-semibold">Buy the split on a schedule</h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <Field label="Each time" inputMode="decimal" placeholder="0.00" suffix="USDC" value={perBuy} onChange={(e) => setPerBuy(e.target.value)} />
                   <Select
@@ -608,7 +647,7 @@ export default function ThemesPage() {
                   />
                 </div>
                 <Button
-                  variant="ink"
+                  variant="secondary"
                   className="mt-3 w-full"
                   disabled={!viewer.canAct || recurring === 0n || recurringSplit.buys.length === 0 || tx.state.busy}
                   onClick={startRecurring}
@@ -627,10 +666,10 @@ export default function ThemesPage() {
 
       {plan.holdings.length > 0 && viewer.address && <RebalanceCard plan={plan} p={p} share={Number(share)} risk={risk} />}
 
-      <Notice tone="warn">
-        <strong>Information, not advice.</strong> Prices can fall. Not for people in the United States. No voting rights. Mock
-        tokens on testnet.
-      </Notice>
+      <p className="text-xs text-muted">
+        <span className="font-medium text-warn">Information, not investment advice.</span> Prices can fall. Tokenized stocks are for eligible
+        persons outside the US and carry no voting rights. Mock tokens on testnet.
+      </p>
     </>
   );
 }

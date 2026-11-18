@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AssetIcon, Chip, Field } from "@/components/ui";
+import { AssetIcon, Chip, Field, cx } from "@/components/ui";
 import type { Asset } from "@/lib/contracts";
 import { MAX_SPLIT_ASSETS, nudgeWeight, toggleAsset, weightsOf, type Split } from "@/lib/split";
 
@@ -50,7 +50,7 @@ export function SplitPicker({
               }}
             >
               {s.label}
-              {s.hint && <span className="font-normal opacity-70">{s.hint}</span>}
+              {s.hint && <span className="font-normal text-muted">{s.hint}</span>}
             </Chip>
           ))}
           <Chip active={custom} onClick={() => setCustom(true)}>
@@ -93,10 +93,13 @@ export function SplitPicker({
                   aria-pressed={on}
                   disabled={full}
                   onClick={() => onChange(toggleAsset(value, a.symbol))}
-                  title={full ? "Up to 6 assets per payday." : undefined}
-                  className={`flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
-                    on ? "border-brand bg-brand/10 text-ink" : "border-line bg-surface/60 text-muted hover:border-line-strong"
-                  }`}
+                  aria-label={full ? `${a.name}. Up to ${MAX_SPLIT_ASSETS} assets per payday.` : undefined}
+                  className={cx(
+                    "flex min-h-11 items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-[13px] font-medium transition-colors disabled:opacity-40 sm:min-h-9",
+                    on
+                      ? "border-[color-mix(in_srgb,var(--brand)_45%,transparent)] bg-brand-soft text-ink"
+                      : "border-line bg-popover text-ink-soft hover:bg-hover",
+                  )}
                 >
                   <AssetIcon asset={a} size={24} />
                   {a.name}
@@ -105,7 +108,7 @@ export function SplitPicker({
                       ✓
                     </span>
                   )}
-                  <span className="text-[11px] font-normal opacity-70">
+                  <span className="text-[11px] font-normal text-muted">
                     {KIND_LABEL[a.kind]}
                     {a.borrowable ? "" : " · invest only"}
                   </span>
@@ -115,13 +118,13 @@ export function SplitPicker({
           </div>
 
           {chosen.length > 0 && (
-            <div className="mt-4 rounded-2xl bg-sunken/70 p-3.5">
+            <div className="mt-4 rounded-2xl border border-line bg-popover px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[13px] font-medium text-muted">{adjust ? "Your split" : "Split evenly"}</span>
+                <span className="text-[13px] text-muted">{adjust ? "Your split" : "Split evenly"}</span>
                 {chosen.length > 1 && (
                   <button
                     type="button"
-                    className="text-xs font-semibold text-brand-ink underline-offset-2 hover:underline"
+                    className="min-h-9 text-xs font-semibold text-ink hover:text-brand-ink"
                     onClick={() => {
                       if (adjust) onChange({ ...value, weights: undefined });
                       setAdjust(!adjust);
@@ -135,9 +138,9 @@ export function SplitPicker({
                 {chosen.map((a) => {
                   const w = weights[a.symbol] ?? 0;
                   return (
-                    <div key={a.symbol} className="flex items-center justify-between gap-3 text-sm">
+                    <div key={a.symbol} className="flex items-center justify-between gap-3 text-[13px]">
                       <span className="flex items-center gap-2">
-                        <AssetIcon asset={a} size={18} /> {a.name}
+                        <AssetIcon asset={a} size={20} /> {a.name}
                       </span>
                       <span className="flex items-center gap-1.5">
                         {adjust && (
@@ -146,7 +149,7 @@ export function SplitPicker({
                             aria-label={`Less ${a.name}`}
                             disabled={w <= 0}
                             onClick={() => onChange(nudgeWeight(value, a.symbol, -5))}
-                            className="grid h-7 w-7 place-items-center rounded-full border border-line-strong leading-none hover:border-ink disabled:opacity-30"
+                            className="grid h-11 w-11 place-items-center rounded-[10px] border border-line bg-surface leading-none hover:bg-hover disabled:opacity-30 sm:h-8 sm:w-8"
                           >
                             −
                           </button>
@@ -160,7 +163,7 @@ export function SplitPicker({
                             aria-label={`More ${a.name}`}
                             disabled={w >= 100}
                             onClick={() => onChange(nudgeWeight(value, a.symbol, 5))}
-                            className="grid h-7 w-7 place-items-center rounded-full border border-line-strong leading-none hover:border-ink disabled:opacity-30"
+                            className="grid h-11 w-11 place-items-center rounded-[10px] border border-line bg-surface leading-none hover:bg-hover disabled:opacity-30 sm:h-8 sm:w-8"
                           >
                             +
                           </button>

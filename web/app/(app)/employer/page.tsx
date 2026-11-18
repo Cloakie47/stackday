@@ -2,14 +2,29 @@
 
 import { PaydayLog, PayNow } from "@/components/private-payday";
 import { addPrivateRecord, fmt6 } from "@/lib/confidential";
-import Link from "next/link";
-import { LearnMore } from "@/components/learn-more";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isAddress, type ContractFunctionParameters } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
-import { Button, Card, Empty, Field, Money, Notice, PageHeader, Row, Segmented, Select, TxStatus } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Field,
+  FillAmount,
+  InfoTip,
+  LabelTip,
+  Money,
+  Notice,
+  PageHeader,
+  Row,
+  Segmented,
+  Select,
+  TxStatus,
+  cx,
+} from "@/components/ui";
 import { payrollAbi } from "@/lib/abis";
 import { ADDR, MIN_SCHEDULE_INTERVAL, type Address } from "@/lib/contracts";
 import { fmtUsdc, intervalLabel, parseUsdc, shortAddr, until } from "@/lib/format";
@@ -92,9 +107,9 @@ function BusinessProfile() {
 
   if (!business && !editing)
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-brand-soft p-5">
-        <p className="max-w-lg text-sm text-brand-dark">
-          <strong>Add your business name.</strong> Your team will see it instead of a wallet address.
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-line bg-surface p-4 shadow-card sm:p-5">
+        <p className="max-w-lg text-[13px] text-muted">
+          <strong className="font-medium text-ink">Add your business name.</strong> Your team sees it instead of a wallet address.
         </p>
         <Button size="sm" onClick={() => setEditing(true)}>
           Add business details
@@ -122,12 +137,14 @@ function BusinessProfile() {
       }
     >
       {!editing ? (
-        <p className="text-sm leading-relaxed text-muted">
-          {business?.description || "No description yet."}
+        <div className="text-[13px] text-muted">
+          <p>{business?.description || "No description yet."}</p>
           {account.me && (
-            <span className="mt-2 block font-mono text-xs">Your Stackday ID: {account.me.profile.uid}</span>
+            <p className="mt-3">
+              Your {BRAND.name} ID <span className="ml-1 font-mono text-ink">{account.me.profile.uid}</span>
+            </p>
           )}
-        </p>
+        </div>
       ) : (
         <div className="grid gap-4">
           <Field label="Business name" placeholder="Northwind Studio" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
@@ -139,21 +156,21 @@ function BusinessProfile() {
             onChange={(e) => setDescription(e.target.value)}
           />
           <div className="flex gap-2">
-            <Button variant="ink" disabled={saving || name.trim().length < 2} onClick={save}>
+            <Button disabled={saving || name.trim().length < 2} onClick={save}>
               {saving ? "Saving…" : "Save"}
             </Button>
             <Button variant="ghost" onClick={() => setEditing(false)}>
               Cancel
             </Button>
           </div>
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <p className="text-[13px] text-danger">{error}</p>}
         </div>
       )}
     </Card>
   );
 }
 
-/** Find a person by Stackday ID, name or wallet address, instead of pasting an address. */
+/** Find a person by their ID, name or wallet address, instead of pasting an address. */
 function FindPeople({ onPick, already }: { onPick: (p: Person) => void; already: string[] }) {
   const [q, setQ] = useState("");
   const [people, setPeople] = useState<Person[]>();
@@ -194,25 +211,25 @@ function FindPeople({ onPick, already }: { onPick: (p: Person) => void; already:
   return (
     <div>
       <Field
-        label="Find someone on Stackday"
-        placeholder="Stackday ID (SD-7K3F9Q2M), name, or wallet address"
+        label={`Find someone on ${BRAND.name}`}
+        placeholder={`${BRAND.name} ID (SD-7K3F9Q2M), name, or wallet address`}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         hint={busy ? "Searching…" : hint}
       />
       {people && people.length === 0 && !busy && !hint && (
-        <p className="mt-2 text-sm text-muted">
-          Nobody found. Ask them to open Stackday, press Get started and send you their Stackday ID.
+        <p className="mt-2 text-[13px] text-muted">
+          Nobody found. Ask them to open {BRAND.name}, press Get started and send you their {BRAND.name} ID.
         </p>
       )}
       {people && people.length > 0 && (
-        <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line">
+        <ul className="mt-2 divide-y divide-line-soft overflow-hidden rounded-xl border border-line bg-popover">
           {people.map((person) => {
             const added = already.includes(person.wallet.toLowerCase());
             return (
-              <li key={person.wallet} className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-2.5">
+              <li key={person.wallet} className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">{person.username ? `@${person.username}` : "No name chosen"}</div>
+                  <div className="truncate text-[13px] font-medium">{person.username ? `@${person.username}` : "No name chosen"}</div>
                   <div className="font-mono text-xs text-muted">
                     {person.uid} · {shortAddr(person.wallet)}
                   </div>
@@ -336,71 +353,56 @@ export default function EmployerPage() {
       active ? "Schedule resumed." : "Schedule paused.",
     );
 
+  const shortOf = (s: { total: bigint }) => p.employerBalance < s.total;
+  const pending = team.filter((m) => m.status !== "accepted").length;
+
   return (
     <>
-      <PageHeader
-        title="Payroll"
-        lead={
-          <>
-            Fund a treasury, pick a rhythm, pay your team. <LearnMore href="/docs#businesses" />
-          </>
-        }
-      />
+      <PageHeader title="Payroll" lead="Fund the treasury, pick a rhythm, pay your team." />
 
-      {!me && <Notice>Connect your wallet (top right) to run payroll.</Notice>}
+      {!me && <Notice>Connect a wallet to run payroll.</Notice>}
 
-      <Card tone="ink">
-        <div className="grid gap-6 sm:grid-cols-[1fr_1fr] sm:items-end">
+      {/* Treasury */}
+      <Card>
+        <div className="grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-start">
           <div>
-            <div className="text-[13px] font-medium text-muted">Treasury</div>
-            <div className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
-              <Money value={me ? p.employerBalance : 0n} />
+            <div className="text-[13px] text-muted">
+              <LabelTip label="Treasury" tip="Paydays are paid from here. Withdraw unused funds any time." />
             </div>
-            <p className="mt-3 text-sm text-muted">
-              {committed > 0n
-                ? `Covers ${(Number(p.employerBalance) / Number(committed)).toFixed(1)} more paydays of your active schedules (${fmtUsdc(committed)} USDC each).`
-                : "Paydays are paid from here. Withdraw unused funds any time."}
-            </p>
+            <div className="mt-2 font-display text-[34px] font-normal leading-[1.1] tracking-[-0.02em] sm:text-[40px]">
+              <Money value={me ? p.employerBalance : 0n} dimCents />
+            </div>
+            {committed > 0n && (
+              <p className="mt-1.5 text-xs text-muted">
+                Covers {(Number(p.employerBalance) / Number(committed)).toFixed(1)} more paydays of your active schedules ({fmtUsdc(committed)} USDC each).
+              </p>
+            )}
           </div>
           <div>
-            <label className="block">
-              <span className="text-[13px] font-medium text-canvas/70">
-                Add USDC (wallet:{" "}
-                <button
-                  type="button"
-                  title="Use this amount"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTreasuryAmt(fmtUsdc(p.walletUsdc).replace(/,/g, ""));
-                  }}
-                  className="font-semibold text-canvas underline decoration-dotted underline-offset-2 hover:decoration-solid"
-                >
-                  {fmtUsdc(p.walletUsdc)}
-                </button>
-                )
-              </span>
-              <span className="mt-1.5 flex items-center rounded-2xl border border-white/20 bg-white/5 transition-colors duration-150 focus-within:border-white/60">
-                <input
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={treasuryAmt}
-                  onChange={(e) => setTreasuryAmt(e.target.value)}
-                  className="min-h-11 w-full min-w-0 bg-transparent px-3.5 text-base text-canvas outline-none placeholder:text-canvas/30"
-                />
-                <span className="pr-3.5 text-sm text-muted">USDC</span>
-              </span>
-            </label>
+            <Field
+              label="Add USDC"
+              inputMode="decimal"
+              placeholder="0.00"
+              suffix="USDC"
+              value={treasuryAmt}
+              onChange={(e) => setTreasuryAmt(e.target.value)}
+              hint={
+                <>
+                  Wallet{" "}
+                  <FillAmount onFill={() => setTreasuryAmt(fmtUsdc(p.walletUsdc).replace(/,/g, ""))} label="Use your whole wallet balance">
+                    {fmtUsdc(p.walletUsdc)}
+                  </FillAmount>{" "}
+                  USDC
+                </>
+              }
+            />
             <div className="mt-3 flex flex-wrap gap-2">
               <Button disabled={!viewer.canAct || treasury === 0n || treasury > p.walletUsdc || tx.state.busy} onClick={fund}>
                 Fund treasury
               </Button>
-              <button
-                disabled={!viewer.canAct || p.employerBalance === 0n || tx.state.busy}
-                onClick={withdrawAll}
-                className="min-h-11 rounded-full border border-white/20 px-4 text-sm font-semibold text-canvas transition-colors hover:bg-white/10 disabled:opacity-40"
-              >
+              <Button variant="secondary" disabled={!viewer.canAct || p.employerBalance === 0n || tx.state.busy} onClick={withdrawAll}>
                 Withdraw all
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -408,78 +410,143 @@ export default function EmployerPage() {
 
       <BusinessProfile />
 
-      <Card
-        title="Team"
-        action={
-          session.configured && !session.signedIn && viewer.canAct ? (
-            <Button size="sm" variant="secondary" disabled={session.busy} onClick={session.signIn}>
-              {session.busy ? "Check your wallet…" : "Sign in to save your team"}
-            </Button>
-          ) : undefined
-        }
-      >
-        <p className="mb-4 text-xs text-muted">
-          {saved === "database"
-            ? "Saved to your business account. Only you see this list. People you add are invited: you can pay them now, and see their attendance once they accept."
-            : "Saved on this device only until you sign in."}
-        </p>
+      {/* Team */}
+      <Card flush>
+        <div className="flex min-h-[52px] flex-wrap items-center gap-x-5 gap-y-2 border-b border-line-soft px-4 py-2 sm:px-5">
+          <div className="flex items-center gap-2 text-[13px] text-ink">
+            <h2 className="font-medium">
+              {saved === "database" ? (
+                <LabelTip label="Team" tip="Only you see this list. People you add can be paid now and share check-ins once they accept." />
+              ) : (
+                "Team"
+              )}
+            </h2>
+            <span className="rounded-[5px] bg-press px-1.5 text-[11px] tabular-nums text-muted">{team.length}</span>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-3 text-xs text-muted">
+            {saved !== "database" && <span className="text-warn">Saved on this device only until you sign in.</span>}
+            {session.configured && !session.signedIn && viewer.canAct && (
+              <Button size="sm" variant="secondary" disabled={session.busy} onClick={session.signIn}>
+                {session.busy ? "Check your wallet…" : "Sign in to save your team"}
+              </Button>
+            )}
+          </div>
+        </div>
+
         {team.length === 0 ? (
-          <Empty>No team members yet. Add the first one below.</Empty>
+          <div className="p-4 sm:p-5">
+            <Empty>No team members yet. Add the first one below.</Empty>
+          </div>
         ) : (
-          <div className="divide-y divide-line">
-            {team.map((m) => (
-              <div key={m.wallet} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                    <span className="truncate">{m.name}</span>
-                    {names.nameOf(m.wallet) && <span className="font-normal text-muted">@{names.nameOf(m.wallet)}</span>}
-                    {m.status && (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                          m.status === "accepted" ? "bg-grow-soft text-grow" : "bg-sunken text-muted"
-                        }`}
-                      >
-                        {m.status === "accepted" ? "Accepted" : "Invited"}
-                      </span>
-                    )}
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="dtable min-w-[640px] table-fixed">
+                <colgroup>
+                  <col className="w-[34%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[14%]" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">Person</th>
+                    <th scope="col">Role</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" className="r">
+                      Salary per payday
+                    </th>
+                    <th scope="col" className="r">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {team.map((m) => (
+                    <tr key={m.wallet}>
+                      <td>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">
+                            {m.name}
+                            {names.nameOf(m.wallet) && <span className="ml-1.5 font-normal text-muted">@{names.nameOf(m.wallet)}</span>}
+                          </div>
+                          <div className="truncate font-mono text-[11.5px] text-muted">{names.idOf(m.wallet) ?? shortAddr(m.wallet)}</div>
+                        </div>
+                      </td>
+                      <td className={cx("truncate", !m.role && "text-muted")}>{m.role || "–"}</td>
+                      <td>
+                        {m.status ? (
+                          <Badge tone={m.status === "accepted" ? "grow" : "neutral"}>{m.status === "accepted" ? "Accepted" : "Invited"}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted">This device</span>
+                        )}
+                      </td>
+                      <td className="r">
+                        {fmtUsdc(parseUsdc(m.salary))} <span className="text-muted">USDC</span>
+                      </td>
+                      <td className="r">
+                        <Button size="sm" variant="ghost" onClick={() => remove(m.wallet)} aria-label={`Remove ${m.name}`}>
+                          Remove
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="divide-y divide-line-soft md:hidden">
+              {team.map((m) => (
+                <li key={m.wallet} className="flex min-h-[56px] items-center gap-3 px-4 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 text-[13.5px] font-medium">
+                      <span className="truncate">{m.name}</span>
+                      {m.status && <Badge tone={m.status === "accepted" ? "grow" : "neutral"}>{m.status === "accepted" ? "Accepted" : "Invited"}</Badge>}
+                    </div>
+                    <div className="truncate text-xs text-muted">
+                      {m.role ? `${m.role} · ` : ""}
+                      <span className="font-mono">{names.idOf(m.wallet) ?? shortAddr(m.wallet)}</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-muted">
-                    {m.role ? `${m.role} · ` : ""}
-                    <span className="font-mono">{names.idOf(m.wallet) ?? shortAddr(m.wallet)}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold tabular-nums">{fmtUsdc(parseUsdc(m.salary))} USDC</span>
+                  <div className="text-right text-[13.5px] tabular-nums">{fmtUsdc(parseUsdc(m.salary))} USDC</div>
                   <Button size="sm" variant="ghost" onClick={() => remove(m.wallet)} aria-label={`Remove ${m.name}`}>
                     Remove
                   </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
-        {useDatabase && (
-          <div className="mt-5 border-t border-line pt-5">
+
+        <div className="space-y-4 border-t border-line-soft p-4 sm:p-5">
+          {useDatabase && (
             <FindPeople
               already={team.map((m) => m.wallet.toLowerCase())}
               onPick={(person) => setDraft((d) => ({ ...d, wallet: person.wallet, name: d.name || person.username || "" }))}
             />
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_0.9fr_auto] lg:items-end">
+            <Field label="Wallet address" placeholder="0x…" value={draft.wallet} onChange={(e) => setDraft({ ...draft, wallet: e.target.value })} />
+            <Field label="Name" placeholder="Maya K." value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <Field label="Role (optional)" placeholder="Designer" value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} />
+            <Field
+              label="Salary per payday"
+              inputMode="decimal"
+              placeholder="0.00"
+              suffix="USDC"
+              value={draft.salary}
+              onChange={(e) => setDraft({ ...draft, salary: e.target.value })}
+            />
+            <Button variant="secondary" disabled={!me} onClick={addMember}>
+              Add
+            </Button>
           </div>
-        )}
-        <div className="mt-5 grid gap-3 border-t border-line pt-5 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto] lg:items-end">
-          <Field label="Wallet address" placeholder="0x…" value={draft.wallet} onChange={(e) => setDraft({ ...draft, wallet: e.target.value })} />
-          <Field label="Name" placeholder="Maya K." value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-          <Field label="Role (optional)" placeholder="Designer" value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} />
-          <Field label="Salary per payday" inputMode="decimal" placeholder="0.00" suffix="USDC" value={draft.salary} onChange={(e) => setDraft({ ...draft, salary: e.target.value })} />
-          <Button variant="ink" disabled={!me} onClick={addMember}>
-            Add
-          </Button>
+          {teamError && <p className="text-[13px] text-danger">{teamError}</p>}
         </div>
-        {teamError && <p className="mt-2 text-sm text-danger">{teamError}</p>}
       </Card>
 
+      {/* Pay */}
       <Card title="Pay the team">
-        <div className="grid gap-5 sm:grid-cols-2 sm:items-end">
+        <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
           <Segmented
             label="How"
             value={mode}
@@ -491,26 +558,28 @@ export default function EmployerPage() {
           />
           {mode === "recurring" && <Select label="Payday rhythm" value={interval} onChange={setIntervalValue} options={INTERVALS} />}
         </div>
-        {mode === "recurring" && (
-          <div className="mt-5 rounded-2xl bg-sunken/70 p-4">
-            <Row label="People paid">{payable.length}</Row>
-            <Row label="Each payday costs">{fmtUsdc(total)} USDC</Row>
-            <Row label="Your treasury covers">{total > 0n ? `${(Number(p.employerBalance) / Number(total)).toFixed(1)} paydays` : "…"}</Row>
-          </div>
-        )}
         {mode === "recurring" ? (
           <>
-            <Button size="lg" className="mt-5" disabled={!viewer.canAct || payable.length === 0 || tx.state.busy} onClick={startSchedule}>
-              Start {intervalLabel(Number(interval)).toLowerCase()} payroll
-            </Button>
-            <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-              Paid automatically: a trigger bot pays every due payday on weekdays at 16:00 UTC, once the treasury covers it. You can also
-              press Pay now on a schedule below. Your team then claims their pay. Scheduled paydays are paid the normal way, because
-              private pay needs your browser; use Once, now for it. <LearnMore href="/docs#businesses" />
-            </p>
+            <div className="mt-4 rounded-2xl border border-line bg-popover px-4 py-1.5">
+              <Row label="People paid">{payable.length}</Row>
+              <Row label="Each payday costs">{fmtUsdc(total)} USDC</Row>
+              <Row label="Your treasury covers">{total > 0n ? `${(Number(p.employerBalance) / Number(total)).toFixed(1)} paydays` : "…"}</Row>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <Button size="lg" disabled={!viewer.canAct || payable.length === 0 || tx.state.busy} onClick={startSchedule}>
+                Start {intervalLabel(Number(interval)).toLowerCase()} payroll
+              </Button>
+              <span className="inline-flex items-center gap-1 text-xs text-muted">
+                Paid automatically, weekdays 16:00 UTC.
+                <InfoTip label="Automatic paydays">
+                  A bot pays each due payday once the treasury covers it. You can also press Pay now. Your team then claims their pay. Private pay
+                  needs your browser, so use Once, now for it.
+                </InfoTip>
+              </span>
+            </div>
           </>
         ) : (
-          <div className="mt-5">
+          <div className="mt-4">
             <PayNow
               team={payable.map((m) => ({ wallet: m.wallet, name: m.name, salary: m.salary }))}
               address={me}
@@ -524,29 +593,28 @@ export default function EmployerPage() {
         <TxStatus state={tx.state} />
       </Card>
 
+      {/* Schedules */}
       <Card title="Your schedules">
         {p.schedulesIRun.length === 0 ? (
           <Empty>No recurring payroll yet.</Empty>
         ) : (
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-line-soft">
             {p.schedulesIRun.map((s) => {
               const due = s.active && now > 0 && s.nextPayAt <= now;
-              const funded = p.employerBalance >= s.total;
+              const funded = !shortOf(s);
               return (
-                <div key={s.id.toString()} className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0 last:pb-0">
-                  <div>
-                    <div className="text-sm font-semibold">
-                      {intervalLabel(s.interval)} · {s.employees.length} {s.employees.length === 1 ? "person" : "people"} · {fmtUsdc(s.total)} USDC
+                <div key={s.id.toString()} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium">
+                      {intervalLabel(s.interval)} · {s.employees.length} {s.employees.length === 1 ? "person" : "people"} ·{" "}
+                      <span className="tabular-nums">{fmtUsdc(s.total)} USDC</span>
+                      {!s.active && <Badge>Paused</Badge>}
                     </div>
-                    <div className={`text-xs ${due && !funded ? "text-danger" : "text-muted"}`}>
-                      {!s.active
-                        ? "Paused"
-                        : due
-                          ? funded
-                            ? "A payday is due now"
-                            : "A payday is due, but the treasury is short. Top up to pay it."
-                          : `Next payday ${until(s.nextPayAt, now)}`}
-                    </div>
+                    {s.active && (
+                      <div className={`mt-0.5 text-xs ${due && !funded ? "text-danger" : "text-muted"}`}>
+                        {due ? (funded ? "A payday is due now" : "A payday is due, but the treasury is short. Top up to pay it.") : `Next payday ${until(s.nextPayAt, now)}`}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" disabled={!viewer.canAct || !due || !funded || tx.state.busy} onClick={() => runSchedule(s.id)}>
@@ -563,7 +631,8 @@ export default function EmployerPage() {
         )}
       </Card>
 
-      <Card title="Attendance, last 14 days">
+      {/* Attendance */}
+      <Card title="Attendance, last 14 days" tip="A record only. It does not change pay.">
         {!session.configured ? (
           <Empty>Attendance is not available right now.</Empty>
         ) : !session.signedIn ? (
@@ -572,42 +641,35 @@ export default function EmployerPage() {
           <Empty>Add team members to see their check-ins.</Empty>
         ) : (
           <div className="space-y-3">
-            {team.filter((m) => m.status !== "accepted").length > 0 && (
+            {pending > 0 && (
               <p className="text-xs text-muted">
-                {team.filter((m) => m.status !== "accepted").length} invited {team.filter((m) => m.status !== "accepted").length === 1 ? "person has" : "people have"} not
-                accepted yet, so their check-ins are not shown.
+                {pending} invited {pending === 1 ? "person has" : "people have"} not accepted yet, so their check-ins are not shown.
               </p>
             )}
             {team
               .filter((m) => m.status === "accepted")
               .map((m) => {
-              const checked = attendance.data?.team[m.wallet.toLowerCase()] ?? [];
-              return (
-                <div key={m.wallet} className="grid items-center gap-3 sm:grid-cols-[10rem_1fr_3rem]">
-                  <div className="truncate text-sm font-semibold">{m.name}</div>
-                  <div className="flex gap-1" role="img" aria-label={`${m.name}: ${checked.length} of 14 days`}>
-                    {days.map((d) => (
-                      <span key={d} title={d} className={`h-6 flex-1 rounded-md ${checked.includes(d) ? "bg-grow" : "bg-sunken"}`} />
-                    ))}
+                const checked = attendance.data?.team[m.wallet.toLowerCase()] ?? [];
+                return (
+                  <div key={m.wallet} className="grid items-center gap-2 sm:grid-cols-[10rem_1fr_3rem] sm:gap-3">
+                    <div className="truncate text-[13px] font-medium">{m.name}</div>
+                    <div className="flex gap-1" role="img" aria-label={`${m.name}: ${checked.length} of 14 days`}>
+                      {days.map((d) => (
+                        <span key={d} className={`h-6 flex-1 rounded-[4px] ${checked.includes(d) ? "bg-grow" : "bg-press"}`} />
+                      ))}
+                    </div>
+                    <div className="text-right text-xs tabular-nums text-muted">{checked.length}/14</div>
                   </div>
-                  <div className="text-right text-xs tabular-nums text-muted">{checked.length}/14</div>
-                </div>
-              );
-            })}
-            <p className="pt-1 text-xs leading-relaxed text-muted">
-              A record only. It does not change pay.
-            </p>
+                );
+              })}
           </div>
         )}
       </Card>
 
       <PaydayLog address={me} />
 
-      <Card title="Past paydays">
+      <Card title="Past paydays" tip="Pay unclaimed for 180 days can be taken back into the treasury.">
         <PastRuns employer={me} />
-        <p className="mt-3 text-xs leading-relaxed text-muted">
-          Unclaimed for 180 days? You can take it back.
-        </p>
       </Card>
     </>
   );

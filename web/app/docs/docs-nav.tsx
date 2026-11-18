@@ -45,8 +45,8 @@ function Links({ sections, active, onPick }: { sections: DocsSection[]; active: 
             onClick={onPick}
             aria-current={active === s.id ? "location" : undefined}
             className={cx(
-              "block rounded-lg px-3 py-1.5 text-sm transition-colors duration-150",
-              active === s.id ? "bg-brand-soft font-semibold text-brand-ink" : "text-muted hover:bg-sunken hover:text-ink",
+              "block rounded-[8px] border px-3 py-1.5 text-[13px] transition-colors duration-150",
+              active === s.id ? "border-line bg-popover text-ink shadow-pill" : "border-transparent text-muted hover:bg-hover hover:text-ink",
             )}
           >
             {s.label}
@@ -62,7 +62,7 @@ export function DocsSidebar({ sections }: { sections: DocsSection[] }) {
   const active = useActiveSection(sections);
   return (
     <nav aria-label="On this page" className="sticky top-24 hidden max-h-[calc(100dvh-7rem)] overflow-y-auto pb-8 lg:block">
-      <p className="mb-2 px-3 text-[13px] font-medium text-muted">On this page</p>
+      <p className="mb-2 px-3 text-xs text-muted">On this page</p>
       <Links sections={sections} active={active} />
     </nav>
   );
@@ -74,7 +74,7 @@ export function DocsMobileNav({ sections }: { sections: DocsSection[] }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const label = sections.find((s) => s.id === active)?.label ?? sections[0].label;
   return (
-    <details ref={ref} className="faq glass sticky top-[3.75rem] z-10 -mx-4 border-b border-line px-4 sm:-mx-8 sm:px-8 lg:hidden">
+    <details ref={ref} className="faq glass sticky top-[52px] z-10 -mx-4 border-b border-line-soft px-4 sm:top-16 sm:-mx-7 sm:px-7 lg:hidden">
       <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm">
         <span className="text-muted">
           On this page: <span className="font-semibold text-ink">{label}</span>

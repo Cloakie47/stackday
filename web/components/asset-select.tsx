@@ -80,22 +80,23 @@ export function AssetSelect({
 
   return (
     <div ref={root} className={cx("relative w-full max-w-sm", open && "z-40")} onKeyDown={onKey}>
-      <span className="text-[13px] font-medium text-ink-soft">{label}</span>
+      <span className="text-[13px] text-ink-soft">{label}</span>
       <button
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
+        aria-label={`${label}: ${selected.name}`}
         onClick={() => (open ? setOpen(false) : show())}
-        className="mt-1.5 flex min-h-12 w-full items-center gap-3 rounded-2xl border border-line-strong bg-surface px-3.5 text-left transition-[border-color,box-shadow] duration-150 focus-visible:border-brand focus-visible:shadow-[0_0_0_4px_var(--color-brand-soft)] focus-visible:outline-none"
+        className="mt-1.5 flex min-h-12 w-full items-center gap-3 rounded-xl border border-line bg-popover px-3 text-left transition-[border-color,box-shadow] duration-150 focus-visible:border-[color-mix(in_srgb,var(--brand)_55%,transparent)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_12%,transparent)] focus-visible:outline-none"
       >
-        <AssetIcon asset={selected} size={26} />
+        <AssetIcon asset={selected} size={24} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-semibold">{selected.name}</span>
+          <span className="block truncate text-sm font-medium">{selected.name}</span>
           <span className="block text-xs text-muted">{subtitle(selected)}</span>
         </span>
-        {detail && <span className="shrink-0 text-sm tabular-nums text-muted">{detail(selected)}</span>}
-        <svg aria-hidden viewBox="0 0 20 20" className={cx("h-4 w-4 shrink-0 text-muted transition-transform duration-200", open && "rotate-180")}>
+        {detail && <span className="shrink-0 text-[13px] tabular-nums text-muted">{detail(selected)}</span>}
+        <svg aria-hidden viewBox="0 0 20 20" className={cx("h-4 w-4 shrink-0 text-icon-quiet transition-transform duration-200", open && "rotate-180")}>
           <path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
@@ -105,14 +106,14 @@ export function AssetSelect({
           id={listId}
           role="listbox"
           aria-label={label}
-          className="absolute left-0 right-0 z-30 mt-2 max-h-80 overflow-auto rounded-2xl border border-line bg-surface p-1.5 shadow-lg"
+          className="absolute left-0 right-0 z-30 mt-2 max-h-80 overflow-auto rounded-[14px] border border-line bg-popover p-1.5 shadow-pop"
         >
           {GROUPS.map((g) => {
             const items = assets.filter((a) => a.kind === g.kind);
             if (items.length === 0) return null;
             return (
               <div key={g.kind} role="group" aria-label={g.label}>
-                <div className="px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{g.label}</div>
+                <div className="px-2.5 pb-1 pt-2 text-xs text-muted">{g.label}</div>
                 {items.map((a) => {
                   const i = ordered.indexOf(a);
                   const isSelected = a.symbol === selected.symbol;
@@ -124,14 +125,14 @@ export function AssetSelect({
                       onMouseEnter={() => setActive(i)}
                       onClick={() => pick(a)}
                       className={cx(
-                        "flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2",
-                        i === active ? "bg-sunken" : "",
-                        isSelected && "font-semibold",
+                        "flex min-h-11 cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-1.5",
+                        i === active ? "bg-hover" : "",
+                        isSelected && "font-medium",
                       )}
                     >
                       <AssetIcon asset={a} size={24} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm">{a.name}</span>
+                        <span className="block truncate text-[13px]">{a.name}</span>
                         <span className="block text-xs font-normal text-muted">{subtitle(a)}</span>
                       </span>
                       {detail && <span className="shrink-0 text-xs font-normal tabular-nums text-muted">{detail(a)}</span>}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TvWidget, type WidgetState } from "@/components/tradingview";
 import { Button, RealBadge, Segmented, Skeleton, cx } from "@/components/ui";
 import { DEFAULT_TIMEFRAME, NO_PUBLIC_CHART, TIMEFRAMES, timeframe, tvSymbol } from "@/lib/charts";
+import { BRAND } from "@/lib/brand";
 import type { Asset } from "@/lib/contracts";
 import { fmtPrice } from "@/lib/format";
 
@@ -70,7 +71,7 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
 
   if (!symbol)
     return NO_PUBLIC_CHART.has(asset.symbol) ? (
-      <p className="mt-5 rounded-2xl border border-line p-4 text-sm leading-relaxed text-muted">
+      <p className="mt-5 rounded-2xl border border-line bg-popover px-4 py-3 text-[13px] leading-relaxed text-muted">
         {asset.name} is a private company, so there is no public market price to chart. On testnet the price is a placeholder
         {testnetPrice ? ` ($${fmtPrice(testnetPrice)})` : ""}; on Base mainnet {asset.realTicker} has its own market and Morpho price feed.
       </p>
@@ -78,7 +79,7 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
   const t = timeframe(tf);
 
   return (
-    <section aria-labelledby="price-chart-title" className="mt-5 sm:rounded-2xl sm:border sm:border-line sm:p-5">
+    <section aria-labelledby="price-chart-title" className="mt-5 sm:rounded-2xl sm:border sm:border-line sm:bg-popover sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h3 id="price-chart-title" className="text-sm font-semibold">
@@ -113,7 +114,7 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
 
       <div className="relative mt-4 h-60 w-full overflow-hidden rounded-xl sm:h-80" style={{ touchAction: "pan-y" }}>
         {state === "error" ? (
-          <div className="grid h-full place-items-center rounded-xl border border-dashed border-line-strong text-center text-sm text-muted">
+          <div className="grid h-full place-items-center rounded-xl border border-dashed border-line text-center text-[13px] text-muted">
             <div>
               <p>Chart unavailable right now. Buying still works.</p>
               <Button className="mt-3" size="sm" variant="ghost" onClick={() => setRetry((r) => r + 1)}>
@@ -144,8 +145,8 @@ export function PriceChart({ asset, testnetPrice }: { asset: Asset; testnetPrice
         )}
       </div>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-muted">
-        {marketWords(asset, symbol)} Stackday runs on testnet with test prices, so buys and loans here use ${fmtPrice(testnetPrice)}.
+      <p className="mt-3 text-[11.5px] leading-relaxed text-muted">
+        {marketWords(asset, symbol)} {BRAND.name} runs on testnet with test prices, so buys and loans here use ${fmtPrice(testnetPrice)}.
         {state === "error" && " Chart by TradingView."}
       </p>
     </section>

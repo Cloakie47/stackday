@@ -1,7 +1,7 @@
 "use client";
 
 import { PrivateCollect, PrivateRecords } from "@/components/private-collect";
-import { LearnMore } from "@/components/learn-more";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 import { useViewer } from "@/components/providers";
@@ -12,6 +12,7 @@ import {
   Chip,
   Empty,
   Field,
+  InfoTip,
   Money,
   Notice,
   PageHeader,
@@ -19,6 +20,7 @@ import {
   Segmented,
   SplitBar,
   TxStatus,
+  splitColor,
 } from "@/components/ui";
 import { payrollAbi } from "@/lib/abis";
 import { ADDR, ASSETS, SIP_FEE_BPS, assetByToken } from "@/lib/contracts";
@@ -143,25 +145,28 @@ export default function PayPage() {
   return (
     <>
       <PageHeader
-        title="My pay"
-        lead={
-          <>
-            Claim your salary and choose a share to invest. <LearnMore href="/docs#employees" />
-          </>
-        }
+        title="Payday"
+        lead="Claim your salary and choose a share to invest."
+        aside={<Link href="/docs#employees" className="text-xs font-semibold text-ink hover:text-brand-ink">How payday works</Link>}
       />
 
-      {!me && <Notice>Connect your wallet (top right) to see your salary.</Notice>}
+      {!me && <Notice>Connect a wallet to see your salary.</Notice>}
 
       {due.map((s) => (
-        <div key={s.id.toString()} className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-grow-soft p-5">
+        <div
+          key={s.id.toString()}
+          className="flex flex-wrap items-center justify-between gap-4 rounded-[18px] border border-line bg-surface p-4 shadow-card sm:p-5"
+        >
           <div>
-            <div className="text-sm font-semibold text-grow">
+            <div className="text-[13px] font-medium text-ink">
               Your {intervalLabel(s.interval).toLowerCase()} pay from {names.display(s.employer)} is ready
             </div>
-            <div className="text-xs text-grow/80">{fmtUsdc(s.mine)} USDC. Press Release to move it into Claim.</div>
+            <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted">
+              <span className="tabular-nums text-grow">{fmtUsdc(s.mine)} USDC due</span>
+              <InfoTip label="Release">Moves the due payday into Claim so you can claim it.</InfoTip>
+            </div>
           </div>
-          <Button variant="ink" disabled={!viewer.canAct || tx.state.busy} onClick={() => release(s.id)}>
+          <Button disabled={!viewer.canAct || tx.state.busy} onClick={() => release(s.id)}>
             Release pay
           </Button>
         </div>
@@ -171,16 +176,16 @@ export default function PayPage() {
         {p.claims.length === 0 ? (
           <Empty>
             {me
-              ? "Nothing to claim right now. When your employer runs payroll, it shows up here."
-              : "Connect your wallet to see your salary."}
+              ? "Nothing to claim yet."
+              : "Connect a wallet to see your salary."}
           </Empty>
         ) : (
-          <div className="space-y-7">
+          <div className="space-y-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div className="text-[13px] font-medium text-muted">Ready to claim</div>
-                <div className="mt-1.5 font-display text-6xl font-semibold leading-none tracking-[-0.03em]">
-                  <Money value={amount} />
+                <div className="text-[13px] text-muted">Ready to claim</div>
+                <div className="mt-2 font-display text-[34px] font-normal leading-[1.1] tracking-[-0.02em] text-brand sm:text-[40px]">
+                  <Money value={amount} dimCents />
                 </div>
                 <div className="mt-1 text-xs text-muted">Payroll run #{claim.runId.toString()}</div>
               </div>
@@ -212,32 +217,41 @@ export default function PayPage() {
                 placeholder={me ?? "0x…"}
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
-                hint={
-                  recipient && !isAddress(recipient.trim())
-                    ? "This is not a valid address"
-                    : "Leave empty to use your connected wallet. Any wallet works."
-                }
+                tip="Leave it empty to use your connected wallet. Any wallet works."
+                hint={recipient && !isAddress(recipient.trim()) ? <span className="text-danger">Not a valid address.</span> : undefined}
               />
             </div>
 
-            <div className="rounded-2xl bg-sunken/70 p-4">
+            <div className="rounded-2xl border border-line bg-popover px-4 pb-1.5 pt-4">
               <SplitBar
                 parts={[
-                  { key: "cash", value: Number(amount - sipUsdc), color: "var(--color-line-strong)", label: "Cash" },
-                  ...legs.map((l) => ({ key: l.pos.asset.symbol, value: Number(l.usdc), color: l.pos.asset.color, label: l.pos.asset.name })),
+                  { key: "cash", value: Number(amount - sipUsdc), color: "var(--split-4)", label: "Cash" },
+                  ...legs.map((l, i) => ({ key: l.pos.asset.symbol, value: Number(l.usdc), color: splitColor(i), label: l.pos.asset.name })),
                 ]}
-                height={12}
               />
               <div className="mt-3">
                 <Row label="Cash you receive">{fmtUsdc(amount - sipUsdc)} USDC</Row>
                 {legs.map((l) => (
-                  <Row key={l.pos.asset.symbol} label={`${fmtPct(BigInt(l.bps))} into ${l.pos.asset.name}`}>
-                    about {fmtAsset(l.est, l.pos.asset.decimals)} {l.pos.asset.symbol}
+                  <Row
+                    key={l.pos.asset.symbol}
+                    label={
+                      <span className="inline-flex items-center gap-2">
+                        <AssetIcon asset={l.pos.asset} size={16} />
+                        {fmtPct(BigInt(l.bps))} into {l.pos.asset.name}
+                      </span>
+                    }
+                  >
+                    ≈ {fmtAsset(l.est, l.pos.asset.decimals)} {l.pos.asset.symbol}
                   </Row>
                 ))}
                 {sipUsdc > 0n &&
                   (frequency === "always" ? (
-                    <Row label={`${BRAND.name} fee (${fmtPct(SIP_FEE_BPS)} of the invested part, every payday plan)`}>{fmtUsdc(feeUsdc, 4)} USDC</Row>
+                    <Row
+                      label={`${BRAND.name} fee`}
+                      tip={`${fmtPct(SIP_FEE_BPS)} of the invested part, on every payday plan. No fee for a one-time choice.`}
+                    >
+                      {fmtUsdc(feeUsdc, 4)} USDC
+                    </Row>
                   ) : (
                     <Row label={`${BRAND.name} fee`}>None for a one-time choice</Row>
                   ))}
@@ -246,9 +260,9 @@ export default function PayPage() {
 
             {p.emergencyActive && p.emergencyRule && ruleAsset && (
               <Notice tone="warn">
-                <strong>Emergency rule active.</strong> At least {fmtPct(p.emergencyRule.bps)} of this salary buys{" "}
-                {ruleAsset.name} for that loan&apos;s collateral (health at or below {fmtHealth(p.emergencyRule.threshold)}). Other
-                choices are skipped. <LearnMore href="/docs#emergency-rule" className="text-warn decoration-warn/40" />
+                <strong className="font-semibold">Emergency rule active.</strong> At least {fmtPct(p.emergencyRule.bps)} of this salary buys{" "}
+                {ruleAsset.name} for that loan&apos;s collateral (health at or below {fmtHealth(p.emergencyRule.threshold)}), so other
+                choices are skipped.
               </Notice>
             )}
             {legs
@@ -276,8 +290,8 @@ export default function PayPage() {
               {p.sipPlan.map((leg) => {
                 const a = assetByToken(leg.asset);
                 return a ? (
-                  <span key={a.symbol} className="inline-flex items-center gap-2 rounded-full bg-sunken py-1 pl-1 pr-3 text-[13px] font-semibold">
-                    <AssetIcon asset={a} size={22} /> {fmtPct(leg.bps)} into {a.name}
+                  <span key={a.symbol} className="inline-flex h-[30px] items-center gap-[7px] rounded-full bg-hover pl-1 pr-3 text-[12.5px] font-medium">
+                    <AssetIcon asset={a} size={20} /> {fmtPct(leg.bps)} into {a.name}
                   </span>
                 ) : null;
               })}
@@ -291,16 +305,18 @@ export default function PayPage() {
 
       {p.schedulesPayingMe.length > 0 && (
         <Card title="Your recurring salary">
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-line-soft">
             {p.schedulesPayingMe.map((s) => (
-              <div key={s.id.toString()} className="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+              <div key={s.id.toString()} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div>
-                  <div className="text-sm font-semibold">
+                  <div className="text-[13px] font-medium">
                     {names.display(s.employer)} · {intervalLabel(s.interval)}
                   </div>
-                  <div className="text-xs text-muted">{s.active ? `Next payday ${until(s.nextPayAt, now)}` : "Paused by the employer"}</div>
+                  <div className="text-xs text-muted">
+                    {s.active ? `Next payday ${until(s.nextPayAt, now)}` : <span className="text-warn">Paused by the employer</span>}
+                  </div>
                 </div>
-                <div className="text-sm font-semibold tabular-nums">{fmtUsdc(s.mine)} USDC</div>
+                <div className="text-[13px] tabular-nums">{fmtUsdc(s.mine)} USDC</div>
               </div>
             ))}
           </div>
