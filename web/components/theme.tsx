@@ -13,7 +13,7 @@ import { cx } from "./styles";
  */
 export type ThemeChoice = "system" | "light" | "dark";
 const KEY = "theme";
-const COLORS = { light: "#f5f7fb", dark: "#0a0b0d" };
+const COLORS = { light: "#f5f5f5", dark: "#0b0b0c" };
 
 function read(): ThemeChoice {
   try {
@@ -79,28 +79,29 @@ const ICONS: Record<ThemeChoice, string> = {
 };
 const LABELS: Record<ThemeChoice, string> = { system: "Match system", light: "Light", dark: "Dark" };
 
-/** Three small icon buttons: system, light, dark. */
-export function ThemeToggle({ className = "" }: { className?: string }) {
+/** Three small segments: system, light, dark. `withLabels` adds the words next to the icons. */
+export function ThemeToggle({ className = "", withLabels = false }: { className?: string; withLabels?: boolean }) {
   const { choice, set } = useTheme();
   return (
-    <div role="radiogroup" aria-label="Colour theme" className={cx("inline-flex rounded-full bg-sunken p-0.5", className)}>
+    <div role="radiogroup" aria-label="Colour theme" className={cx("inline-flex rounded-[10px] bg-press p-[3px]", className)}>
       {(Object.keys(ICONS) as ThemeChoice[]).map((c) => (
         <button
           key={c}
           type="button"
           role="radio"
           aria-checked={choice === c}
-          aria-label={LABELS[c]}
-          title={LABELS[c]}
+          aria-label={withLabels ? undefined : LABELS[c]}
           onClick={() => set(c)}
           className={cx(
-            "grid h-8 w-8 place-items-center rounded-full transition-[background-color,color,box-shadow] duration-150",
-            choice === c ? "bg-surface text-ink shadow-xs" : "text-muted hover:text-ink",
+            "inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] text-[12px] font-medium transition-[background-color,color,box-shadow] duration-150",
+            withLabels ? "flex-1 px-2.5" : "w-8",
+            choice === c ? "bg-popover text-ink shadow-[0_1px_2px_rgb(16_24_40/0.08),0_0_0_0.5px_var(--line)]" : "text-muted hover:text-ink",
           )}
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d={ICONS[c]} />
           </svg>
+          {withLabels && (c === "system" ? "System" : LABELS[c])}
         </button>
       ))}
     </div>

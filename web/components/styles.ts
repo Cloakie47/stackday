@@ -10,17 +10,21 @@ export type ButtonSize = "sm" | "md" | "lg";
 /** Classes for anything that should look like a button, including links (<Link className={buttonClass()}>). */
 export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize = "md", className = "") {
   const styles = {
-    primary:
-      "bg-brand text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18)] hover:bg-brand-strong disabled:bg-sunken disabled:text-muted disabled:shadow-none",
-    ink: "bg-ink text-canvas hover:bg-ink-soft disabled:bg-sunken disabled:text-muted",
+    primary: "bg-brand text-white hover:bg-brand-strong disabled:bg-sunken disabled:text-muted",
+    ink: "bg-ink text-canvas hover:opacity-90 disabled:bg-sunken disabled:text-muted disabled:opacity-100",
     secondary:
-      "border border-line-strong bg-surface text-ink shadow-xs hover:bg-sunken disabled:text-muted disabled:hover:bg-surface",
-    ghost: "text-ink hover:bg-sunken disabled:text-muted",
-    danger: "border border-danger/30 bg-surface text-danger hover:bg-danger-soft disabled:border-line disabled:text-muted",
+      "border border-line bg-popover text-ink shadow-pill hover:bg-[color-mix(in_srgb,var(--popover),var(--ink)_4%)] disabled:text-muted disabled:hover:bg-popover",
+    ghost: "text-ink hover:bg-hover disabled:text-muted",
+    danger: "border border-danger/30 bg-popover text-danger hover:bg-danger-soft disabled:border-line disabled:text-muted",
   }[variant];
-  const sizes = { sm: "min-h-9 px-3.5 text-[13px]", md: "min-h-11 px-5 text-sm", lg: "min-h-12 px-6 text-[15px]" }[size];
+  // Phones get 44px targets; desktop keeps the slimmer 36 and 40px controls of the design.
+  const sizes = {
+    sm: "min-h-11 sm:min-h-9 rounded-[9px] px-3.5 text-[13px]",
+    md: "min-h-11 sm:min-h-10 rounded-[9px] px-4 text-[13px]",
+    lg: "min-h-12 rounded-[10px] px-5 text-sm",
+  }[size];
   return cx(
-    "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition-[background-color,border-color,color,transform,box-shadow] duration-150 ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:active:scale-100",
+    "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-medium transition-[background-color,border-color,color,opacity,transform] duration-150 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100",
     styles,
     sizes,
     className,

@@ -11,9 +11,9 @@ import { homeFor, useAccountState, useNames, useSwitchMode, type Mode, type Role
 import { LearnMore } from "./learn-more";
 import { useViewer } from "./providers";
 import { ThemeToggle } from "./theme";
-import { Button, cx } from "./ui";
+import { Button, InfoTip, cx } from "./ui";
 
-type NavItem = { href: string; label: string; short?: string; icon: string };
+type NavItem = { href: string; label: string; short?: string };
 
 /** Copy text to the clipboard and say "Copied" for a moment. */
 function useCopy() {
@@ -46,58 +46,43 @@ function useCopy() {
   return { copied, copy };
 }
 
-const ICON = {
-  home: "M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5M10 20v-5h4v5",
-  pay: "M12 3v18M16.5 7.5h-6.25a2.75 2.75 0 000 5.5h3.5a2.75 2.75 0 010 5.5H7.5",
-  invest: "M4 19V5M4 19h16M8 15l4-5 3 3 5-7",
-  borrow: "M4 9h16v10H4zM8 9V6a4 4 0 018 0v3M12 13v2",
-  risk: "M12 3l9 16H3zM12 10v4M12 17h.01",
-  payroll: "M4 20v-2a5 5 0 0110 0v2M9 9a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6M20 20v-2a4 4 0 00-3-3.9",
-  holdings: "M4 7h16v12H4zM4 11h16M9 7V5h6v2",
-  themes: "M4 6h16M4 12h10M4 18h6",
-};
-const DOCS_ICON = "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5";
+const P = {
+  portfolio: { href: "/dashboard", label: "Portfolio" },
+  pay: { href: "/pay", label: "Payday" },
+  invest: { href: "/invest", label: "Invest" },
+  borrow: { href: "/borrow", label: "Borrow", short: "Loan" },
+  themes: { href: "/themes", label: "Themes" },
+  risk: { href: "/risk", label: "Risk" },
+  payroll: { href: "/employer", label: "Payroll" },
+} satisfies Record<string, NavItem>;
 
 /**
  * Personal and Business are two separate interfaces, each with its own pages.
  * Business splits again: the owner runs payroll, a team member gets paid.
- * Before a choice (or in read-only view) every page is listed.
+ * Before a choice every page is listed. Risk lives under Borrow (its tab bar and the menu).
  */
 const NAVS: Record<Role | "all", NavItem[]> = {
-  individual: [
-    { href: "/dashboard", label: "Home", icon: ICON.home },
-    { href: "/invest", label: "Invest", icon: ICON.invest },
-    { href: "/themes", label: "Themes", icon: ICON.themes },
-    { href: "/borrow", label: "Borrow", icon: ICON.borrow },
-    { href: "/risk", label: "Risk", icon: ICON.risk },
-  ],
-  owner: [
-    { href: "/employer", label: "Payroll", icon: ICON.payroll },
-    { href: "/risk", label: "Risk", icon: ICON.risk },
-  ],
-  // In the order of the journey: overview, get paid, invest, borrow, check the risk.
-  employee: [
-    { href: "/dashboard", label: "Home", icon: ICON.home },
-    { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
-    { href: "/invest", label: "Invest", icon: ICON.invest },
-    { href: "/themes", label: "Themes", icon: ICON.themes },
-    { href: "/borrow", label: "Borrow", icon: ICON.borrow },
-    { href: "/risk", label: "Risk", icon: ICON.risk },
-  ],
-  all: [
-    { href: "/dashboard", label: "Home", icon: ICON.home },
-    { href: "/pay", label: "My pay", short: "Pay", icon: ICON.pay },
-    { href: "/invest", label: "Invest", icon: ICON.invest },
-    { href: "/themes", label: "Themes", icon: ICON.themes },
-    { href: "/borrow", label: "Borrow", icon: ICON.borrow },
-    { href: "/risk", label: "Risk", icon: ICON.risk },
-    { href: "/employer", label: "Payroll", icon: ICON.payroll },
-  ],
+  individual: [P.portfolio, P.invest, P.borrow, P.themes],
+  owner: [P.payroll, P.risk],
+  // In the order of the journey: overview, get paid, invest, borrow.
+  employee: [P.portfolio, P.pay, P.invest, P.borrow, P.themes],
+  all: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.payroll],
 };
-/** Every page, for the header title. */
-const ALL_PAGES: NavItem[] = [...NAVS.all, { href: "/demo", label: "Testnet tools", icon: "" }];
+/** The phone's section switch: the mode's two or three main pages. Everything else is in the menu. */
+const SEGMENTS: Record<Role | "all", NavItem[]> = {
+  individual: [P.portfolio, P.invest, P.borrow],
+  owner: [P.payroll, P.risk],
+  employee: [P.portfolio, P.borrow, P.pay],
+  all: [P.portfolio, P.invest, P.borrow],
+};
 /** Pages that belong to both interfaces. */
 const SHARED = ["/risk", "/demo", "/docs", "/start"];
+/** Pages that only live in the menu. */
+const EXTRA: NavItem[] = [
+  { href: "/docs", label: "Docs" },
+  { href: "/demo", label: "Testnet tools" },
+  { href: "/start", label: "Account" },
+];
 
 const MODE_LABEL: Record<Mode, string> = { personal: "Personal", business: "Business" };
 const ROLE_LABEL: Record<Role, string> = {
@@ -106,13 +91,13 @@ const ROLE_LABEL: Record<Role, string> = {
   employee: "Business · team member",
 };
 
-function navFor(role: Role | undefined) {
-  const items = NAVS[role ?? "all"];
-  return { items, tabs: items.slice(0, 4), more: items.slice(4) };
+function useIsActive() {
+  const pathname = usePathname();
+  return (href: string) => pathname === href || pathname.startsWith(href + "/");
 }
 
 /** Switch between the Personal and Business interfaces. */
-function ModeSwitch({ compact = false }: { compact?: boolean }) {
+function ModeSwitch() {
   const account = useAccountState();
   const router = useRouter();
   const switchMode = useSwitchMode();
@@ -133,14 +118,7 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div role="radiogroup" aria-label="Interface" className={cx("relative grid grid-cols-2 rounded-full bg-sunken p-1", compact ? "w-44" : "w-full")}>
-      <span
-        aria-hidden
-        className={cx(
-          "absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-full shadow-sm transition-transform duration-200 ease-[var(--ease-out)]",
-          account.mode === "business" ? "translate-x-full bg-brand" : "translate-x-0 bg-grow",
-        )}
-      />
+    <div role="radiogroup" aria-label="Interface" className="grid grid-cols-2 rounded-[11px] bg-press p-[3px]">
       {(["personal", "business"] as Mode[]).map((m) => (
         <button
           key={m}
@@ -150,51 +128,14 @@ function ModeSwitch({ compact = false }: { compact?: boolean }) {
           disabled={busy}
           onClick={() => go(m)}
           className={cx(
-            "relative z-10 rounded-full font-semibold transition-colors duration-200",
-            compact ? "min-h-8 text-[12px]" : "min-h-9 text-[13px]",
-            account.mode === m ? "text-white" : "text-muted hover:text-ink",
+            "min-h-11 rounded-[8px] text-[13px] font-medium transition-colors duration-150 sm:min-h-9",
+            account.mode === m ? "bg-popover text-ink shadow-[0_1px_2px_rgb(16_24_40/0.08),0_0_0_0.5px_var(--line)]" : "text-muted hover:text-ink",
           )}
         >
           {MODE_LABEL[m]}
         </button>
       ))}
     </div>
-  );
-}
-
-/** Role, name and Stackday ID, linking to /start to change the account. */
-function AccountChip({ className = "" }: { className?: string }) {
-  const account = useAccountState();
-  const { role, me } = account;
-  if (!role || !me) return null;
-  const name = (role === "owner" ? me.business?.name : null) ?? (me.profile.username ? `@${me.profile.username}` : "Your account");
-  return (
-    <div className={cx("rounded-2xl border border-line px-3 py-2.5", className)}>
-      <Link href="/start" className="block rounded-lg transition-colors duration-150 hover:text-brand-ink">
-        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-          {ROLE_LABEL[role]}
-          <span className="normal-case tracking-normal text-brand-ink">Account</span>
-        </div>
-        <div className="mt-1 truncate text-sm font-semibold text-ink">{name}</div>
-      </Link>
-      <CopyId uid={me.profile.uid} />
-    </div>
-  );
-}
-
-function CopyId({ uid }: { uid: string }) {
-  const { copied, copy } = useCopy();
-  return (
-    <button
-      type="button"
-      onClick={() => copy("id", uid)}
-      title="Copy your Stackday ID"
-      aria-label={`Copy your Stackday ID ${uid}`}
-      className="mt-0.5 flex w-full items-center justify-between rounded-md font-mono text-[11px] text-muted transition-colors duration-150 hover:text-ink"
-    >
-      {uid}
-      <span className="font-sans font-semibold text-brand-ink">{copied ? "Copied" : "Copy"}</span>
-    </button>
   );
 }
 
@@ -208,9 +149,9 @@ function WrongModeNotice({ pathname }: { pathname: string }) {
   if (NAVS[role].some((i) => pathname === i.href || pathname.startsWith(i.href + "/"))) return null;
   const other: Mode = mode === "personal" ? "business" : "personal";
   return (
-    <div className="border-b border-line bg-sunken">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-8">
-        <p className="text-sm text-ink-soft">
+    <div className="mx-auto max-w-[1120px] px-4 pt-4 sm:px-7">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-2.5">
+        <p className="text-[13px] text-ink-soft">
           This page is part of the {MODE_LABEL[other]} interface. You are in {MODE_LABEL[mode]}.
         </p>
         <div className="flex gap-2">
@@ -226,84 +167,171 @@ function WrongModeNotice({ pathname }: { pathname: string }) {
   );
 }
 
-function Icon({ d, className = "h-[18px] w-[18px]" }: { d: string; className?: string }) {
+/** The mark: three stacked bars in a ring, one more each payday. */
+export function LogoMark({ size = 26 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" className={cx("shrink-0", className)} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={d} />
-    </svg>
-  );
-}
-
-/** The Stackday mark: three stacked bars, one more each payday. */
-export function LogoMark({ size = 32 }: { size?: number }) {
-  return (
-    <span
-      className="grid shrink-0 place-items-center rounded-[30%] bg-brand shadow-[inset_0_1px_0_rgb(255_255_255/0.25)]"
-      style={{ width: size, height: size }}
-      aria-hidden
-    >
-      <svg viewBox="0 0 24 24" style={{ width: size * 0.62, height: size * 0.62 }} fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round">
-        <path d="M5 17h14M7 12h10M9 7h6" />
+    <span className="grid shrink-0 place-items-center rounded-full border-[1.5px] border-current" style={{ width: size, height: size }} aria-hidden>
+      <svg viewBox="0 0 24 24" style={{ width: size * 0.6, height: size * 0.6 }} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+        <path d="M6 17h12M8 12h8M10 7h4" />
       </svg>
     </span>
   );
 }
 
-export function Logo({ light = false }: { light?: boolean }) {
+export function Logo({ light = false, size = 26 }: { light?: boolean; size?: number }) {
   return (
     <Link
       href="/"
       translate="no"
       className={cx(
-        "flex items-center gap-2.5 rounded-lg font-display text-[1.375rem] font-semibold leading-none tracking-[-0.02em]",
+        "flex shrink-0 items-center gap-[9px] rounded-lg font-display font-medium leading-none tracking-[-0.01em]",
+        size < 26 ? "text-[17px]" : "text-lg",
         light ? "text-white" : "text-ink",
       )}
     >
-      <LogoMark />
+      <LogoMark size={size} />
       {BRAND.name}
     </Link>
   );
 }
 
-export function WalletButton({ light = false }: { light?: boolean }) {
-  const { address, chainId, isConnected } = useAccount();
-  const { connectors, connect, isPending, error } = useConnect();
-  const { switchChain } = useSwitchChain();
-  const { display } = useNames([address]);
-
-  if (isConnected && chainId !== CHAIN_ID)
-    return (
-      <Button variant="danger" size="sm" onClick={() => switchChain({ chainId: CHAIN_ID })}>
-        Switch to Base Sepolia
-      </Button>
-    );
-  if (isConnected && address) return <WalletMenu address={address} label={display(address)} light={light} />;
-  const connector = connectors[0];
+/** "Base Sepolia · Testnet" with an (i). Required on every screen of the testnet demo. */
+export function NetworkChip({ short = false }: { short?: boolean }) {
   return (
-    <div className="text-right">
-      <Button size="sm" disabled={isPending || !connector} onClick={() => connector && connect({ connector })}>
-        {isPending ? "Connecting…" : "Connect wallet"}
-      </Button>
-      {error && (
-        <p className="mt-1 max-w-48 text-xs text-danger" role="alert">
-          No wallet found. Install a browser wallet.
-        </p>
+    <span className={cx("inline-flex shrink-0 items-center gap-[7px] rounded-[10px] bg-warn-soft pl-3 pr-2 font-medium text-warn", short ? "h-7 text-[11.5px]" : "h-8 text-xs")}>
+      <i className="h-1.5 w-1.5 rounded-full bg-warn-dot" aria-hidden />
+      {short ? "Testnet" : "Base Sepolia · Testnet"}
+      <InfoTip label="Testnet" side="bottom">
+        Test network. Mock tokens and prices, no real money.
+      </InfoTip>
+    </span>
+  );
+}
+
+function Avatar({ size = 24 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden
+      className="shrink-0 rounded-full"
+      style={{ width: size, height: size, background: "conic-gradient(from 200deg, #cfd6e6, #e8e2d4, #d4e2dc, #cfd6e6)", boxShadow: "inset 0 0 0 1px var(--line)" }}
+    />
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+/** Account, pages, theme. The same list in the desktop menu and the phone sheet. */
+function MenuBody({ pages, onNavigate }: { pages: NavItem[]; onNavigate?: () => void }) {
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const account = useAccountState();
+  const viewer = useViewer();
+  const { display } = useNames([address]);
+  const { copied, copy } = useCopy();
+  const isActive = useIsActive();
+  const uid = account.me?.profile.uid;
+  const name =
+    account.role && account.me
+      ? ((account.role === "owner" ? account.me.business?.name : null) ?? (account.me.profile.username ? `@${account.me.profile.username}` : null))
+      : null;
+
+  const row =
+    "flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] px-3 text-left text-[13px] text-ink transition-colors duration-150 hover:bg-hover";
+
+  return (
+    <div className="grid gap-1">
+      {isConnected && address ? (
+        <div className="flex items-center gap-3 px-3 pb-2 pt-1.5">
+          <Avatar size={32} />
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-medium text-ink">{name ?? display(address)}</div>
+            <div className="truncate text-xs text-muted">
+              {account.role ? ROLE_LABEL[account.role] : "Connected"} · <span className="font-mono">{shortAddr(address)}</span>
+            </div>
+          </div>
+        </div>
+      ) : viewer.readOnly && viewer.address ? (
+        <div className="px-3 pb-2 pt-1.5 text-xs text-muted">
+          Viewing <span className="font-mono text-ink">{shortAddr(viewer.address)}</span> (read-only)
+        </div>
+      ) : null}
+
+      {isConnected && account.mode && (
+        <div className="px-1.5 pb-1">
+          <ModeSwitch />
+        </div>
+      )}
+
+      {isConnected && address && (
+        <button type="button" className={row} onClick={() => copy("addr", address)}>
+          Copy wallet address
+          <span className="text-xs text-brand-ink">{copied === "addr" ? "Copied" : ""}</span>
+        </button>
+      )}
+      {uid && (
+        <button type="button" className={row} onClick={() => copy("id", uid)} aria-label={`Copy your ${BRAND.name} ID ${uid}`}>
+          <span>
+            Copy {BRAND.name} ID <span className="font-mono text-xs text-muted">{uid}</span>
+          </span>
+          <span className="text-xs text-brand-ink">{copied === "id" ? "Copied" : ""}</span>
+        </button>
+      )}
+
+      <div className="my-1 border-t border-line-soft" />
+      <nav aria-label="More pages" className="grid gap-0.5">
+        {[...pages, ...EXTRA].map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={isActive(item.href) ? "page" : undefined}
+            className={cx(row, isActive(item.href) && "bg-press font-medium")}
+          >
+            {item.label}
+            <span className="text-faint" aria-hidden>
+              ›
+            </span>
+          </Link>
+        ))}
+      </nav>
+
+      <div className="my-1 border-t border-line-soft" />
+      <div className="flex items-center justify-between gap-3 px-3 py-1.5">
+        <span className="text-[13px] text-muted">Theme</span>
+        <ThemeToggle withLabels />
+      </div>
+
+      {isConnected && (
+        <>
+          <div className="my-1 border-t border-line-soft" />
+          <button
+            type="button"
+            className={cx(row, "text-danger")}
+            onClick={() => {
+              onNavigate?.();
+              disconnect();
+            }}
+          >
+            Disconnect
+          </button>
+        </>
       )}
     </div>
   );
 }
 
-/** The connected wallet: copy the address or ID, switch interface, or disconnect. */
-function WalletMenu({ address, label, light }: { address: string; label: string; light: boolean }) {
+/** Desktop account menu: a popover under the account chip (or a menu button when no wallet is connected). */
+function AccountMenu({ pages, trigger }: { pages: NavItem[]; trigger: "chip" | "icon" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const { disconnect } = useDisconnect();
-  const account = useAccountState();
-  const router = useRouter();
-  const switchMode = useSwitchMode();
-  const { copied, copy } = useCopy();
-  const uid = account.me?.profile.uid;
-  const other: Mode | null = account.mode === "personal" ? "business" : account.mode === "business" ? "personal" : null;
+  const { address } = useAccount();
+  const { display } = useNames([address]);
 
   useEffect(() => {
     if (!open) return;
@@ -319,86 +347,47 @@ function WalletMenu({ address, label, light }: { address: string; label: string;
     };
   }, [open]);
 
-  async function switchTo(next: Mode) {
-    setOpen(false);
-    await switchMode(address, next, account.session.signedIn);
-    router.push(homeFor(next, next === "personal" ? "individual" : account.businessRole));
-  }
-
-  const item =
-    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-ink transition-colors duration-150 hover:bg-sunken";
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Connected as ${label}. Open wallet menu`}
-        className={cx(
-          "inline-flex min-h-9 max-w-48 items-center gap-2 rounded-full border px-3 text-[13px] font-semibold transition-[background-color,border-color] duration-150 active:scale-[0.97]",
-          light ? "border-white/25 text-white hover:bg-white/10" : "border-line-strong bg-surface text-ink shadow-xs hover:bg-sunken",
-        )}
-      >
-        <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
-          <span className="absolute inset-0 rounded-full bg-grow" />
-          <span className="absolute -inset-1 rounded-full bg-grow/25" />
-        </span>
-        <span className="truncate">{label}</span>
-      </button>
+      {trigger === "chip" && address ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Connected as ${display(address)}. Open account menu`}
+          className="inline-flex h-9 max-w-52 items-center gap-2 rounded-[10px] border border-line bg-popover pl-1.5 pr-3 text-[13px] text-ink shadow-pill transition-colors duration-150 hover:bg-hover"
+        >
+          <Avatar />
+          <span className="truncate">{display(address)}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Open menu"
+          className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-popover text-ink shadow-pill transition-colors duration-150 hover:bg-hover"
+        >
+          <MenuIcon />
+        </button>
+      )}
       {open && (
-        <div role="menu" className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-line bg-surface p-1.5 shadow-lg">
-          <div className="px-3 pb-2 pt-1.5 font-mono text-[11px] text-muted">{shortAddr(address)}</div>
-          <button type="button" role="menuitem" className={item} onClick={() => copy("addr", address)}>
-            Copy wallet address
-            <span className="text-xs font-medium text-brand-ink">{copied === "addr" ? "Copied" : ""}</span>
-          </button>
-          {uid && (
-            <button type="button" role="menuitem" className={item} onClick={() => copy("id", uid)}>
-              <span>
-                Copy Stackday ID <span className="font-mono text-xs font-normal text-muted">{uid}</span>
-              </span>
-              <span className="text-xs font-medium text-brand-ink">{copied === "id" ? "Copied" : ""}</span>
-            </button>
-          )}
-          {other && (
-            <button type="button" role="menuitem" className={item} onClick={() => switchTo(other)}>
-              Switch to {MODE_LABEL[other]}
-            </button>
-          )}
-          <div className="my-1 border-t border-line" />
-          <button
-            type="button"
-            role="menuitem"
-            className={cx(item, "text-danger")}
-            onClick={() => {
-              setOpen(false);
-              disconnect();
-            }}
-          >
-            Disconnect
-          </button>
+        <div role="menu" className="absolute right-0 z-50 mt-2 w-80 animate-[var(--animate-pop)] rounded-[14px] border border-line bg-popover p-1.5 shadow-pop">
+          <MenuBody pages={pages} onNavigate={() => setOpen(false)} />
         </div>
       )}
     </div>
   );
 }
 
-export function TestnetBanner() {
-  const viewer = useViewer();
-  return (
-    <div className="border-b border-warn/15 bg-warn-soft px-4 py-1.5 text-center text-xs font-medium text-warn">
-      Testnet. Test tokens and prices, no real money.
-      {viewer.readOnly && <strong> Read-only view of {shortAddr(viewer.address)}.</strong>}
-    </div>
-  );
-}
-
-/** "More" on phones: a native <dialog> bottom sheet, so focus trapping and Escape come for free. */
-function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; more: NavItem[] }) {
+/** Phone menu: the avatar opens a native <dialog> bottom sheet, so focus trapping and Escape come for free. */
+function PhoneMenu({ pages }: { pages: NavItem[] }) {
   const ref = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
-  const moreActive = more.some((m) => isActive(m.href)) || isActive("/start");
+  const { isConnected } = useAccount();
+  const close = () => ref.current?.close();
 
   useEffect(() => {
     ref.current?.close();
@@ -410,56 +399,34 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
         type="button"
         onClick={() => ref.current?.showModal()}
         aria-haspopup="dialog"
-        className={cx(
-          "flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition-colors duration-150 active:scale-[0.96]",
-          moreActive ? "text-brand-ink" : "text-muted",
-        )}
+        aria-label="Open menu"
+        className="grid h-11 w-11 place-items-center rounded-full text-ink"
       >
-        <Icon d="M5 12h.01M12 12h.01M19 12h.01" className="h-[22px] w-[22px]" />
-        More
+        {isConnected ? (
+          <Avatar size={32} />
+        ) : (
+          <span className="grid h-8 w-8 place-items-center rounded-full border border-line bg-popover">
+            <MenuIcon />
+          </span>
+        )}
       </button>
       <dialog
         ref={ref}
         className="sheet"
-        aria-label="More pages"
+        aria-label="Menu"
         onClick={(e) => {
-          if (e.target === ref.current) ref.current?.close();
+          if (e.target === ref.current) close();
         }}
       >
-        <div className="px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-3">
-          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" aria-hidden />
-          <div className="mb-4">
-            <ModeSwitch />
-          </div>
-          <nav aria-label="More pages" className="grid gap-1">
-            {more.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={isActive(item.href) ? "page" : undefined}
-                className={cx(
-                  "flex min-h-12 items-center gap-3 rounded-2xl px-3 text-[15px] font-semibold transition-colors duration-150",
-                  isActive(item.href) ? "bg-brand-soft text-brand-ink" : "text-ink active:bg-sunken",
-                )}
-              >
-                <Icon d={item.icon} />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <Link
-            href="/docs"
-            className="mt-1 flex min-h-12 items-center gap-3 rounded-2xl px-3 text-[15px] font-semibold text-ink active:bg-sunken"
-          >
-            <Icon d={DOCS_ICON} />
-            Docs
-          </Link>
-          <AccountChip className="mt-4" />
-          <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
-            <span className="text-sm text-muted">Theme</span>
-            <ThemeToggle />
-          </div>
-          <form method="dialog" className="mt-4">
+        <div className="px-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-2.5">
+          <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-line" aria-hidden />
+          {!isConnected && (
+            <div className="px-1.5 pb-2">
+              <WalletButton block />
+            </div>
+          )}
+          <MenuBody pages={pages} onNavigate={close} />
+          <form method="dialog" className="mt-2 px-1.5">
             <Button variant="secondary" className="w-full">
               Close
             </Button>
@@ -470,137 +437,212 @@ function MoreSheet({ isActive, more }: { isActive: (href: string) => boolean; mo
   );
 }
 
+export function WalletButton({ light = false, block = false }: { light?: boolean; block?: boolean }) {
+  const { address, chainId, isConnected } = useAccount();
+  const { connectors, connect, isPending, error } = useConnect();
+  const { switchChain } = useSwitchChain();
+  const { display } = useNames([address]);
+
+  if (isConnected && chainId !== CHAIN_ID)
+    return (
+      <Button variant="danger" size="sm" className={block ? "w-full" : ""} onClick={() => switchChain({ chainId: CHAIN_ID })}>
+        Switch to Base Sepolia
+      </Button>
+    );
+  if (isConnected && address) {
+    if (block) return null;
+    return (
+      <span
+        className={cx(
+          "inline-flex h-9 max-w-48 items-center gap-2 rounded-[10px] border pl-1.5 pr-3 text-[13px]",
+          light ? "border-white/25 text-white" : "border-line bg-popover text-ink shadow-pill",
+        )}
+      >
+        <Avatar />
+        <span className="truncate">{display(address)}</span>
+      </span>
+    );
+  }
+  const connector = connectors[0];
+  return (
+    <div className={block ? "" : "text-right"}>
+      <Button size="sm" className={block ? "w-full" : ""} disabled={isPending || !connector} onClick={() => connector && connect({ connector })}>
+        {isPending ? "Connecting…" : "Connect wallet"}
+      </Button>
+      {error && (
+        <p className="mt-1 max-w-48 text-xs text-danger" role="alert">
+          No wallet found. Install a browser wallet.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Older full-width testnet strip. Pages now show the network chip and the footer line instead. */
+export function TestnetBanner() {
+  const viewer = useViewer();
+  return (
+    <div className="border-b border-line-soft bg-warn-soft px-4 py-1.5 text-center text-xs font-medium text-warn">
+      Testnet. Mock tokens and prices, no real money.
+      {viewer.readOnly && <strong> Read-only view of {shortAddr(viewer.address)}.</strong>}
+    </div>
+  );
+}
+
+/** Required notices, compact: testnet, not investment advice, who tokenized stocks are for. */
+export function SiteNotices({ className = "" }: { className?: string }) {
+  return (
+    <div className={cx("text-xs leading-4 text-muted", className)}>
+      <div className="hidden justify-between gap-6 sm:flex">
+        <p>Testnet. Mock tokens and prices, no real money.</p>
+        <p className="text-right">
+          Not investment advice. Tokenized stocks are for eligible persons outside the US and carry no voting rights.{" "}
+          <LearnMore href="/docs#notices">Full notices</LearnMore>
+        </p>
+      </div>
+      <p className="text-center sm:hidden">
+        Testnet, mock tokens. Not investment advice. Tokenized stocks: eligible non-US persons only, no voting rights.{" "}
+        <LearnMore href="/docs#notices">Notices</LearnMore>
+      </p>
+    </div>
+  );
+}
+
+function DesktopNav({ items }: { items: NavItem[] }) {
+  const isActive = useIsActive();
+  const pathname = usePathname();
+  const riskUnderBorrow = !items.some((i) => i.href === "/risk");
+  return (
+    <nav aria-label="Main" className="flex items-center gap-1">
+      {items.map((item) => {
+        const active = isActive(item.href) || (item.href === "/borrow" && riskUnderBorrow && pathname.startsWith("/risk"));
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            className={cx(
+              "flex h-9 items-center rounded-[10px] border px-2.5 text-[13px] transition-colors duration-150 xl:px-3.5",
+              active ? "border-line bg-popover text-ink shadow-pill" : "border-transparent text-ink-soft hover:bg-hover hover:text-ink",
+            )}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function PhoneSections({ items }: { items: NavItem[] }) {
+  const isActive = useIsActive();
+  const pathname = usePathname();
+  return (
+    <nav
+      aria-label="Sections"
+      className="mx-4 mb-2 mt-1.5 grid rounded-[11px] bg-press p-[3px]"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+    >
+      {items.map((item) => {
+        const active = isActive(item.href) || (item.href === "/borrow" && pathname.startsWith("/risk") && !items.some((i) => i.href === "/risk"));
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            className={cx(
+              "flex h-[34px] items-center justify-center rounded-[8px] text-[13px] font-medium transition-colors duration-150",
+              active ? "bg-popover text-ink shadow-[0_1px_2px_rgb(16_24_40/0.08),0_0_0_0.5px_var(--line)]" : "text-muted",
+            )}
+          >
+            {item.short ?? item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const viewer = useViewer();
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const { isConnected } = useAccount();
   const account = useAccountState();
-  const { role, mode } = account;
-  const showMode = !!mode && !viewer.readOnly;
-  const { items, tabs, more } = navFor(viewer.readOnly ? "individual" : role);
-  const current = items.find((n) => isActive(n.href)) ?? ALL_PAGES.find((n) => isActive(n.href));
+  const { role } = account;
+  const key: Role | "all" = viewer.readOnly ? "individual" : (role ?? "all");
+  const items = NAVS[key];
+  const segments = SEGMENTS[key];
+  const [scrolled, setScrolled] = useState(false);
 
   // Choosing Personal or Business is required: a connected wallet without a choice goes to /start.
   useEffect(() => {
     if (account.needsSetup && !viewer.readOnly) router.replace("/start");
   }, [account.needsSetup, viewer.readOnly, router]);
 
-  return (
-    <div className="min-h-dvh lg:pl-64">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
-        <div className="px-2">
-          <Logo />
-        </div>
-        {showMode && (
-          <div className="mt-6 px-1">
-            <ModeSwitch />
-          </div>
-        )}
-        <nav className={cx("flex flex-1 flex-col gap-0.5", showMode ? "mt-5" : "mt-9")} aria-label="Main">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={isActive(item.href) ? "page" : undefined}
-              className={cx(
-                "group flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors duration-150",
-                isActive(item.href) ? "bg-brand-soft font-semibold text-brand-ink" : "text-muted hover:bg-sunken hover:text-ink",
-              )}
-            >
-              <Icon d={item.icon} />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <AccountChip className="mb-4" />
-        <div className="space-y-4">
-          <Link
-            href="/docs"
-            className="flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-muted transition-colors duration-150 hover:bg-sunken hover:text-ink"
-          >
-            <Icon d={DOCS_ICON} />
-            Docs
-          </Link>
-          <div className="px-2">
-            <ThemeToggle />
-          </div>
-          <p className="px-2 text-xs leading-relaxed text-muted">
-            <Link href="/demo" className="underline decoration-line-strong underline-offset-2 hover:text-ink">
-              Testnet tools
-            </Link>
-          </p>
-        </div>
-      </aside>
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-      {/* Top bar */}
-      <header className="glass sticky top-0 z-10 border-b border-line">
-        <TestnetBanner />
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-8">
-          <div className="lg:hidden">
-            <Logo />
-          </div>
-          <div className="hidden items-center gap-2 text-sm font-medium text-muted lg:flex">
-            {showMode && (
-              <span
-                className={cx(
-                  "rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-                  mode === "business" ? "bg-brand-soft text-brand-ink" : "bg-grow-soft text-grow",
-                )}
-              >
-                {MODE_LABEL[mode!]}
+  // Pages for the menus: whatever the bar (desktop) or the section switch (phone) does not show.
+  const deskMore = items.some((i) => i.href === "/risk") ? [] : [P.risk];
+  const phoneMore = [...items, P.risk].filter((i, n, a) => !segments.some((s) => s.href === i.href) && a.findIndex((x) => x.href === i.href) === n);
+
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <header className={cx("glass sticky top-0 z-30 border-b transition-colors duration-150", scrolled ? "border-line-soft" : "border-transparent")}>
+        {/* Desktop and tablet bar */}
+        <div className="mx-auto hidden h-16 max-w-[1280px] items-center gap-5 px-7 md:flex xl:gap-7">
+          <Logo />
+          <DesktopNav items={items} />
+          <div className="ml-auto flex items-center gap-2.5">
+            <span className="hidden lg:inline-flex">
+              <NetworkChip />
+            </span>
+            <span className="lg:hidden">
+              <NetworkChip short />
+            </span>
+            {viewer.readOnly && viewer.address && (
+              <span className="hidden h-8 items-center rounded-[10px] border border-line px-3 text-xs text-muted xl:inline-flex">
+                Viewing&nbsp;<span className="font-mono text-ink">{shortAddr(viewer.address)}</span>&nbsp;(read-only)
               </span>
             )}
-            {current?.label ?? BRAND.name}
-          </div>
-          <div className="flex items-center gap-2">
-            {showMode && (
-              <div className="hidden sm:block lg:hidden">
-                <ModeSwitch compact />
-              </div>
+            {isConnected ? (
+              <AccountMenu pages={deskMore} trigger="chip" />
+            ) : (
+              <>
+                <WalletButton />
+                <AccountMenu pages={deskMore} trigger="icon" />
+              </>
             )}
-            <WalletButton />
           </div>
+        </div>
+
+        {/* Phone bar and section switch */}
+        <div className="md:hidden">
+          <div className="flex h-[52px] items-center gap-2.5 pl-4 pr-2.5">
+            <Logo size={24} />
+            <div className="ml-auto flex items-center gap-1.5">
+              {viewer.readOnly && <span className="text-[11.5px] text-muted">Read-only</span>}
+              <NetworkChip short />
+              <PhoneMenu pages={phoneMore} />
+            </div>
+          </div>
+          <PhoneSections items={segments} />
         </div>
       </header>
 
       <WrongModeNotice pathname={pathname} />
 
-      <main
-        id="main"
-        key={pathname}
-        className="stagger mx-auto w-full max-w-5xl space-y-6 px-4 pb-8 pt-6 sm:px-8 sm:pt-10 lg:pb-10"
-      >
+      <main id="main" key={pathname} className="stagger mx-auto w-full max-w-[1120px] flex-1 space-y-6 px-4 pb-10 pt-3 sm:px-7 sm:pt-5">
         {children}
       </main>
 
-      <footer className="mx-auto max-w-5xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] text-xs leading-relaxed text-muted sm:px-8 lg:pb-10">
-        Tokenized stocks are for eligible persons outside the US. Not investment advice.{" "}
-        <LearnMore href="/docs#notices">Full notices</LearnMore>
+      <footer className="site-footer mx-auto w-full max-w-[1120px] px-4 pb-[calc(1.75rem+env(safe-area-inset-bottom,0px))] pt-2 sm:px-7 sm:pb-8">
+        <SiteNotices />
       </footer>
-
-      {/* Phone and tablet tab bar */}
-      <nav
-        aria-label="Main"
-        className="glass fixed inset-x-0 bottom-0 z-20 flex border-t border-line px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] pt-1.5 lg:hidden"
-      >
-        {tabs.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={isActive(item.href) ? "page" : undefined}
-            className={cx(
-              "flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition-colors duration-150 active:scale-[0.96]",
-              isActive(item.href) ? "text-brand-ink" : "text-muted",
-            )}
-          >
-            <Icon d={item.icon} className="h-[22px] w-[22px]" />
-            {item.short ?? item.label}
-          </Link>
-        ))}
-        <MoreSheet isActive={isActive} more={more} />
-      </nav>
     </div>
   );
 }
