@@ -33,6 +33,9 @@ export const isCents = (v: bigint) => v > 0n && v % CENT === 0n;
 
 export type PrivateStatus = "off" | "confirming" | "processing" | "on";
 
+/** A decrypted private balance. `pending` is incoming money not yet applied; `spendable` can be paid out now. */
+export type PrivateBalance = { owner: string; total: bigint; pending: bigint; spendable: bigint; at: number };
+
 /** Round down to whole cents, the smallest amount Fairblock moves. */
 export const toCents = (v: bigint) => (v / CENT) * CENT;
 
@@ -209,7 +212,10 @@ export function usePrivatePay(address: string | undefined) {
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [done, setDone] = useState<string>();
-  const [balance, setBalance] = useState<{ total: bigint; pending: bigint }>();
+  // The decrypted balance is shared by every panel on the page (one unlock per visit), via the query cache.
+  const balanceKey = ["private-balance", address?.toLowerCase()];
+  const { data: balance } = useQuery<PrivateBalance | null>({ queryKey: balanceKey, queryFn: () => null, enabled: false, staleTime: Infinity });
+  const setBalance = useCallback((b: PrivateBalance) => queryClient.setQueryData(["private-balance", b.owner], b), [queryClient]);
 
   const signer = useCallback(async () => {
     if (!walletClient) throw new Error("Connect your wallet first.");
@@ -252,19 +258,39 @@ export function usePrivatePay(address: string | undefined) {
     [signer, refresh],
   );
 
-  const reveal = useCallback(
-    () =>
-      act(
-        "Unlocking your private balance",
-        async (c, s) => {
-          const keys = await c.ensureAccount(s, { waitForFinalization: false });
-          const b = await c.getConfidentialBalance(await s.getAddress(), keys.privateKey, ADDR.usdc);
-          setBalance({ total: b.amount, pending: b.pending.amount });
-        },
-        "Only you can see this balance. It was decrypted in your browser.",
-      ),
-    [act],
+  /** Decrypt the balance with the keys (cached after the first signature of the visit). */
+  const readBalance = useCallback(
+    async (c: Client, s: Awaited<ReturnType<typeof signer>>) => {
+      const owner = (await s.getAddress()).toLowerCase();
+      const keys = await c.ensureAccount(s, { waitForFinalization: false });
+      const b = await c.getConfidentialBalance(owner, keys.privateKey, ADDR.usdc);
+      const total = BigInt(b.amount);
+      const pending = BigInt(b.pending.amount);
+      const next: PrivateBalance = { owner, total, pending, spendable: total - pending, at: Date.now() };
+      setBalance(next);
+      return next;
+    },
+    [setBalance],
   );
+
+  const reveal = useCallback(
+    () => act("Unlocking your private balance", readBalance, "Only you can see this balance. It was decrypted in your browser."),
+    [act, readBalance],
+  );
+
+  /** Run a step, then (if the balance was unlocked) wait for Fairblock and show the new balance. */
+  const step = (label: string, fn: (c: Client, s: Awaited<ReturnType<typeof signer>>) => Promise<unknown>, message: string) =>
+    act(
+      label,
+      async (c, s) => {
+        await fn(c, s);
+        if (balance) {
+          await waitForFairblock(await s.getAddress());
+          await readBalance(c, s);
+        }
+      },
+      message,
+    );
 
   return {
     status: status.data,
@@ -272,35 +298,40 @@ export function usePrivatePay(address: string | undefined) {
     busy,
     error,
     done,
-    balance,
+    balance: balance ?? undefined,
     reveal,
     turnOn: () =>
       act("Turning on private pay", (c, s) => c.ensureAccount(s, { waitForFinalization: false }), "Private pay is on. Fairblock confirms it in a few minutes."),
     deposit: (amount: bigint) =>
-      act("Moving USDC into your private balance", (c, s) => c.confidentialDeposit(s, ADDR.usdc, amount, { waitForFinalization: false }), "Sent. Fairblock adds it to your private balance in a few minutes."),
+      step(
+        "Depositing into your private balance",
+        (c, s) => c.confidentialDeposit(s, ADDR.usdc, amount, { waitForFinalization: false }),
+        "Deposited. It is in your private balance once Fairblock confirms (usually a minute).",
+      ),
     pay: (to: string, amount: bigint) =>
       act("Paying privately", (c, s) => c.confidentialTransfer(s, to, ADDR.usdc, amount, { waitForFinalization: false }), "Paid. The amount is encrypted on chain; only you and the receiver can read it."),
     withdraw: (amount: bigint) =>
-      act("Withdrawing to your wallet", (c, s) => c.withdraw(s, ADDR.usdc, amount, { waitForFinalization: false }), "Withdrawn. The USDC arrives in your wallet once Fairblock confirms."),
+      step(
+        "Withdrawing to your wallet",
+        (c, s) => c.withdraw(s, ADDR.usdc, amount, { waitForFinalization: false }),
+        "Withdrawn. The USDC arrives in your wallet once Fairblock confirms.",
+      ),
 
     /**
-     * Private payday: top up the private balance from the wallet if needed, then pay each person in
-     * turn, waiting for Fairblock between steps. `onProgress` reports how many are done.
+     * Private payday, paid only from the private balance (never straight from the wallet): checks the
+     * balance covers everyone, then pays each person in turn, waiting for Fairblock between steps.
      */
     payMany: (items: { to: string; amount: bigint; name?: string }[], onProgress: (done: number, note: string) => void, payday = Date.now()) =>
       act(
         "Paying your team privately",
         async (c, s) => {
           const me = await s.getAddress();
-          const keys = await c.ensureAccount(s, { waitForFinalization: false });
+          await c.ensureAccount(s, { waitForFinalization: false });
           await waitForFairblock(me);
           const total = items.reduce((a, i) => a + i.amount, 0n);
-          const bal = await c.getConfidentialBalance(me, keys.privateKey, ADDR.usdc);
-          const spendable = BigInt(bal.amount) - BigInt(bal.pending.amount);
-          if (spendable < total) {
-            onProgress(0, "Moving USDC into your private balance");
-            await c.confidentialDeposit(s, ADDR.usdc, total - spendable, { waitForFinalization: false });
-            await waitForFairblock(me);
+          const bal = await readBalance(c, s);
+          if (bal.spendable < total) {
+            throw new Error(`Your private balance holds ${fmt6(bal.spendable)} USDC; this payday needs ${fmt6(total)}. Deposit the difference first.`);
           }
           for (let i = 0; i < items.length; i++) {
             onProgress(i, `Paying ${i + 1} of ${items.length}`);
@@ -309,6 +340,7 @@ export function usePrivatePay(address: string | undefined) {
             addPrivateRecord(me, { at: Date.now(), kind: "paid", who: items[i].to, name: items[i].name, amount: fmt6(items[i].amount), tx: txHash(r), payday, private: true });
           }
           onProgress(items.length, "Done");
+          await readBalance(c, s);
         },
         `Paid ${items.length} ${items.length === 1 ? "person" : "people"} privately. Only each person can read their amount.`,
       ),

@@ -2,34 +2,136 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Button, Card, InfoTip, LabelTip, Notice, Row, Spinner } from "@/components/ui";
-import { isCents, readyToReceive, recordsCsv, toCents, usePrivatePay, usePrivateRecords, type PrivateRecord } from "@/lib/confidential";
+import { Badge, Button, Card, Field, FillAmount, InfoTip, LabelTip, Notice, Row, Spinner } from "@/components/ui";
+import { isCents, readyToReceive, recordsCsv, toCents, usePrivatePay, usePrivateRecords, type PrivateRecord, type PrivateStatus } from "@/lib/confidential";
 import { fmtUsdc, parseUsdc, shortAddr } from "@/lib/format";
 
 type Member = { wallet: string; name: string; salary: string };
 
+/** Why private pay cannot be used right now, in plain words, or undefined when it can. */
+export function privateBlockedReason(status: PrivateStatus | undefined): string | undefined {
+  if (status === "off") return "Turn on private pay to use a private balance.";
+  if (status === "confirming") return "Fairblock is confirming your private account. This usually takes a minute.";
+  if (status === "processing")
+    return "Fairblock is still processing your last private step (a deposit, payment or withdrawal). Private pay unlocks when it finishes. Your money is safe; if this lasts more than a few minutes, Fairblock's testnet is slow.";
+  return undefined;
+}
+
+/**
+ * The employer's (or anyone's) private balance at Fairblock: hidden until unlocked with one signature
+ * per visit, with Deposit (from the wallet) and Withdraw (back to the wallet) for any amount.
+ */
+export function PrivateBalancePanel({ address, canAct, walletUsdc }: { address: string | undefined; canAct: boolean; walletUsdc: bigint }) {
+  const pp = usePrivatePay(address);
+  const [amt, setAmt] = useState("");
+  const amount = toCents(parseUsdc(amt));
+  const busy = !!pp.busy || !canAct;
+  const blocked = privateBlockedReason(pp.status);
+  const bal = pp.balance;
+
+  return (
+    <div>
+      <div className="text-[13px] text-muted">
+        <LabelTip label="Private balance" tip="USDC at Fairblock for private pay. Amounts are encrypted on chain; only you can read this balance, in your browser." />
+      </div>
+      <div className="mt-2 font-display text-[34px] font-normal leading-[1.1] tracking-[-0.02em] sm:text-[40px]">
+        {!address ? (
+          <span className="text-muted">–</span>
+        ) : pp.status === "off" ? (
+          <span className="text-muted">Off</span>
+        ) : bal ? (
+          <span className="tabular-nums">${fmtUsdc(bal.spendable)}</span>
+        ) : (
+          <span className="text-muted">Hidden</span>
+        )}
+      </div>
+      {bal && bal.pending > 0n && <p className="mt-1.5 text-xs text-muted">Plus ${fmtUsdc(bal.pending)} arriving, usable once Fairblock applies it.</p>}
+
+      {!address || pp.status === undefined ? (
+        <p className="mt-3 text-xs text-muted">{address ? "Checking with Fairblock…" : "Connect a wallet to see it."}</p>
+      ) : pp.status === "off" ? (
+        <div className="mt-3">
+          <Button variant="secondary" disabled={busy || pp.statusLoading} onClick={pp.turnOn}>
+            Turn on private pay
+          </Button>
+          <p className="mt-2 text-xs text-muted">One signature makes your private keys. Stackday never sees them.</p>
+        </div>
+      ) : blocked ? (
+        <p className="mt-3 text-xs text-warn">{blocked}</p>
+      ) : !bal ? (
+        <div className="mt-3">
+          <Button variant="secondary" disabled={busy} onClick={pp.reveal}>
+            Unlock balance
+          </Button>
+          <p className="mt-2 text-xs text-muted">One signature per visit. It is decrypted in your browser only.</p>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <Field
+            label="Amount"
+            inputMode="decimal"
+            placeholder="0.00"
+            suffix="USDC"
+            value={amt}
+            onChange={(e) => setAmt(e.target.value)}
+            hint={
+              <>
+                Wallet{" "}
+                <FillAmount onFill={() => setAmt(fmtUsdc(toCents(walletUsdc)).replace(/,/g, ""))} label="Use your whole wallet balance">
+                  {fmtUsdc(walletUsdc)}
+                </FillAmount>{" "}
+                · Private{" "}
+                <FillAmount onFill={() => setAmt(fmtUsdc(bal.spendable).replace(/,/g, ""))} label="Use your whole private balance">
+                  {fmtUsdc(bal.spendable)}
+                </FillAmount>
+              </>
+            }
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button disabled={busy || amount === 0n || amount > walletUsdc} onClick={async () => (await pp.deposit(amount)) && setAmt("")}>
+              Deposit
+            </Button>
+            <Button variant="secondary" disabled={busy || amount === 0n || amount > bal.spendable} onClick={async () => (await pp.withdraw(amount)) && setAmt("")}>
+              Withdraw
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted">Whole cents only. Each step waits for Fairblock, usually about a minute.</p>
+        </div>
+      )}
+      {pp.busy && (
+        <p className="mt-3 flex items-center gap-2 text-[13px] text-muted">
+          <Spinner /> {pp.busy}… check your wallet, then Fairblock confirms.
+        </p>
+      )}
+      {pp.done && !pp.busy && <p className="mt-3 text-[13px] text-grow">{pp.done}</p>}
+      {pp.error && !pp.busy && <p className="mt-3 text-[13px] text-danger">{pp.error}</p>}
+    </div>
+  );
+}
+
 /**
  * Employer: pay the team once, now, in one list. Each person can be paid privately (Fairblock: the
- * amount is encrypted on chain, paid from the employer's wallet) or the normal way (Payroll contract,
- * from the treasury first). People who have not turned on private pay are paid the normal way.
- * One "Pay all" button runs the normal payday first (one transaction), then the private ones.
+ * amount is encrypted on chain, paid only from the employer's private balance) or the normal way
+ * (Payroll contract, paid only from the treasury). People who have not turned on private pay are paid
+ * the normal way. One "Pay all" button runs the normal payday first (one transaction), then the private ones.
  */
 export function PayNow({
   team,
   address,
   canAct,
-  walletUsdc,
   treasury,
   onPayNormally,
+  onFundTreasury,
 }: {
   team: Member[];
   address: string | undefined;
   canAct: boolean;
-  walletUsdc: bigint;
-  /** Unpaid USDC in the employer's Payroll treasury, used first for normal payments. */
+  /** Unpaid USDC in the employer's Payroll treasury: normal pay comes only from here. */
   treasury: bigint;
   /** Pays these people through the Payroll contract; returns the transaction hash (or true) on success. */
   onPayNormally: (members: Member[], payday: number) => Promise<boolean | string>;
+  /** Moves this much from the wallet into the treasury. */
+  onFundTreasury: (amount: bigint) => Promise<unknown>;
 }) {
   const pp = usePrivatePay(address);
   const [progress, setProgress] = useState<{ done: number; note: string }>();
@@ -44,6 +146,7 @@ export function PayNow({
   });
   const status = pp.status;
   const employerOn = status === "on";
+  const blocked = privateBlockedReason(status);
   const isReady = (m: Member) => !!ready.data?.[m.wallet.toLowerCase()];
   const isPrivate = (m: Member) => employerOn && isReady(m) && !publicOverride[m.wallet.toLowerCase()];
   const amountOf = (m: Member) => parseUsdc(m.salary);
@@ -51,28 +154,32 @@ export function PayNow({
   const normalList = payable.filter((m) => !isPrivate(m));
   const privateTotal = privateList.reduce((a, m) => a + toCents(amountOf(m)), 0n);
   const normalTotal = normalList.reduce((a, m) => a + amountOf(m), 0n);
-  const normalFromWallet = normalTotal > treasury ? normalTotal - treasury : 0n;
   const busy = !!pp.busy || !canAct || !!progress;
   const unevenCents = privateList.some((m) => !isCents(amountOf(m)));
   const anyReady = payable.some(isReady);
-  // The private balance is only known once it is unlocked this visit (one signature makes the keys).
-  const privateSpendable = pp.balance ? pp.balance.total - pp.balance.pending : undefined;
-  const privateShort = privateSpendable === undefined ? undefined : privateTotal > privateSpendable ? toCents(privateTotal - privateSpendable + 9_999n) : 0n;
-  // How many times the wallet will ask to sign. Normal pay is one transaction when the treasury
-  // covers it (a top-up from the wallet adds an approval unless the wallet batches). Fairblock takes
-  // one private payment at a time, each signed, so private pay is one signature per person, plus one
-  // to unlock the keys this visit and one to top up the private balance if it is short.
-  // Private pay comes out of the private balance; the wallet only covers what that balance lacks.
-  const fromWallet = (privateShort ?? privateTotal) + normalFromWallet;
-  const signatures =
-    (normalList.length > 0 ? (normalFromWallet > 0n ? 2 : 1) : 0) +
-    (privateList.length > 0 ? privateList.length + (pp.balance ? 0 : 1) + (privateShort === 0n ? 0 : 1) : 0);
+
+  // Each kind of pay comes from its own balance only. Short balances block Pay all with a one-click fix.
+  const treasuryShort = normalTotal > treasury ? normalTotal - treasury : 0n;
+  const privateSpendable = pp.balance?.spendable;
+  const privateShort =
+    privateList.length === 0 ? 0n : privateSpendable === undefined ? undefined : privateTotal > privateSpendable ? toCents(privateTotal - privateSpendable + 9_999n) : 0n;
+  const covered = treasuryShort === 0n && privateShort === 0n;
+  // Normal pay is one transaction. Fairblock takes one private payment at a time, each signed.
+  const signatures = (normalList.length > 0 ? 1 : 0) + privateList.length;
+
+  function reasonFor(m: Member, ok: boolean): string {
+    if (ready.isLoading) return "Checking private pay…";
+    if (!ok) return "Paid the normal way: they have not turned on private pay in My pay yet";
+    if (status === "off") return "Private pay ready: turn on yours to pay them privately";
+    if (status === "confirming" || status === "processing") return "Private pay ready: waiting for Fairblock on your side";
+    return isPrivate(m) ? "Paid privately" : "Private pay ready";
+  }
 
   async function payAll() {
     const payday = Date.now();
     try {
       if (normalList.length > 0) {
-        setProgress({ done: 0, note: `Paying ${normalList.length} the normal way` });
+        setProgress({ done: 0, note: `Paying ${normalList.length} from your treasury` });
         const ok = await onPayNormally(normalList, payday);
         if (!ok) return;
       }
@@ -102,9 +209,7 @@ export function PayNow({
             <div key={m.wallet} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
               <div className="min-w-0">
                 <div className="truncate text-[13px] font-medium">{m.name || shortAddr(m.wallet)}</div>
-                <div className="text-xs text-muted">
-                  {ready.isLoading ? "Checking private pay…" : ok ? "Private pay ready" : "Paid the normal way (no private pay yet)"}
-                </div>
+                <div className="text-xs text-muted">{reasonFor(m, ok)}</div>
               </div>
               <div className="flex items-center gap-4">
                 <label className={`flex min-h-11 items-center gap-2 text-xs font-medium sm:min-h-9 ${ok && employerOn ? "cursor-pointer text-ink" : "cursor-not-allowed text-muted"}`}>
@@ -124,73 +229,62 @@ export function PayNow({
         })}
       </div>
 
-      {anyReady && status === "off" && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-popover px-4 py-3">
-          <p className="max-w-md text-xs text-muted">Some of your team can be paid privately. Turn on your own private account first.</p>
-          <Button size="sm" variant="secondary" disabled={!!pp.busy || !canAct} onClick={pp.turnOn}>
-            Turn on private pay
-          </Button>
-        </div>
-      )}
-      {status === "confirming" && <p className="mt-3 text-xs text-muted">Fairblock is confirming your private account; private pay unlocks in a minute.</p>}
+      {anyReady && blocked && <p className="mt-3 px-1 text-xs text-warn">{blocked} Until then everyone is paid the normal way.</p>}
 
-      {employerOn && anyReady && (
+      <div className="mt-3 rounded-2xl border border-line bg-popover px-4 py-1.5">
+        <Row label={`Normal pay · ${normalList.length}`} tip="Paid only from your treasury.">
+          {fmtUsdc(normalTotal)} USDC
+        </Row>
+        <Row label="Treasury">
+          <span className={treasuryShort > 0n ? "text-danger" : ""}>{fmtUsdc(treasury)} USDC</span>
+        </Row>
+        {privateList.length > 0 && (
+          <>
+            <Row label={`Private pay · ${privateList.length}`} tip="Paid only from your private balance. Only each person can read their amount; wallet addresses still show.">
+              {fmtUsdc(privateTotal)} USDC
+            </Row>
+            <Row label="Private balance">
+              {privateSpendable === undefined ? (
+                <span className="text-muted">Hidden</span>
+              ) : (
+                <span className={privateShort && privateShort > 0n ? "text-danger" : ""}>{fmtUsdc(privateSpendable)} USDC</span>
+              )}
+            </Row>
+          </>
+        )}
+      </div>
+
+      {(treasuryShort > 0n || privateShort !== 0n) && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-popover px-4 py-3">
-          <div className="min-w-0">
-            <div className="text-xs text-muted">
-              <LabelTip label="Private payroll balance" tip="Unlock it once per visit (one signature) to see whether it covers this payday." />
-            </div>
-            <div className="mt-0.5 text-[13px] font-medium tabular-nums">
-              {privateSpendable === undefined ? "Hidden until you unlock it" : `$${fmtUsdc(privateSpendable)} ready to pay out`}
-            </div>
-            <div className="text-xs text-muted">
-              {privateShort === undefined
-                ? "Unlock to check it covers this payday."
-                : privateShort > 0n
-                  ? `Top it up before payday: $${fmtUsdc(privateShort)} more covers the private pay below.`
-                  : "Covers the private pay below: no top-up needed on payday."}
-            </div>
+          <div className="max-w-md space-y-1 text-xs text-muted">
+            {treasuryShort > 0n && <p>Your treasury is ${fmtUsdc(treasuryShort)} short for normal pay.</p>}
+            {privateShort === undefined && <p>Unlock your private balance to check it covers private pay.</p>}
+            {privateShort !== undefined && privateShort > 0n && <p>Your private balance is ${fmtUsdc(privateShort)} short for private pay.</p>}
           </div>
           <div className="flex flex-wrap gap-2">
-            {privateSpendable === undefined ? (
-              <Button size="sm" variant="secondary" disabled={busy} onClick={pp.reveal}>
-                Unlock
+            {treasuryShort > 0n && (
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => onFundTreasury(treasuryShort)}>
+                Add ${fmtUsdc(treasuryShort)} to treasury
               </Button>
-            ) : (
-              <>
-                {privateShort !== undefined && privateShort > 0n && (
-                  <Button size="sm" variant="secondary" disabled={busy || privateShort > walletUsdc} onClick={async () => (await pp.deposit(privateShort)) && pp.reveal()}>
-                    Top up ${fmtUsdc(privateShort)}
-                  </Button>
-                )}
-                {privateSpendable > 0n && (
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={async () => (await pp.withdraw(toCents(privateSpendable))) && pp.reveal()}>
-                    Withdraw leftover
-                  </Button>
-                )}
-              </>
+            )}
+            {privateShort === undefined && (
+              <Button size="sm" variant="secondary" disabled={busy} onClick={pp.reveal}>
+                Unlock private balance
+              </Button>
+            )}
+            {privateShort !== undefined && privateShort > 0n && (
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => pp.deposit(privateShort)}>
+                Deposit ${fmtUsdc(privateShort)} privately
+              </Button>
             )}
           </div>
         </div>
       )}
-
-      <div className="mt-3 rounded-2xl border border-line bg-popover px-4 py-1.5">
-        <Row label={`Normal pay · ${normalList.length}`} tip="Comes from your treasury first, then your wallet.">
-          {fmtUsdc(normalTotal)} USDC
-        </Row>
-        <Row
-          label={`Private pay · ${privateList.length}`}
-          tip="Comes from your private payroll balance, topped up from your wallet if it is short. Only each person can read their amount; wallet addresses still show."
-        >
-          {fmtUsdc(privateTotal)} USDC
-        </Row>
-        <Row label="Taken from your wallet now">{fmtUsdc(fromWallet)} USDC</Row>
-      </div>
       {privateList.length > 0 && <p className="mt-2 px-1 text-xs text-muted">Private pay hides amounts only. Wallet addresses still show.</p>}
       {unevenCents && <p className="mt-2 px-1 text-xs text-muted">Private amounts are rounded down to whole cents.</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button size="lg" disabled={busy || fromWallet > walletUsdc} onClick={payAll}>
+        <Button size="lg" disabled={busy || !covered} onClick={payAll}>
           Pay all {payable.length} · ${fmtUsdc(normalTotal + privateTotal)}
         </Button>
         <span className="inline-flex items-center gap-1 text-xs text-muted">
@@ -198,7 +292,6 @@ export function PayNow({
           {privateList.length > 0 && <InfoTip label="Signatures">Fairblock sends one private payment at a time, each signed.</InfoTip>}
         </span>
       </div>
-      {fromWallet > walletUsdc && <p className="mt-2 text-xs text-danger">Your wallet holds ${fmtUsdc(walletUsdc)} USDC; this payday needs ${fmtUsdc(fromWallet)} from it.</p>}
 
       {progress && (
         <p className="mt-3 flex items-center gap-2 text-[13px] text-muted">
