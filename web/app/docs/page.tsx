@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Logo, TestnetBanner } from "@/components/shell";
+import { Logo, NetworkChip, SiteNotices } from "@/components/shell";
 import { buttonClass } from "@/components/styles";
 import { ThemeToggle } from "@/components/theme";
-import { Badge, MockBadge, RealBadge } from "@/components/ui";
+import { MockBadge, RealBadge } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
 import { EXPLORER } from "@/lib/contracts";
 import deployment from "@/lib/deployment.json";
@@ -63,20 +63,20 @@ const SECTIONS: DocsSection[] = [
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-28 border-t border-line pt-10 first:border-0 first:pt-0">
-      <h2 className="font-display text-3xl font-semibold tracking-[-0.025em] sm:text-[2.25rem]">
+    <section id={id} className="scroll-mt-28 border-t border-line-soft pt-10 first:border-0 first:pt-0">
+      <h2 className="font-display text-[26px] font-normal leading-tight tracking-[-0.02em] sm:text-[30px]">
         <a href={`#${id}`} className="rounded-md hover:text-brand-ink">
           {title}
         </a>
       </h2>
-      <div className="mt-5 space-y-4 text-[16px] leading-relaxed text-ink-soft">{children}</div>
+      <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-ink-soft">{children}</div>
     </section>
   );
 }
 
 function H3({ id, children }: { id?: string; children: ReactNode }) {
   return (
-    <h3 id={id} className="scroll-mt-28 pt-3 text-lg font-semibold tracking-tight text-ink">
+    <h3 id={id} className="scroll-mt-28 pt-3 text-[15px] font-semibold text-ink">
       {children}
     </h3>
   );
@@ -87,7 +87,7 @@ function List({ items }: { items: ReactNode[] }) {
     <ul className="space-y-2">
       {items.map((it, i) => (
         <li key={i} className="flex gap-3">
-          <span className="mt-[0.6rem] h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
+          <span className="mt-[0.6rem] h-1 w-1 shrink-0 rounded-full bg-ink-soft" aria-hidden />
           <span>{it}</span>
         </li>
       ))}
@@ -98,11 +98,11 @@ function List({ items }: { items: ReactNode[] }) {
 function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   return (
     <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <table className={`w-full ${head.length > 2 ? "min-w-[28rem]" : ""} border-separate border-spacing-0 overflow-hidden rounded-2xl border border-line bg-surface text-left text-sm`}>
+      <table className={`w-full ${head.length > 2 ? "min-w-[28rem]" : ""} border-separate border-spacing-0 overflow-hidden rounded-[14px] border border-line bg-surface text-left text-[13px] shadow-card`}>
         <thead>
           <tr>
             {head.map((h) => (
-              <th key={h} className="border-b border-line bg-sunken px-4 py-2.5 font-medium text-muted">
+              <th key={h} className="border-b border-line-soft bg-surface px-4 py-2.5 text-xs font-normal text-muted">
                 {h}
               </th>
             ))}
@@ -112,7 +112,7 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
           {rows.map((r, i) => (
             <tr key={i}>
               {r.map((c, j) => (
-                <td key={j} className="border-b border-line px-4 py-2.5 align-top text-ink last-of-type:tabular-nums [tr:last-child_&]:border-0">
+                <td key={j} className="border-b border-line-soft px-4 py-2.5 align-top text-ink last-of-type:tabular-nums [tr:last-child_&]:border-0">
                   {c}
                 </td>
               ))}
@@ -143,7 +143,7 @@ function Hex({ v }: { v: string }) {
 
 function Callout({ tone = "info", children }: { tone?: "info" | "warn"; children: ReactNode }) {
   return (
-    <div className={tone === "warn" ? "rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn" : "rounded-2xl bg-brand-soft px-4 py-3 text-sm text-brand-ink"}>
+    <div className={tone === "warn" ? "rounded-xl bg-warn-soft px-4 py-3 text-[13px] text-warn" : "rounded-xl bg-brand-soft px-4 py-3 text-[13px] text-brand-ink"}>
       {children}
     </div>
   );
@@ -221,36 +221,39 @@ export default function DocsPage() {
 
   return (
     <div className="min-h-dvh overflow-x-clip">
-      <TestnetBanner />
-      <header className="glass sticky top-0 z-20 border-b border-line">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-8">
+      <header className="glass sticky top-0 z-20 border-b border-line-soft">
+        <div className="mx-auto flex h-[52px] max-w-[1280px] items-center justify-between gap-3 px-4 sm:h-16 sm:px-7">
           <div className="flex items-center gap-3">
             <Logo />
-            <span className="hidden text-sm font-medium text-muted sm:inline">Docs</span>
+            <span className="hidden h-4 w-px bg-line sm:block" aria-hidden />
+            <span className="hidden text-[13px] text-muted sm:inline">Docs</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className="hidden md:inline-flex">
+              <NetworkChip />
+            </span>
             <div className="hidden sm:block">
               <ThemeToggle />
             </div>
-            <Link href="/dashboard" className={buttonClass("primary", "sm")}>
-              Open the app
+            <Link href="/dashboard" className={buttonClass("secondary", "sm")}>
+              Open app
             </Link>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-8">
+      <div className="mx-auto max-w-[1120px] px-4 sm:px-7">
         <DocsMobileNav sections={SECTIONS} />
         <div className="grid gap-12 py-10 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:py-14">
           <DocsSidebar sections={SECTIONS} />
 
           <main id="main" className="min-w-0 max-w-3xl space-y-12">
             <header>
-              <Badge tone="brand">Docs</Badge>
-              <h1 className="mt-4 font-display text-[2.75rem] font-semibold leading-[1.02] tracking-[-0.03em] sm:text-6xl">
+              <div className="text-xs text-muted">Docs</div>
+              <h1 className="mt-3 font-display text-[34px] font-light leading-none tracking-[-0.025em] sm:text-[44px]">
                 {BRAND.name}, explained
               </h1>
-              <p className="mt-4 text-lg leading-relaxed text-muted">
+              <p className="mt-3 text-sm text-muted">
                 Everything the app leaves out to stay simple. Short sections, plain words.
               </p>
             </header>
@@ -275,8 +278,8 @@ export default function DocsPage() {
                   ["Themes", "In development. Pick themes you care about, and the app proposes a capped split for your next buys. You confirm every change."],
                   ["Borrow", "Borrow USDC against your holdings through an existing Morpho market. New buys stay free until you lock them; lock each payday's buy and the loan gets safer over time."],
                 ].map(([t, d], i) => (
-                  <li key={t} className="flex gap-4 rounded-2xl border border-line bg-surface p-4">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand-ink">{i + 1}</span>
+                  <li key={t} className="flex gap-4 rounded-[14px] border border-line bg-surface p-4 shadow-card">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-press text-xs font-semibold text-ink tabular-nums">{i + 1}</span>
                     <span>
                       <strong className="font-semibold text-ink">{t}.</strong> {d}
                     </span>
@@ -504,7 +507,7 @@ export default function DocsPage() {
 
             <Section id="testnet" title="Testnet: real and mocked">
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-line bg-surface p-5">
+                <div className="space-y-3 rounded-[14px] border border-line bg-surface p-5 shadow-card">
                   <RealBadge>Real</RealBadge>
                   <List
                     items={[
@@ -514,7 +517,7 @@ export default function DocsPage() {
                     ]}
                   />
                 </div>
-                <div className="rounded-2xl border border-line bg-surface p-5">
+                <div className="space-y-3 rounded-[14px] border border-line bg-surface p-5 shadow-card">
                   <MockBadge>Mocked</MockBadge>
                   <List
                     items={["Asset tokens and their price feeds", "The exchange where assets are bought", "The interest venue", "Dividends (the mocks pay none)"]}
@@ -593,18 +596,18 @@ export default function DocsPage() {
             </Section>
 
             <Section id="faq" title="FAQ">
-              <div className="divide-y divide-line border-y border-line">
+              <div className="divide-y divide-line-soft border-y border-line-soft">
                 {FAQ.map((f) => (
                   <details key={f.q} className="faq group">
-                    <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-[16px] font-semibold tracking-tight text-ink">
+                    <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-[15px] font-medium text-ink">
                       {f.q}
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sunken text-muted transition-transform duration-200 ease-[var(--ease-out)] group-open:rotate-45" aria-hidden>
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-press text-muted transition-transform duration-200 ease-[var(--ease-out)] group-open:rotate-45" aria-hidden>
                         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                           <path d="M12 5v14M5 12h14" />
                         </svg>
                       </span>
                     </summary>
-                    <p className="pb-4 pr-12 text-[15px] leading-relaxed text-muted">{f.a}</p>
+                    <p className="pb-4 pr-12 text-sm leading-relaxed text-muted">{f.a}</p>
                   </details>
                 ))}
               </div>
@@ -638,10 +641,13 @@ export default function DocsPage() {
         </div>
       </div>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-xs text-muted sm:px-8">
-          <span>Built on Base. Testnet demo, not audited. Not investment advice.</span>
-          <ThemeToggle />
+      <footer className="border-t border-line-soft">
+        <div className="mx-auto flex max-w-[1120px] flex-col gap-4 px-4 py-8 sm:px-7">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-muted">
+            <span>Built on Base. Testnet demo, not audited.</span>
+            <ThemeToggle />
+          </div>
+          <SiteNotices />
         </div>
       </footer>
     </div>

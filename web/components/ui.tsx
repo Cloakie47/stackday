@@ -856,8 +856,8 @@ export function RiskNote({ compact = false }: { compact?: boolean }) {
 export function Row({ label, children, tip }: { label: ReactNode; children: ReactNode; tip?: ReactNode }) {
   return (
     <div className="flex min-h-9 items-center justify-between gap-4 border-b border-line-soft py-2 text-[13px] last:border-0">
-      <span className="text-muted">{typeof label === "string" ? <LabelTip label={label} tip={tip} /> : label}</span>
-      <span className="text-right tabular-nums text-ink">{children}</span>
+      <span className="shrink-0 text-muted">{typeof label === "string" ? <LabelTip label={label} tip={tip} /> : label}</span>
+      <span className="min-w-0 break-words text-right tabular-nums text-ink">{children}</span>
     </div>
   );
 }

@@ -594,14 +594,14 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <header className={cx("glass sticky top-0 z-30 border-b transition-colors duration-150", scrolled ? "border-line-soft" : "border-transparent")}>
         {/* Desktop and tablet bar */}
-        <div className="mx-auto hidden h-16 max-w-[1280px] items-center gap-5 px-7 md:flex xl:gap-7">
+        <div className="mx-auto hidden h-16 max-w-[1280px] items-center gap-5 px-7 lg:flex xl:gap-7">
           <Logo />
           <DesktopNav items={items} />
           <div className="ml-auto flex items-center gap-2.5">
-            <span className="hidden lg:inline-flex">
+            <span className="hidden xl:inline-flex">
               <NetworkChip />
             </span>
-            <span className="lg:hidden">
+            <span className="xl:hidden">
               <NetworkChip short />
             </span>
             {viewer.readOnly && viewer.address && (
@@ -621,7 +621,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
 
         {/* Phone bar and section switch */}
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <div className="flex h-[52px] items-center gap-2.5 pl-4 pr-2.5">
             <Logo size={24} />
             <div className="ml-auto flex items-center gap-1.5">

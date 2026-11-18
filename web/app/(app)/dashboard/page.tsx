@@ -477,17 +477,17 @@ export default function DashboardPage() {
         title={name ? `Hello, ${name}` : "Portfolio"}
         lead={businessMode ? "What your pay has bought, and what you owe against it." : "Your investments, plans and loans."}
         aside={
-          <>
-            <Link href="/invest" className={buttonClass("secondary", "sm", "hidden md:inline-flex")}>
+          <div className="hidden gap-2 md:flex">
+            <Link href="/invest" className={buttonClass("secondary", "sm")}>
               Buy
             </Link>
-            <Link href="/borrow" className={buttonClass("secondary", "sm", "hidden md:inline-flex")}>
+            <Link href="/borrow" className={buttonClass("secondary", "sm")}>
               Repay
             </Link>
-            <Link href="/borrow" className={buttonClass("primary", "sm", "hidden md:inline-flex")}>
+            <Link href="/borrow" className={buttonClass("primary", "sm")}>
               Borrow USDC
             </Link>
-          </>
+          </div>
         }
       />
 
@@ -574,10 +574,10 @@ export default function DashboardPage() {
                 USDC in your vault. Earning: ${fmtUsdc(p.earning)}. Idle: ${fmtUsdc(p.vaultUsdc)}.
               </InfoTip>
             </span>
-            <span className="h-4 w-px bg-line" aria-hidden />
-            <span>Earning on idle USDC: {p.earning > 0n ? <span className="text-grow">On</span> : "Off"}</span>
+            <span className="hidden h-4 w-px bg-line sm:block" aria-hidden />
+            <span className="hidden sm:inline">Earning on idle USDC: {p.earning > 0n ? <span className="text-grow">On</span> : "Off"}</span>
             {p.earning === 0n && (
-              <Link href="/invest" className="font-semibold text-ink hover:text-brand-ink">
+              <Link href="/invest" className="hidden font-semibold text-ink hover:text-brand-ink sm:inline">
                 Turn on
               </Link>
             )}
@@ -598,7 +598,7 @@ export default function DashboardPage() {
         ) : (
           <>
             {/* Desktop table */}
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden overflow-x-auto lg:block">
               <table className="dtable min-w-[760px] table-fixed">
                 <colgroup>
                   <col className="w-[26%]" />
@@ -680,7 +680,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Phone list */}
-            <div className="md:hidden">
+            <div className="lg:hidden">
               <div className="flex justify-between px-4 pb-1 pt-3 text-xs text-muted">
                 <span>Asset</span>
                 <span>Value · share</span>
