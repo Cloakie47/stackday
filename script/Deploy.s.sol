@@ -76,8 +76,9 @@ contract Deploy is Script {
         _asset(deployer, "Mock Microsoft (Stackday test)", "mMSFT", 8, 502e8, 0);
         _asset(deployer, "Mock Strategy (Stackday test)", "mMSTR", 8, 98e8, 0);
         _asset(deployer, "Mock AMD (Stackday test)", "mAMD", 8, 489e8, 0);
-        // Funds: an S&P 500 fund token (deSPXA) and 0-3 month US Treasuries (wtSGOV), 18 decimals.
-        _asset(deployer, "Mock S&P 500 fund (Stackday test)", "mSPX", 18, 742e8, 0);
+        // Funds, 18 decimals. S&P 500 fund token (deSPXA) is borrowable at 77% (issue #65): it has a real
+        // Morpho market on Base (test/fork/SpxMorphoFork.t.sol). 0-3 month US Treasuries (wtSGOV) stay invest only.
+        _asset(deployer, "Mock S&P 500 fund (Stackday test)", "mSPX", 18, 742e8, LLTV_77);
         _asset(deployer, "Mock 0-3 Month Treasuries (Stackday test)", "mSGOV", 18, 102e8, 0);
         uint256 markets;
         for (uint256 i; i < assets.length; ++i) {
