@@ -1,6 +1,6 @@
 import sample from "../sample-snapshot.json" with { type: "json" };
 import type { ResearchSnapshot } from "../types.ts";
-import { trackRecord, type TrackRecord } from "./history.ts";
+import { notePrice, trackRecord, type TrackRecord } from "./history.ts";
 import type { ResearchStore } from "./store.ts";
 import { isSnapshot } from "./validate.ts";
 
@@ -37,6 +37,8 @@ export type AssetHistory = {
     action: string;
     confidence: string;
     summary: string;
+    /** Price on that day (px.last fact, else entry level), null when there is none. */
+    price: number | null;
     levels: ResearchSnapshot["notes"][number]["levels"];
     model: ResearchSnapshot["notes"][number]["model"];
   }[];
@@ -62,7 +64,7 @@ export async function assetHistory(store: ResearchStore | null, assetId: string)
   return {
     kind,
     assetId,
-    notes: notes.map((n) => ({ date: n.date, status: n.status, action: n.action, confidence: n.confidence, summary: n.summary, levels: n.levels, model: n.model })),
+    notes: notes.map((n) => ({ date: n.date, status: n.status, action: n.action, confidence: n.confidence, summary: n.summary, price: notePrice(n), levels: n.levels, model: n.model })),
     track: trackRecord(assetId, kind === "live" ? notes : []),
   };
 }
