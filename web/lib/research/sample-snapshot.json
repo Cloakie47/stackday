@@ -1,0 +1,1784 @@
+{
+  "kind": "sample",
+  "date": "2026-11-19",
+  "generatedAt": "2026-11-19T00:00:00Z",
+  "runId": "sample",
+  "market": {
+    "date": "2026-11-19",
+    "summary": "Sample data for the demo: hand-written text, no live prices and no real research. Live notes appear here once the research engine runs.",
+    "developments": [],
+    "facts": []
+  },
+  "notes": [
+    {
+      "assetId": "mAAPL",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Apple is a large, steady technology company.\nSample opportunity: new products and services income. Sample risk: slower phone upgrades.\nSample action: Hold.",
+      "action": "hold",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the hold suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: new products and services income.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: slower phone upgrades.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Apple, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Apple is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mNVDA",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. NVIDIA is a chip maker tied to demand for AI computing.\nSample opportunity: continued spending on data centres. Sample risk: a high valuation that can swing sharply.\nSample action: Watch.",
+      "action": "watch",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the watch suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: continued spending on data centres.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: a high valuation that can swing sharply.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for NVIDIA, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What NVIDIA is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mGOOGL",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Alphabet is a search and cloud company.\nSample opportunity: growth in cloud services. Sample risk: rules on search and advertising.\nSample action: Hold.",
+      "action": "hold",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the hold suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: growth in cloud services.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: rules on search and advertising.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Alphabet, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Alphabet is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mMETA",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Meta is a social media and advertising company.\nSample opportunity: advertising demand. Sample risk: heavy spending on new projects.\nSample action: Hold.",
+      "action": "hold",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the hold suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: advertising demand.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: heavy spending on new projects.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Meta, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Meta is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mMSFT",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Microsoft is a software and cloud company.\nSample opportunity: steady cloud demand. Sample risk: a slowdown in business spending.\nSample action: Buy.",
+      "action": "buy",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the buy suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: steady cloud demand.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: a slowdown in business spending.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Microsoft, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Microsoft is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mAMZN",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Amazon is an online retail and cloud company.\nSample opportunity: cloud and advertising growth. Sample risk: thin retail margins.\nSample action: Hold.",
+      "action": "hold",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the hold suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: cloud and advertising growth.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: thin retail margins.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Amazon, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Amazon is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mTSLA",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Tesla is an electric car maker with big swings.\nSample opportunity: new models and energy storage. Sample risk: price cuts and strong competition.\nSample action: Watch.",
+      "action": "watch",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the watch suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: new models and energy storage.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: price cuts and strong competition.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Tesla, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Tesla is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mAMD",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. AMD is a chip maker competing in AI and PCs.\nSample opportunity: new data centre chips. Sample risk: tough competition.\nSample action: Watch.",
+      "action": "watch",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the watch suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: new data centre chips.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: tough competition.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for AMD, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What AMD is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mMSTR",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Strategy is a company whose value moves mostly with bitcoin.\nSample opportunity: a rise in bitcoin. Sample risk: a fall in bitcoin and added debt.\nSample action: Watch.",
+      "action": "watch",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the watch suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: a rise in bitcoin.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: a fall in bitcoin and added debt.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Strategy, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Strategy is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mSPCX",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. SpaceX is a private space company with no public price.\nSample opportunity: launch and satellite news. Sample risk: no public market price to check.\nSample action: Watch.",
+      "action": "watch",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the watch suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: launch and satellite news.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: no public market price to check.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for SpaceX, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What SpaceX is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mSPX",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. S&P 500 is a fund that tracks the broad US market.\nSample opportunity: spreading money across many companies. Sample risk: a broad market fall.\nSample action: Buy.",
+      "action": "buy",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the buy suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: spreading money across many companies.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: a broad market fall.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for S&P 500, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What S&P 500 is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mSGOV",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. US Treasuries 0-3M is a cash-like fund of short-term government bonds.\nSample opportunity: steady interest income. Sample risk: lower interest rates.\nSample action: Hold.",
+      "action": "hold",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the hold suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: steady interest income.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: lower interest rates.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for US Treasuries 0-3M, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What US Treasuries 0-3M is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mPAXG",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Gold is a token backed by gold.\nSample opportunity: demand for safe assets. Sample risk: a stronger dollar.\nSample action: Hold.",
+      "action": "hold",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the hold suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: demand for safe assets.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: a stronger dollar.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Gold, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Gold is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mcbBTC",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Bitcoin is the largest crypto asset, with big swings.\nSample opportunity: wider adoption. Sample risk: sharp falls and rule changes.\nSample action: Watch.",
+      "action": "watch",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the watch suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: wider adoption.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: sharp falls and rule changes.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Bitcoin, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Bitcoin is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    },
+    {
+      "assetId": "mWETH",
+      "date": "2026-11-19",
+      "generatedAt": "2026-11-19T00:00:00Z",
+      "dataAsOf": "2026-11-19T00:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Ether is the main asset of the Ethereum network.\nSample opportunity: more use of the network. Sample risk: sharp falls and competition.\nSample action: Watch.",
+      "action": "watch",
+      "confidence": "low",
+      "levels": null,
+      "reasons": [
+        {
+          "text": "Sample text: shows where the reason for the watch suggestion appears.",
+          "factIds": [
+            "sample.label",
+            "sample.asset"
+          ]
+        }
+      ],
+      "opportunities": [
+        {
+          "text": "Sample text: more use of the network.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample text: sharp falls and competition.",
+          "factIds": [
+            "sample.label"
+          ]
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample text: a demo bull case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        },
+        "base": {
+          "text": "Sample text: a demo base case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "medium"
+        },
+        "bear": {
+          "text": "Sample text: a demo bear case.",
+          "factIds": [
+            "sample.label"
+          ],
+          "likelihood": "low"
+        }
+      },
+      "outlook": {
+        "1h": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1d": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1w": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1m": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        },
+        "1y": {
+          "text": "Sample text: a demo outlook for Ether, not a real view.",
+          "factIds": [
+            "sample.label"
+          ],
+          "stance": "neutral"
+        },
+        "5y": {
+          "text": "No view from the facts available.",
+          "factIds": [],
+          "stance": "no-view"
+        }
+      },
+      "facts": [
+        {
+          "id": "sample.label",
+          "kind": "calendar",
+          "label": "Sample data: demo text written by hand, not research and not a live reading",
+          "value": "sample",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        },
+        {
+          "id": "sample.asset",
+          "kind": "calendar",
+          "label": "What Ether is (sample description)",
+          "value": "description",
+          "source": {
+            "name": "Stackday sample data"
+          },
+          "asOf": "2026-11-19T00:00:00Z"
+        }
+      ],
+      "model": {
+        "triage": "sample (hand written)"
+      }
+    }
+  ]
+}
