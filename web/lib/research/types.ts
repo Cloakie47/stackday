@@ -303,3 +303,25 @@ export type Entitlement = {
 export type AccessCheck =
   | { allowed: true; consumesCredit: boolean }
   | { allowed: false; reason: "sign-in" | "payment-required" | "premium-required" | "rate-limited" };
+
+// ---------------------------------------------------------------------------------------------
+// Hand-off from data/ to engine/
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Everything data/ gathers for one asset on one run, produced by `gatherAsset` in
+ * web/lib/research/data and consumed by engine/. Facts already carry sources and times.
+ */
+export type AssetResearchInput = {
+  assetId: string;
+  /** Trading date the run is for. */
+  date: IsoDate;
+  /** False when the asset's market is closed today (holiday or weekend): engine carries the last note. */
+  marketOpenToday: boolean;
+  series: Partial<Record<BarInterval, PriceSeries>>;
+  indicators: Partial<Record<BarInterval, Indicators>>;
+  /** Price, indicator, news, filing, macro and calendar facts with stable ids. */
+  facts: Fact[];
+  /** Assets or sources that failed, in plain words, for the run log. */
+  problems: string[];
+};
