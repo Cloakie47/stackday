@@ -10,7 +10,7 @@ import { Disclaimer, LoadError, ResearchTabs, fmtDate, useLoad } from "./bits";
 function price(o: PlanOffer) {
   if (o.priceUsdc === 0) return "Free";
   if (o.priceUsdc === null) return "Price not set yet";
-  return `${o.priceUsdc.toLocaleString("en-US")} test USDC${o.period ? ` a ${o.period}` : ""}`;
+  return `${o.priceUsdc.toLocaleString("en-US")} test USDC${o.period ? (o.period.startsWith("per ") ? ` ${o.period}` : ` for ${o.period}`) : ""}`;
 }
 
 export function PlansPage() {

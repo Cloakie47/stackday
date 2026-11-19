@@ -44,9 +44,10 @@ function ScenarioBox({ name, s, facts, tone }: { name: string; s: Scenario; fact
   );
 }
 
-/** Price fact of a note, when it has one. */
-const priceOf = (n: ResearchNote) => {
-  const v = n.facts.find((f) => f.id === "px.last")?.value;
+/** Price of a note: the history API sends `price`; full notes carry a px.last fact. */
+const priceOf = (n: Pick<ResearchNote, "levels"> & { facts?: ResearchNote["facts"]; price?: number | null }) => {
+  if (typeof n.price === "number" && n.price > 0) return n.price;
+  const v = n.facts?.find((f) => f.id === "px.last")?.value;
   return typeof v === "number" ? v : undefined;
 };
 
@@ -81,7 +82,7 @@ function History({ assetId, latest }: { assetId: string; latest?: ResearchNote }
               const then = priceOf(n);
               const move = then && now ? (now - then) / then : undefined;
               return (
-                <tr key={n.date + n.generatedAt}>
+                <tr key={n.date}>
                   <td className="whitespace-nowrap">{fmtDate(n.date)}</td>
                   <td>{n.status === "no-reading" ? <span className="text-muted">No reading</span> : <ActionBadge action={n.action} />}</td>
                   <td>
