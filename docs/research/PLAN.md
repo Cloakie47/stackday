@@ -58,6 +58,26 @@ All branch from `gg/research-core` (this branch: shared types in `web/lib/resear
 | `gg/research-access` (#68) | `web/lib/research/access/**`, `web/app/api/research/access` | Weekly pricing (one Monday or a month), paywall off |
 | `gg/research-ui` (#72) | `web/app/(app)/research/**`, `web/components/research/**` | Weekly report page, asset page with the chart read, scenarios, view and scorecard, portfolio check, beta label |
 
+## API contract between branches
+
+Reviewers are the wallets in `RESEARCH_REVIEWERS` (comma-separated, lowercase), signed in with the existing wallet sign-in. Every route keeps working with no keys or database: it then serves the labelled sample.
+
+| Route | Who | Returns |
+|---|---|---|
+| `GET /api/research/weekly?weekOf=YYYY-MM-DD` (engine) | everyone | `{ report: WeeklyReport, access: AccessCheck }`. Latest approved report when `weekOf` is missing. Unapproved reports only for reviewers. Falls back to the sample report (`kind: "sample"`). |
+| `POST /api/research/weekly/approve` `{ weekOf }` (engine) | reviewers | `{ ok: true }`: marks the report approved and published |
+| `GET /api/research/snapshot` (engine) | reviewers for live daily notes, everyone for the sample | `{ snapshot: ResearchSnapshot, internal: boolean }` |
+| `GET /api/research/history?asset=mAAPL` (engine) | reviewers (live), everyone (sample) | `{ assetId, notes: { date, view, conviction, price, summary }[], track: { calls, right } }` |
+| `GET /api/research/scores?asset=mAAPL` (engine) | everyone | `{ scores: DailyScore[], calibration: Scorecard["calibration"] }` |
+| `POST /api/research/scores/grade` `{ date, assetId, grade }` (engine) | reviewers | `{ ok: true }` |
+| `GET /api/research/run`, `GET /api/research/weekly/run` (engine) | Vercel cron with `CRON_SECRET` | run summary |
+| `POST /api/research/portfolio/preview` `PortfolioInput` (portfolio) | everyone, nothing saved | `{ analysis: PortfolioAnalysis, reportKind: "live" \| "sample" }` |
+| `GET/PUT /api/research/portfolio` (portfolio) | signed in | saved manual holdings |
+| `GET /api/research/access` (access) | everyone | `{ paywallEnabled, prices, entitlement \| null }` |
+| `POST /api/research/access/pay` `{ txHash, purpose }` (access) | signed in | verifies a test-USDC payment for `weekly-single` or `monthly` |
+
+Crons (in `web/vercel.json`, engine branch): daily run `30 22 * * 1-5`, weekly run `0 12 * * 1`, score update `0 23 * * 1-5`. Never the founder's keeper cron on our own Vercel project.
+
 ## Needs the founder
 
 1. Amounts for the single Monday report and the monthly plan (spec section 8).
