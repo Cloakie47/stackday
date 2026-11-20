@@ -159,6 +159,8 @@ test("research source: shape checks, price facts and reading", async () => {
   const read = readResearch(WEEKLY, null);
   assert.deepEqual(read.views, { mAAPL: "accumulate", mSPX: "hold" }, "no view for a section with no reading");
   assert.equal(read.prices.mAAPL!.price, 90);
+  assert.equal(read.prices.mSPX, undefined, "the S&P 500 research price (index or SPY) never values a deSPXA token");
+  assert.equal(readResearch(null, SNAP).prices.mSPX, undefined);
   const urls: string[] = [];
   const fake = (async (url: string) => {
     urls.push(url);

@@ -57,6 +57,13 @@ export function lastPriceFact(facts: Fact[]): Fact | null {
   return facts.find((f) => f.id === "px.1d.last" && good(f)) ?? facts.find((f) => /^px\.[^.]+\.last$/.test(f.id) && good(f)) ?? null;
 }
 
+/**
+ * Assets whose research price is not the price of one token, so it must never value a holding.
+ * The S&P 500 is researched on the index or the SPY fund, while one deSPXA token has its own price
+ * (read from the feed instead).
+ */
+export const RESEARCH_PRICE_NOT_TOKEN_PRICE = new Set(["mSPX"]);
+
 const quote = (f: Fact): PriceQuote => ({ price: f.value as number, source: f.source, asOf: f.asOf });
 
 /**
@@ -76,11 +83,12 @@ export function readResearch(weekly: WeeklyReport | null, snapshot: ResearchSnap
     for (const n of snapshot.notes) if (n.status !== "no-reading") out.views[n.assetId] = n.view;
   }
   for (const n of snapshot?.notes ?? []) {
+    if (RESEARCH_PRICE_NOT_TOKEN_PRICE.has(n.assetId)) continue;
     const f = lastPriceFact(n.facts);
     if (f) out.prices[n.assetId] = quote(f);
   }
   for (const a of weekly?.assets ?? []) {
-    if (out.prices[a.assetId]) continue;
+    if (out.prices[a.assetId] || RESEARCH_PRICE_NOT_TOKEN_PRICE.has(a.assetId)) continue;
     const f = lastPriceFact(a.facts);
     if (f) out.prices[a.assetId] = quote(f);
   }
