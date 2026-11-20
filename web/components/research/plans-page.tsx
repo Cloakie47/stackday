@@ -1,31 +1,42 @@
 "use client";
 
-import { useState } from "react";
-import { useViewer } from "@/components/providers";
-import { Badge, Button, Card, Notice, PageHeader, Skeleton, cx } from "@/components/ui";
-import type { Plan } from "@/lib/research/types";
-import { getAccess, type PlanOffer } from "./api";
-import { Disclaimer, LoadError, ResearchTabs, fmtDate, useLoad } from "./bits";
+import { Badge, Card, Notice, PageHeader, Skeleton, cx } from "@/components/ui";
+import { getAccess, type AccessInfo } from "./api";
+import { Disclaimer, LoadError, ResearchTabs, SampleBanner, fmtDate, useLoad } from "./bits";
 
-function price(o: PlanOffer) {
-  if (o.priceUsdc === 0) return "Free";
-  if (o.priceUsdc === null) return "Price not set yet";
-  return `${o.priceUsdc.toLocaleString("en-US")} test USDC${o.period ? (o.period.startsWith("per ") ? ` ${o.period}` : ` for ${o.period}`) : ""}`;
-}
+const PLAN_CARDS: { key: keyof AccessInfo["prices"]; label: string; period: string; features: string[] }[] = [
+  {
+    key: "weekly-single",
+    label: "One Monday report",
+    period: "for one report",
+    features: ["The full report for one Monday", "All six assets: chart read, scenarios, this week's view, borrowing note", "Investment ideas and last week's scorecard"],
+  },
+  {
+    key: "monthly",
+    label: "Monthly",
+    period: "per month",
+    features: ["Every Monday report for a month (four or five)", "Everything in the single report", "The public scorecard stays free for everyone"],
+  },
+];
+
+const price = (v: number | null, period: string) => (v === null ? "Not set" : `${v.toLocaleString("en-US")} test USDC ${period}`);
 
 export function PlansPage() {
-  const viewer = useViewer();
   const access = useLoad(getAccess, "access");
-  const [chosen, setChosen] = useState<Plan | null>(null);
 
   return (
     <>
-      <PageHeader title="Plans" lead="The research list and asset pages are free. Plans add deeper reports." />
+      <PageHeader title="Plans" lead="The Monday report is a free beta preview for now. These plans are a proposal for later." />
       <ResearchTabs />
 
+      <Notice tone="grow">
+        The paywall is off. The weekly report is a free beta preview until it has met the quality bar for four Mondays in a row and a legal check is
+        done. Nothing is charged until then.
+      </Notice>
+
       {access.status === "loading" ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }, (_, i) => (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 2 }, (_, i) => (
             <Skeleton key={i} className="h-56 rounded-[18px]" />
           ))}
         </div>
@@ -33,54 +44,33 @@ export function PlansPage() {
         <LoadError error={access.error} />
       ) : (
         <>
-          {access.data.sample && (
-            <Notice tone="warn">
-              <Badge tone="warn">Sample data</Badge> The plans service is not live yet, so this shows placeholder plans with no prices.
-            </Notice>
-          )}
-          {!access.data.paywallEnabled ? (
-            <Notice tone="grow">Payments are off for now. Every report is free while pricing is agreed.</Notice>
-          ) : (
-            <Notice>Payments use test USDC on Base Sepolia. No real money is involved.</Notice>
-          )}
+          <SampleBanner show={access.from === "sample"}>The plans service is not live, so no proposed amounts are shown. {access.why}</SampleBanner>
+          {access.data.paywallEnabled && <Notice tone="warn">Payments are switched on in this environment. They use test USDC on Base Sepolia only, with no real value.</Notice>}
 
           {access.data.entitlement && (
             <Card title="Your plan">
               <p className="text-[13px]">
                 <span className="font-medium capitalize">{access.data.entitlement.plan.replace(/-/g, " ")}</span>
                 {access.data.entitlement.validUntil && <span className="text-muted"> until {fmtDate(access.data.entitlement.validUntil)}</span>}
-                {access.data.entitlement.reportCredits > 0 && (
-                  <span className="text-muted"> · {access.data.entitlement.reportCredits} report credits left</span>
-                )}
-                {access.data.entitlement.premium && (
-                  <span className="ml-2">
-                    <Badge tone="brand">Premium</Badge>
-                  </span>
-                )}
+                {access.data.entitlement.weeklyCredits > 0 && <span className="text-muted"> · {access.data.entitlement.weeklyCredits} Monday reports left to open</span>}
               </p>
             </Card>
           )}
 
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {access.data.plans.map((o) => {
-              const current = access.data.entitlement?.plan === o.plan;
-              const payable = access.data.paywallEnabled && o.priceUsdc !== null && o.priceUsdc > 0;
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {PLAN_CARDS.map((o) => {
+              const v = access.data.prices[o.key];
               return (
-                <li key={o.plan} className="flex">
-                  <section
-                    aria-labelledby={`plan-${o.plan}`}
-                    className={cx(
-                      "flex w-full flex-col rounded-[18px] border bg-surface p-4 shadow-card sm:p-5",
-                      current ? "border-[color-mix(in_srgb,var(--brand)_55%,transparent)]" : "border-line",
-                    )}
-                  >
+                <li key={o.key} className="flex">
+                  <section aria-labelledby={`plan-${o.key}`} className="flex w-full flex-col rounded-[18px] border border-line bg-surface p-4 shadow-card sm:p-5">
                     <div className="flex items-center justify-between gap-2">
-                      <h2 id={`plan-${o.plan}`} className="text-sm font-semibold">
+                      <h2 id={`plan-${o.key}`} className="text-sm font-semibold">
                         {o.label}
                       </h2>
-                      {current && <Badge tone="brand">Your plan</Badge>}
+                      <Badge tone="warn">Proposal</Badge>
                     </div>
-                    <p className={cx("mt-2 font-display text-[22px] tracking-[-0.02em]", o.priceUsdc === null ? "text-muted" : "text-ink")}>{price(o)}</p>
+                    <p className={cx("mt-2 font-display text-[22px] tracking-[-0.02em]", v === null ? "text-muted" : "text-ink")}>{price(v, o.period)}</p>
+                    <p className="mt-1 text-xs text-muted">Proposed amount, for the founder to decide. Not charged.</p>
                     <ul className="mt-3 flex-1 space-y-1.5 text-[13px] text-ink-soft">
                       {o.features.map((f) => (
                         <li key={f} className="flex gap-2">
@@ -91,34 +81,18 @@ export function PlansPage() {
                         </li>
                       ))}
                     </ul>
-                    {o.priceUsdc !== 0 && (
-                      <Button
-                        className="mt-4 w-full"
-                        variant={chosen === o.plan ? "primary" : "secondary"}
-                        disabled={!payable || current || !viewer.address}
-                        onClick={() => setChosen(o.plan)}
-                      >
-                        {!access.data.paywallEnabled ? "Payments are off" : current ? "Current plan" : `Choose ${o.label}`}
-                      </Button>
-                    )}
+                    <button type="button" disabled className="mt-4 inline-flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded-[10px] border border-line bg-press text-[13px] font-medium text-muted sm:min-h-9">
+                      Free during the beta
+                    </button>
                   </section>
                 </li>
               );
             })}
           </ul>
-
-          {access.data.paywallEnabled && !viewer.address && <Notice>Connect a wallet to choose a plan.</Notice>}
-          {chosen && access.data.paywallEnabled && (
-            <Card title="Pay with test USDC">
-              <Notice tone="warn">
-                The payment step is a placeholder in this build. When it is switched on, you send test USDC on Base Sepolia from your own wallet
-                and the server checks the transfer before the plan starts. Nothing has been charged.
-              </Notice>
-              <Button className="mt-3" variant="ghost" onClick={() => setChosen(null)}>
-                Cancel
-              </Button>
-            </Card>
-          )}
+          <p className="text-xs leading-relaxed text-muted">
+            When payments are switched on, a plan is paid with a small USDC transfer from your own wallet and checked on the server. Testnet only until
+            mainnet.
+          </p>
         </>
       )}
 

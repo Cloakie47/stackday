@@ -1,12 +1,20 @@
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { AssetResearch } from "@/components/research/asset-research";
-import { UNIVERSE } from "@/lib/research/universe";
+import { AssetResearch, NotCovered } from "@/components/research/asset-research";
+import deployment from "@/lib/deployment.json";
+import { UNIVERSE, checkResearchable } from "@/lib/research/universe";
 
 /** Accepts the Stackday symbol (mAAPL) or the plain ticker (aapl), any case. */
 function resolve(param: string) {
-  const p = decodeURIComponent(param).toLowerCase();
+  const p = param.toLowerCase();
   return UNIVERSE.find((a) => a.assetId.toLowerCase() === p || a.underlying.toLowerCase() === p);
+}
+
+function safeDecode(s: string) {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }
 
 export function generateStaticParams() {
@@ -14,8 +22,10 @@ export function generateStaticParams() {
 }
 
 function Asset({ asset }: { asset: string }) {
-  const u = resolve(asset);
-  if (!u) notFound();
+  const name = safeDecode(asset).slice(0, 40);
+  const u = resolve(name);
+  // Research covers borrowable assets only: anything else gets a clear "not covered" page.
+  if (!u || !checkResearchable(u.assetId, deployment as Record<string, unknown>).ok) return <NotCovered asset={name} />;
   return <AssetResearch assetId={u.assetId} />;
 }
 

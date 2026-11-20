@@ -1,15 +1,9 @@
 "use client";
 
-import { Badge, Card, SplitBar, Stat, splitColor } from "@/components/ui";
-import type { AllocationSlice, HoldingVerdict, PortfolioAnalysis } from "@/lib/research/types";
-import { ActionBadge, AiLabel, AsOf, DataLabel, ReasonList, ResearchAssetIcon, SubHead, assetName, fmtUsd } from "./bits";
-
-const VERDICT: Record<HoldingVerdict["verdict"], { label: string; tone: "neutral" | "warn" | "grow" | "brand" }> = {
-  keep: { label: "Keep", tone: "neutral" },
-  review: { label: "Review", tone: "warn" },
-  "trim-new-buys": { label: "Point new buys elsewhere", tone: "brand" },
-  "add-with-new-money": { label: "Add with new money", tone: "grow" },
-};
+import Link from "next/link";
+import { Badge, Card, SplitBar, Stat, cx, splitColor } from "@/components/ui";
+import type { AllocationSlice, PortfolioAnalysis } from "@/lib/research/types";
+import { AsOf, DataLabel, ReasonList, ResearchAssetIcon, SubHead, ViewBadge, assetName, fmtPct, fmtUsd } from "./bits";
 
 function Allocation({ title, slices }: { title: string; slices: AllocationSlice[] }) {
   return (
@@ -31,103 +25,83 @@ function Allocation({ title, slices }: { title: string; slices: AllocationSlice[
   );
 }
 
-function healthTone(score: number) {
-  return score >= 70 ? "grow" : score >= 45 ? "warn" : "danger";
-}
+const loanTone = (u: number | null | undefined) => (u === null || u === undefined ? undefined : u >= 0.85 ? "danger" : u >= 0.7 ? "warn" : "grow");
 
 export function PortfolioAnalysisView({ a, preview = false }: { a: PortfolioAnalysis; preview?: boolean }) {
   return (
     <>
-      <Card
-        title="Portfolio health"
-        badge={preview ? <Badge tone="warn">Preview, sample method</Badge> : undefined}
-        action={<AsOf at={a.asOf} />}
-        tip="A score from 0 to 100 built from the parts below. It describes how spread out the holdings are, not how they will perform."
-      >
+      <Card title="Allocation" badge={preview ? <Badge tone="warn">Preview, sample method</Badge> : <DataLabel />} action={<AsOf at={a.asOf} />}>
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-          <Stat label="Health score" value={`${a.health.score}/100`} tone={healthTone(a.health.score)} big />
           <Stat label="Value" value={fmtUsd(a.totalUsd)} hint="At testnet mock prices" />
           <Stat label="Spread" value={`${Math.round(a.diversification * 100)}%`} hint="0% one asset, 100% even" />
+          <Stat
+            label="Borrowed"
+            value={fmtUsd(a.loans.totalLoanUsd)}
+            hint={a.loans.worstLimitUse === null ? "No loan" : `Fullest loan at ${fmtPct(a.loans.worstLimitUse)} of its limit`}
+            tone={loanTone(a.loans.worstLimitUse)}
+          />
         </div>
-        <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-          {a.health.parts.map((p) => (
-            <li key={p.label} className="rounded-xl border border-line-soft bg-popover px-3.5 py-2.5">
-              <div className="flex items-center justify-between gap-2 text-[13px]">
-                <span className="font-medium">{p.label}</span>
-                <span className="tabular-nums">{p.score}/100</span>
-              </div>
-              <div className="mt-2 h-1.5 rounded-full bg-press" role="meter" aria-label={p.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.score}>
-                <span className={`block h-full rounded-full ${{ grow: "bg-grow", warn: "bg-warn", danger: "bg-danger" }[healthTone(p.score)]}`} style={{ width: `${Math.max(2, p.score)}%` }} />
-              </div>
-              <p className="mt-1.5 text-xs text-muted">{p.why}</p>
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card title="Allocation" badge={<DataLabel />}>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="mt-5 grid gap-6 md:grid-cols-2">
           <Allocation title="By asset" slices={a.byAsset} />
           <Allocation title="By asset class" slices={a.byClass} />
-          <Allocation title="By sector" slices={a.bySector} />
-          <Allocation title="By risk" slices={a.byRisk} />
         </div>
       </Card>
 
-      <Card title="Flags">
-        <div className="grid gap-5 md:grid-cols-2">
+      <Card title="Concentration, overlap and loans" badge={<DataLabel />}>
+        <div className="grid gap-5 md:grid-cols-3">
           <div>
             <SubHead>Concentration</SubHead>
-            <ReasonList items={a.concentration} facts={a.facts} empty="No holding or group is above its target." />
+            <ReasonList items={a.concentration} facts={a.facts} empty="No single holding or group stands out." />
           </div>
           <div>
             <SubHead>Overlap</SubHead>
-            <ReasonList items={a.overlaps} facts={a.facts} empty="No overlap between funds and single stocks." />
+            <ReasonList items={a.overlaps} facts={a.facts} empty="No overlap between the fund and single stocks." />
+          </div>
+          <div>
+            <SubHead>Loan health</SubHead>
+            <ReasonList items={a.loans.facts} facts={a.facts} empty="No loan against these holdings." />
           </div>
         </div>
       </Card>
 
-      <Card title="Each holding" badge={preview ? <Badge tone="neutral">Computed</Badge> : <AiLabel />} flush>
-        <div className="mt-3 overflow-x-auto border-t border-line-soft">
-          <table className="dtable min-w-[36rem]">
-            <thead>
-              <tr>
-                <th scope="col">Holding</th>
-                <th scope="col" className="r">
-                  Share
-                </th>
-                <th scope="col">Today&apos;s note</th>
-                <th scope="col">Verdict</th>
-              </tr>
-            </thead>
-            <tbody>
-              {a.holdings.map((h) => (
-                <tr key={h.assetId}>
-                  <td>
-                    <span className="flex items-center gap-2.5">
-                      <ResearchAssetIcon assetId={h.assetId} size={24} />
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">{assetName(h.assetId)}</span>
-                        <span className="block text-xs text-muted">{h.why.text}</span>
-                      </span>
+      <Card title="Each holding" badge={<DataLabel />} tip="Facts about each holding and a link to the general weekly view for that asset. The view is the same for every reader, not a personal order.">
+        <ul className="divide-y divide-line-soft">
+          {a.holdings.map((h) => (
+            <li key={h.assetId} className="py-3.5 first:pt-0 last:pb-0">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <ResearchAssetIcon assetId={h.assetId} size={24} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-medium">{assetName(h.assetId)}</span>
+                    <span className="block text-xs text-muted">
+                      {fmtUsd(h.valueUsd)} · {(h.share * 100).toFixed(1)}% of these holdings
+                      {h.limitUse !== undefined && (
+                        <>
+                          {" "}
+                          · loan at <span className={cx(h.limitUse >= 0.85 ? "text-danger" : h.limitUse >= 0.7 ? "text-warn" : "")}>{fmtPct(h.limitUse)}</span> of its
+                          limit
+                        </>
+                      )}
                     </span>
-                  </td>
-                  <td className="r">{(h.share * 100).toFixed(1)}%</td>
-                  <td>
-                    <ActionBadge action={h.action} />
-                  </td>
-                  <td>
-                    <Badge tone={VERDICT[h.verdict].tone}>{VERDICT[h.verdict].label}</Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <Card title="Ideas for new money" badge={preview ? <Badge tone="neutral">Computed</Badge> : <AiLabel />} tip="These only redirect new money. Nothing is ever sold for you, and targets apply to new buys only.">
-        <ReasonList items={a.rebalanceIdeas} facts={a.facts} empty="No change suggested for new money." />
+                  </span>
+                </span>
+                <span className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted">General view:</span>
+                  {h.generalView ? <ViewBadge view={h.generalView} /> : <span className="text-muted">none this week</span>}
+                  <Link href={`/research/${h.assetId}`} className="inline-flex min-h-11 items-center font-medium text-ink underline underline-offset-2 sm:min-h-0">
+                    Read it
+                  </Link>
+                </span>
+              </div>
+              {h.borrowing && (
+                <p className="mt-2 text-xs leading-relaxed text-ink-soft">
+                  <span className="text-muted">Borrowing note: </span>
+                  {h.borrowing.text}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
       </Card>
     </>
   );

@@ -1,49 +1,29 @@
 /**
- * Browser-side calls to the Research API routes (built on other gg/research-* branches).
- * Each call accepts the bare object or a wrapper key ({ snapshot }, { notes }, ...). When a route
- * answers 404 (not built or not merged yet) the call falls back to the labelled sample fixtures and
- * says so with `from: "sample"`, so the page can show it. Any other failure is reported as an error,
- * never silently replaced.
+ * Browser-side calls to the Research API routes. Routes and shapes follow the API contract table
+ * in docs/research/PLAN.md. When a route is missing (404), unreachable or fails on the server
+ * (5xx), the call falls back to the labelled sample fixtures and says so with `from: "sample"`,
+ * so the page can show it. Refusals (sign-in, payment, rate limit) are reported as errors, never
+ * silently replaced.
  */
 import type {
+  AccessCheck,
+  DailyScore,
   Entitlement,
-  Plan,
   PortfolioAnalysis,
   PortfolioInput,
-  Report,
-  ReportPeriod,
-  ReportScope,
-  ResearchNote,
   ResearchSnapshot,
+  Scorecard,
+  View,
+  Confidence,
+  WeeklyReport,
 } from "@/lib/research/types";
-import { RESEARCH_DISCLAIMER } from "@/lib/research/types";
-import { SAMPLE_SNAPSHOT, sampleHistory } from "./fixtures/sample-snapshot";
-import { SAMPLE_ACCESS, SAMPLE_SCHEDULES } from "./fixtures/sample-other";
+import { SAMPLE_WEEKLY } from "./fixtures/sample-weekly";
+import { SAMPLE_SNAPSHOT, sampleScores } from "./fixtures/sample-snapshot";
+import { SAMPLE_ACCESS } from "./fixtures/sample-other";
 
-export type Loaded<T> = { data: T; from: "api" | "sample" };
+export type Loaded<T> = { data: T; from: "api" | "sample"; why?: string };
 
-export type PlanOffer = {
-  plan: Plan;
-  label: string;
-  /** Test USDC price, 0 for free, null while the founder has not set it. */
-  priceUsdc: number | null;
-  period?: string;
-  features: string[];
-};
-
-export type AccessInfo = {
-  paywallEnabled: boolean;
-  plans: PlanOffer[];
-  entitlement?: Entitlement | null;
-  /** Address that receives test USDC, when payments are on. */
-  payTo?: string;
-  /** True only for the local fixture. */
-  sample?: boolean;
-};
-
-export type ScheduleRow = { scope: ReportScope; period: Exclude<ReportPeriod, "on-demand">; enabled: boolean };
-
-export type Refusal = "sign-in" | "payment-required" | "premium-required" | "rate-limited";
+export type Refusal = "sign-in" | "payment-required" | "rate-limited";
 
 export class ApiError extends Error {
   constructor(
@@ -55,17 +35,19 @@ export class ApiError extends Error {
   }
 }
 
-class NotBuilt extends Error {}
-
-function unwrap<T>(body: unknown, key: string): T {
-  if (body && typeof body === "object" && key in body) return (body as Record<string, unknown>)[key] as T;
-  return body as T;
-}
+/** The route is missing or broken, so a sample may stand in. */
+class Unavailable extends Error {}
 
 async function call(url: string, init?: RequestInit): Promise<unknown> {
-  const res = await fetch(url, { cache: "no-store", ...init, headers: { "content-type": "application/json", ...init?.headers } });
-  if (res.status === 404) throw new NotBuilt(url);
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store", ...init, headers: { "content-type": "application/json", ...init?.headers } });
+  } catch {
+    throw new Unavailable("The research service could not be reached.");
+  }
+  if (res.status === 404) throw new Unavailable("The research service is not live yet.");
   const body = await res.json().catch(() => null);
+  if (res.status >= 500) throw new Unavailable(`The research service failed (${res.status}).`);
   if (!res.ok) {
     const b = (body ?? {}) as { error?: string; reason?: Refusal };
     throw new ApiError(b.error ?? `The research service answered ${res.status}.`, res.status, b.reason);
@@ -77,85 +59,113 @@ async function withSample<T>(run: () => Promise<T>, sample: () => T): Promise<Lo
   try {
     return { data: await run(), from: "api" };
   } catch (e) {
-    if (e instanceof NotBuilt) return { data: sample(), from: "sample" };
+    if (e instanceof Unavailable) return { data: sample(), from: "sample", why: e.message };
     throw e;
   }
 }
 
-export const getSnapshot = () =>
-  withSample(
-    async () => unwrap<ResearchSnapshot>(await call("/api/research/snapshot"), "snapshot"),
-    () => SAMPLE_SNAPSHOT,
-  );
+/* Weekly report --------------------------------------------------------------------------- */
 
-export const getHistory = (assetId: string) =>
-  withSample(
-    async () => unwrap<ResearchNote[]>(await call(`/api/research/history?asset=${encodeURIComponent(assetId)}`), "notes") ?? [],
-    () => sampleHistory(assetId),
-  );
+export type WeeklyResult = { report: WeeklyReport; access: AccessCheck };
 
-export const analysePortfolio = (input: PortfolioInput, fallback: () => PortfolioAnalysis) =>
-  withSample(
-    async () => unwrap<PortfolioAnalysis>(await call("/api/research/portfolio", { method: "POST", body: JSON.stringify(input) }), "analysis"),
-    fallback,
-  );
-
-export const listReports = (owner?: string) =>
-  withSample(
-    async () => unwrap<Report[]>(await call(`/api/research/report${owner ? `?owner=${owner.toLowerCase()}` : ""}`), "reports") ?? [],
-    () => [] as Report[],
-  );
-
-export type ReportRequestBody = { scope: ReportScope; period: ReportPeriod; assetId?: string; portfolio?: PortfolioInput };
-
-export const buildReport = (req: ReportRequestBody, fallback: () => Report) =>
-  withSample(async () => unwrap<Report>(await call("/api/research/report", { method: "POST", body: JSON.stringify(req) }), "report"), fallback);
-
-export const getSchedules = () =>
-  withSample(
-    async () => unwrap<ScheduleRow[]>(await call("/api/research/schedules"), "schedules") ?? [],
-    () => SAMPLE_SCHEDULES,
-  );
-
-export const saveSchedule = (row: ScheduleRow) =>
-  withSample(
+export const getWeekly = (weekOf?: string) =>
+  withSample<WeeklyResult>(
     async () => {
-      await call("/api/research/schedules", { method: "POST", body: JSON.stringify(row) });
-      return row;
+      const b = (await call(`/api/research/weekly${weekOf ? `?weekOf=${encodeURIComponent(weekOf)}` : ""}`)) as Partial<WeeklyResult>;
+      if (!b?.report) throw new Unavailable("The research service sent no report.");
+      return { report: b.report, access: b.access ?? { allowed: true, consumesCredit: false } };
     },
-    () => row,
+    () => ({ report: SAMPLE_WEEKLY, access: { allowed: true, consumesCredit: false } }),
   );
+
+export async function approveWeekly(weekOf: string) {
+  await call("/api/research/weekly/approve", { method: "POST", body: JSON.stringify({ weekOf }) });
+}
+
+/* Daily notes (internal while testing) ------------------------------------------------------ */
+
+export type SnapshotResult = { snapshot: ResearchSnapshot; internal: boolean };
+
+export const getSnapshot = () =>
+  withSample<SnapshotResult>(
+    async () => {
+      const b = (await call("/api/research/snapshot")) as Partial<SnapshotResult>;
+      if (!b?.snapshot) throw new Unavailable("The research service sent no notes.");
+      return { snapshot: b.snapshot, internal: Boolean(b.internal) };
+    },
+    () => ({ snapshot: SAMPLE_SNAPSHOT, internal: false }),
+  );
+
+/* Scores and track record ------------------------------------------------------------------ */
+
+export type ScoresResult = { scores: DailyScore[]; calibration: Scorecard["calibration"] };
+
+export const getScores = (assetId: string) =>
+  withSample<ScoresResult>(
+    async () => {
+      const b = (await call(`/api/research/scores?asset=${encodeURIComponent(assetId)}`)) as Partial<ScoresResult>;
+      return { scores: b?.scores ?? [], calibration: b?.calibration ?? [] };
+    },
+    () => sampleScores(assetId),
+  );
+
+export async function gradeNote(date: string, assetId: string, grade: number) {
+  await call("/api/research/scores/grade", { method: "POST", body: JSON.stringify({ date, assetId, grade }) });
+}
+
+/* Portfolio check -------------------------------------------------------------------------- */
+
+export const previewPortfolio = (input: PortfolioInput, fallback: () => PortfolioAnalysis) =>
+  withSample<{ analysis: PortfolioAnalysis; reportKind: "live" | "sample" }>(
+    async () => {
+      const b = (await call("/api/research/portfolio/preview", { method: "POST", body: JSON.stringify(input) })) as {
+        analysis?: PortfolioAnalysis;
+        reportKind?: "live" | "sample";
+      };
+      if (!b?.analysis) throw new Unavailable("The portfolio service sent no analysis.");
+      return { analysis: b.analysis, reportKind: b.reportKind ?? "sample" };
+    },
+    () => ({ analysis: fallback(), reportKind: "sample" }),
+  );
+
+/* Access and plans ------------------------------------------------------------------------- */
+
+export type AccessInfo = {
+  paywallEnabled: boolean;
+  /** Proposed test USDC amounts, null while the founder has not set them. */
+  prices: { "weekly-single": number | null; monthly: number | null };
+  entitlement: Entitlement | null;
+};
+
+/** Reads a price whatever its exact shape: 2, "2", { usdc: "2" }, { priceUsdc: 2 } or { amount: 2 }. */
+function priceOf(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw))) return Number(raw);
+  if (raw && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    for (const k of ["usdc", "priceUsdc", "amount", "price"]) {
+      const v = priceOf(o[k]);
+      if (v !== null) return v;
+    }
+  }
+  return null;
+}
+
+function pricesOf(raw: unknown): AccessInfo["prices"] {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const items = (o.items && typeof o.items === "object" ? o.items : o) as Record<string, unknown>;
+  if (Array.isArray(raw)) {
+    const find = (p: string) => priceOf((raw as Record<string, unknown>[]).find((x) => x?.plan === p || x?.purpose === p));
+    return { "weekly-single": find("weekly-single"), monthly: find("monthly") };
+  }
+  return { "weekly-single": priceOf(items["weekly-single"]), monthly: priceOf(items.monthly) };
+}
 
 export const getAccess = () =>
-  withSample(
-    async () => unwrap<AccessInfo>(await call("/api/research/access"), "access"),
+  withSample<AccessInfo>(
+    async () => {
+      const b = (await call("/api/research/access")) as { paywallEnabled?: boolean; prices?: unknown; entitlement?: Entitlement | null };
+      return { paywallEnabled: Boolean(b?.paywallEnabled), prices: pricesOf(b?.prices), entitlement: b?.entitlement ?? null };
+    },
     () => SAMPLE_ACCESS,
   );
-
-/** A report built in the browser from a snapshot, only when the report route is not built yet. */
-export function sampleReport(snapshot: ResearchSnapshot, req: ReportRequestBody, owner: string | null, portfolio?: PortfolioAnalysis): Report {
-  const notes =
-    req.scope === "market"
-      ? []
-      : req.scope === "asset"
-        ? snapshot.notes.filter((n) => n.assetId === req.assetId)
-        : req.scope === "portfolio" && portfolio
-          ? snapshot.notes.filter((n) => portfolio.holdings.some((h) => h.assetId === n.assetId))
-          : snapshot.notes;
-  return {
-    id: `local-${Date.now().toString(36)}`,
-    scope: req.scope,
-    period: req.period,
-    owner,
-    createdAt: new Date().toISOString(),
-    snapshotDate: snapshot.date,
-    premium: false,
-    market: req.scope === "asset" ? undefined : snapshot.market,
-    notes,
-    changes: notes
-      .filter((n) => n.previousAction && n.previousAction !== n.action)
-      .map((n) => ({ text: `${n.assetId}: suggestion changed from ${n.previousAction} to ${n.action}.`, factIds: [] })),
-    portfolio: req.scope === "portfolio" || req.scope === "full" ? portfolio : undefined,
-    disclaimer: RESEARCH_DISCLAIMER,
-  };
-}

@@ -1,5 +1,5 @@
-import { ResearchList } from "@/components/research/research-list";
+import { WeeklyReportPage } from "@/components/research/weekly-report";
 
 export default function ResearchPage() {
-  return <ResearchList />;
+  return <WeeklyReportPage />;
 }
