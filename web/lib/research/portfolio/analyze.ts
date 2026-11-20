@@ -3,68 +3,95 @@ import type {
   AssetClass,
   Fact,
   Holding,
-  HoldingVerdict,
+  HoldingFacts,
+  IsoDate,
+  IsoDateTime,
   PortfolioAnalysis,
   PortfolioInput,
   Reasoned,
-  ResearchNote,
-  ResearchSnapshot,
-  RiskTolerance,
-  Timeframe,
+  Source,
+  View,
 } from "../types.ts";
-import { universeAsset, type RiskBucket, type UniverseAsset } from "../universe.ts";
-import { allocateToGaps, assetOf, CAPS, RISK_LEVELS, THEMES, type GapEntry, type RiskLevel } from "../../themes/index.ts";
+import { borrowNote } from "../borrow.ts";
+import { coveredByResearch, type Catalog, type CatalogAsset } from "./catalog.ts";
 
 /**
- * Portfolio analysis for the Research engine (docs/research/PLAN.md, "Portfolio report").
- * Pure TypeScript: no network, no clock, no model. Same input and snapshot, same output.
+ * Portfolio check (founder spec docs/research/SPEC.md, sections 3.8 and 6). Pure TypeScript: no
+ * network, no clock, no model. Same input and context, same output.
+ *
+ * It only states facts about one person's holdings: allocation by asset and class, diversification,
+ * concentration and overlap, loan health, and a borrowing note per holding. It never tells the
+ * person to buy, sell, add or trim. `generalView` is the view from the latest general research (the
+ * Monday weekly report, or the daily note when there is no report yet), the same for every reader,
+ * passed in by the caller.
  *
  * Honesty rules applied here:
- * - Prices come only from the snapshot's `px.last` facts. A holding without one is listed in
- *   `unpriced` and left out of every share, never valued with a guessed price.
- * - Every sentence cites the facts it rests on. Those facts are copied into `facts` with ids
- *   prefixed by the asset ("mAAPL:px.last"), so ids stay unique across holdings.
- * - Themes caps (web/lib/themes/policy.ts) are targets for new buys. Nothing here ever suggests
- *   selling: over a cap means "skip new buys", and rebalance ideas only redirect new money.
+ * - Every price comes from the context with its source and time. A holding without a price is listed
+ *   in `unpriced` and left out of every share, never valued with a guessed price.
+ * - Holdings outside the research universe (six borrowable assets) are shown in the allocation as
+ *   "not covered by research", without a view or a borrowing note.
+ * - Every sentence cites the facts it rests on, and those facts are in `facts`.
  */
 
-/** A holding that could not be valued because the snapshot has no price for it today. */
+/** A price for one asset with where it came from. */
+export type PriceQuote = {
+  price: number;
+  source: Source;
+  asOf: IsoDateTime;
+};
+
+/** Where the general views come from: the Monday weekly report, or the daily note before there is one. */
+export type ViewSource = { product: "weekly-report"; weekOf: IsoDate } | { product: "daily-note"; date: IsoDate };
+
+/** Everything the analysis needs besides the holdings. Built by the route, or by tests from fixtures. */
+export type PortfolioContext = {
+  /** "sample" when the research read is the labelled sample, not live research. */
+  kind: "live" | "sample";
+  /** Time of the analysis (the newest data used). */
+  asOf: IsoDateTime;
+  catalog: Catalog;
+  /** General views per research asset, from `viewSource`. */
+  views: Partial<Record<string, View>>;
+  viewSource: ViewSource | null;
+  prices: Partial<Record<string, PriceQuote>>;
+};
+
+/** A holding that could not be valued because no price was available. */
 export type UnpricedHolding = { assetId: string; name: string; amount: number; why: string };
 
-/**
- * `PortfolioAnalysis` plus the holdings that had no price. Structurally a `PortfolioAnalysis`,
- * so it can be stored and shown anywhere one is expected.
- */
-export type PortfolioAnalysisResult = PortfolioAnalysis & { unpriced: UnpricedHolding[] };
+/** One holding's facts plus its name and whether research covers it. */
+export type HoldingRow = HoldingFacts & {
+  name: string;
+  coveredByResearch: boolean;
+  /** Plain line for holdings research does not cover. */
+  coverageNote?: string;
+};
 
+/**
+ * `PortfolioAnalysis` plus the holdings that had no price, the per-holding names and coverage, and
+ * where the general views came from. Structurally a `PortfolioAnalysis`.
+ */
+export type PortfolioAnalysisResult = Omit<PortfolioAnalysis, "holdings"> & {
+  holdings: HoldingRow[];
+  unpriced: UnpricedHolding[];
+  viewSource: ViewSource | null;
+  kind: "live" | "sample";
+};
+
+export const NOT_COVERED = "not covered by research";
+/** Limit use assumed for the borrowing note of a holding without a loan (spec section 3.8 example). */
+export const DEFAULT_LIMIT_USE = 0.5;
 /** A broad index fund counts as this many equal positions when measuring diversification. */
 export const BROAD_FUND_POSITIONS = 10;
 /** Effective number of positions that counts as fully diversified (score 1). */
 export const DIVERSIFIED_POSITIONS = 10;
-/** Most of the portfolio in speculative assets that still fits each risk answer. */
-export const SPECULATIVE_LIMIT: Record<RiskTolerance, number> = { low: 0.1, medium: 0.3, high: 0.5 };
-/** Loan to value at which the loan part of the health score reaches 0. */
-export const LOAN_ZERO_AT = 0.6;
-/** Loan to value above which a loan flag is raised. */
-export const LOAN_FLAG_AT = 0.4;
-/** Any one asset other than a broad or cash-like fund above this share is flagged. */
-export const SINGLE_ASSET_LIMIT = CAPS.singleTheme;
-
-/** The person's risk answer mapped onto the Themes risk levels (for the crypto cap). */
-export const RISK_LEVEL_FOR: Record<RiskTolerance, RiskLevel> = { low: "steady", medium: "balanced", high: "bold" };
-
-/** Which outlook in the daily note matches the person's horizon. */
-export const OUTLOOK_FOR: Record<PortfolioInput["horizon"], Timeframe> = { short: "1m", medium: "1y", long: "5y" };
-
-/** Stocks the S&P 500 fund (mSPX) already holds, per its universe note. */
-export const SPX_TOP_HOLDINGS = ["mAAPL", "mNVDA", "mMSFT", "mAMZN", "mGOOGL", "mMETA", "mTSLA"];
+/** A single asset at or above this share gets a plain concentration fact. */
+export const LARGE_SHARE = 0.4;
+/** Stackday stocks that are members of the S&P 500, so the S&P 500 fund (mSPX) already holds them. */
+export const SPX_MEMBERS = ["mAAPL", "mNVDA", "mMSFT", "mAMZN", "mGOOGL", "mMETA", "mTSLA", "mAMD"];
 const BROAD_FUNDS = new Set(["mSPX"]);
 
-const HEALTH_WEIGHTS = { diversification: 0.3, caps: 0.25, research: 0.2, risk: 0.15, loan: 0.1 } as const;
-
 const CLASS_LABEL: Record<AssetClass, string> = { stock: "Stocks", fund: "Funds", commodity: "Commodities", crypto: "Crypto" };
-const RISK_LABEL: Record<RiskBucket, string> = { "cash-like": "Cash-like", core: "Core", growth: "Growth", speculative: "Speculative" };
-const ACTION_LABEL = { buy: "Buy", hold: "Hold", sell: "Sell", watch: "Watch" } as const;
 
 const EPS = 1e-9;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -74,31 +101,15 @@ const usd = (x: number) => `$${x.toLocaleString("en-US", { minimumFractionDigits
 
 type Priced = {
   holding: Holding;
-  asset: UniverseAsset;
-  note: ResearchNote | undefined;
-  price: number;
+  asset: CatalogAsset;
+  covered: boolean;
   valueUsd: number;
   share: number;
-  priceFactId: string;
-  amountFactId: string;
+  factIds: string[];
 };
 
-/** The note for an asset in the snapshot, if any. */
-export function noteFor(snapshot: ResearchSnapshot, assetId: string): ResearchNote | undefined {
-  return snapshot.notes.find((n) => n.assetId === assetId);
-}
-
-/** The last price from a note's `px.last` fact, or null if it is missing or not a positive number. */
-export function lastPrice(note: ResearchNote | undefined): { price: number; fact: Fact } | null {
-  const fact = note?.facts.find((f) => f.id === "px.last");
-  if (!fact) return null;
-  const price = typeof fact.value === "number" ? fact.value : Number.NaN;
-  if (!Number.isFinite(price) || price <= 0) return null;
-  return { price, fact };
-}
-
-/** Holdings of the same asset added together, in input order of first appearance. */
-function mergeHoldings(holdings: Holding[]): Holding[] {
+/** Holdings of the same asset added together (amounts, cost and loans), in order of first appearance. */
+export function mergeHoldings(holdings: Holding[]): Holding[] {
   const map = new Map<string, Holding>();
   for (const h of holdings) {
     const prev = map.get(h.assetId);
@@ -107,6 +118,7 @@ function mergeHoldings(holdings: Holding[]): Holding[] {
       prev.amount += h.amount;
       if (prev.origin !== h.origin) prev.origin = "vault";
       if (h.costUsd !== undefined) prev.costUsd = (prev.costUsd ?? 0) + h.costUsd;
+      if (h.loanUsd !== undefined) prev.loanUsd = (prev.loanUsd ?? 0) + h.loanUsd;
     }
   }
   return [...map.values()].filter((h) => h.amount > 0);
@@ -136,31 +148,15 @@ export function diversificationScore(shares: { assetId: string; share: number }[
   return round2(clamp01((1 / hhi - 1) / (DIVERSIFIED_POSITIONS - 1)));
 }
 
-/** The Themes target cap that applies to new buys of one asset, with its plain-language name. */
-export function capFor(asset: UniverseAsset, risk: RiskTolerance): { cap: number; label: string } | null {
-  const cat = assetOf(asset.realToken);
-  if (cat?.riskOnly) return { cap: CAPS.riskAsset, label: `the ${pct(CAPS.riskAsset)} cap for a single risk-bucket name` };
-  if (asset.assetClass === "stock") return { cap: CAPS.singleStock, label: `the ${pct(CAPS.singleStock)} single-stock cap` };
-  if (asset.assetClass === "crypto") {
-    const cap = RISK_LEVELS[RISK_LEVEL_FOR[risk]].cryptoCap;
-    return { cap, label: `the ${pct(cap)} crypto cap for your risk answer` };
-  }
-  if (asset.assetClass === "commodity") return { cap: SINGLE_ASSET_LIMIT, label: `the ${pct(SINGLE_ASSET_LIMIT)} single-asset limit` };
-  return null; // funds: a broad or cash-like fund is diversified by itself
+/** Loan as a share of its limit: loan / (collateral value x LLTV). Null when it cannot be measured. */
+export function limitUseOf(loanUsd: number, valueUsd: number, lltv: number): number | null {
+  if (!(loanUsd > 0)) return null;
+  if (!(valueUsd > 0) || !(lltv > 0)) return null;
+  return loanUsd / (valueUsd * lltv);
 }
 
-function isCryptoGroup(asset: UniverseAsset) {
-  return asset.assetClass === "crypto" || Boolean(assetOf(asset.realToken)?.cryptoLike);
-}
-
-function isAiChips(asset: UniverseAsset) {
-  return Boolean(assetOf(asset.realToken)?.aiChips) || asset.sector === "Semiconductors";
-}
-
-type Flag = { reason: Reasoned; assetIds: string[] };
-
-export function analyzePortfolio(input: PortfolioInput, snapshot: ResearchSnapshot): PortfolioAnalysisResult {
-  const asOf = snapshot.generatedAt;
+export function analyzePortfolio(input: PortfolioInput, ctx: PortfolioContext): PortfolioAnalysisResult {
+  const { asOf } = ctx;
   const facts: Fact[] = [];
   const factIds = new Set<string>();
   const addFact = (f: Fact) => {
@@ -170,113 +166,105 @@ export function analyzePortfolio(input: PortfolioInput, snapshot: ResearchSnapsh
     }
     return f.id;
   };
-  /** Copies a note's fact into the analysis with an asset prefix and returns the new id. */
-  const citeNoteFact = (note: ResearchNote, id: string): string | null => {
-    const f = note.facts.find((x) => x.id === id);
-    if (!f) return null;
-    return addFact({ ...f, id: `${note.assetId}:${f.id}` });
-  };
 
-  // 1. Value each holding from the snapshot's own price facts.
+  // 1. Value each holding from the prices passed in.
   const unpriced: UnpricedHolding[] = [];
   const pricedRaw: Omit<Priced, "share">[] = [];
+  const unpricedLoans: { name: string; loanUsd: number; factId: string }[] = [];
   for (const holding of mergeHoldings(input.holdings)) {
-    const asset = universeAsset(holding.assetId);
+    const asset = ctx.catalog.get(holding.assetId);
     if (!asset) {
-      unpriced.push({ assetId: holding.assetId, name: holding.assetId, amount: holding.amount, why: "Not a Stackday asset, so there is no research for it." });
+      unpriced.push({ assetId: holding.assetId, name: holding.assetId, amount: holding.amount, why: "Not a Stackday asset, so it is not valued." });
       continue;
     }
-    const note = noteFor(snapshot, holding.assetId);
-    const px = lastPrice(note);
-    if (!note || !px) {
-      unpriced.push({
-        assetId: asset.assetId,
-        name: asset.name,
-        amount: holding.amount,
-        why: note ? "Today's research has no price for it, so it is not valued." : "Not in today's research snapshot, so it is not valued.",
-      });
-      continue;
-    }
-    const priceFactId = citeNoteFact(note, px.fact.id)!;
+    const covered = coveredByResearch(asset.assetId);
     const amountFactId = addFact({
       id: `${asset.assetId}:amount`,
       kind: "fundamental",
-      label: `${asset.name} units you hold`,
+      label: `${asset.name} units held`,
       value: holding.amount,
       unit: asset.assetId,
       source: { name: holding.origin === "vault" ? "Your Stackday vault on Base Sepolia" : "Typed in by you" },
       asOf,
     });
-    pricedRaw.push({ holding, asset, note, price: px.price, valueUsd: holding.amount * px.price, priceFactId, amountFactId });
+    const loanFactId =
+      holding.loanUsd && holding.loanUsd > 0
+        ? addFact({
+            id: `${asset.assetId}:loan`,
+            kind: "fundamental",
+            label: `Loan against ${asset.name}`,
+            value: holding.loanUsd,
+            unit: "USD",
+            source: { name: holding.origin === "vault" ? "Your Stackday vault on Base Sepolia" : "Typed in by you" },
+            asOf,
+          })
+        : null;
+    const quote = ctx.prices[asset.assetId];
+    if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) {
+      unpriced.push({ assetId: asset.assetId, name: asset.name, amount: holding.amount, why: "No price was available for it, so it is not valued." });
+      if (loanFactId) unpricedLoans.push({ name: asset.name, loanUsd: holding.loanUsd!, factId: loanFactId });
+      continue;
+    }
+    const priceFactId = addFact({
+      id: `${asset.assetId}:price`,
+      kind: "price",
+      label: `${asset.name} price`,
+      value: quote.price,
+      unit: "USD",
+      source: quote.source,
+      asOf: quote.asOf,
+    });
+    const ids = [amountFactId, priceFactId];
+    if (loanFactId) ids.push(loanFactId);
+    pricedRaw.push({ holding, asset, covered, valueUsd: holding.amount * quote.price, factIds: ids });
   }
 
   const totalUsd = pricedRaw.reduce((s, p) => s + p.valueUsd, 0);
-  const priced: Priced[] = pricedRaw.map((p) => ({ ...p, share: totalUsd > 0 ? p.valueUsd / totalUsd : 0 }));
-  const cite = (rows: Priced[]) => rows.flatMap((p) => [p.priceFactId, p.amountFactId]);
+  const priced: Priced[] = pricedRaw
+    .map((p) => ({ ...p, share: totalUsd > 0 ? p.valueUsd / totalUsd : 0 }))
+    .sort((a, b) => b.valueUsd - a.valueUsd || a.asset.assetId.localeCompare(b.asset.assetId));
+  const cite = (rows: Priced[]) => rows.flatMap((p) => p.factIds);
   const byId = new Map(priced.map((p) => [p.asset.assetId, p]));
 
-  // 2. Allocation.
-  const byAsset = slices(priced, (p) => p.asset.assetId, (k) => universeAsset(k)?.name ?? k, totalUsd);
+  // 2. Allocation. Holdings research does not cover are labelled so.
+  const byAsset = slices(
+    priced,
+    (p) => p.asset.assetId,
+    (k) => {
+      const p = byId.get(k)!;
+      return p.covered ? p.asset.name : `${p.asset.name} (${NOT_COVERED})`;
+    },
+    totalUsd,
+  );
   const byClass = slices(priced, (p) => p.asset.assetClass, (k) => CLASS_LABEL[k as AssetClass] ?? k, totalUsd);
-  const bySector = slices(priced, (p) => p.asset.sector, (k) => k, totalUsd);
-  const byRisk = slices(priced, (p) => p.asset.risk, (k) => RISK_LABEL[k as RiskBucket] ?? k, totalUsd);
   const diversification = diversificationScore(priced.map((p) => ({ assetId: p.asset.assetId, share: p.share })));
 
-  // 3. Concentration against the Themes caps (targets for new buys).
-  const flags: Flag[] = [];
-  const NOTHING_SOLD = "Caps are targets for new buys, so nothing is sold.";
+  // 3. Concentration facts. Stated plainly, with no advice attached.
+  const concentration: Reasoned[] = [];
   for (const p of priced) {
-    const c = capFor(p.asset, input.risk);
-    if (c && p.asset.assetClass !== "crypto" && p.share > c.cap + EPS) {
-      flags.push({
-        assetIds: [p.asset.assetId],
-        reason: { text: `${p.asset.name} is ${pct(p.share)} of your portfolio, above ${c.label}. ${NOTHING_SOLD}`, factIds: cite([p]) },
-      });
+    if (priced.length > 0 && p.share >= LARGE_SHARE - EPS && !BROAD_FUNDS.has(p.asset.assetId)) {
+      concentration.push({ text: `${p.asset.name} is ${pct(p.share)} of the valued holdings.`, factIds: cite(priced) });
     }
   }
-  const groups: { name: string; cap: number; capLabel: string; members: Priced[] }[] = [];
-  const cryptoCap = RISK_LEVELS[RISK_LEVEL_FOR[input.risk]].cryptoCap;
-  groups.push({ name: "Bitcoin, Ether and crypto-like stocks", cap: cryptoCap, capLabel: `the ${pct(cryptoCap)} crypto cap for your risk answer`, members: priced.filter((p) => isCryptoGroup(p.asset)) });
-  groups.push({ name: "AI and chip stocks", cap: CAPS.aiChips, capLabel: `the ${pct(CAPS.aiChips)} AI and chips cap`, members: priced.filter((p) => isAiChips(p.asset)) });
-  for (const t of THEMES) {
-    if (t.id === "crypto-native") continue; // covered by the crypto group above
-    const members = priced.filter((p) => t.tickers.includes(p.asset.realToken));
-    groups.push({ name: `The ${t.name} theme`, cap: CAPS.singleTheme, capLabel: `the ${pct(CAPS.singleTheme)} single-theme cap`, members });
-  }
-  for (const g of groups) {
-    const share = g.members.reduce((s, p) => s + p.share, 0);
-    if (g.members.length && share > g.cap + EPS) {
-      const names = g.members.map((p) => p.asset.name).join(", ");
-      flags.push({
-        assetIds: g.members.map((p) => p.asset.assetId),
-        reason: { text: `${g.name} (${names}) make up ${pct(share)} of your portfolio, above ${g.capLabel}. ${NOTHING_SOLD}`, factIds: cite(g.members) },
-      });
+  for (const c of byClass) {
+    if (byClass.length > 1 && c.share >= 0.5 - EPS) {
+      const members = priced.filter((p) => p.asset.assetClass === c.key);
+      concentration.push({ text: `${c.label} make up ${pct(c.share)} of the valued holdings (${members.map((p) => p.asset.name).join(", ")}).`, factIds: cite(priced) });
     }
   }
-  const loanUsd = input.loanUsd && input.loanUsd > 0 ? input.loanUsd : 0;
-  let ltv = 0;
-  let loanFactId: string | null = null;
-  if (loanUsd > 0) {
-    loanFactId = addFact({ id: "input.loan", kind: "fundamental", label: "Open loan against your vault", value: loanUsd, unit: "USD", source: { name: "Your Stackday vault on Base Sepolia" }, asOf });
-    ltv = totalUsd > 0 ? loanUsd / totalUsd : Number.POSITIVE_INFINITY;
-    const text =
-      totalUsd > 0
-        ? `Your loan of ${usd(loanUsd)} is ${pct(ltv)} of the value of your priced holdings. ${ltv > LOAN_FLAG_AT ? "That is high: a fall in prices could bring the loan close to liquidation. Repaying, or locking more collateral, lowers the risk." : "That leaves room before liquidation, but a sharp fall in prices still raises the risk."}`
-        : `You have a loan of ${usd(loanUsd)} but none of your holdings could be priced today, so the loan's safety cannot be measured.`;
-    if (ltv > LOAN_FLAG_AT || totalUsd <= 0) flags.push({ assetIds: [], reason: { text, factIds: [loanFactId, ...cite(priced)] } });
+  if (priced.length === 1) {
+    concentration.push({ text: `All valued holdings are in one asset, ${priced[0].asset.name}.`, factIds: cite(priced) });
   }
-  const flagged = new Set(flags.flatMap((f) => f.assetIds));
-  const concentration = flags.map((f) => f.reason);
 
-  // 4. Overlap: a fund that already holds what you also own directly, and MSTR with bitcoin.
+  // 4. Overlap facts: a fund that already holds stocks also held directly, and Strategy with Bitcoin.
   const overlaps: Reasoned[] = [];
   const spx = byId.get("mSPX");
   if (spx) {
-    const direct = SPX_TOP_HOLDINGS.map((id) => byId.get(id)).filter((p): p is Priced => Boolean(p));
+    const direct = SPX_MEMBERS.map((id) => byId.get(id)).filter((p): p is Priced => Boolean(p));
     if (direct.length) {
       const directShare = direct.reduce((s, p) => s + p.share, 0);
       overlaps.push({
-        text: `The S&P 500 fund (${pct(spx.share)} of your portfolio) already holds ${direct.map((p) => p.asset.name).join(", ")}, which you also own directly (${pct(directShare)}). Your real exposure to these companies is higher than your direct holdings show.`,
+        text: `The S&P 500 fund (${pct(spx.share)} of the valued holdings) already holds ${direct.map((p) => p.asset.name).join(", ")}, which ${direct.length === 1 ? "is" : "are"} also held directly (${pct(directShare)}). Exposure to ${direct.length === 1 ? "this company" : "these companies"} is higher than the direct holdings show.`,
         factIds: cite([spx, ...direct]),
       });
     }
@@ -285,212 +273,73 @@ export function analyzePortfolio(input: PortfolioInput, snapshot: ResearchSnapsh
   const btc = byId.get("mcbBTC");
   if (mstr && btc) {
     overlaps.push({
-      text: `Strategy (${pct(mstr.share)}) moves mostly with bitcoin because its main asset is a large bitcoin holding, so together with your Bitcoin (${pct(btc.share)}) about ${pct(mstr.share + btc.share)} of your portfolio rides on the bitcoin price.`,
+      text: `Strategy (${pct(mstr.share)}) holds a large amount of bitcoin and tends to move with it, so together with Bitcoin (${pct(btc.share)}) about ${pct(mstr.share + btc.share)} of the valued holdings depends on the bitcoin price.`,
       factIds: cite([mstr, btc]),
     });
   }
 
-  // 5. Per-holding verdict from today's note, the person's horizon and risk answer, and the caps.
-  const timeframe = OUTLOOK_FOR[input.horizon];
-  const verdicts: HoldingVerdict[] = priced
-    .slice()
-    .sort((a, b) => b.valueUsd - a.valueUsd || a.asset.assetId.localeCompare(b.asset.assetId))
-    .map((p) => holdingVerdict(p, input, timeframe, flagged.has(p.asset.assetId), citeNoteFact));
+  // 5. Per holding: facts, general view (covered only), loan limit use, borrowing note (covered only).
+  const holdings: HoldingRow[] = priced.map((p) => {
+    const loan = p.holding.loanUsd ?? 0;
+    const limitUse = limitUseOf(loan, p.valueUsd, p.asset.lltv);
+    const row: HoldingRow = {
+      assetId: p.asset.assetId,
+      name: p.asset.name,
+      valueUsd: p.valueUsd,
+      share: p.share,
+      coveredByResearch: p.covered,
+      generalView: p.covered ? (ctx.views[p.asset.assetId] ?? null) : null,
+      borrowing: p.covered && p.asset.lltv > 0 ? borrowNote(p.asset.assetId, p.asset.name, p.asset.lltv, limitUse ?? DEFAULT_LIMIT_USE) : null,
+    };
+    if (limitUse !== null) row.limitUse = limitUse;
+    if (!p.covered) row.coverageNote = `${p.asset.name} is ${NOT_COVERED}: research covers six borrowable assets, so there is no general view or borrowing note for it.`;
+    return row;
+  });
 
-  // 6. New-money-only rebalance ideas.
-  const rebalanceIdeas = rebalance(priced, verdicts, input, totalUsd, flagged, cite);
-
-  // 7. Health score.
-  const health = healthScore({ priced, verdicts, flags: flags.filter((f) => f.assetIds.length > 0).length, diversification, input, totalUsd, loanUsd, ltv, unpriced });
+  // 6. Loan health.
+  const loanFacts: Reasoned[] = [];
+  let worstLimitUse: number | null = null;
+  for (const p of priced) {
+    const loan = p.holding.loanUsd ?? 0;
+    if (!(loan > 0)) continue;
+    const use = limitUseOf(loan, p.valueUsd, p.asset.lltv);
+    if (use === null) {
+      loanFacts.push({ text: `A loan of ${usd(loan)} is entered against ${p.asset.name}, which has no lending market, so its limit cannot be measured.`, factIds: p.factIds });
+      continue;
+    }
+    worstLimitUse = worstLimitUse === null ? use : Math.max(worstLimitUse, use);
+    const limitUsd = p.valueUsd * p.asset.lltv;
+    loanFacts.push({
+      text:
+        `The loan of ${usd(loan)} against ${p.asset.name} is ${pct(use)} of its limit (${usd(limitUsd)}, which is ${pct(p.asset.lltv)} of ${usd(p.valueUsd)}).` +
+        (use >= 1 ? " At or above the limit, the loan can be liquidated." : ` It reaches the limit after a ${pct(Math.max(0, 1 - use))} fall in ${p.asset.name}.`),
+      factIds: p.factIds,
+    });
+  }
+  for (const u of unpricedLoans) {
+    loanFacts.push({ text: `A loan of ${usd(u.loanUsd)} is entered against ${u.name}, but it had no price, so the loan's limit use cannot be measured.`, factIds: [u.factId] });
+  }
+  const totalLoanUsd = mergeHoldings(input.holdings).reduce((s, h) => s + (h.loanUsd && h.loanUsd > 0 ? h.loanUsd : 0), 0);
+  if (totalLoanUsd > 0) {
+    loanFacts.push({
+      text: "Stackday's optional emergency rule sends the whole next SIP share to collateral when a loan gets close to the limit. Repay is always manual.",
+      factIds: facts.filter((f) => f.id.endsWith(":loan")).map((f) => f.id),
+    });
+  }
 
   return {
     asOf,
+    kind: ctx.kind,
     totalUsd,
     byAsset,
     byClass,
-    bySector,
-    byRisk,
     diversification,
     concentration,
     overlaps,
-    holdings: verdicts,
-    rebalanceIdeas,
-    health,
+    holdings,
+    loans: { totalLoanUsd, worstLimitUse, facts: loanFacts },
     facts,
     unpriced,
+    viewSource: ctx.viewSource,
   };
-}
-
-function holdingVerdict(
-  p: Priced,
-  input: PortfolioInput,
-  timeframe: Timeframe,
-  overCap: boolean,
-  citeNoteFact: (note: ResearchNote, id: string) => string | null,
-): HoldingVerdict {
-  const base = { assetId: p.asset.assetId, valueUsd: p.valueUsd, share: p.share };
-  const ids = [p.priceFactId, p.amountFactId];
-  const note = p.note!;
-  if (note.status === "no-reading") {
-    return {
-      ...base,
-      action: "watch",
-      verdict: "review",
-      why: { text: `There is no research reading for ${p.asset.name} today, so there is no suggestion to lean on. Check it again tomorrow before adding to it.`, factIds: ids },
-    };
-  }
-  const outlook = note.outlook?.[timeframe];
-  const outlookIds = (outlook?.factIds ?? []).map((id) => citeNoteFact(note, id)).filter((x): x is string => Boolean(x));
-  const why = (text: string) => ({ text, factIds: [...ids, ...outlookIds] });
-  const carried = note.status === "carried" ? " (carried from the last trading day)" : "";
-  const said = `Today's research note${carried} suggests ${ACTION_LABEL[note.action]} with ${note.confidence} confidence`;
-  const stance = outlook?.stance ?? "no-view";
-  const horizonText = stance === "no-view" ? "and has no view for your horizon" : `and its outlook for your horizon is ${stance}`;
-  const speculativeForLow = p.asset.risk === "speculative" && input.risk === "low";
-
-  if (overCap) {
-    return { ...base, action: note.action, verdict: "trim-new-buys", why: why(`${said} ${horizonText}. It is already above its cap, so new money is better pointed elsewhere for now. Nothing is sold.`) };
-  }
-  if (note.action === "sell") {
-    return { ...base, action: note.action, verdict: "review", why: why(`${said} ${horizonText}. Worth reviewing whether it still fits your plan. Stackday never sells for you; any change is your decision.`) };
-  }
-  if (note.action === "buy") {
-    if (stance === "negative") {
-      return { ...base, action: note.action, verdict: "keep", why: why(`${said}, but its outlook for your horizon is negative, so the signals are mixed. Keeping it without adding is the cautious reading.`) };
-    }
-    if (speculativeForLow) {
-      return { ...base, action: note.action, verdict: "keep", why: why(`${said} ${horizonText}, but it is a speculative asset and you chose low risk, so adding more does not fit your answer.`) };
-    }
-    return { ...base, action: note.action, verdict: "add-with-new-money", why: why(`${said} ${horizonText}, and it is within its cap, so it is a candidate for new money.`) };
-  }
-  if (stance === "negative") {
-    return { ...base, action: note.action, verdict: "review", why: why(`${said}, but its outlook for your horizon is negative. Worth a look before adding more.`) };
-  }
-  return { ...base, action: note.action, verdict: "keep", why: why(`${said} ${horizonText}. No change needed.`) };
-}
-
-function rebalance(
-  priced: Priced[],
-  verdicts: HoldingVerdict[],
-  input: PortfolioInput,
-  totalUsd: number,
-  flagged: Set<string>,
-  cite: (rows: Priced[]) => string[],
-): Reasoned[] {
-  if (!priced.length) return [];
-  const byId = new Map(priced.map((p) => [p.asset.assetId, p]));
-  const ideas: Reasoned[] = [{ text: "New money only: these ideas point your next buys, nothing is sold, and nothing moves until you sign.", factIds: cite(priced) }];
-
-  for (const v of verdicts) {
-    const p = byId.get(v.assetId)!;
-    if (v.verdict === "trim-new-buys") ideas.push({ text: `Skip new buys of ${p.asset.name} until new money brings it back under its cap.`, factIds: cite([p]) });
-    if (v.verdict === "review") ideas.push({ text: `Pause new buys of ${p.asset.name} while you review it.`, factIds: v.why.factIds });
-  }
-
-  const eligible = verdicts.filter((v) => (v.verdict === "add-with-new-money" || v.verdict === "keep") && !flagged.has(v.assetId)).map((v) => byId.get(v.assetId)!);
-  const adders = eligible.filter((p) => verdicts.find((v) => v.assetId === p.asset.assetId)!.verdict === "add-with-new-money");
-  const receivers = adders.length ? adders : eligible;
-  const newMoney = input.monthlyNewMoneyUsd && input.monthlyNewMoneyUsd > 0 ? input.monthlyNewMoneyUsd : 0;
-
-  if (receivers.length && newMoney > 0) {
-    // Each receiver aims for an equal part of the portfolio after the new money, never above its cap.
-    const after = totalUsd + newMoney;
-    const equal = 1 / receivers.length;
-    const entries: GapEntry[] = receivers.map((p) => {
-      const cap = capFor(p.asset, input.risk)?.cap ?? 1;
-      const target = Math.min(cap, equal) * after;
-      return { key: p.asset.assetId, gap: Math.max(0, target - p.valueUsd), weight: Math.min(cap, equal), overweight: p.valueUsd > target + EPS };
-    });
-    const { amounts, unplaced } = allocateToGaps(entries, newMoney);
-    const buys = receivers
-      .map((p) => ({ p, usd: Math.floor((amounts[p.asset.assetId] ?? 0) * 100) / 100 }))
-      .filter((b) => b.usd >= 1)
-      .sort((a, b) => b.usd - a.usd || a.p.asset.assetId.localeCompare(b.p.asset.assetId));
-    for (const b of buys) {
-      ideas.push({ text: `Of your ${usd(newMoney)} a month, about ${usd(b.usd)} could go to ${b.p.asset.name}, which is below an even share of the holdings research still supports.`, factIds: cite([b.p]) });
-    }
-    const left = newMoney - buys.reduce((s, b) => s + b.usd, 0);
-    if (unplaced > 0.005 || left >= 1) {
-      ideas.push({ text: `About ${usd(left)} a month has no holding below its target, so it could stay as USDC or go to a holding you choose.`, factIds: cite(receivers) });
-    }
-  } else if (receivers.length) {
-    const under = receivers.slice().sort((a, b) => a.share - b.share).slice(0, 3);
-    ideas.push({ text: `When you next add money, favour ${under.map((p) => p.asset.name).join(", ")}: research still supports them and they are your smallest positions.`, factIds: cite(under) });
-  }
-
-  const cashLike = priced.some((p) => p.asset.risk === "cash-like");
-  if (input.risk === "low" && !cashLike) {
-    ideas.push({ text: "You chose low risk and hold nothing cash-like. Pointing some new money at the US Treasuries 0-3M fund would steady the mix.", factIds: cite(priced) });
-  }
-  return ideas;
-}
-
-function healthScore(p: {
-  priced: Priced[];
-  verdicts: HoldingVerdict[];
-  flags: number;
-  diversification: number;
-  input: PortfolioInput;
-  totalUsd: number;
-  loanUsd: number;
-  ltv: number;
-  unpriced: UnpricedHolding[];
-}): PortfolioAnalysis["health"] {
-  if (!p.priced.length || p.totalUsd <= 0) {
-    const why = p.unpriced.length ? "None of your holdings could be priced today, so the portfolio cannot be scored." : "There are no holdings to score yet.";
-    return { score: 0, parts: [{ label: "No priced holdings", score: 0, why }] };
-  }
-  const w = (x: number) => `${Math.round(x * 100)}% of the score`;
-  const parts: { label: string; score: number; why: string; weight: number }[] = [];
-
-  const divScore = Math.round(p.diversification * 100);
-  parts.push({
-    label: "Diversification",
-    score: divScore,
-    weight: HEALTH_WEIGHTS.diversification,
-    why: `Spread across ${p.priced.length} priced holding${p.priced.length === 1 ? "" : "s"} (a broad index fund counts as ${BROAD_FUND_POSITIONS}). ${w(HEALTH_WEIGHTS.diversification)}.`,
-  });
-
-  const capScore = Math.max(0, 100 - 25 * p.flags);
-  parts.push({
-    label: "Caps",
-    score: capScore,
-    weight: HEALTH_WEIGHTS.caps,
-    why: `${p.flags === 0 ? "Nothing is above a Themes cap" : `${p.flags} cap${p.flags === 1 ? " is" : "s are"} exceeded, 25 points off each`}. ${w(HEALTH_WEIGHTS.caps)}.`,
-  });
-
-  const verdictPoints = { keep: 100, "add-with-new-money": 100, "trim-new-buys": 60, review: 30 } as const;
-  const research = Math.round(p.verdicts.reduce((s, v) => s + v.share * verdictPoints[v.verdict], 0));
-  const reviews = p.verdicts.filter((v) => v.verdict === "review").length;
-  parts.push({
-    label: "Research fit",
-    score: research,
-    weight: HEALTH_WEIGHTS.research,
-    why: `Weighted by value: holdings research still supports count fully, over-cap ones 60, ones to review 30${reviews ? ` (${reviews} to review)` : ""}. ${w(HEALTH_WEIGHTS.research)}.`,
-  });
-
-  const speculative = p.priced.filter((x) => x.asset.risk === "speculative").reduce((s, x) => s + x.share, 0);
-  const limit = SPECULATIVE_LIMIT[p.input.risk];
-  const riskScore = Math.round(100 * clamp01(speculative <= limit ? 1 : 1 - (speculative - limit) / limit));
-  parts.push({
-    label: "Risk fit",
-    score: riskScore,
-    weight: HEALTH_WEIGHTS.risk,
-    why: `${pct(speculative)} is in speculative assets against about ${pct(limit)} for your ${p.input.risk} risk answer. ${w(HEALTH_WEIGHTS.risk)}.`,
-  });
-
-  const loanScore = p.loanUsd > 0 ? Math.round(100 * clamp01(1 - p.ltv / LOAN_ZERO_AT)) : 100;
-  parts.push({
-    label: "Loan",
-    score: loanScore,
-    weight: HEALTH_WEIGHTS.loan,
-    why: `${p.loanUsd > 0 ? `Loan is ${pct(p.ltv)} of priced holdings; the score reaches 0 at ${pct(LOAN_ZERO_AT)}` : "No open loan"}. ${w(HEALTH_WEIGHTS.loan)}.`,
-  });
-
-  const score = Math.round(parts.reduce((s, x) => s + x.score * x.weight, 0));
-  const out = parts.map(({ label, score: s, why }) => ({ label, score: s, why }));
-  if (p.unpriced.length) {
-    out.push({ label: "Not scored", score: 0, why: `${p.unpriced.map((u) => u.name).join(", ")} had no price today and ${p.unpriced.length === 1 ? "is" : "are"} left out of the score.` });
-  }
-  return { score, parts: out };
 }
