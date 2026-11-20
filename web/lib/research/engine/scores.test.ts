@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { DailyScore, ResearchNote, WeeklyReport } from "../types.ts";
-import { calibration, calibrationClearlyOff, directionRight, initialScore, qualityBar, updateScores, weeklyScorecard } from "./scores.ts";
+import { calibration, calibrationClearlyOff, directionRight, initialScore, levelsToScore, qualityBar, updateScores, weeklyScorecard } from "./scores.ts";
 import { computeLevels } from "./levels.ts";
 import { chartRead } from "./test-helpers.ts";
 import { sampleWeekly } from "./snapshot.ts";
@@ -30,16 +30,31 @@ function note(date: string, price: number, over: Partial<ResearchNote> = {}): Re
   };
 }
 
-test("direction: accumulate up, cautious down, hold within the ATR band", () => {
+test("direction: accumulate up, cautious down, hold within half an ATR band", () => {
   assert.equal(directionRight("accumulate", 0.01, 0.02, 1), true);
   assert.equal(directionRight("accumulate", -0.01, 0.02, 1), false);
   assert.equal(directionRight("reduce", -0.01, 0.02, 1), true);
   assert.equal(directionRight("avoid-new-buys", 0.01, 0.02, 1), false);
-  assert.equal(directionRight("hold", 0.015, 0.02, 1), true);
-  assert.equal(directionRight("hold", 0.03, 0.02, 1), false);
-  // Over 5 days the band widens with the square root of time: 0.02 x 2.236 = 4.5%.
-  assert.equal(directionRight("hold", 0.04, 0.02, 5), true);
-  assert.equal(directionRight("hold", 0.05, 0.02, 5), false);
+  // Band = 0.5 x 2% = 1% over one day.
+  assert.equal(directionRight("hold", 0.009, 0.02, 1), true);
+  assert.equal(directionRight("hold", 0.015, 0.02, 1), false);
+  // Over 5 days the band widens with the square root of time: 1% x 2.236 = 2.24%.
+  assert.equal(directionRight("hold", 0.02, 0.02, 5), true);
+  assert.equal(directionRight("hold", 0.03, 0.02, 5), false);
+});
+
+test("levels to score: only the side the view relies on, at least one ATR away", () => {
+  const lv = { support: [99.5, 97, 90], resistance: [100.5, 104] };
+  // ATR 2% of 100 = 2: 99.5 and 100.5 are too close and are skipped.
+  assert.deepEqual(levelsToScore("accumulate", lv, 100, 0.02), { support: 97, resistance: undefined });
+  assert.deepEqual(levelsToScore("reduce", lv, 100, 0.02), { support: undefined, resistance: 104 });
+  assert.deepEqual(levelsToScore("hold", lv, 100, 0.02), { support: 97, resistance: 104 });
+  assert.equal(levelsToScore("accumulate", { support: [99.5], resistance: [] }, 100, 0.02), null);
+});
+
+test("always Hold no longer looks calibrated", () => {
+  const hold = (i: number): DailyScore => ({ assetId: "mAAPL", date: "2026-11-02", view: "hold", conviction: "high", priceAtNote: 1, factsShare: 1, direction5d: i % 2 === 0 });
+  assert.deepEqual(calibration([...Array(20)].map((_, i) => hold(i)))[2], { conviction: "high", calls: 0, right: 0 });
 });
 
 test("scores fill in after 1 and 5 trading days, levels held or broke", () => {
@@ -89,9 +104,15 @@ function liveReport(weekOf: string, over: Partial<WeeklyReport["review"]> = {}):
 
 test("the quality bar needs four clean Mondays in a row", () => {
   const weeks = ["2026-11-16", "2026-11-09", "2026-11-02", "2026-10-26"];
-  const grades = weeks.map((w): DailyScore => ({ assetId: "mAAPL", date: w, view: "hold", conviction: "medium", priceAtNote: 1, factsShare: 1, humanGrade: 4 }));
+  const holds = weeks.map((w): DailyScore => ({ assetId: "mAAPL", date: w, view: "hold", conviction: "medium", priceAtNote: 1, factsShare: 1, humanGrade: 4 }));
+  // Ten directional calls before the oldest week, 6 of 10 right at medium conviction (target 60%).
+  const calls = [...Array(10)].map((_, i): DailyScore => ({ assetId: "mAAPL", date: "2026-10-20", view: "accumulate", conviction: "medium", priceAtNote: 1, factsShare: 1, direction5d: i < 6 }));
+  const grades = [...holds, ...calls];
   const clean = weeks.map((w) => ({ report: liveReport(w), approved: true }));
   assert.equal(qualityBar(clean, grades).met, true);
+  // Only Holds: too few directional calls to judge calibration.
+  assert.equal(qualityBar(clean, holds).met, false);
+  assert.match(qualityBar(clean, holds).weeks[0].why.join(), /too few to judge calibration/);
   assert.equal(qualityBar(clean.slice(0, 3), grades).met, false);
   const corrected = clean.map((w, i) => (i === 2 ? { ...w, report: liveReport(w.report.weekOf, { removedClaims: 1 }) } : w));
   assert.equal(qualityBar(corrected, grades).met, false);

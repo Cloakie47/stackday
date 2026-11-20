@@ -30,15 +30,44 @@ export const noteAtrPct = (n: { facts: { id: string; value: string | number }[] 
 };
 
 /**
+ * Width of the Hold band in daily ATRs, scaled by the square root of the days. A backtest on
+ * 2023 to 2026 prices found that a full ATR let "always Hold" score 84% right, which would make
+ * a Hold-heavy agent look skilled. Half an ATR puts a Hold at roughly a coin flip, like a
+ * directional call (daily close-to-close moves are about 0.8 ATR).
+ */
+export const HOLD_BAND_ATR = 0.5;
+
+/**
  * Did price move the way the view implied over `days` trading days? Accumulate: up. Reduce and
- * avoid new buys: down. Hold: within one daily ATR scaled by the square root of the days (a
- * random walk band), or within 2% of price when the ATR is unknown.
+ * avoid new buys: down. Hold: within HOLD_BAND_ATR daily ATRs scaled by the square root of the
+ * days (a random walk band), or the same share of a 2% move when the ATR is unknown.
  */
 export function directionRight(view: View, change: number, atrPct: number | null, days: number): boolean {
   if (view === "accumulate") return change > 0;
   if (view === "reduce" || view === "avoid-new-buys") return change < 0;
-  const band = (atrPct ?? 0.02) * Math.sqrt(days);
+  const band = HOLD_BAND_ATR * (atrPct ?? 0.02) * Math.sqrt(days);
   return Math.abs(change) <= band;
+}
+
+export const isDirectional = (view: View) => view !== "hold";
+
+/**
+ * Levels closer than this many daily ATRs to price are skipped when scoring: price crosses a line
+ * that close about as often as not, so "broke" would say nothing about the level. The backtest
+ * found the nearest daily levels sit about 0.5 ATR from price.
+ */
+export const LEVEL_MIN_DISTANCE_ATR = 1;
+
+/**
+ * The levels a view relies on, skipping any closer than LEVEL_MIN_DISTANCE_ATR: Accumulate relies
+ * on support, Reduce and Avoid new buys on resistance, Hold on both (a range). Null when none
+ * qualifies.
+ */
+export function levelsToScore(view: View, levels: { support: number[]; resistance: number[] }, price: number, atrPct: number | null): { support?: number; resistance?: number } | null {
+  const minGap = LEVEL_MIN_DISTANCE_ATR * (atrPct ?? 0.02) * price;
+  const support = view === "reduce" || view === "avoid-new-buys" ? undefined : levels.support.find((l) => price - l >= minGap);
+  const resistance = view === "accumulate" ? undefined : levels.resistance.find((l) => l - price >= minGap);
+  return support === undefined && resistance === undefined ? null : { support, resistance };
 }
 
 /** First automatic score of a fresh note, written with the note itself. */
@@ -79,11 +108,10 @@ export function updateScores(scores: DailyScore[], notes: ResearchNote[]): Daily
       next.direction5d = directionRight(s.view, next.change5d, atrPct, 5);
     }
     if (later.length >= 5 && s.levelsHeld === undefined && own?.levels) {
-      const sup = own.levels.support[0];
-      const res = own.levels.resistance[0];
-      if (sup !== undefined || res !== undefined) {
+      const lv = levelsToScore(s.view, own.levels, s.priceAtNote, atrPct);
+      if (lv) {
         const closes = later.slice(0, 5).map((n) => notePrice(n)!);
-        next.levelsHeld = closes.every((c) => (sup === undefined || c >= sup) && (res === undefined || c <= res));
+        next.levelsHeld = closes.every((c) => (lv.support === undefined || c >= lv.support) && (lv.resistance === undefined || c <= lv.resistance));
       }
     }
     if (JSON.stringify(next) !== JSON.stringify(s)) changed.push(next);
@@ -93,10 +121,14 @@ export function updateScores(scores: DailyScore[], notes: ResearchNote[]): Daily
 
 const round4 = (x: number) => Math.round(x * 10_000) / 10_000;
 
-/** For each conviction: how many 5 day calls were scored and how many were right. */
+/**
+ * For each conviction: how many directional 5 day calls (Accumulate, Reduce, Avoid new buys) were
+ * scored and how many were right. Holds are left out so leaning on Hold cannot make a conviction
+ * level look calibrated; they still show in each note's own score.
+ */
 export function calibration(scores: DailyScore[]): Scorecard["calibration"] {
   return CONVICTIONS.map((conviction) => {
-    const scored = scores.filter((s) => s.conviction === conviction && s.direction5d !== undefined);
+    const scored = scores.filter((s) => s.conviction === conviction && isDirectional(s.view) && s.direction5d !== undefined);
     return { conviction, calls: scored.length, right: scored.filter((s) => s.direction5d).length };
   });
 }
@@ -156,7 +188,10 @@ export function qualityBar(previous: StoredWeekly[], scores: DailyScore[]): { me
     const avg = graded.length ? graded.reduce((t, s) => t + s.humanGrade!, 0) / graded.length : 0;
     if (!graded.length) why.push("no human grades");
     else if (avg < 4) why.push(`human grade ${avg.toFixed(1)} below 4`);
-    if (calibrationClearlyOff(calibration(scores.filter((s) => s.date <= end)))) why.push("calibration clearly off");
+    const cal = calibration(scores.filter((s) => s.date <= end));
+    const directional = cal.reduce((t, c) => t + c.calls, 0);
+    if (directional < CALIBRATION_MIN_CALLS) why.push(`only ${directional} scored directional calls, too few to judge calibration`);
+    else if (calibrationClearlyOff(cal)) why.push("calibration clearly off");
     return { weekOf: report.weekOf, ok: why.length === 0, why };
   });
   const consecutive = weeks.length === 4 && weeks.every((w, i) => w.ok && (i === 0 || addDays(w.weekOf, 7) === weeks[i - 1].weekOf));
