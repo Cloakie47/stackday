@@ -12,15 +12,10 @@ import { runWeekly } from "@/lib/research/engine/weekly";
  * sees it until one of them approves it (POST /api/research/weekly/approve).
  *
  * The weekly run uses the strongest model for many steps, so it gets its own per-run cap:
- * RESEARCH_MAX_WEEKLY_RUN_COST_USD (default: the larger of $4 and RESEARCH_MAX_RUN_COST_USD).
+ * RESEARCH_MAX_WEEKLY_RUN_COST_USD (default $4, researchFlags().maxWeeklyRunCostUsd).
  * The per-day cap (RESEARCH_MAX_DAY_COST_USD) always applies.
  */
 export const maxDuration = 800;
-
-function weeklyCap(fallback: number): number {
-  const n = Number(process.env.RESEARCH_MAX_WEEKLY_RUN_COST_USD);
-  return Number.isFinite(n) && n > 0 ? n : Math.max(4, fallback);
-}
 
 export async function GET(request: Request) {
   if (!cronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) return json({ error: "Not allowed." }, 401);
@@ -34,7 +29,7 @@ export async function GET(request: Request) {
       gatherMarket: defaultGatherMarket,
       model: callModel,
       store: supabaseStore(db()),
-      maxRunCostUsd: weeklyCap(flags.maxRunCostUsd),
+      maxRunCostUsd: flags.maxWeeklyRunCostUsd,
       maxDayCostUsd: flags.maxDayCostUsd,
     });
     // The report itself is read through GET /api/research/weekly; the cron only gets the summary.
