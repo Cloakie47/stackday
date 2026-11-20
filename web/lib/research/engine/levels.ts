@@ -1,14 +1,15 @@
-import type { Action, Indicators, Levels } from "../types.ts";
-import type { UniverseAsset } from "../universe.ts";
+import type { ChartRead, Indicators, Levels, View } from "../types.ts";
 
 /**
- * Entry, target and stop, computed in code from daily price data (never by the model):
- * - entry  = last daily close
- * - stop   = nearest support between 1 and 3 ATR14 below the close, less a quarter ATR of room;
- *            otherwise 2 x ATR14 below the close
- * - target = nearest resistance between 1 and 6 ATR14 above the close; otherwise 3 x ATR14 above
- * Null when levels make no sense: no public price (SpaceX), cash-like funds (Treasuries), too
- * little data, or a "sell" suggestion (Stackday never sells short, so a sell has no entry).
+ * Buy zone and invalidation, computed in code from the daily chart read (support and resistance)
+ * and the daily ATR. The model never writes a level.
+ * - accumulate: zone = nearest daily support (within 3 ATR below the close) up to +0.5 ATR, capped
+ *   at the close; without such a support, 1 ATR below the close up to the close. Invalidation =
+ *   1.5 ATR below the bottom of the zone.
+ * - hold: no zone. Invalidation = 1 ATR below the nearest support, or 2 ATR below the close.
+ * - reduce and avoid new buys: no zone. Invalidation = 1 ATR above the nearest resistance, or
+ *   2 ATR above the close (a close above it proves the cautious view wrong).
+ * Null when the close or the ATR is missing or makes no sense.
  */
 
 export function roundPrice(x: number): number {
@@ -19,31 +20,45 @@ export function roundPrice(x: number): number {
   return Math.round(x * f) / f;
 }
 
-const fmt = (x: number) => String(roundPrice(x));
 const valid = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x) && x > 0;
+const fmt = (x: number) => String(roundPrice(x));
 
-export function computeLevels(asset: UniverseAsset, daily: Indicators | undefined, action: Action): Levels | null {
-  if (!asset.publicPrice || asset.risk === "cash-like" || action === "sell" || !daily) return null;
+export function computeLevels(view: View, daily: Indicators | undefined, chart: ChartRead | undefined): Levels | null {
+  if (!daily) return null;
   const last = daily.last;
   const atr = daily.atr14;
   if (!valid(last) || !valid(atr) || atr >= last / 2) return null;
 
-  const supports = (daily.support ?? []).filter((s) => valid(s) && s < last - atr && s >= last - 3 * atr).sort((a, b) => b - a);
-  const resistances = (daily.resistance ?? []).filter((r) => valid(r) && r >= last + atr && r <= last + 6 * atr).sort((a, b) => a - b);
+  const support = (chart?.support ?? []).filter((s) => valid(s) && s < last).sort((a, b) => b - a);
+  const resistance = (chart?.resistance ?? []).filter((r) => valid(r) && r > last).sort((a, b) => a - b);
+  const near = support.find((s) => s >= last - 3 * atr);
+  const res = resistance[0];
 
-  const support = supports[0];
-  const resistance = resistances[0];
-  const stop = support !== undefined ? support - 0.25 * atr : last - 2 * atr;
-  const target = resistance !== undefined ? resistance : last + 3 * atr;
-  if (!(stop > 0) || !(stop < last) || !(target > last)) return null;
+  let buyZone: Levels["buyZone"] = null;
+  let invalidation: number;
+  let basis: string;
+  if (view === "accumulate") {
+    const low = near ?? last - atr;
+    const high = Math.min(last, low + 0.5 * atr);
+    buyZone = { low: roundPrice(low), high: roundPrice(Math.max(high, low)) };
+    invalidation = low - 1.5 * atr;
+    basis =
+      near !== undefined
+        ? `zone = nearest daily support ${fmt(near)} to +0.5 ATR (ATR14 ${fmt(atr)}), capped at the close ${fmt(last)}; invalidation = 1.5 ATR below the zone`
+        : `zone = 1 ATR (ATR14 ${fmt(atr)}) below the close ${fmt(last)} up to +0.5 ATR; invalidation = 1.5 ATR below the zone`;
+  } else if (view === "hold") {
+    invalidation = support[0] !== undefined ? support[0] - atr : last - 2 * atr;
+    basis = support[0] !== undefined ? `invalidation = 1 ATR (ATR14 ${fmt(atr)}) below the nearest daily support ${fmt(support[0])}` : `invalidation = 2 ATR (ATR14 ${fmt(atr)}) below the close ${fmt(last)}`;
+  } else {
+    invalidation = res !== undefined ? res + atr : last + 2 * atr;
+    basis = res !== undefined ? `invalidation = 1 ATR (ATR14 ${fmt(atr)}) above the nearest daily resistance ${fmt(res)}` : `invalidation = 2 ATR (ATR14 ${fmt(atr)}) above the close ${fmt(last)}`;
+  }
+  if (!valid(invalidation)) return null;
+  return { buyZone, invalidation: roundPrice(invalidation), support: support.slice(0, 3).map(roundPrice), resistance: resistance.slice(0, 3).map(roundPrice), basis };
+}
 
-  const basis = [
-    `entry = last daily close ${fmt(last)}`,
-    support !== undefined
-      ? `stop = nearest support ${fmt(support)} less 0.25 x ATR14 (${fmt(atr)})`
-      : `stop = 2 x ATR14 (${fmt(atr)}) below the close`,
-    resistance !== undefined ? `target = nearest resistance ${fmt(resistance)}` : `target = 3 x ATR14 above the close`,
-  ].join("; ");
-
-  return { entry: roundPrice(last), target: roundPrice(target), stop: roundPrice(stop), basis };
+/** Every number a Levels object contains (allowed in model text that talks about them). */
+export function levelNumbers(l: Levels | null): number[] {
+  if (!l) return [];
+  return [l.invalidation, ...l.support, ...l.resistance, ...(l.buyZone ? [l.buyZone.low, l.buyZone.high] : [])];
 }

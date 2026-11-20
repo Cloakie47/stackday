@@ -1,15 +1,17 @@
 import { connection } from "next/server";
-import { configured, db, json } from "@/lib/server/backend";
-import { publicSnapshot } from "@/lib/research/engine/snapshot";
+import { configured, db, json, sessionWallet } from "@/lib/server/backend";
+import { isReviewer } from "@/lib/research/engine/reviewers";
+import { snapshotReply } from "@/lib/research/engine/snapshot";
 import { supabaseStore } from "@/lib/research/engine/store";
 
 /**
- * Public: the latest live research snapshot, or the labelled sample (kind "sample") when there is
- * none yet or the database is not connected. Rate limited like every /api read (proxy.ts).
+ * GET /api/research/snapshot -> { snapshot: ResearchSnapshot, internal: boolean }.
+ * Daily notes are internal while testing: reviewers get the latest live notes, everyone else the
+ * labelled sample with `internal: true`.
  */
-export async function GET() {
-  // Read at request time (never prerendered at build), so a new run shows without a redeploy.
+export async function GET(request: Request) {
   await connection();
-  const snapshot = await publicSnapshot(configured() ? supabaseStore(db()) : null);
-  return json(snapshot, 200, { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" });
+  const reviewer = isReviewer(sessionWallet(request));
+  const reply = await snapshotReply(configured() && reviewer ? supabaseStore(db()) : null, reviewer);
+  return json(reply.body, reply.status, reply.publicCache ? { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } : {});
 }
