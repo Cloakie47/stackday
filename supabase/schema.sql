@@ -137,32 +137,40 @@ alter table recurring_plans enable row level security;
 -- No policies: only the server (service role) reads or writes it.
 
 -- ---------------------------------------------------------------------------------------------
--- Research (Themes layer engine, docs/research/PLAN.md). Market research is public information
--- the server writes once per trading day; reports, portfolios and plans belong to one wallet.
--- RLS on and no policies, like every table above: only the server (service role) reads or writes.
+-- Research (Themes layer engine, founder spec docs/research/SPEC.md, plan docs/research/PLAN.md).
+-- Market research is general information the server writes: a daily note per asset (internal
+-- while testing) and a Monday weekly report (the product). Portfolios and plans belong to one
+-- wallet. RLS on and no policies, like every table above: only the server (service role) reads or
+-- writes.
 -- ---------------------------------------------------------------------------------------------
 
 -- One row per engine run. A failed or over-budget run writes nothing else, so the last good
--- snapshot stays live.
+-- note or report stays live. Model ids, prompt version and data hash make each run reproducible.
 create table if not exists research_runs (
   run_id       text primary key,
+  kind         text not null check (kind in ('daily', 'weekly')),
   run_date     date not null,
   status       text not null check (status in ('running', 'ok', 'failed', 'aborted-cost')),
   cost_usd     numeric(10, 4) not null default 0,
+  models       jsonb,
+  prompt_version text,
+  data_hash    text,
   detail       text,
   started_at   timestamptz not null default now(),
   finished_at  timestamptz
 );
 alter table research_runs enable row level security;
 
--- Daily research note per asset (ResearchNote in web/lib/research/types.ts). Kept forever so
--- people can see how a suggestion changed over time.
+-- Daily note per asset (ResearchNote in web/lib/research/types.ts). Internal while testing: the
+-- founder or growth reviews it before anyone else sees it. Kept forever for the track record.
 create table if not exists research_notes (
   run_date   date not null,
   asset_id   text not null check (asset_id ~ '^m[A-Za-z]{2,10}$'),
   run_id     text not null references research_runs(run_id),
-  action     text not null check (action in ('buy', 'hold', 'sell', 'watch')),
+  view       text not null check (view in ('accumulate', 'hold', 'reduce', 'avoid-new-buys')),
   note       jsonb not null,
+  reviewed_by text,
+  reviewed_at timestamptz,
   created_at timestamptz not null default now(),
   primary key (run_date, asset_id)
 );
@@ -177,22 +185,33 @@ create table if not exists research_market (
 );
 alter table research_market enable row level security;
 
--- Reports a wallet generated (Report). Body is the full report as shown.
-create table if not exists research_reports (
-  id            uuid primary key default gen_random_uuid(),
-  wallet        text not null check (wallet ~ '^0x[0-9a-f]{40}$'),
-  scope         text not null check (scope in ('market', 'asset', 'portfolio', 'full')),
-  period        text not null check (period in ('daily', 'weekly', 'monthly', 'on-demand')),
-  snapshot_date date not null,
-  premium       boolean not null default false,
-  body          jsonb not null,
-  created_at    timestamptz not null default now()
+-- Monday weekly report (WeeklyReport). Not shown to anyone but the reviewers until published.
+create table if not exists research_weekly (
+  week_of      date primary key,
+  run_id       text not null references research_runs(run_id),
+  beta         boolean not null default true,
+  approved     boolean not null default false,
+  published_at timestamptz,
+  reviewed_by  text,
+  body         jsonb not null,
+  created_at   timestamptz not null default now()
 );
-create index if not exists research_reports_wallet on research_reports (wallet, created_at desc);
-alter table research_reports enable row level security;
+alter table research_weekly enable row level security;
 
--- Holdings typed in by hand plus horizon and risk answers (PortfolioInput). Vault holdings are
--- read from the chain each time and never stored here.
+-- Score of each daily note (DailyScore), filled in after 1 and 5 trading days, plus a human grade.
+create table if not exists research_scores (
+  run_date    date not null,
+  asset_id    text not null check (asset_id ~ '^m[A-Za-z]{2,10}$'),
+  score       jsonb not null,
+  human_grade integer check (human_grade between 1 and 5),
+  graded_by   text,
+  updated_at  timestamptz not null default now(),
+  primary key (run_date, asset_id)
+);
+alter table research_scores enable row level security;
+
+-- Holdings typed in by hand (PortfolioInput). Vault holdings are read from the chain each time
+-- and never stored here.
 create table if not exists research_portfolios (
   wallet      text primary key check (wallet ~ '^0x[0-9a-f]{40}$'),
   input       jsonb not null,
@@ -200,24 +219,14 @@ create table if not exists research_portfolios (
 );
 alter table research_portfolios enable row level security;
 
--- Scheduled reports a wallet asked for.
-create table if not exists research_schedules (
-  wallet      text not null check (wallet ~ '^0x[0-9a-f]{40}$'),
-  period      text not null check (period in ('daily', 'weekly', 'monthly')),
-  scope       text not null check (scope in ('market', 'portfolio', 'full')),
-  enabled     boolean not null default true,
-  last_run    date,
-  primary key (wallet, period, scope)
-);
-alter table research_schedules enable row level security;
-
--- Plan and credits per wallet (Entitlement). Testnet only: payments are test USDC on Base Sepolia.
+-- Plan and weekly report credits per wallet (Entitlement). Testnet only: payments are test USDC on
+-- Base Sepolia, and the paywall stays off until the quality bar and a legal check are done.
 create table if not exists research_entitlements (
   wallet          text primary key check (wallet ~ '^0x[0-9a-f]{40}$'),
-  plan            text not null default 'free' check (plan in ('free', 'pay-per-report', 'monthly', 'yearly')),
+  plan            text not null default 'free' check (plan in ('free', 'weekly-single', 'monthly')),
   valid_until     timestamptz,
-  report_credits  integer not null default 0 check (report_credits >= 0),
-  premium         boolean not null default false,
+  weekly_credits  integer not null default 0 check (weekly_credits >= 0),
+  unlocked_weeks  date[] not null default '{}',
   updated_at      timestamptz not null default now()
 );
 alter table research_entitlements enable row level security;
@@ -228,7 +237,7 @@ create table if not exists research_payments (
   wallet       text not null check (wallet ~ '^0x[0-9a-f]{40}$'),
   chain_id     integer not null,
   amount_usdc  numeric(18, 6) not null check (amount_usdc > 0),
-  purpose      text not null check (purpose in ('report', 'monthly', 'yearly', 'premium')),
+  purpose      text not null check (purpose in ('weekly-single', 'monthly')),
   verified_at  timestamptz not null default now()
 );
 alter table research_payments enable row level security;

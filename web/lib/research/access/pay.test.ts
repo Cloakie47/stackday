@@ -58,8 +58,8 @@ function mockChain(txs: Record<string, Tx>, opts: { head?: bigint; chainId?: num
   return { reader, calls };
 }
 
-const pay = (reader: ChainReader, store = memoryAccessStore(), o: Partial<{ txHash: string; wallet: string; purpose: "report" | "monthly" | "yearly" | "premium" }> = {}) =>
-  processPayment({ txHash: HASH, wallet: ALICE, purpose: "report", reader, cfg, store, now: NOW, ...o });
+const pay = (reader: ChainReader, store = memoryAccessStore(), o: Partial<{ txHash: string; wallet: string; purpose: "weekly-single" | "monthly" }> = {}) =>
+  processPayment({ txHash: HASH, wallet: ALICE, purpose: "weekly-single", reader, cfg, store, now: NOW, ...o });
 
 test("paymentConfig needs a real, testnet-only treasury address", () => {
   assert.equal(paymentConfig({}, USDC), null);
@@ -85,10 +85,10 @@ test("receipt parsing counts only USDC transfers from the wallet to the treasury
 });
 
 test("verifyPayment rejects bad hashes, wrong chain, pending, reverted and unconfirmed transactions", async () => {
-  const good = { logs: [transferLog({ value: priceUnits("report") })] };
+  const good = { logs: [transferLog({ value: priceUnits("weekly-single") })] };
   const v = (reader: ChainReader, txHash: string = HASH) => verifyPayment({ txHash, wallet: ALICE, reader, cfg });
 
-  assert.deepEqual(await v(mockChain({ [HASH]: good }).reader), { ok: true, amount: priceUnits("report") });
+  assert.deepEqual(await v(mockChain({ [HASH]: good }).reader), { ok: true, amount: priceUnits("weekly-single") });
   assert.equal((await v(mockChain({}).reader, "0x1234")) .ok, false);
   const mainnet = await v(mockChain({ [HASH]: good }, { chainId: 8453 }).reader);
   assert.deepEqual([mainnet.ok, !mainnet.ok && mainnet.status], [false, 500]);
@@ -109,38 +109,38 @@ test("verifyPayment rejects bad hashes, wrong chain, pending, reverted and uncon
 });
 
 test("processPayment grants credits once and rejects a replay of the same tx hash", async () => {
-  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("report") * BigInt(2) })] } });
+  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("weekly-single") * BigInt(2) })] } });
   const store = memoryAccessStore();
   const first = await pay(reader, store);
   assert.ok(first.ok);
-  assert.equal(first.entitlement.reportCredits, 2);
-  assert.equal(first.amountUsdc, "4");
-  assert.equal(store.payments.get(HASH)?.purpose, "report");
+  assert.equal(first.entitlement.weeklyCredits, 2);
+  assert.equal(first.amountUsdc, "2");
+  assert.equal(store.payments.get(HASH)?.purpose, "weekly-single");
   assert.equal(store.payments.get(HASH)?.chainId, 84532);
 
   const again = await pay(reader, store);
   assert.deepEqual([again.ok, !again.ok && again.status], [false, 409]);
   const upper = await pay(reader, store, { txHash: HASH.toUpperCase().replace("0X", "0x") });
   assert.equal(upper.ok, false, "case changes do not get around the replay check");
-  assert.equal(store.peek(ALICE)?.reportCredits, 2);
+  assert.equal(store.peek(ALICE)?.weeklyCredits, 2);
 });
 
 test("a replay sent many times at once is granted exactly once", async () => {
-  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("report") })] } });
+  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("weekly-single") })] } });
   const store = memoryAccessStore();
   const results = await Promise.all(Array.from({ length: 10 }, () => pay(reader, store)));
   assert.equal(results.filter((r) => r.ok).length, 1);
-  assert.equal(store.peek(ALICE)?.reportCredits, 1);
+  assert.equal(store.peek(ALICE)?.weeklyCredits, 1);
 });
 
 test("parallel different payments all land (no lost update)", async () => {
   const txs: Record<string, Tx> = {};
-  for (let i = 1; i <= 6; i++) txs[hashN(i)] = { logs: [transferLog({ value: priceUnits("report") })] };
+  for (let i = 1; i <= 6; i++) txs[hashN(i)] = { logs: [transferLog({ value: priceUnits("weekly-single") })] };
   const { reader } = mockChain(txs);
   const store = memoryAccessStore();
   const results = await Promise.all(Object.keys(txs).map((txHash) => pay(reader, store, { txHash })));
   assert.ok(results.every((r) => r.ok));
-  assert.equal(store.peek(ALICE)?.reportCredits, 6);
+  assert.equal(store.peek(ALICE)?.weeklyCredits, 6);
 });
 
 test("someone else cannot claim another wallet's payment", async () => {
@@ -155,23 +155,26 @@ test("someone else cannot claim another wallet's payment", async () => {
 });
 
 test("underpaying for the chosen purpose is refused and the hash stays usable", async () => {
-  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("monthly") })] } });
+  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("weekly-single") })] } });
   const store = memoryAccessStore();
-  const r = await pay(reader, store, { purpose: "yearly" });
+  const r = await pay(reader, store, { purpose: "monthly" });
   assert.deepEqual([r.ok, !r.ok && r.status], [false, 400]);
   assert.equal(store.payments.size, 0);
-  assert.ok((await pay(reader, store, { purpose: "monthly" })).ok);
+  assert.ok((await pay(reader, store, { purpose: "weekly-single" })).ok);
 });
 
-test("premium payment sets the premium flag", async () => {
-  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("premium") })] } });
-  const r = await pay(reader, memoryAccessStore(), { purpose: "premium" });
+test("a monthly payment grants 30 days and is stored with its purpose", async () => {
+  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("monthly") })] } });
+  const store = memoryAccessStore();
+  const r = await pay(reader, store, { purpose: "monthly" });
   assert.ok(r.ok);
-  assert.equal(r.entitlement.premium, true);
+  assert.equal(r.entitlement.plan, "monthly");
+  assert.equal(r.entitlement.validUntil, "2026-12-19T12:00:00.000Z");
+  assert.equal(store.payments.get(HASH)?.purpose, "monthly");
 });
 
 test("if granting fails after storing, the payment row is removed so the person can retry", async () => {
-  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("report") })] } });
+  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("weekly-single") })] } });
   const store = memoryAccessStore();
   const broken = { ...store, save: async () => { throw new Error("db down"); } };
   const r = await pay(reader, broken);

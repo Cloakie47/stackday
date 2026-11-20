@@ -8,30 +8,25 @@ import { PRICE_LIST, planCards } from "@/lib/research/access/prices";
 import { supabaseAccessStore } from "@/lib/research/access/store";
 
 /**
- * The price list (a proposal that needs founder approval), whether the paywall is on, where to
- * pay, and the signed-in wallet's entitlement. Works without the account database: then the
- * entitlement is null.
+ * GET /api/research/access: `{ paywallEnabled, prices, entitlement | null }` plus where to pay.
+ * Prices are placeholders (a proposal, founder to decide) in test USDC on Base Sepolia. The paywall
+ * stays off until the quality bar (four Mondays) and a legal check are done. Works without the
+ * account database: then the entitlement is null.
  */
 export async function GET(request: Request) {
   // Per-visitor and env-dependent: never prerender at build time.
   await connection();
   const wallet = sessionWallet(request);
+  const paywallEnabled = researchFlags().paywallEnabled;
   const cfg = paymentConfig(process.env, ADDR.usdc);
   let entitlement = null;
   if (wallet && configured()) {
     entitlement = await currentEntitlement(wallet, supabaseAccessStore(db), new Date()).catch(() => null);
   }
   return json({
-    paywallEnabled: researchFlags().paywallEnabled,
-    paymentsEnabled: Boolean(cfg) && researchFlags().paywallEnabled,
-    treasury: cfg?.treasury ?? null,
-    payTo: cfg?.treasury ?? undefined,
-    usdc: ADDR.usdc,
-    pricingStatus: PRICE_LIST.status,
-    plans: planCards(),
-    premium: { label: PRICE_LIST.items.premium.label, priceUsdc: Number(PRICE_LIST.items.premium.usdc), features: [PRICE_LIST.items.premium.description] },
-    prices: PRICE_LIST,
-    wallet,
+    paywallEnabled,
+    prices: { ...PRICE_LIST, plans: planCards() },
     entitlement,
+    payment: { enabled: Boolean(cfg) && paywallEnabled, payTo: cfg?.treasury ?? null, usdc: ADDR.usdc },
   });
 }

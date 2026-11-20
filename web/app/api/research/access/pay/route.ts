@@ -8,9 +8,9 @@ import { isPurpose } from "@/lib/research/access/prices";
 import { supabaseAccessStore } from "@/lib/research/access/store";
 
 /**
- * Body: { txHash, purpose: "report" | "monthly" | "yearly" | "premium" }.
+ * POST /api/research/access/pay, body: { txHash, purpose: "weekly-single" | "monthly" }.
  * The signed-in wallet has already sent test USDC to the research treasury on Base Sepolia; we
- * read the receipt, check it, store the hash once and grant credits or plan time.
+ * read the receipt, check it, store the hash once and grant a Monday credit or monthly plan time.
  * Read only on chain: the server holds no key and sends nothing.
  */
 const chain = createPublicClient({
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   if (!configured()) return notConfigured();
   const wallet = sessionWallet(request);
   if (!wallet) return needSignIn();
-  if (!researchFlags().paywallEnabled) return json({ error: "Paid reports are not switched on yet, so no payment is needed." }, 403);
+  if (!researchFlags().paywallEnabled) return json({ error: "The weekly report is a free beta while the paywall is off, so no payment is needed." }, 403);
   const cfg = paymentConfig(process.env, ADDR.usdc);
   if (!cfg) return json({ error: "Research payments are not set up yet." }, 503);
 

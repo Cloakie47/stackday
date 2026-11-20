@@ -68,7 +68,7 @@ export function memoryAccessStore(seed: Entitlement[] = []) {
     async load(wallet) {
       await tick();
       const row = rows.get(wallet);
-      return { ent: row ? { ...row.ent } : freeEntitlement(wallet), token: row?.version ?? 0 };
+      return { ent: row ? { ...row.ent, unlockedWeeks: [...row.ent.unlockedWeeks] } : freeEntitlement(wallet), token: row?.version ?? 0 };
     },
     async save(prev, next) {
       await tick();
@@ -98,24 +98,31 @@ type Row = {
   wallet: string;
   plan: Plan;
   valid_until: string | null;
-  report_credits: number;
-  premium: boolean;
+  weekly_credits: number;
+  unlocked_weeks: string[] | null;
   updated_at: string;
 };
 
-const COLUMNS = "wallet, plan, valid_until, report_credits, premium, updated_at";
+const COLUMNS = "wallet, plan, valid_until, weekly_credits, unlocked_weeks, updated_at";
 
 const toEnt = (r: Row): Entitlement => ({
   owner: r.wallet,
   plan: r.plan,
   validUntil: r.valid_until ? new Date(r.valid_until).toISOString() : null,
-  reportCredits: r.report_credits,
-  premium: r.premium,
+  weeklyCredits: r.weekly_credits,
+  unlockedWeeks: (r.unlocked_weeks ?? []).map((d) => String(d).slice(0, 10)),
 });
 
 /** Minimal slice of the Supabase client this store uses, so the route can pass `db()`. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = { from(table: string): any };
+
+/** A new updated_at that is always later than the old one, so it works as a row version. */
+function nextStamp(old: string | null): string {
+  const now = Date.now();
+  const prev = old ? Date.parse(old) : Number.NaN;
+  return new Date(Number.isFinite(prev) && prev >= now ? prev + 1 : now).toISOString();
+}
 
 export function supabaseAccessStore(db: () => Db): AccessStore {
   return {
@@ -125,31 +132,30 @@ export function supabaseAccessStore(db: () => Db): AccessStore {
       return data ? { ent: toEnt(data as Row), token: data as Row } : { ent: freeEntitlement(wallet), token: null };
     },
     async save(prev, next) {
+      const old = prev.token as Row | null;
       const values = {
         plan: next.plan,
         valid_until: next.validUntil,
-        report_credits: next.reportCredits,
-        premium: next.premium,
-        updated_at: new Date().toISOString(),
+        weekly_credits: next.weeklyCredits,
+        unlocked_weeks: next.unlockedWeeks,
+        updated_at: nextStamp(old?.updated_at ?? null),
       };
-      const old = prev.token as Row | null;
       if (!old) {
         const { error } = await db().from("research_entitlements").insert({ wallet: next.owner, ...values });
         if (!error) return true;
         if (error.code === "23505") return false; // a parallel request created the row first
         throw new Error("Could not save the entitlement.");
       }
-      // Conditional update on every column we read: zero rows changed means someone else wrote first.
-      let q = db()
+      // Conditional update: updated_at is the row version (every save moves it forward), plus the
+      // plan and credits we read. Zero rows changed means someone else wrote first.
+      const { data, error } = await db()
         .from("research_entitlements")
         .update(values)
         .eq("wallet", old.wallet)
         .eq("plan", old.plan)
-        .eq("report_credits", old.report_credits)
-        .eq("premium", old.premium)
-        .eq("updated_at", old.updated_at);
-      q = old.valid_until === null ? q.is("valid_until", null) : q.eq("valid_until", old.valid_until);
-      const { data, error } = await q.select("wallet");
+        .eq("weekly_credits", old.weekly_credits)
+        .eq("updated_at", old.updated_at)
+        .select("wallet");
       if (error) throw new Error("Could not save the entitlement.");
       return (data ?? []).length === 1;
     },
