@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/keeper", "schedule": "0 16 * * 1-5" },
-    { "path": "/api/research/run", "schedule": "30 22 * * *" }
+    { "path": "/api/research/run", "schedule": "30 22 * * *" },
+    { "path": "/api/research/schedules/run", "schedule": "0 23 * * *" }
   ]
 }
