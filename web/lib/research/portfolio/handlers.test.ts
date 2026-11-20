@@ -17,7 +17,7 @@ const WEEKLY = makeWeekly([
   { assetId: "mSPX", price: 45, view: "hold" },
   { assetId: "mPAXG", price: 40, view: "hold", status: "no-reading" },
 ]);
-const PORTFOLIO: PortfolioInput = { holdings: [{ assetId: "mSPX", amount: 4, origin: "manual" }] };
+const PORTFOLIO: PortfolioInput = { holdings: [{ assetId: "mAAPL", amount: 2, origin: "manual" }] };
 
 function memoryStore() {
   const portfolios = new Map<string, PortfolioInput>();
@@ -65,11 +65,15 @@ test("preview: no sign-in needed, nothing saved, returns analysis and reportKind
   const body = r.body as { analysis: PortfolioAnalysisResult; reportKind: string };
   assert.equal(body.reportKind, "sample");
   assert.equal(body.analysis.totalUsd, 200);
-  assert.equal(body.analysis.holdings[0].generalView, "accumulate");
+  assert.equal(body.analysis.holdings[0].generalView, "hold");
   assert.deepEqual(body.analysis.viewSource, { product: "daily-note", date: "2026-11-19" });
   assert.equal(portfolios.size, 0);
   assert.equal(d.gateCalls.length, 0);
   assert.deepEqual(d.feedAsked, [], "no feed read when research priced everything");
+
+  const spx = deps();
+  await handlePreviewPortfolio(spx, { holdings: [{ assetId: "mSPX", amount: 1 }] });
+  assert.deepEqual(spx.feedAsked, [["mSPX"]], "S&P 500 tokens are valued from the token feed");
 });
 
 test("preview: views from the weekly report when there is one, prices from the daily notes first", async () => {
@@ -103,7 +107,7 @@ test("preview: a failing feed or research source still answers, with unpriced ho
   assert.equal(r.status, 200);
   const a = (r.body as { analysis: PortfolioAnalysisResult }).analysis;
   assert.equal(a.totalUsd, 0);
-  assert.deepEqual(a.unpriced.map((u) => u.assetId), ["mSPX"]);
+  assert.deepEqual(a.unpriced.map((u) => u.assetId), ["mAAPL"]);
   assert.equal(a.viewSource, null);
 });
 
