@@ -1,63 +1,67 @@
 # Research engine for Themes: plan
 
-Owner: growthmindsetgg. Started 2026-11-19. Status: building on `gg/research-*` branches, waiting for founder review.
+Owner: growthmindsetgg. Started 2026-11-19. Reworked 2026-11-20 to follow the founder's spec in `docs/research/SPEC.md` (PR #73). Status: on `gg/research-*` branches, waiting for founder review. The spec wins wherever this plan and the spec differ.
 
 ## Why it is in the anchor
 
-The anchor says: "A Themes layer reads market news and sentiment, suggests tokenized stocks by the themes a person cares about, and proposes rebalances from time to time." This engine is that reading and suggesting, done properly. Every day it researches each Stackday asset (stocks, the S&P 500 and Treasury funds, gold, Bitcoin and Ether), writes a short note with a suggested action, and turns it into market and portfolio reports on demand. It extends the founder's binding answers on PR #3 (issue #22) and does not replace them.
+The anchor says: "A Themes layer reads market news and sentiment, suggests tokenized stocks by the themes a person cares about, and proposes rebalances from time to time." This engine is that reading and suggesting, done properly, for the assets a person can also borrow against.
 
-## What a person gets
+## Scope (spec section 1)
 
-1. **Research list** (`/research`): every asset, searchable, each with a 2 to 3 line summary: where it stands and what happened, the opportunity and the risk, and a suggested action (Buy, Hold, Sell or Watch). Where it makes sense it also shows an entry, a target and a stop, with a confidence level.
-2. **Asset page**: outlook for 1 hour, 1 day, 1 week, 1 month, 1 year and 5 years. Every reason cites its facts, and each fact shows its source and time. Bull, base and bear scenarios. The history of past suggestions and how each one turned out.
-3. **Portfolio report**: reads the person's vault holdings (plus anything they type in) and checks allocation, diversification by asset class, sector and risk, concentration, overlap (for example the S&P 500 fund already holds Apple and NVIDIA), whether each holding still looks worth keeping, ideas to redirect new money, and an overall health score.
-4. **Reports on demand and on a schedule**: market, single asset, portfolio, or everything, daily, weekly or monthly.
-5. **Plans** (behind a switch until the founder agrees pricing): free tier, pay per report, monthly or yearly plans, and premium depth. All payments are test USDC on Base Sepolia.
+Borrowable assets only: Bitcoin (cbBTC), Ether (WETH), Gold (PAXG), NVIDIA, Apple and the S&P 500 (deSPXA). `checkResearchable` in `web/lib/research/universe.ts` refuses any asset that is not in this list or not borrowable in `web/lib/deployment.json`. Alphabet and Meta can be added later; invest-only assets and SpaceX stay out.
 
-## Honesty rules (non-negotiable)
+## Two products from one engine (spec section 2)
 
-- Code fetches every number and turns it into a `Fact` with a source and a timestamp. The model never writes a price, a metric or a link.
-- The model returns strict JSON: picks from fixed lists plus short text, and each reason cites fact ids. A reason with no valid fact id is dropped. Anything that fails the schema becomes "no reading", and nothing is invented to fill the gap.
-- Entry, target and stop are computed in code from price data (ATR, support and resistance) and show how they were computed. They are never shown for SpaceX (no public price) or the Treasury fund (cash-like).
-- AI-written text carries an "AI analysis" label. Facts carry "Data". Every report starts and ends with `RESEARCH_DISCLAIMER`.
-- No claims of beating the market (docs/07 found no evidence that a weekly signal does). Each suggestion goes into a log next to plain weekly buying, so its track record is public, good or bad.
-- News text is untrusted. The founder's PR #3 rules apply: primary sources first (SEC EDGAR with a User-Agent, company press-release RSS), no scraping, and an article flagged as a possible prompt injection gets zero weight.
-- Founder failure policy: up to 2 assets may show "no reading". More failures, a failed whole-run check, or the cost guard (`RESEARCH_MAX_RUN_COST_USD`, default $2) means the run writes nothing and the last good snapshot stays live.
-- Suggestions never move money. Themes caps stay "targets for new buys", and rebalance ideas only redirect new money.
+| | Daily note | Monday weekly report |
+|---|---|---|
+| Who sees it | founder and growth only while testing | everyone, as a free "beta" preview until the quality bar holds; then paid |
+| When | each trading day after the US close (22:30 UTC) | Monday about 12:00 UTC |
+| Model | `claude-haiku-5-5`, escalating big movers to `claude-sonnet-5-5` | `claude-opus-5-5` for every asset and the summary |
+| Content | what changed, levels, one-line view | recap, chart read on daily, weekly and monthly bars, market conditions, geopolitics and news, week-ahead calendar, scenarios with probabilities, this week's view, borrowing note; then ideas and last week's scorecard |
 
-## Architecture
+Views are Accumulate, Hold, Reduce or Avoid new buys, each with a conviction level, a buy zone if any and an invalidation level. They are general research for everyone, never a personal instruction.
 
-```
-cron (weekdays + crypto daily) -> /api/research/run (CRON_SECRET)
-   data/      prices, indicators, calendars, news + filings   -> Fact[]
-   engine/    Haiku 5.5 triage, Sonnet 5.5 escalation, one swappable server function -> ResearchNote[]
-              validate -> write research_* tables (or keep last good snapshot)
-/api/research/snapshot   public, latest notes + market overview (falls back to the labelled sample)
-/api/research/history    notes over time for one asset
-/api/research/report     builds a Report; checks access first
-/api/research/portfolio  saves manual holdings, horizon, risk (signed in)
-/api/research/access     plans, credits, verify a test-USDC payment
-/research pages          list, asset page, portfolio, reports, plans
-```
+## How a run works (spec section 4)
 
-The site must keep working with no keys set: it then shows the labelled sample snapshot and no paywall.
+1. **Data, code only:** prices, indicators, chart patterns, trend structure, support and resistance, volatility regime, macro series (FRED), official calendars (Fed, BLS), news and geopolitics, filings (EDGAR), crypto flows. Every number is a `Fact` with a source and a time.
+2. **Four analysts**, each seeing only its own facts: technical, macro and geopolitics, news and sentiment, fundamentals.
+3. **Bull and bear**, one round of rebuttal, facts and analyst notes only.
+4. **Risk reviewer:** every claim cites a fact id, probabilities add to 100, the view matches the evidence, no promises, no personal advice. It can send a section back once.
+5. **Editor:** final plain-language text as strict JSON, then rendered.
+
+Daily notes use a short version (one technical-plus-news pass, then the risk check). The weekly run uses all five steps.
+
+## Honesty rules (non-negotiable, spec section 6)
+
+- Code makes every number. The model only interprets and must cite fact ids; uncited claims are removed.
+- Levels, patterns and the borrowing note are computed in code and say how.
+- News, filings and web text are untrusted: inside the `<untrusted_news>` block and through the injection screen.
+- The agent has no wallet, no keys and no tool that moves money.
+- Spend caps per run (`RESEARCH_MAX_RUN_COST_USD`, default $2) and per day (`RESEARCH_MAX_DAY_COST_USD`, default $6). A failed run writes nothing.
+- Model ids, prompt version and a hash of the data are logged per run so any report can be reproduced.
+- The scorecard is public and complete, wrong calls included. No claims of beating the market.
+- Every page and report carries `RESEARCH_DISCLAIMER`; the weekly report carries `BETA_LABEL` until the quality bar holds.
+
+## Quality bar (spec section 7)
+
+Each daily note is scored automatically after 1 and 5 trading days (direction, levels, facts share) and graded 1 to 5 by a person. Calibration is tracked by conviction. The weekly report becomes paid only after four Mondays in a row with every fact sourced, no corrections, an average human grade of 4 or more, and calibration not clearly off.
 
 ## Branches and who owns which files
 
-All branch from `gg/research-core` (this branch: shared types in `web/lib/research/types.ts`, the universe, flags and the `research_*` tables in `supabase/schema.sql`). Each later branch only adds files in its own folders. If one needs a change to a shared type, it goes into `gg/research-core` first.
+All branch from `gg/research-core` (this branch: shared types in `web/lib/research/types.ts`, the universe and its check, the borrowing note, flags and the `research_*` tables in `supabase/schema.sql`).
 
 | Branch | Owns | Delivers |
 |---|---|---|
-| `gg/research-data` | `web/lib/research/data/**` | Price history by interval, indicators, NYSE plus crypto trading calendar with holidays, EDGAR filings and RSS news turned into `Fact[]`, source terms listed for the founder |
-| `gg/research-engine` | `web/lib/research/engine/**`, `web/app/api/research/run`, `snapshot`, `history`, `web/lib/research/sample-snapshot.json` | Model prompts and strict parsing, levels in code, daily run with cost guard and failure policy, storage, labelled sample snapshot, suggestion log |
-| `gg/research-portfolio` | `web/lib/research/portfolio/**`, `web/lib/research/reports/**`, `web/app/api/research/report`, `portfolio` | Portfolio analysis, report builder (market, asset, portfolio, full; daily, weekly, monthly), schedules |
-| `gg/research-access` | `web/lib/research/access/**`, `web/app/api/research/access` | Plans, credits, entitlement check, test-USDC payment check on Base Sepolia, all behind `RESEARCH_PAYWALL_ENABLED` |
-| `gg/research-ui` | `web/app/(app)/research/**`, `web/components/research/**` | List with search, asset page, portfolio report, report builder, plans page, nav entry |
+| `gg/research-data` (#71) | `web/lib/research/data/**` | Prices on daily, weekly and monthly bars, indicators, pattern detection and chart read in code, FRED macro, Fed and BLS calendars, news and geopolitics, EDGAR filings, crypto flows |
+| `gg/research-engine` (#70) | `web/lib/research/engine/**`, `web/app/api/research/run`, `weekly`, `snapshot`, `history`, `scores` | Analyst desk, bull and bear, risk reviewer, editor, daily and weekly runs, cost caps, scorecard and track record |
+| `gg/research-portfolio` (#69) | `web/lib/research/portfolio/**`, `web/app/api/research/portfolio` | Factual portfolio check with a borrowing note per holding, no per-person orders |
+| `gg/research-access` (#68) | `web/lib/research/access/**`, `web/app/api/research/access` | Weekly pricing (one Monday or a month), paywall off |
+| `gg/research-ui` (#72) | `web/app/(app)/research/**`, `web/components/research/**` | Weekly report page, asset page with the chart read, scenarios, view and scorecard, portfolio check, beta label |
 
 ## Needs the founder
 
-1. Agree that this engine is the Themes weekly refresh from issue #22, now run daily, with the suggestions labelled as research.
-2. Pricing for reports and plans (a new revenue line beyond the fee rule in issue #45). Until then `RESEARCH_PAYWALL_ENABLED` stays off.
-3. Set `ANTHROPIC_API_KEY`, `CRON_SECRET`, `SEC_USER_AGENT` and an account spend limit, plus `RESEARCH_ENGINE_ENABLED=true`.
-4. Apply the new `research_*` tables from `supabase/schema.sql`.
-5. Read the terms of the price data source we pick (listed in the data branch's PR) before it goes live.
+1. Amounts for the single Monday report and the monthly plan (spec section 8).
+2. A stock price provider whose plan allows showing data to users (the Twelve Data free plan does not), and a licensed news feed.
+3. `ANTHROPIC_API_KEY` with an account spend limit, `CRON_SECRET`, `SEC_USER_AGENT`, `RESEARCH_ENGINE_ENABLED=true`.
+4. Apply the `research_*` tables from `supabase/schema.sql`.
+5. The legal check before the paywall is switched on.
