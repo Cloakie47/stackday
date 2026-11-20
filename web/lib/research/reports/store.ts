@@ -3,13 +3,14 @@ import type { PortfolioInput, Report } from "../types.ts";
 import type { ResearchStore } from "./handlers.ts";
 import { parsePortfolioInput } from "../portfolio/validate.ts";
 import { parseSchedule, type Schedule } from "./request.ts";
+import type { DueCandidate, ScheduleRunStore } from "./scheduled.ts";
 
 /**
  * The Supabase side of the research routes: tables research_reports, research_portfolios and
  * research_schedules in supabase/schema.sql. Server only (service role). Returns null when the
  * account database is not connected, and the routes then work without saving.
  */
-export function researchStore(): ResearchStore | null {
+export function researchStore(): (ResearchStore & ScheduleRunStore) | null {
   if (!configured()) return null;
   return supabaseStore;
 }
@@ -18,7 +19,7 @@ const fail = (what: string, error: { message?: string } | null) => {
   if (error) throw new Error(`${what} failed`);
 };
 
-const supabaseStore: ResearchStore = {
+const supabaseStore: ResearchStore & ScheduleRunStore = {
   async saveReport(report) {
     const { error } = await db().from("research_reports").insert({
       id: report.id,
@@ -76,5 +77,24 @@ const supabaseStore: ResearchStore = {
     const rows = schedules.map((s) => ({ wallet, scope: s.scope, period: s.period, enabled: s.enabled }));
     const { error } = await db().from("research_schedules").upsert(rows, { onConflict: "wallet,period,scope" });
     fail("save schedules", error);
+  },
+  async listEnabledSchedules(limit) {
+    const { data, error } = await db()
+      .from("research_schedules")
+      .select("wallet, scope, period, last_run")
+      .eq("enabled", true)
+      .order("last_run", { ascending: true, nullsFirst: true })
+      .limit(limit);
+    fail("list due schedules", error);
+    const out: DueCandidate[] = [];
+    for (const row of data ?? []) {
+      const s = parseSchedule({ scope: row.scope, period: row.period, enabled: true });
+      if (s.ok && typeof row.wallet === "string") out.push({ wallet: row.wallet, scope: s.value.scope, period: s.value.period, lastRun: row.last_run ?? null });
+    }
+    return out;
+  },
+  async markScheduleRun(wallet, scope, period, date) {
+    const { error } = await db().from("research_schedules").update({ last_run: date }).eq("wallet", wallet).eq("scope", scope).eq("period", period);
+    fail("mark schedule run", error);
   },
 };
