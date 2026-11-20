@@ -1,13 +1,19 @@
-import type { AccessCheck, IsoDate } from "../types.ts";
+import type { AccessCheck, Entitlement, IsoDate } from "../types.ts";
 import { researchFlags } from "../flags.ts";
+import { configured, db } from "../../server/backend.ts";
+import { decideAccess, effectiveEntitlement, freeEntitlement, unlockWeek } from "./entitlement.ts";
+import { supabaseAccessStore, updateEntitlement, type AccessStore } from "./store.ts";
 
 /**
  * The one access check every research route calls before showing something that may be paid.
- * Owned by gg/research-access, which replaces the body with plan, credit and payment checks.
  *
  * Founder spec section 6: the paywall stays off until the quality bar (section 7) has held and a
  * legal check is done. While it is off the weekly report is a free "beta" preview, and only the
  * portfolio check needs sign-in (it reads one person's holdings).
+ *
+ * RESEARCH_PAYWALL_ENABLED stays off until the quality bar (four Mondays in a row) and a legal
+ * check are done. When it is on, the weekly report needs an active monthly plan, an already
+ * unlocked Monday, or a Monday credit (rules in entitlement.ts, prices in prices.ts).
  */
 export type ResearchProduct = "weekly-report" | "portfolio-check";
 
@@ -19,14 +25,70 @@ export type ReportRequest = {
   weekOf?: IsoDate;
 };
 
-export async function checkReportAccess(req: ReportRequest): Promise<AccessCheck> {
-  if (req.product === "portfolio-check" && !req.wallet) return { allowed: false, reason: "sign-in" };
-  if (!researchFlags().paywallEnabled) return { allowed: true, consumesCredit: false };
-  if (req.product === "portfolio-check") return { allowed: true, consumesCredit: false };
-  return { allowed: false, reason: "payment-required" };
+/** Thrown by consumeReportCredit when the wallet has no credit left (a parallel request used it). */
+export class NoReportCreditError extends Error {
+  constructor() {
+    super("No Monday report credit left.");
+    this.name = "NoReportCreditError";
+  }
 }
 
-/** Called after a paid weekly report was unlocked, when the check said it consumes a credit. */
-export async function consumeReportCredit(_wallet: string, _weekOf: IsoDate): Promise<void> {
-  // Replaced by gg/research-access.
+export type GateDeps = { paywallEnabled: boolean; store: AccessStore | null; now: Date };
+
+function defaultDeps(): GateDeps {
+  return {
+    paywallEnabled: researchFlags().paywallEnabled,
+    store: configured() ? supabaseAccessStore(db) : null,
+    now: new Date(),
+  };
+}
+
+/** Same as checkReportAccess with the switches passed in. Used by the tests. */
+export async function checkReportAccessWith(req: ReportRequest, deps: GateDeps): Promise<AccessCheck> {
+  if (req.product === "portfolio-check" && !req.wallet) return { allowed: false, reason: "sign-in" };
+  if (!deps.paywallEnabled) return { allowed: true, consumesCredit: false };
+
+  let ent: Entitlement | null = null;
+  if (req.wallet && deps.store && req.product === "weekly-report") {
+    // If the database cannot be read, fall back to the free tier: paid reports stay closed.
+    ent = await deps.store
+      .load(req.wallet.toLowerCase())
+      .then((l) => l.ent)
+      .catch(() => null);
+  }
+  return decideAccess(req, ent, deps.now);
+}
+
+export async function checkReportAccess(req: ReportRequest): Promise<AccessCheck> {
+  return checkReportAccessWith(req, defaultDeps());
+}
+
+/** Same as consumeReportCredit with the switches passed in. Used by the tests. */
+export async function consumeReportCreditWith(wallet: string, weekOf: IsoDate, deps: GateDeps): Promise<void> {
+  if (!deps.paywallEnabled) return;
+  if (!deps.store) throw new NoReportCreditError();
+  let noCredit = false;
+  await updateEntitlement(deps.store, wallet.toLowerCase(), (ent) => {
+    const u = unlockWeek(ent, weekOf, deps.now);
+    noCredit = u.kind === "no-credit";
+    return u.kind === "unlocked" ? u.next : null; // already unlocked: nothing to write
+  });
+  if (noCredit) throw new NoReportCreditError();
+}
+
+/**
+ * Called after a paid weekly report was unlocked, when the check said it consumes a credit.
+ * Atomic: two parallel calls can never spend the same credit, and the same Monday is only ever
+ * paid once (reopening it is free). With the paywall off it does nothing. Throws
+ * NoReportCreditError when no credit is left, so the caller should call this before delivering.
+ */
+export async function consumeReportCredit(wallet: string, weekOf: IsoDate): Promise<void> {
+  return consumeReportCreditWith(wallet, weekOf, defaultDeps());
+}
+
+/** The wallet's entitlement as it applies right now (an expired monthly plan shown as ended). */
+export async function currentEntitlement(wallet: string, store: AccessStore | null, now: Date): Promise<Entitlement> {
+  if (!store) return freeEntitlement(wallet);
+  const { ent } = await store.load(wallet);
+  return effectiveEntitlement(ent, now);
 }
