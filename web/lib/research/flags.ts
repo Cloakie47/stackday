@@ -18,6 +18,8 @@ export const researchFlags = () => ({
   paywallEnabled: on(process.env.RESEARCH_PAYWALL_ENABLED),
   /** Hard stop for one run's model spend, in USD. */
   maxRunCostUsd: num(process.env.RESEARCH_MAX_RUN_COST_USD, 2),
+  /** Hard stop for the Monday weekly run, in USD (it uses the strongest model for every asset). */
+  maxWeeklyRunCostUsd: num(process.env.RESEARCH_MAX_WEEKLY_RUN_COST_USD, 4),
   /** Hard stop for all runs in one UTC day, in USD (the Monday weekly run counts too). */
   maxDayCostUsd: num(process.env.RESEARCH_MAX_DAY_COST_USD, 6),
 });
