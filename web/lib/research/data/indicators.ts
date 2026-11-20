@@ -1,4 +1,4 @@
-import type { BarInterval, Indicators, PriceBar, Timeframe } from "../types.ts";
+import type { BarInterval, Indicators, PriceBar } from "../types.ts";
 
 /**
  * Pure technical indicators computed from a price series. No network, no clock: every function
@@ -148,44 +148,19 @@ export function closeAtOrBefore(bars: PriceBar[], targetMs: number): number | un
   return bars[lo].c;
 }
 
-/** Start time minus a timeframe: hours and days by milliseconds, months and years by the calendar (UTC). */
-export function timeframeBack(t: number, tf: Timeframe): number {
-  const d = new Date(t);
-  switch (tf) {
-    case "1h":
-      return t - HOUR;
-    case "1d":
-      return t - DAY;
-    case "1w":
-      return t - 7 * DAY;
-    case "1m":
-      d.setUTCMonth(d.getUTCMonth() - 1);
-      return d.getTime();
-    case "1y":
-      d.setUTCFullYear(d.getUTCFullYear() - 1);
-      return d.getTime();
-    case "5y":
-      d.setUTCFullYear(d.getUTCFullYear() - 5);
-      return d.getTime();
-  }
-}
-
-const TF_MS: Record<Timeframe, number> = { "1h": HOUR, "1d": DAY, "1w": 7 * DAY, "1m": 28 * DAY, "1y": 365 * DAY, "5y": 5 * 365 * DAY };
-
 /**
- * Percent change over each timeframe: last close / close at or before (last bar time - timeframe)
- * - 1, times 100. A timeframe shorter than one bar is skipped (no 1h change from daily bars).
+ * Change over 1, 5 and 20 bars of this series: last close / close n bars earlier - 1, as a
+ * fraction (0.05 = +5%). A lookback the series cannot reach is left out.
  */
-export function changePct(bars: PriceBar[], interval: BarInterval): Partial<Record<Timeframe, number>> {
-  const out: Partial<Record<Timeframe, number>> = {};
-  if (bars.length < 2) return out;
-  const last = bars[bars.length - 1];
-  const lastT = ms(last.t);
-  for (const tf of Object.keys(TF_MS) as Timeframe[]) {
-    if (TF_MS[tf] < BAR_MS[interval]) continue;
-    const prev = closeAtOrBefore(bars, timeframeBack(lastT, tf));
-    // The lookback time is always before the last bar, so `prev` is never the last close itself.
-    if (prev !== undefined && prev > 0) out[tf] = (last.c / prev - 1) * 100;
+export function changePct(bars: PriceBar[]): Indicators["changePct"] {
+  const out: Indicators["changePct"] = {};
+  const n = bars.length;
+  if (n < 2) return out;
+  const last = bars[n - 1].c;
+  for (const [k, back] of [["bar1", 1], ["bar5", 5], ["bar20", 20]] as const) {
+    if (n - 1 - back < 0) continue;
+    const prev = bars[n - 1 - back].c;
+    if (prev > 0) out[k] = last / prev - 1;
   }
   return out;
 }
@@ -238,8 +213,7 @@ export function spansYear(bars: PriceBar[]): boolean {
 }
 
 /**
- * All indicators for one series. Volatility, max drawdown and support/resistance use the last
- * 365 days of bars (or all bars when the series is shorter); 52-week high and low are only given
+ * All indicators for one series. Volatility and max drawdown use the last 365 days of bars (or all bars when the series is shorter); 52-week high and low are only given
  * when the series covers a full year.
  */
 export function computeIndicators(bars: PriceBar[], interval: BarInterval, opts: { crypto: boolean }): Indicators | null {
@@ -248,10 +222,9 @@ export function computeIndicators(bars: PriceBar[], interval: BarInterval, opts:
   const closes = clean.map((b) => b.c);
   const year = lastYear(clean);
   const yearCloses = year.map((b) => b.c);
-  const sr = supportResistance(year);
   const out: Indicators = {
     last: closes[closes.length - 1],
-    changePct: changePct(clean, interval),
+    changePct: changePct(clean),
     sma20: sma(closes, 20),
     sma50: sma(closes, 50),
     sma200: sma(closes, 200),
@@ -260,13 +233,92 @@ export function computeIndicators(bars: PriceBar[], interval: BarInterval, opts:
     atr14: atr(clean, 14),
     volatility: volatility(yearCloses, periodsPerYear(interval, opts.crypto)),
     maxDrawdown: maxDrawdown(yearCloses),
-    support: sr.support,
-    resistance: sr.resistance,
   };
   if (spansYear(clean)) {
     out.high52w = Math.max(...year.map((b) => b.h));
     out.low52w = Math.min(...year.map((b) => b.l));
   }
   for (const k of Object.keys(out) as (keyof Indicators)[]) if (out[k] === undefined) delete out[k];
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Full series, aligned to the input (undefined where there is not enough history yet). Used by
+// the chart read in ./chart.ts for divergences, crosses and the volatility regime.
+// ---------------------------------------------------------------------------------------------
+
+/** Simple moving average at every bar. */
+export function smaSeries(closes: number[], n: number): (number | undefined)[] {
+  const out: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  let s = 0;
+  for (let i = 0; i < closes.length; i++) {
+    s += closes[i];
+    if (i >= n) s -= closes[i - n];
+    if (i >= n - 1) out[i] = s / n;
+  }
+  return out;
+}
+
+/** RSI (Wilder) at every bar, same formula as `rsi`. */
+export function rsiSeries(closes: number[], n = 14): (number | undefined)[] {
+  const out: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  if (closes.length < n + 1) return out;
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i <= n; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gain += d;
+    else loss -= d;
+  }
+  gain /= n;
+  loss /= n;
+  const val = () => (loss === 0 ? (gain === 0 ? 50 : 100) : 100 - 100 / (1 + gain / loss));
+  out[n] = val();
+  for (let i = n + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    gain = (gain * (n - 1) + Math.max(d, 0)) / n;
+    loss = (loss * (n - 1) + Math.max(-d, 0)) / n;
+    out[i] = val();
+  }
+  return out;
+}
+
+/** MACD line (EMA12 - EMA26) at every bar. */
+export function macdLineSeries(closes: number[], fast = 12, slow = 26): (number | undefined)[] {
+  const out: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  const slowE = emaSeries(closes, slow);
+  const fastE = emaSeries(closes, fast);
+  slowE.forEach((s, i) => {
+    out[i + slow - 1] = fastE[i + slow - fast] - s;
+  });
+  return out;
+}
+
+/** ATR (Wilder) at every bar, same formula as `atr`. */
+export function atrSeries(bars: PriceBar[], n = 14): (number | undefined)[] {
+  const out: (number | undefined)[] = new Array(bars.length).fill(undefined);
+  if (bars.length < n + 1) return out;
+  let a = 0;
+  for (let i = 1; i <= n; i++) a += trueRange(bars[i], bars[i - 1].c);
+  a /= n;
+  out[n] = a;
+  for (let i = n + 1; i < bars.length; i++) {
+    a = (a * (n - 1) + trueRange(bars[i], bars[i - 1].c)) / n;
+    out[i] = a;
+  }
+  return out;
+}
+
+/** Annualised volatility of the last `window` log returns at every bar. */
+export function rollingVolatility(closes: number[], window: number, perYear: number): (number | undefined)[] {
+  const out: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  for (let i = window; i < closes.length; i++) {
+    const r: number[] = [];
+    for (let j = i - window + 1; j <= i; j++) if (closes[j - 1] > 0 && closes[j] > 0) r.push(Math.log(closes[j] / closes[j - 1]));
+    if (r.length < window) continue;
+    const mean = r.reduce((s, x) => s + x, 0) / r.length;
+    const v = r.reduce((s, x) => s + (x - mean) ** 2, 0) / (r.length - 1);
+    out[i] = Math.sqrt(v) * Math.sqrt(perYear);
+  }
   return out;
 }

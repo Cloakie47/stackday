@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aggregateBars, cleanBars, fetchPriceHistory, parseCoinbaseCandles, parseTwelveData, PRICE_SOURCES } from "./prices.ts";
+import { aggregateBars, cleanBars, fetchPriceHistory, parseCoinbaseCandles, parseTwelveData, PRICE_SOURCES, STOCK_PROVIDERS } from "./prices.ts";
 import { UNIVERSE, universeAsset } from "../universe.ts";
 import type { DataDeps } from "./deps.ts";
 import type { PriceBar } from "../types.ts";
@@ -14,9 +14,10 @@ const noNetwork: DataDeps = {
   sleep: async () => {},
 };
 
-test("every asset with a public price has a source, SpaceX has none", () => {
-  for (const a of UNIVERSE) assert.equal(a.assetId in PRICE_SOURCES, a.publicPrice, a.assetId);
-  for (const a of UNIVERSE) if (a.calendar === "CRYPTO") assert.equal(PRICE_SOURCES[a.assetId].provider, "coinbase");
+test("every research asset has a price source: Coinbase for crypto and gold, the stock switch for the rest", () => {
+  for (const a of UNIVERSE) assert.ok(a.assetId in PRICE_SOURCES, a.assetId);
+  for (const a of UNIVERSE) assert.equal(PRICE_SOURCES[a.assetId].provider, a.calendar === "CRYPTO" ? "coinbase" : "stock", a.assetId);
+  assert.deepEqual(Object.keys(PRICE_SOURCES).sort(), UNIVERSE.map((a) => a.assetId).sort());
 });
 
 test("Coinbase candles: [time, low, high, open, close, volume], newest first", () => {
@@ -58,9 +59,12 @@ test("no key: stocks are reported in problems and nothing is fetched or faked", 
   const r = await fetchPriceHistory(universeAsset("mAAPL")!, noNetwork);
   assert.deepEqual(r.series, {});
   assert.match(r.problems[0], /RESEARCH_PRICE_API_KEY not set/);
-  const spcx = await fetchPriceHistory(universeAsset("mSPCX")!, noNetwork);
-  assert.deepEqual(spcx.series, {});
-  assert.match(spcx.problems[0], /no public market price/);
+  const off = await fetchPriceHistory(universeAsset("mSPX")!, { ...noNetwork, env: { RESEARCH_PRICE_PROVIDER: "none", RESEARCH_PRICE_API_KEY: "k" } });
+  assert.deepEqual(off.series, {});
+  assert.match(off.problems[0], /RESEARCH_PRICE_PROVIDER=none/);
+  const bad = await fetchPriceHistory(universeAsset("mSPX")!, { ...noNetwork, env: { RESEARCH_PRICE_PROVIDER: "yahoo" } });
+  assert.match(bad.problems[0], /not a known provider/);
+  assert.equal(STOCK_PROVIDERS.twelvedata.display, false);
 });
 
 test("a failing source is reported without leaking the API key", async () => {

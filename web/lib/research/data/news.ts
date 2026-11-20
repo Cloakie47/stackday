@@ -1,16 +1,17 @@
 import type { Fact, IsoDate } from "../types.ts";
 import type { UniverseAsset } from "../universe.ts";
 import { LIMITS, safeUrl, sanitizeText } from "../../themes/mood.ts";
-import { GENERIC_USER_AGENT, RateLimiter, getJson, getText, type DataDeps } from "./deps.ts";
+import { RateLimiter, getJson, type DataDeps } from "./deps.ts";
 
 /**
- * Primary-source news for the research run, turned into `Fact`s. Server-only. No scraping:
+ * Primary-source filings and shared feed helpers for the research run. Server-only. No scraping:
  *
  * - SEC EDGAR submissions API (https://data.sec.gov/submissions/CIK##########.json) for the
  *   company's own filings. SEC asks automated clients to declare a User-Agent with a contact;
  *   we send SEC_USER_AGENT (set by the founder) and skip EDGAR when it is missing. Requests are
  *   spaced to stay under SEC's "max request rate: 10 requests/second".
- * - Company press-release RSS or Atom feeds that the company publishes for subscribers.
+ * - Company newsroom feeds, outlet headlines and official feeds live in ./headlines.ts and reuse
+ *   the feed parser and quote helpers below.
  *
  * Feed text is untrusted. It is sanitized with the Themes guard (`sanitizeText`, `safeUrl` from
  * lib/themes/mood.ts), cut to a quote of at most 25 words copied from the source, and an item that
@@ -22,29 +23,12 @@ export const EDGAR_SOURCE_NAME = "SEC EDGAR";
 export const EDGAR_API_DOCS = "https://www.sec.gov/search-filings/edgar-application-programming-interfaces";
 /** About 8 requests per second at most, under SEC's 10 per second. */
 export const secLimiter = new RateLimiter(125);
-const feedLimiter = new RateLimiter(500);
 
 const DAY = 86_400_000;
 export const NEWS_WINDOW_DAYS = 30;
 export const FILING_WINDOW_DAYS = 120;
 export const MAX_NEWS = 5;
 export const MAX_FILINGS = 5;
-
-export type PressFeed = { name: string; url: string };
-
-/**
- * Official newsroom feeds, checked 2026-11-19 (HTTP 200 with RSS or Atom). Tesla, Strategy and
- * Alphabet investor relations have no working public feed, so they rely on EDGAR 8-K filings.
- */
-export const PRESS_FEEDS: Record<string, PressFeed> = {
-  mAAPL: { name: "Apple Newsroom", url: "https://www.apple.com/newsroom/rss-feed.rss" },
-  mNVDA: { name: "NVIDIA Newsroom", url: "https://nvidianews.nvidia.com/releases.xml" },
-  mMSFT: { name: "Microsoft News Center", url: "https://news.microsoft.com/feed/" },
-  mMETA: { name: "Meta Newsroom", url: "https://about.fb.com/news/feed/" },
-  mGOOGL: { name: "Google Blog (The Keyword)", url: "https://blog.google/rss/" },
-  mAMZN: { name: "About Amazon", url: "https://www.aboutamazon.com/rss/feed.rss" },
-  mAMD: { name: "AMD Investor Relations press releases", url: "https://ir.amd.com/news-events/press-releases/rss" },
-};
 
 // ---------------------------------------------------------------------------------------------
 // Shared helpers
@@ -137,9 +121,9 @@ export function parseFeed(xml: string): FeedItem[] {
 }
 
 /** Newest first, inside [date - window, now], with injection-looking items removed. */
-export function selectNews(items: FeedItem[], date: IsoDate, now: Date, problems: string[], label: string): FeedItem[] {
+export function selectNews(items: FeedItem[], date: IsoDate, now: Date, problems: string[], label: string, windowDays = NEWS_WINDOW_DAYS, max = MAX_NEWS): FeedItem[] {
   const end = Math.min(now.getTime(), Date.parse(`${date}T23:59:59Z`));
-  const start = Date.parse(`${date}T00:00:00Z`) - NEWS_WINDOW_DAYS * DAY;
+  const start = Date.parse(`${date}T00:00:00Z`) - windowDays * DAY;
   const kept: FeedItem[] = [];
   for (const it of items) {
     const t = Date.parse(it.publishedAt);
@@ -150,30 +134,7 @@ export function selectNews(items: FeedItem[], date: IsoDate, now: Date, problems
     }
     kept.push(it);
   }
-  return kept.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)).slice(0, MAX_NEWS);
-}
-
-export async function fetchPressNews(asset: UniverseAsset, date: IsoDate, deps: DataDeps): Promise<{ facts: Fact[]; problems: string[] }> {
-  const feed = PRESS_FEEDS[asset.assetId];
-  if (!feed) return { facts: [], problems: [] };
-  const problems: string[] = [];
-  try {
-    await feedLimiter.wait(deps);
-    const xml = await getText(deps, feed.url, { "User-Agent": GENERIC_USER_AGENT, Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" });
-    const items = selectNews(parseFeed(xml), date, deps.now(), problems, `${asset.assetId} ${feed.name}`);
-    const facts: Fact[] = items.map((it, i) => ({
-      id: `news.${i}`,
-      kind: "news",
-      label: it.title,
-      value: it.title,
-      source: { name: feed.name, url: it.url },
-      asOf: it.publishedAt,
-      quote: quoteWords(it.summary || it.title),
-    }));
-    return { facts, problems };
-  } catch (e) {
-    return { facts: [], problems: [`${asset.assetId}: ${feed.name} feed failed (${e instanceof Error ? e.message : "unknown error"})`] };
-  }
+  return kept.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)).slice(0, max);
 }
 
 // ---------------------------------------------------------------------------------------------

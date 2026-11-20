@@ -4,41 +4,35 @@ import { newYorkTimeToUtc } from "./calendar.ts";
 import { GENERIC_USER_AGENT, RateLimiter, getJson, type DataDeps } from "./deps.ts";
 
 /**
- * Price history per interval for every asset with a public price. Server-only.
+ * Price history per interval for the six research assets. Server-only.
  *
  * - Crypto and PAXG: Coinbase Exchange public candles (no key). Hourly bars come straight from
  *   the API; daily bars are paged back 5 years; weekly and monthly bars are built in code from
  *   the daily bars (see `aggregateBars`).
- * - Stocks and funds: Twelve Data time series with the founder's key in RESEARCH_PRICE_API_KEY.
- *   Two calls per asset (hourly, daily); weekly and monthly are built from daily the same way.
- *   With no key the asset is reported in `problems` and no price is made up.
+ * - Stocks and the S&P 500: a pluggable provider chosen with RESEARCH_PRICE_PROVIDER (see
+ *   `STOCK_PROVIDERS`). Today only Twelve Data is wired, and its free plan is internal use only:
+ *   it must not be shown to users. "none" switches stock prices off. With no provider or no key
+ *   the asset is reported in `problems` and no price is made up.
  *
- * Terms for both sources, with links, are in ./SOURCES.md.
+ * Terms for every source, with links and display status, are in ./SOURCES.md.
  */
 
 export type PriceProvider = "coinbase" | "twelvedata";
 
 export type PriceSourceRef = {
-  provider: PriceProvider;
+  /** Provider for crypto assets; stocks use the RESEARCH_PRICE_PROVIDER switch instead. */
+  provider: PriceProvider | "stock";
   /** Symbol at the provider. */
   symbol: string;
   /** Shown next to the numbers when the price is a stand-in for the real underlying. */
   proxyNote?: string;
 };
 
-/** Where each asset's price comes from. SpaceX has no public price and is absent on purpose. */
+/** Where each research asset's price comes from. */
 export const PRICE_SOURCES: Record<string, PriceSourceRef> = {
-  mAAPL: { provider: "twelvedata", symbol: "AAPL" },
-  mNVDA: { provider: "twelvedata", symbol: "NVDA" },
-  mGOOGL: { provider: "twelvedata", symbol: "GOOGL" },
-  mMETA: { provider: "twelvedata", symbol: "META" },
-  mMSFT: { provider: "twelvedata", symbol: "MSFT" },
-  mAMZN: { provider: "twelvedata", symbol: "AMZN" },
-  mTSLA: { provider: "twelvedata", symbol: "TSLA" },
-  mAMD: { provider: "twelvedata", symbol: "AMD" },
-  mMSTR: { provider: "twelvedata", symbol: "MSTR" },
-  mSPX: { provider: "twelvedata", symbol: "SPY", proxyNote: "S&P 500 shown through the SPY ETF price (tracks the index, before fees)" },
-  mSGOV: { provider: "twelvedata", symbol: "SGOV" },
+  mAAPL: { provider: "stock", symbol: "AAPL" },
+  mNVDA: { provider: "stock", symbol: "NVDA" },
+  mSPX: { provider: "stock", symbol: "SPY", proxyNote: "S&P 500 shown through the SPY ETF price (tracks the index, before fees)" },
   mPAXG: { provider: "coinbase", symbol: "PAXG-USD", proxyNote: "Gold shown through the PAXG token price on Coinbase" },
   mcbBTC: { provider: "coinbase", symbol: "BTC-USD" },
   mWETH: { provider: "coinbase", symbol: "ETH-USD" },
@@ -51,6 +45,25 @@ export const COINBASE_SOURCE: Source = {
 export const TWELVEDATA_SOURCE: Source = { name: "Twelve Data time series", url: "https://twelvedata.com/docs#time-series" };
 
 export const PRICE_KEY_ENV = "RESEARCH_PRICE_API_KEY";
+/** Which stock price provider to use: "twelvedata" (default) or "none". */
+export const PRICE_PROVIDER_ENV = "RESEARCH_PRICE_PROVIDER";
+
+export type StockProviderId = "twelvedata" | "none";
+
+/**
+ * Stock price providers. `display` says whether the plan we use allows showing the numbers to
+ * users. Add a provider whose plan allows display here (and in SOURCES.md) before stock prices go
+ * on a public page; until then stock prices are for the engine and internal review only.
+ */
+export const STOCK_PROVIDERS: Record<StockProviderId, { label: string; display: boolean; keyEnv?: string; note: string }> = {
+  twelvedata: { label: "Twelve Data", display: false, keyEnv: PRICE_KEY_ENV, note: "free Basic plan: internal, non-display use only" },
+  none: { label: "No stock provider", display: false, note: "stock prices switched off" },
+};
+
+export function stockProvider(env: Record<string, string | undefined>): StockProviderId | { unknown: string } {
+  const raw = (env[PRICE_PROVIDER_ENV] ?? "twelvedata").trim().toLowerCase() || "twelvedata";
+  return raw in STOCK_PROVIDERS ? (raw as StockProviderId) : { unknown: raw };
+}
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -215,7 +228,6 @@ export type PriceHistory = { series: Partial<Record<BarInterval, PriceSeries>>; 
 export async function fetchPriceHistory(asset: UniverseAsset, deps: DataDeps): Promise<PriceHistory> {
   const problems: string[] = [];
   const series: PriceHistory["series"] = {};
-  if (!asset.publicPrice) return { series, problems: [`${asset.assetId}: no public market price (news only)`] };
   const ref = PRICE_SOURCES[asset.assetId];
   if (!ref) return { series, problems: [`${asset.assetId}: no price source configured`] };
 
@@ -227,6 +239,9 @@ export async function fetchPriceHistory(asset: UniverseAsset, deps: DataDeps): P
     hourly = () => coinbaseHourly(deps, ref.symbol);
     daily = () => coinbaseDaily(deps, ref.symbol);
   } else {
+    const prov = stockProvider(deps.env);
+    if (typeof prov !== "string") return { series, problems: [`${asset.assetId}: ${PRICE_PROVIDER_ENV}="${prov.unknown.slice(0, 40)}" is not a known provider, no stock price fetched`], ref };
+    if (prov === "none") return { series, problems: [`${asset.assetId}: ${PRICE_PROVIDER_ENV}=none, no stock price fetched`], ref };
     const key = deps.env[PRICE_KEY_ENV];
     if (!key) return { series, problems: [`${asset.assetId}: ${PRICE_KEY_ENV} not set, no stock price fetched`], ref };
     source = TWELVEDATA_SOURCE;

@@ -20,16 +20,24 @@ export type DataDeps = {
   now: () => Date;
   /** Waits between requests to respect rate limits. Tests pass a no-op. */
   sleep: (ms: number) => Promise<void>;
+  /**
+   * Optional per-run cache of response bodies by URL, so a feed read for the market input is not
+   * fetched again for every asset. `gatherAll` creates one per run.
+   */
+  cache?: Map<string, Promise<string>>;
 };
 
 export function assertServer(): void {
   if (typeof window !== "undefined") throw new Error("web/lib/research/data is server-only");
 }
 
+export const FETCH_TIMEOUT_MS = 20_000;
+
 export function defaultDeps(): DataDeps {
   assertServer();
   return {
-    fetch: (url, init) => fetch(url, { headers: init?.headers, cache: "no-store" }),
+    // 20 second timeout so one slow source cannot stall the whole run.
+    fetch: (url, init) => fetch(url, { headers: init?.headers, cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }),
     env: process.env,
     now: () => new Date(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -61,7 +69,7 @@ export class RateLimiter {
 export function redactUrl(url: string): string {
   try {
     const u = new URL(url);
-    for (const k of ["apikey", "apiKey", "token", "key"]) if (u.searchParams.has(k)) u.searchParams.delete(k);
+    for (const k of ["apikey", "apiKey", "api_key", "token", "key"]) if (u.searchParams.has(k)) u.searchParams.delete(k);
     return u.toString();
   } catch {
     return "(bad url)";
@@ -70,6 +78,16 @@ export function redactUrl(url: string): string {
 
 /** Fetches text, turning network errors and non-2xx answers into a thrown Error with a redacted URL. */
 export async function getText(deps: DataDeps, url: string, headers: Record<string, string>): Promise<string> {
+  if (!deps.cache) return fetchText(deps, url, headers);
+  const hit = deps.cache.get(url);
+  if (hit) return hit;
+  const p = fetchText(deps, url, headers);
+  deps.cache.set(url, p);
+  p.catch(() => deps.cache?.delete(url));
+  return p;
+}
+
+async function fetchText(deps: DataDeps, url: string, headers: Record<string, string>): Promise<string> {
   let res;
   try {
     res = await deps.fetch(url, { headers });

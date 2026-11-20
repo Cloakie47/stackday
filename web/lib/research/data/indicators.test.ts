@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PriceBar } from "../types.ts";
-import { atr, changePct, computeIndicators, emaSeries, macd, maxDrawdown, rsi, sma, supportResistance, volatility } from "./indicators.ts";
+import { atr, atrSeries, changePct, computeIndicators, emaSeries, macd, macdLineSeries, maxDrawdown, rollingVolatility, rsi, rsiSeries, sma, smaSeries, supportResistance, volatility } from "./indicators.ts";
 
 const close = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} is not close to ${b}`);
 const DAY = 86_400_000;
@@ -64,15 +64,27 @@ test("max drawdown is the worst fall from a running peak", () => {
   assert.equal(maxDrawdown([1, 2, 3]), 0);
 });
 
-test("change per timeframe looks back by date and skips what the series cannot answer", () => {
-  const bars = dailyBars(Array.from({ length: 31 }, (_, i) => 100 + i)); // 2026-01-01 .. 2026-01-31, last close 130
-  const c = changePct(bars, "1d");
-  close(c["1d"]!, (130 / 129 - 1) * 100);
-  close(c["1w"]!, (130 / 123 - 1) * 100); // 2026-01-24 closed at 123
-  assert.equal(c["1h"], undefined); // shorter than a daily bar
-  assert.equal(c["1m"], undefined); // would need 2025-12-31
-  const longer = changePct(dailyBars(Array.from({ length: 32 }, (_, i) => 100 + i), Date.UTC(2025, 11, 31)), "1d");
-  close(longer["1m"]!, (131 / 100 - 1) * 100); // 2026-01-31 vs 2025-12-31
+test("change over 1, 5 and 20 bars, as a fraction, skipping lookbacks the series cannot reach", () => {
+  const bars = dailyBars(Array.from({ length: 21 }, (_, i) => 100 + i)); // last close 120
+  const c = changePct(bars);
+  close(c.bar1!, 120 / 119 - 1);
+  close(c.bar5!, 120 / 115 - 1);
+  close(c.bar20!, 120 / 100 - 1);
+  const short = changePct(dailyBars([100, 110, 121]));
+  close(short.bar1!, 0.1);
+  assert.equal(short.bar5, undefined);
+  assert.deepEqual(changePct(dailyBars([5])), {});
+});
+
+test("full series match the single-value indicators at the last bar", () => {
+  const closes = Array.from({ length: 80 }, (_, i) => 100 + 10 * Math.sin(i / 5) + i * 0.2);
+  const bars = dailyBars(closes);
+  close(rsiSeries(closes).at(-1)!, rsi(closes)!);
+  close(macdLineSeries(closes).at(-1)!, macd(closes)!.macd);
+  close(atrSeries(bars).at(-1)!, atr(bars)!);
+  close(smaSeries(closes, 20).at(-1)!, sma(closes, 20)!);
+  close(rollingVolatility(closes, 20, 365).at(-1)!, volatility(closes.slice(-21), 365)!);
+  assert.equal(rsiSeries(closes)[13], undefined);
 });
 
 test("support and resistance from swing lows and highs", () => {

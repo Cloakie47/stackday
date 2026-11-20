@@ -1,34 +1,64 @@
-import type { AssetResearchInput, BarInterval, Fact, Indicators, IsoDate, IsoDateTime, PriceBar, PriceSeries, Source, Timeframe } from "../types.ts";
-import { universeAsset, type UniverseAsset } from "../universe.ts";
+import deployment from "../../deployment.json" with { type: "json" };
+import type { AssetResearchInput, BarInterval, CalendarEvent, ChartInterval, Fact, Indicators, IsoDate, IsoDateTime, MarketResearchInput, PriceBar, PriceSeries, Source } from "../types.ts";
+import { CHART_INTERVAL_LABEL, CHART_INTERVALS } from "../types.ts";
+import { checkResearchable, researchableUniverse, type DeploymentLike, type UniverseAsset } from "../universe.ts";
 import { NYSE_SOURCE, calendarCovers, holidayName, isEarlyClose, isTradingDay, lastTradingDay, newYorkParts, sessionHours } from "./calendar.ts";
+import { PATTERN_LABEL, readChart } from "./chart.ts";
 import { assertServer, defaultDeps, type DataDeps } from "./deps.ts";
+import { eventsForAsset, fetchWeekAhead } from "./events.ts";
+import { fetchFlows } from "./flows.ts";
+import { fetchOfficialNews, fetchPressNews, fetchWireNews, newsFacts } from "./headlines.ts";
 import { computeIndicators } from "./indicators.ts";
-import { fetchFilings, fetchPressNews } from "./news.ts";
-import { PRICE_SOURCES, fetchPriceHistory } from "./prices.ts";
+import { MACRO_FOR_ASSET, fetchMacro } from "./macro.ts";
+import { fetchFilings } from "./news.ts";
+import { PRICE_SOURCES, aggregateBars, fetchPriceHistory } from "./prices.ts";
 
 /**
- * Gathers everything the engine needs for one asset on one run date: price series per interval,
- * indicators, and facts with stable ids. Every number in `facts` comes from fetched data or a
- * formula in ./indicators.ts, with its source and time. Anything that fails goes to `problems`;
- * nothing is filled in by guesswork. Server-only.
+ * Gathers everything the engine needs, code only (spec section 4.1). Every number in `facts`
+ * comes from fetched data or a formula in this folder, with its source and time. Anything that
+ * fails goes to `problems` as a "no reading" line; nothing is filled in. Server-only.
  *
- * Fact ids:
- *   px.last, px.prevClose
- *   chg.1h, chg.1d, chg.1w, chg.1m, chg.1y, chg.5y         (percent)
- *   ind.<name>.<interval>, for example ind.rsi14.1d, ind.sma200.1d, ind.atr14.1h,
- *     ind.macd.1d, ind.macdSignal.1d, ind.macdHist.1d, ind.vol.1d, ind.mdd.1d,
- *     ind.high52w.1d, ind.low52w.1d, ind.support1.1d .. ind.support3.1d, ind.resistance1.1d ..
- *   cal.open, cal.lastTradingDay, cal.holiday, cal.earlyClose
- *   news.0 .. news.4 (company press releases), filing.0 .. filing.4 (SEC EDGAR)
+ * `gatherMarket(date)` -> MarketResearchInput: FRED macro facts, the official week-ahead calendar,
+ *   market-wide headlines from reputable outlets and official feeds.
+ * `gatherAsset(assetId, date)` -> AssetResearchInput: refuses assets that fail `checkResearchable`;
+ *   price series (1h, 1d, 1w, 1mo), indicators, chart read on 1d, 1w and 1mo bars, calendar
+ *   events for the asset, headlines, filings and crypto flows.
+ *
+ * Fact ids (stable within a run):
+ *   px.last, px.1d.prevClose, px.1w.volume
+ *   chg.<interval>.bar1 | bar5 | bar20                      percent change over 1, 5, 20 bars
+ *   ind.<interval>.<name>, for example ind.1d.rsi14, ind.1w.sma50, ind.1d.high52w
+ *   chart.<interval>.trend, chart.<interval>.position
+ *   lvl.<interval>.support1 .. support3, lvl.<interval>.resistance1 .. resistance3
+ *   vol.<interval>.regime, vol.<interval>.atrPct, vol.<interval>.volPct
+ *   pat.<interval>.<kind>, for example pat.1d.double-bottom
+ *   cal.open, cal.lastTradingDay, cal.holiday, cal.earlyClose, cal.<date>.<kind> (events)
+ *   macro.<series>[.chg5|.chg20|.yoy|.chg], macro.curve2s10s, macro.fedTarget, macro.sp500.*
+ *   flow.funding.last, flow.funding.avg7d, flow.stablecoins.total | chg7d | chg30d
+ *   news.0 .., filing.0 ..
+ *
+ * No look-ahead: bars, observations and headlines after the run date are dropped.
  */
 
-const INTERVALS: BarInterval[] = ["1h", "1d", "1w", "1mo"];
+const BAR_INTERVALS: BarInterval[] = ["1h", "1d", "1w", "1mo"];
 const INTERVAL_LABEL: Record<BarInterval, string> = { "1h": "hourly", "1d": "daily", "1w": "weekly", "1mo": "monthly" };
-const TF_LABEL: Record<Timeframe, string> = { "1h": "1 hour", "1d": "1 day", "1w": "1 week", "1m": "1 month", "1y": "1 year", "5y": "5 years" };
 
 const round = (x: number, dp: number) => Math.round(x * 10 ** dp) / 10 ** dp;
 /** Prices to cents, or 6 significant digits under $1. */
 export const roundPrice = (x: number) => (Math.abs(x) >= 1 ? round(x, 2) : Number(x.toPrecision(6)));
+
+export const FED_FUNDS_EXPECTATIONS_PROBLEM = "Fed funds expectations (futures pricing): no free source with clear terms for automated use, no reading";
+export const EARNINGS_PROBLEM = "earnings dates: no official machine-readable source wired, omitted rather than guessed";
+
+/** Thrown when an asset is not in the research universe or not borrowable in this deployment. */
+export class NotResearchableError extends Error {}
+
+export type GatherOptions = {
+  /** Deployment record to check borrowability against. Defaults to web/lib/deployment.json. */
+  deployment?: DeploymentLike;
+  /** Market input from the same run: supplies the week-ahead calendar and the asset's macro facts. */
+  market?: MarketResearchInput;
+};
 
 /** When the newest bar of a series closed (or `fetchedAt` if it is still open). */
 export function seriesAsOf(s: PriceSeries, crypto: boolean): IsoDateTime {
@@ -51,27 +81,27 @@ export function barCloseTime(bar: PriceBar, interval: BarInterval, crypto: boole
 
 type FactSpec = { key: string; label: string; value: number | undefined; unit?: string };
 
-function indicatorSpecs(ind: Indicators, iv: BarInterval, full: boolean): FactSpec[] {
+function indicatorSpecs(ind: Indicators, iv: BarInterval): FactSpec[] {
   const L = INTERVAL_LABEL[iv];
+  const p = (x: number | undefined) => (x === undefined ? undefined : roundPrice(x));
   const specs: FactSpec[] = [
     { key: "rsi14", label: `RSI (14, ${L})`, value: ind.rsi14 === undefined ? undefined : round(ind.rsi14, 1) },
-    { key: "sma20", label: `20-bar average (${L})`, value: ind.sma20 === undefined ? undefined : roundPrice(ind.sma20), unit: "USD" },
-    { key: "sma50", label: `50-bar average (${L})`, value: ind.sma50 === undefined ? undefined : roundPrice(ind.sma50), unit: "USD" },
-    { key: "atr14", label: `Average true range (14, ${L})`, value: ind.atr14 === undefined ? undefined : roundPrice(ind.atr14), unit: "USD" },
+    { key: "sma20", label: `20-bar average (${L})`, value: p(ind.sma20), unit: "USD" },
+    { key: "sma50", label: `50-bar average (${L})`, value: p(ind.sma50), unit: "USD" },
+    { key: "atr14", label: `Average true range (14, ${L})`, value: p(ind.atr14), unit: "USD" },
     { key: "macdHist", label: `MACD histogram (12, 26, 9, ${L})`, value: ind.macd ? Number(ind.macd.histogram.toPrecision(4)) : undefined },
   ];
-  if (!full) return specs;
+  if (iv === "1h") return specs;
   specs.push(
-    { key: "sma200", label: `200-bar average (${L})`, value: ind.sma200 === undefined ? undefined : roundPrice(ind.sma200), unit: "USD" },
+    { key: "sma200", label: `200-bar average (${L})`, value: p(ind.sma200), unit: "USD" },
     { key: "macd", label: `MACD line (12, 26, ${L})`, value: ind.macd ? Number(ind.macd.macd.toPrecision(4)) : undefined },
     { key: "macdSignal", label: `MACD signal (9, ${L})`, value: ind.macd ? Number(ind.macd.signal.toPrecision(4)) : undefined },
     { key: "vol", label: `Annualised volatility (last year of ${L} bars)`, value: ind.volatility === undefined ? undefined : round(ind.volatility * 100, 1), unit: "%" },
     { key: "mdd", label: `Max drawdown (last year of ${L} closes)`, value: ind.maxDrawdown === undefined ? undefined : round(ind.maxDrawdown * 100, 1), unit: "%" },
-    { key: "high52w", label: "52-week high", value: ind.high52w === undefined ? undefined : roundPrice(ind.high52w), unit: "USD" },
-    { key: "low52w", label: "52-week low", value: ind.low52w === undefined ? undefined : roundPrice(ind.low52w), unit: "USD" },
   );
-  (ind.support ?? []).forEach((v, i) => specs.push({ key: `support${i + 1}`, label: `Support ${i + 1} (swing low, ${L})`, value: roundPrice(v), unit: "USD" }));
-  (ind.resistance ?? []).forEach((v, i) => specs.push({ key: `resistance${i + 1}`, label: `Resistance ${i + 1} (swing high, ${L})`, value: roundPrice(v), unit: "USD" }));
+  if (iv === "1d") {
+    specs.push({ key: "high52w", label: "52-week high", value: p(ind.high52w), unit: "USD" }, { key: "low52w", label: "52-week low", value: p(ind.low52w), unit: "USD" });
+  }
   return specs;
 }
 
@@ -90,40 +120,107 @@ function calendarFacts(asset: UniverseAsset, date: IsoDate, open: boolean, at: I
   return facts;
 }
 
-export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial<DataDeps>): Promise<AssetResearchInput> {
-  assertServer();
-  const d: DataDeps = { ...defaultDeps(), ...deps };
-  const out: AssetResearchInput = { assetId, date, marketOpenToday: false, series: {}, indicators: {}, facts: [], problems: [] };
-  const asset = universeAsset(assetId);
-  if (!asset) {
-    out.problems.push(`${assetId}: not in the research universe`);
-    return out;
+/** Calendar events as facts, so claims about the week ahead can cite them. */
+export function eventFacts(events: CalendarEvent[], at: IsoDateTime): Fact[] {
+  return events.map((e) => ({ id: e.id, kind: "calendar" as const, label: e.name, value: e.timeUtc ? `${e.date} ${e.timeUtc} UTC` : e.date, source: e.source, asOf: at }));
+}
+
+/** Drops bars that start after the run date and rebuilds weekly and monthly bars from what is left. */
+export function cutSeries(series: Partial<Record<BarInterval, PriceSeries>>, date: IsoDate): Partial<Record<BarInterval, PriceSeries>> {
+  const end = Date.parse(`${date}T23:59:59.999Z`);
+  const out: Partial<Record<BarInterval, PriceSeries>> = {};
+  for (const iv of ["1h", "1d"] as const) {
+    const s = series[iv];
+    if (!s) continue;
+    const bars = s.bars.filter((b) => Date.parse(b.t) <= end);
+    if (bars.length) out[iv] = { ...s, bars };
   }
+  const d = out["1d"];
+  if (d) {
+    for (const iv of ["1w", "1mo"] as const) {
+      const s = series[iv];
+      if (s) out[iv] = { ...s, bars: aggregateBars(d.bars, iv) };
+    }
+  }
+  return out;
+}
+
+/** Facts and fact ids for one chart read. */
+function chartFacts(input: AssetResearchInput, iv: ChartInterval, crypto: boolean): string[] {
+  const s = input.series[iv]!;
+  const read = readChart(s.bars, iv, { crypto });
+  const L = CHART_INTERVAL_LABEL[iv].toLowerCase();
+  if (!read) {
+    input.problems.push(`${input.assetId}: ${L} chart read needs at least 30 bars, no reading`);
+    return [];
+  }
+  const asOf = seriesAsOf(input.series["1d"] ?? s, crypto);
+  const src: Source = { ...s.source, name: `${s.source.name}, chart read computed by Stackday` };
+  const facts: Fact[] = [];
+  const add = (f: Omit<Fact, "source" | "asOf"> & { asOf?: IsoDateTime }) => facts.push({ source: src, asOf, ...f } as Fact);
+  const trendText = { "higher-highs-higher-lows": "higher highs and higher lows", "lower-highs-lower-lows": "lower highs and lower lows", range: "range (no clear swing trend)" }[read.trend];
+  add({ id: `chart.${iv}.trend`, kind: "indicator", label: `Trend structure (${L} swing highs and lows)`, value: trendText });
+  read.support.forEach((v, i) => add({ id: `lvl.${iv}.support${i + 1}`, kind: "indicator", label: `Support ${i + 1} (${L}, cluster of ${read.supportTouches[i]} swing points)`, value: v, unit: "USD" }));
+  read.resistance.forEach((v, i) => add({ id: `lvl.${iv}.resistance${i + 1}`, kind: "indicator", label: `Resistance ${i + 1} (${L}, cluster of ${read.resistanceTouches[i]} swing points)`, value: v, unit: "USD" }));
+  if (read.positionInRange !== null) add({ id: `chart.${iv}.position`, kind: "indicator", label: `Position between nearest ${L} support (0) and resistance (1)`, value: round(read.positionInRange, 2) });
+  const vr = read.volatility;
+  const lookback = iv === "1d" ? "last year" : iv === "1w" ? "last 3 years" : "last 5 years";
+  add({ id: `vol.${iv}.regime`, kind: "indicator", label: `Volatility regime (${L} ATR and realized volatility against the ${lookback})`, value: vr.regime });
+  if (vr.atrPercentile !== undefined) add({ id: `vol.${iv}.atrPct`, kind: "indicator", label: `${CHART_INTERVAL_LABEL[iv]} ATR as a share of price, percentile against the ${lookback}`, value: vr.atrPercentile });
+  if (vr.volPercentile !== undefined) add({ id: `vol.${iv}.volPct`, kind: "indicator", label: `${CHART_INTERVAL_LABEL[iv]} realized volatility, percentile against the ${lookback}`, value: vr.volPercentile });
+  for (const p of read.patterns) {
+    add({
+      id: p.id,
+      kind: "pattern",
+      label: `${PATTERN_LABEL[p.kind]} on ${L} bars (${p.direction}, ${p.confidence} confidence): ${p.detail}. Invalidated by a close beyond the value.`,
+      value: p.invalidation,
+      unit: "USD",
+      tags: [p.kind, p.direction],
+    });
+  }
+  input.facts.push(...facts);
+  const indIds = input.facts.filter((f) => f.id.startsWith(`ind.${iv}.`) || f.id.startsWith(`chg.${iv}.`)).map((f) => f.id);
+  const ids = [...(input.facts.some((f) => f.id === "px.last") ? ["px.last"] : []), ...indIds, ...facts.map((f) => f.id)];
+  const { supportTouches: _s, resistanceTouches: _r, atr: _a, ...chart } = read;
+  input.chart[iv] = { ...chart, factIds: ids };
+  return ids;
+}
+
+export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial<DataDeps>, opts: GatherOptions = {}): Promise<AssetResearchInput> {
+  assertServer();
+  const check = checkResearchable(assetId, opts.deployment ?? (deployment as DeploymentLike));
+  if (!check.ok) throw new NotResearchableError(check.reason);
+  const asset = check.asset;
+  const d: DataDeps = { ...defaultDeps(), ...deps };
+  const out: AssetResearchInput = { assetId, date, marketOpenToday: false, series: {}, indicators: {}, chart: {}, facts: [], calendar: [], problems: [] };
   const crypto = asset.calendar === "CRYPTO";
   const nowIso = d.now().toISOString();
 
-  if (!calendarCovers(asset.calendar, date)) {
-    out.problems.push(`${assetId}: NYSE holiday list not loaded for ${date.slice(0, 4)}, only weekends are known`);
-  }
+  if (!calendarCovers(asset.calendar, date)) out.problems.push(`${assetId}: NYSE holiday list not loaded for ${date.slice(0, 4)}, only weekends are known`);
   out.marketOpenToday = isTradingDay(asset.calendar, date);
   out.facts.push(...calendarFacts(asset, date, out.marketOpenToday, nowIso));
 
   // Prices and indicators
   const history = await fetchPriceHistory(asset, d);
-  out.series = history.series;
+  out.series = cutSeries(history.series, date);
   out.problems.push(...history.problems);
   const proxy = PRICE_SOURCES[assetId]?.proxyNote;
 
-  for (const iv of INTERVALS) {
+  for (const iv of BAR_INTERVALS) {
     const s = out.series[iv];
     if (!s) continue;
     const ind = computeIndicators(s.bars, iv, { crypto });
     if (!ind) continue;
     out.indicators[iv] = ind;
     const asOf = seriesAsOf(iv === "1w" || iv === "1mo" ? (out.series["1d"] ?? s) : s, crypto);
-    for (const spec of indicatorSpecs(ind, iv, iv === "1d")) {
+    for (const spec of indicatorSpecs(ind, iv)) {
       if (spec.value === undefined || !Number.isFinite(spec.value)) continue;
-      out.facts.push({ id: `ind.${spec.key}.${iv}`, kind: "indicator", label: spec.label, value: spec.value, ...(spec.unit ? { unit: spec.unit } : {}), source: s.source, asOf });
+      out.facts.push({ id: `ind.${iv}.${spec.key}`, kind: "indicator", label: spec.label, value: spec.value, ...(spec.unit ? { unit: spec.unit } : {}), source: s.source, asOf });
+    }
+    for (const [k, n] of [["bar1", 1], ["bar5", 5], ["bar20", 20]] as const) {
+      const v = ind.changePct[k];
+      if (v === undefined) continue;
+      out.facts.push({ id: `chg.${iv}.${k}`, kind: "price", label: `Change over the last ${n} ${INTERVAL_LABEL[iv]} bar${n > 1 ? "s" : ""}`, value: round(v * 100, 2), unit: "%", source: s.source, asOf });
     }
   }
 
@@ -132,41 +229,88 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
   if (candidates.length) {
     const best = candidates.reduce((a, b) => (Date.parse(seriesAsOf(b, crypto)) > Date.parse(seriesAsOf(a, crypto)) ? b : a));
     const last = best.bars[best.bars.length - 1];
-    out.facts.push({
-      id: "px.last",
-      kind: "price",
-      label: proxy ? `Last price (${proxy})` : "Last price",
-      value: roundPrice(last.c),
-      unit: "USD",
-      source: best.source,
-      asOf: seriesAsOf(best, crypto),
-    });
+    out.facts.push({ id: "px.last", kind: "price", label: proxy ? `Last price (${proxy})` : "Last price", value: roundPrice(last.c), unit: "USD", source: best.source, asOf: seriesAsOf(best, crypto) });
   }
   const daily = out.series["1d"];
   if (daily && daily.bars.length >= 2) {
     const prev = daily.bars[daily.bars.length - 2];
-    out.facts.push({ id: "px.prevClose", kind: "price", label: "Previous daily close", value: roundPrice(prev.c), unit: "USD", source: daily.source, asOf: barCloseTime(prev, "1d", crypto, daily.fetchedAt) });
+    out.facts.push({ id: "px.1d.prevClose", kind: "price", label: "Previous daily close", value: roundPrice(prev.c), unit: "USD", source: daily.source, asOf: barCloseTime(prev, "1d", crypto, daily.fetchedAt) });
+  }
+  const weekly = out.series["1w"];
+  const wv = weekly?.bars.at(-1)?.v;
+  if (weekly && daily && wv !== undefined && Number.isFinite(wv)) {
+    const unit = crypto ? `${PRICE_SOURCES[assetId].symbol.split("-")[0]} traded` : "shares traded";
+    out.facts.push({ id: "px.1w.volume", kind: "price", label: `Volume this week so far (week starting ${weekly.bars.at(-1)!.t.slice(0, 10)})`, value: Math.round(wv), unit, source: weekly.source, asOf: seriesAsOf(daily, crypto) });
   }
 
-  // Changes: 1h from hourly bars, the rest from daily bars.
-  const tfs: [Timeframe, BarInterval][] = [["1h", "1h"], ["1d", "1d"], ["1w", "1d"], ["1m", "1d"], ["1y", "1d"], ["5y", "1d"]];
-  for (const [tf, iv] of tfs) {
-    const v = out.indicators[iv]?.changePct[tf];
-    const s = out.series[iv];
-    if (v === undefined || !s) continue;
-    out.facts.push({ id: `chg.${tf}`, kind: "price", label: `Change over ${TF_LABEL[tf]}`, value: round(v, 2), unit: "%", source: s.source, asOf: seriesAsOf(s, crypto) });
+  // Chart read in code on daily, weekly and monthly bars.
+  for (const iv of CHART_INTERVALS) {
+    if (out.series[iv]) chartFacts(out, iv, crypto);
+    else out.problems.push(`${assetId}: no ${CHART_INTERVAL_LABEL[iv].toLowerCase()} bars, no chart reading`);
   }
 
-  // News and filings (both never throw; failures land in problems).
-  const [news, filings] = await Promise.all([fetchPressNews(asset, date, d), fetchFilings(asset, date, d)]);
-  out.facts.push(...news.facts, ...filings.facts);
-  out.problems.push(...news.problems, ...filings.problems);
+  // Week-ahead calendar: shared with the market input when given.
+  let events: CalendarEvent[];
+  if (opts.market) events = opts.market.calendar;
+  else {
+    const wk = await fetchWeekAhead(date, d);
+    events = wk.events;
+    out.problems.push(...wk.problems);
+  }
+  out.calendar = eventsForAsset(events, assetId);
+  out.facts.push(...eventFacts(out.calendar, nowIso));
+  if (asset.assetClass === "stock") out.problems.push(`${assetId}: ${EARNINGS_PROBLEM}`);
+
+  // Macro facts that matter for this asset, from the market input.
+  if (opts.market) {
+    const want = new Set(MACRO_FOR_ASSET[assetId] ?? []);
+    out.facts.push(...opts.market.facts.filter((f) => want.has(f.id)));
+  }
+
+  // Headlines (company, reputable outlets, official), filings and flows. None of these throw.
+  const press = await fetchPressNews(asset, date, d);
+  const wire = await fetchWireNews(assetId, date, d);
+  const official = await fetchOfficialNews(assetId, date, d);
+  const filings = await fetchFilings(asset, date, d);
+  const flows = await fetchFlows(assetId, date, d);
+  out.facts.push(...newsFacts([...press.items, ...wire.items, ...official.items]), ...filings.facts, ...flows.facts);
+  out.problems.push(...press.problems, ...wire.problems, ...official.problems, ...filings.problems, ...flows.problems);
+  if (press.items.length && !wire.items.length && !official.items.length) {
+    out.problems.push(`${assetId}: only company press releases this week, which are one side; no independent headline found`);
+  }
   return out;
 }
 
-/** Gathers several assets one after another (rate limits are per source, shared across calls). */
-export async function gatherAll(assetIds: string[], date: IsoDate, deps?: Partial<DataDeps>): Promise<AssetResearchInput[]> {
+/** Market-wide input, gathered once per run. Never throws. */
+export async function gatherMarket(date: IsoDate, deps?: Partial<DataDeps>): Promise<MarketResearchInput> {
+  assertServer();
+  const d: DataDeps = { ...defaultDeps(), ...deps };
+  const nowIso = d.now().toISOString();
+  const macro = await fetchMacro(date, d);
+  const week = await fetchWeekAhead(date, d);
+  const wire = await fetchWireNews("market", date, d);
+  const official = await fetchOfficialNews("market", date, d);
+  return {
+    date,
+    facts: [...macro.facts, ...eventFacts(week.events, nowIso), ...newsFacts([...wire.items, ...official.items])],
+    calendar: week.events,
+    problems: [...macro.problems, FED_FUNDS_EXPECTATIONS_PROBLEM, ...week.problems, ...wire.problems, ...official.problems],
+  };
+}
+
+/** Gathers several assets one after another, sharing one market input and one response cache. */
+export async function gatherAll(assetIds: string[], date: IsoDate, deps?: Partial<DataDeps>, opts: GatherOptions = {}): Promise<AssetResearchInput[]> {
+  const d: Partial<DataDeps> = { ...deps, cache: deps?.cache ?? new Map() };
+  const market = opts.market ?? (await gatherMarket(date, d));
   const out: AssetResearchInput[] = [];
-  for (const id of assetIds) out.push(await gatherAsset(id, date, deps));
+  for (const id of assetIds) out.push(await gatherAsset(id, date, d, { ...opts, market }));
   return out;
+}
+
+/** A whole run: the market input and every researchable asset, with refusals for the run log. */
+export async function gatherRun(date: IsoDate, deps?: Partial<DataDeps>, opts: Omit<GatherOptions, "market"> = {}): Promise<{ market: MarketResearchInput; assets: AssetResearchInput[]; refused: string[] }> {
+  const { assets, refused } = researchableUniverse(opts.deployment ?? (deployment as DeploymentLike));
+  const d: Partial<DataDeps> = { ...deps, cache: deps?.cache ?? new Map() };
+  const market = await gatherMarket(date, d);
+  return { market, assets: await gatherAll(assets.map((a) => a.assetId), date, d, { ...opts, market }), refused };
 }
