@@ -1,0 +1,2840 @@
+{
+  "kind": "sample",
+  "weekOf": "2026-11-16",
+  "generatedAt": "2026-11-16T12:00:00Z",
+  "runId": "sample-weekly",
+  "beta": true,
+  "market": {
+    "date": "2026-11-16",
+    "summary": "Sample data: hand-made report to show the layout. Not real market data, not real research.\nSample: yields steady, dollar flat, volatility near normal.",
+    "developments": [
+      {
+        "text": "Sample: the 10-year yield held near the middle of its range.",
+        "factIds": [
+          "macro.dgs10"
+        ]
+      },
+      {
+        "text": "Sample: VIX stayed near normal levels.",
+        "factIds": [
+          "macro.vix"
+        ]
+      }
+    ],
+    "facts": [
+      {
+        "id": "macro.dgs2",
+        "kind": "macro",
+        "label": "Sample: 2-year Treasury yield",
+        "value": 3.55,
+        "unit": "%",
+        "source": {
+          "name": "Sample data (not real market data)"
+        },
+        "asOf": "2026-11-20T21:00:00Z"
+      },
+      {
+        "id": "macro.dgs10",
+        "kind": "macro",
+        "label": "Sample: 10-year Treasury yield",
+        "value": 4.1,
+        "unit": "%",
+        "source": {
+          "name": "Sample data (not real market data)"
+        },
+        "asOf": "2026-11-20T21:00:00Z"
+      },
+      {
+        "id": "macro.dfii10",
+        "kind": "macro",
+        "label": "Sample: 10-year real yield",
+        "value": 1.75,
+        "unit": "%",
+        "source": {
+          "name": "Sample data (not real market data)"
+        },
+        "asOf": "2026-11-20T21:00:00Z"
+      },
+      {
+        "id": "macro.dxy",
+        "kind": "macro",
+        "label": "Sample: dollar index",
+        "value": 99.2,
+        "source": {
+          "name": "Sample data (not real market data)"
+        },
+        "asOf": "2026-11-20T21:00:00Z"
+      },
+      {
+        "id": "macro.vix",
+        "kind": "macro",
+        "label": "Sample: VIX",
+        "value": 17.4,
+        "source": {
+          "name": "Sample data (not real market data)"
+        },
+        "asOf": "2026-11-20T21:00:00Z"
+      }
+    ]
+  },
+  "assets": [
+    {
+      "assetId": "mcbBTC",
+      "status": "ok",
+      "recap": [
+        {
+          "text": "Sample: Bitcoin fell over the week, driven by fund flows.",
+          "factIds": [
+            "px.1w.change",
+            "news.1"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "range",
+          "support": [
+            89500,
+            86000
+          ],
+          "resistance": [
+            95500,
+            99000
+          ],
+          "positionInRange": 0.42,
+          "patterns": [
+            {
+              "id": "pat.1d.range",
+              "kind": "range",
+              "interval": "1d",
+              "direction": "neutral",
+              "confidence": "medium",
+              "invalidation": 88000,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ],
+          "text": [
+            {
+              "text": "Sample: daily bars show a range structure.",
+              "factIds": [
+                "px.1d.last",
+                "ind.1d.rsi14"
+              ]
+            }
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "range",
+          "support": [
+            84000
+          ],
+          "resistance": [
+            104000
+          ],
+          "positionInRange": 0.4,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ],
+          "text": [
+            {
+              "text": "Sample: weekly bars show a range structure.",
+              "factIds": [
+                "px.1w.change"
+              ]
+            }
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            74000
+          ],
+          "resistance": [
+            110000
+          ],
+          "positionInRange": 0.5,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ],
+          "text": [
+            {
+              "text": "Sample: monthly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last"
+              ]
+            }
+          ]
+        }
+      },
+      "market": [
+        {
+          "text": "Sample: Treasury yields and the dollar were little changed, keeping the risk mood steady.",
+          "factIds": [
+            "macro.dgs10",
+            "macro.dxy",
+            "macro.vix"
+          ]
+        }
+      ],
+      "news": [
+        {
+          "text": "Sample: spot bitcoin funds saw mixed flows during the week.",
+          "factIds": [
+            "news.1"
+          ]
+        }
+      ],
+      "weekAhead": [
+        {
+          "id": "cal.2026-11-25.gdp",
+          "date": "2026-11-25",
+          "timeUtc": "13:30",
+          "kind": "gdp",
+          "name": "Sample: GDP second estimate",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "date": "2026-11-26",
+          "timeUtc": "13:30",
+          "kind": "pce",
+          "name": "Sample: PCE inflation",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample: price clears the nearest resistance on firm demand.",
+          "factIds": [
+            "px.1d.last"
+          ],
+          "probability": 30,
+          "levels": [
+            95500,
+            99000
+          ],
+          "trigger": "Sample: a daily close above resistance"
+        },
+        "base": {
+          "text": "Sample: price stays between support and resistance.",
+          "factIds": [
+            "ind.1d.atr14"
+          ],
+          "probability": 45,
+          "levels": [
+            89500,
+            95500
+          ],
+          "trigger": "Sample: no surprise in the week's data"
+        },
+        "bear": {
+          "text": "Sample: a weak data print pushes price below support.",
+          "factIds": [
+            "macro.dgs2",
+            "news.1"
+          ],
+          "probability": 25,
+          "levels": [
+            89500,
+            86000
+          ],
+          "trigger": "Sample: a daily close below support"
+        }
+      },
+      "view": {
+        "view": "hold",
+        "conviction": "medium",
+        "levels": {
+          "buyZone": null,
+          "invalidation": 86900,
+          "support": [
+            89500,
+            86000
+          ],
+          "resistance": [
+            95500,
+            99000
+          ],
+          "basis": "invalidation = 1 ATR (ATR14 2600) below the nearest daily support 89500"
+        },
+        "reasons": [
+          {
+            "text": "Sample: the chart and fund flows support a hold view this week.",
+            "factIds": [
+              "px.1d.last",
+              "px.1w.change"
+            ]
+          },
+          {
+            "text": "Sample: market conditions are steady.",
+            "factIds": [
+              "macro.vix"
+            ]
+          }
+        ]
+      },
+      "borrowing": {
+        "assetId": "mcbBTC",
+        "lltv": 0.86,
+        "examples": [
+          {
+            "drop": 0.1,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.5555555555555556
+          },
+          {
+            "drop": 0.2,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.625
+          },
+          {
+            "drop": 0.3,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.7142857142857143
+          }
+        ],
+        "dropToLimitAtHalfUse": 0.5,
+        "text": "Bitcoin can be borrowed against up to 86% of its value. A loan at 50% of the limit (43% of the collateral value) moves to 62.5% of the limit after a 20% fall. It reaches the limit after a 50% fall. Stackday's optional emergency rule sends the whole next SIP share to collateral when a loan gets close to the limit."
+      },
+      "debate": {
+        "bull": [
+          {
+            "text": "Sample: trend and flows point up.",
+            "factIds": [
+              "px.1w.change"
+            ]
+          }
+        ],
+        "bear": [
+          {
+            "text": "Sample: headline risk is high this week.",
+            "factIds": [
+              "news.1"
+            ]
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 92000,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 2600,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 47,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": -0.031,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: spot bitcoin funds saw mixed flows during the week",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.range",
+          "kind": "pattern",
+          "label": "Sample: range on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs2",
+          "kind": "macro",
+          "label": "Sample: 2-year Treasury yield",
+          "value": 3.55,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs10",
+          "kind": "macro",
+          "label": "Sample: 10-year Treasury yield",
+          "value": 4.1,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dfii10",
+          "kind": "macro",
+          "label": "Sample: 10-year real yield",
+          "value": 1.75,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dxy",
+          "kind": "macro",
+          "label": "Sample: dollar index",
+          "value": 99.2,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.vix",
+          "kind": "macro",
+          "label": "Sample: VIX",
+          "value": 17.4,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-25.gdp",
+          "kind": "calendar",
+          "label": "Sample: GDP second estimate",
+          "value": "gdp",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "kind": "calendar",
+          "label": "Sample: PCE inflation",
+          "value": "pce",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ]
+    },
+    {
+      "assetId": "mWETH",
+      "status": "ok",
+      "recap": [
+        {
+          "text": "Sample: Ether fell over the week, driven by weaker momentum.",
+          "factIds": [
+            "px.1w.change",
+            "news.1"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "lower-highs-lower-lows",
+          "support": [
+            2980,
+            2850
+          ],
+          "resistance": [
+            3260,
+            3420
+          ],
+          "positionInRange": 0.43,
+          "patterns": [
+            {
+              "id": "pat.1d.bear-flag",
+              "kind": "bear-flag",
+              "interval": "1d",
+              "direction": "bearish",
+              "confidence": "medium",
+              "invalidation": 3300,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ],
+          "text": [
+            {
+              "text": "Sample: daily bars show a lower highs lower lows structure.",
+              "factIds": [
+                "px.1d.last",
+                "ind.1d.rsi14"
+              ]
+            }
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "lower-highs-lower-lows",
+          "support": [
+            2700
+          ],
+          "resistance": [
+            3600
+          ],
+          "positionInRange": 0.44,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ],
+          "text": [
+            {
+              "text": "Sample: weekly bars show a lower highs lower lows structure.",
+              "factIds": [
+                "px.1w.change"
+              ]
+            }
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            2400
+          ],
+          "resistance": [
+            4100
+          ],
+          "positionInRange": 0.41,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ],
+          "text": [
+            {
+              "text": "Sample: monthly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last"
+              ]
+            }
+          ]
+        }
+      },
+      "market": [
+        {
+          "text": "Sample: Treasury yields and the dollar were little changed, keeping the risk mood steady.",
+          "factIds": [
+            "macro.dgs10",
+            "macro.dxy",
+            "macro.vix"
+          ]
+        }
+      ],
+      "news": [
+        {
+          "text": "Sample: network upgrade timeline discussed by developers.",
+          "factIds": [
+            "news.1"
+          ]
+        }
+      ],
+      "weekAhead": [
+        {
+          "id": "cal.2026-11-25.gdp",
+          "date": "2026-11-25",
+          "timeUtc": "13:30",
+          "kind": "gdp",
+          "name": "Sample: GDP second estimate",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "date": "2026-11-26",
+          "timeUtc": "13:30",
+          "kind": "pce",
+          "name": "Sample: PCE inflation",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample: price clears the nearest resistance on firm demand.",
+          "factIds": [
+            "px.1d.last"
+          ],
+          "probability": 20,
+          "levels": [
+            3260,
+            3420
+          ],
+          "trigger": "Sample: a daily close above resistance"
+        },
+        "base": {
+          "text": "Sample: price stays between support and resistance.",
+          "factIds": [
+            "ind.1d.atr14"
+          ],
+          "probability": 40,
+          "levels": [
+            2980,
+            3260
+          ],
+          "trigger": "Sample: no surprise in the week's data"
+        },
+        "bear": {
+          "text": "Sample: a weak data print pushes price below support.",
+          "factIds": [
+            "macro.dgs2",
+            "news.1"
+          ],
+          "probability": 40,
+          "levels": [
+            2980,
+            2850
+          ],
+          "trigger": "Sample: a daily close below support"
+        }
+      },
+      "view": {
+        "view": "avoid-new-buys",
+        "conviction": "low",
+        "levels": {
+          "buyZone": null,
+          "invalidation": 3380,
+          "support": [
+            2980,
+            2850
+          ],
+          "resistance": [
+            3260,
+            3420
+          ],
+          "basis": "invalidation = 1 ATR (ATR14 120) above the nearest daily resistance 3260"
+        },
+        "reasons": [
+          {
+            "text": "Sample: the chart and weaker momentum support a avoid new buys view this week.",
+            "factIds": [
+              "px.1d.last",
+              "px.1w.change"
+            ]
+          },
+          {
+            "text": "Sample: market conditions are steady.",
+            "factIds": [
+              "macro.vix"
+            ]
+          }
+        ]
+      },
+      "borrowing": {
+        "assetId": "mWETH",
+        "lltv": 0.86,
+        "examples": [
+          {
+            "drop": 0.1,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.5555555555555556
+          },
+          {
+            "drop": 0.2,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.625
+          },
+          {
+            "drop": 0.3,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.7142857142857143
+          }
+        ],
+        "dropToLimitAtHalfUse": 0.5,
+        "text": "Ether can be borrowed against up to 86% of its value. A loan at 50% of the limit (43% of the collateral value) moves to 62.5% of the limit after a 20% fall. It reaches the limit after a 50% fall. Stackday's optional emergency rule sends the whole next SIP share to collateral when a loan gets close to the limit."
+      },
+      "debate": {
+        "bull": [
+          {
+            "text": "Sample: trend and flows point up.",
+            "factIds": [
+              "px.1w.change"
+            ]
+          }
+        ],
+        "bear": [
+          {
+            "text": "Sample: headline risk is high this week.",
+            "factIds": [
+              "news.1"
+            ]
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 3100,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 120,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 41,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": -0.054,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: network upgrade timeline discussed by developers",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.bear-flag",
+          "kind": "pattern",
+          "label": "Sample: bear-flag on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs2",
+          "kind": "macro",
+          "label": "Sample: 2-year Treasury yield",
+          "value": 3.55,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs10",
+          "kind": "macro",
+          "label": "Sample: 10-year Treasury yield",
+          "value": 4.1,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dfii10",
+          "kind": "macro",
+          "label": "Sample: 10-year real yield",
+          "value": 1.75,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dxy",
+          "kind": "macro",
+          "label": "Sample: dollar index",
+          "value": 99.2,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.vix",
+          "kind": "macro",
+          "label": "Sample: VIX",
+          "value": 17.4,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-25.gdp",
+          "kind": "calendar",
+          "label": "Sample: GDP second estimate",
+          "value": "gdp",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "kind": "calendar",
+          "label": "Sample: PCE inflation",
+          "value": "pce",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ]
+    },
+    {
+      "assetId": "mPAXG",
+      "status": "ok",
+      "recap": [
+        {
+          "text": "Sample: Gold rose over the week, driven by lower real yields.",
+          "factIds": [
+            "px.1w.change",
+            "news.1"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            4010,
+            3960
+          ],
+          "resistance": [
+            4120,
+            4200
+          ],
+          "positionInRange": 0.36,
+          "patterns": [
+            {
+              "id": "pat.1d.breakout",
+              "kind": "breakout",
+              "interval": "1d",
+              "direction": "bullish",
+              "confidence": "medium",
+              "invalidation": 3990,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ],
+          "text": [
+            {
+              "text": "Sample: daily bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last",
+                "ind.1d.rsi14"
+              ]
+            }
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            3900
+          ],
+          "resistance": [
+            4250
+          ],
+          "positionInRange": 0.43,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ],
+          "text": [
+            {
+              "text": "Sample: weekly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1w.change"
+              ]
+            }
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            3600
+          ],
+          "resistance": [
+            4300
+          ],
+          "positionInRange": 0.64,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ],
+          "text": [
+            {
+              "text": "Sample: monthly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last"
+              ]
+            }
+          ]
+        }
+      },
+      "market": [
+        {
+          "text": "Sample: Treasury yields and the dollar were little changed, keeping the risk mood steady.",
+          "factIds": [
+            "macro.dgs10",
+            "macro.dxy",
+            "macro.vix"
+          ]
+        }
+      ],
+      "news": [
+        {
+          "text": "Sample: central bank gold purchases reported higher for the quarter.",
+          "factIds": [
+            "news.1"
+          ]
+        }
+      ],
+      "weekAhead": [
+        {
+          "id": "cal.2026-11-25.gdp",
+          "date": "2026-11-25",
+          "timeUtc": "13:30",
+          "kind": "gdp",
+          "name": "Sample: GDP second estimate",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "date": "2026-11-26",
+          "timeUtc": "13:30",
+          "kind": "pce",
+          "name": "Sample: PCE inflation",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample: price clears the nearest resistance on firm demand.",
+          "factIds": [
+            "px.1d.last"
+          ],
+          "probability": 40,
+          "levels": [
+            4120,
+            4200
+          ],
+          "trigger": "Sample: a daily close above resistance"
+        },
+        "base": {
+          "text": "Sample: price stays between support and resistance.",
+          "factIds": [
+            "ind.1d.atr14"
+          ],
+          "probability": 45,
+          "levels": [
+            4010,
+            4120
+          ],
+          "trigger": "Sample: no surprise in the week's data"
+        },
+        "bear": {
+          "text": "Sample: a weak data print pushes price below support.",
+          "factIds": [
+            "macro.dgs2",
+            "news.1"
+          ],
+          "probability": 15,
+          "levels": [
+            4010,
+            3960
+          ],
+          "trigger": "Sample: a daily close below support"
+        }
+      },
+      "view": {
+        "view": "accumulate",
+        "conviction": "medium",
+        "levels": {
+          "buyZone": {
+            "low": 4010,
+            "high": 4033
+          },
+          "invalidation": 3943,
+          "support": [
+            4010,
+            3960
+          ],
+          "resistance": [
+            4120,
+            4200
+          ],
+          "basis": "zone = nearest daily support 4010 to +0.5 ATR (ATR14 45), capped at the close 4050; invalidation = 1.5 ATR below the zone"
+        },
+        "reasons": [
+          {
+            "text": "Sample: the chart and lower real yields support a accumulate view this week.",
+            "factIds": [
+              "px.1d.last",
+              "px.1w.change"
+            ]
+          },
+          {
+            "text": "Sample: market conditions are steady.",
+            "factIds": [
+              "macro.vix"
+            ]
+          }
+        ]
+      },
+      "borrowing": {
+        "assetId": "mPAXG",
+        "lltv": 0.77,
+        "examples": [
+          {
+            "drop": 0.1,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.5555555555555556
+          },
+          {
+            "drop": 0.2,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.625
+          },
+          {
+            "drop": 0.3,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.7142857142857143
+          }
+        ],
+        "dropToLimitAtHalfUse": 0.5,
+        "text": "Gold can be borrowed against up to 77% of its value. A loan at 50% of the limit (38.5% of the collateral value) moves to 62.5% of the limit after a 20% fall. It reaches the limit after a 50% fall. Stackday's optional emergency rule sends the whole next SIP share to collateral when a loan gets close to the limit."
+      },
+      "debate": {
+        "bull": [
+          {
+            "text": "Sample: trend and flows point up.",
+            "factIds": [
+              "px.1w.change"
+            ]
+          }
+        ],
+        "bear": [
+          {
+            "text": "Sample: headline risk is high this week.",
+            "factIds": [
+              "news.1"
+            ]
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 4050,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 45,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 61,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.018,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: central bank gold purchases reported higher for the quarter",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.breakout",
+          "kind": "pattern",
+          "label": "Sample: breakout on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs2",
+          "kind": "macro",
+          "label": "Sample: 2-year Treasury yield",
+          "value": 3.55,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs10",
+          "kind": "macro",
+          "label": "Sample: 10-year Treasury yield",
+          "value": 4.1,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dfii10",
+          "kind": "macro",
+          "label": "Sample: 10-year real yield",
+          "value": 1.75,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dxy",
+          "kind": "macro",
+          "label": "Sample: dollar index",
+          "value": 99.2,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.vix",
+          "kind": "macro",
+          "label": "Sample: VIX",
+          "value": 17.4,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-25.gdp",
+          "kind": "calendar",
+          "label": "Sample: GDP second estimate",
+          "value": "gdp",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "kind": "calendar",
+          "label": "Sample: PCE inflation",
+          "value": "pce",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ]
+    },
+    {
+      "assetId": "mNVDA",
+      "status": "ok",
+      "recap": [
+        {
+          "text": "Sample: NVIDIA rose over the week, driven by earnings ahead.",
+          "factIds": [
+            "px.1w.change",
+            "news.1"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "range",
+          "support": [
+            176,
+            170
+          ],
+          "resistance": [
+            190,
+            197
+          ],
+          "positionInRange": 0.43,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ],
+          "text": [
+            {
+              "text": "Sample: daily bars show a range structure.",
+              "factIds": [
+                "px.1d.last",
+                "ind.1d.rsi14"
+              ]
+            }
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "range",
+          "support": [
+            165
+          ],
+          "resistance": [
+            205
+          ],
+          "positionInRange": 0.43,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ],
+          "text": [
+            {
+              "text": "Sample: weekly bars show a range structure.",
+              "factIds": [
+                "px.1w.change"
+              ]
+            }
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            140
+          ],
+          "resistance": [
+            212
+          ],
+          "positionInRange": 0.58,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ],
+          "text": [
+            {
+              "text": "Sample: monthly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last"
+              ]
+            }
+          ]
+        }
+      },
+      "market": [
+        {
+          "text": "Sample: Treasury yields and the dollar were little changed, keeping the risk mood steady.",
+          "factIds": [
+            "macro.dgs10",
+            "macro.dxy",
+            "macro.vix"
+          ]
+        }
+      ],
+      "news": [
+        {
+          "text": "Sample: export control headlines weighed on chip stocks midweek.",
+          "factIds": [
+            "news.1"
+          ]
+        }
+      ],
+      "weekAhead": [
+        {
+          "id": "cal.2026-11-19.earnings",
+          "date": "2026-11-19",
+          "kind": "earnings",
+          "name": "Sample: NVIDIA quarterly results",
+          "assetIds": [
+            "mNVDA"
+          ],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        },
+        {
+          "id": "cal.2026-11-25.gdp",
+          "date": "2026-11-25",
+          "timeUtc": "13:30",
+          "kind": "gdp",
+          "name": "Sample: GDP second estimate",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "date": "2026-11-26",
+          "timeUtc": "13:30",
+          "kind": "pce",
+          "name": "Sample: PCE inflation",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample: price clears the nearest resistance on firm demand.",
+          "factIds": [
+            "px.1d.last"
+          ],
+          "probability": 30,
+          "levels": [
+            190,
+            197
+          ],
+          "trigger": "Sample: a daily close above resistance"
+        },
+        "base": {
+          "text": "Sample: price stays between support and resistance.",
+          "factIds": [
+            "ind.1d.atr14"
+          ],
+          "probability": 45,
+          "levels": [
+            176,
+            190
+          ],
+          "trigger": "Sample: no surprise in the week's data"
+        },
+        "bear": {
+          "text": "Sample: a weak data print pushes price below support.",
+          "factIds": [
+            "macro.dgs2",
+            "news.1"
+          ],
+          "probability": 25,
+          "levels": [
+            176,
+            170
+          ],
+          "trigger": "Sample: a daily close below support"
+        }
+      },
+      "view": {
+        "view": "hold",
+        "conviction": "low",
+        "levels": {
+          "buyZone": null,
+          "invalidation": 169.9,
+          "support": [
+            176,
+            170
+          ],
+          "resistance": [
+            190,
+            197
+          ],
+          "basis": "invalidation = 1 ATR (ATR14 6.1) below the nearest daily support 176"
+        },
+        "reasons": [
+          {
+            "text": "Sample: the chart and earnings ahead support a hold view this week.",
+            "factIds": [
+              "px.1d.last",
+              "px.1w.change"
+            ]
+          },
+          {
+            "text": "Sample: market conditions are steady.",
+            "factIds": [
+              "macro.vix"
+            ]
+          }
+        ]
+      },
+      "borrowing": {
+        "assetId": "mNVDA",
+        "lltv": 0.625,
+        "examples": [
+          {
+            "drop": 0.1,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.5555555555555556
+          },
+          {
+            "drop": 0.2,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.625
+          },
+          {
+            "drop": 0.3,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.7142857142857143
+          }
+        ],
+        "dropToLimitAtHalfUse": 0.5,
+        "text": "NVIDIA can be borrowed against up to 62.5% of its value. A loan at 50% of the limit (31.3% of the collateral value) moves to 62.5% of the limit after a 20% fall. It reaches the limit after a 50% fall. Stackday's optional emergency rule sends the whole next SIP share to collateral when a loan gets close to the limit."
+      },
+      "debate": {
+        "bull": [
+          {
+            "text": "Sample: trend and flows point up.",
+            "factIds": [
+              "px.1w.change"
+            ]
+          }
+        ],
+        "bear": [
+          {
+            "text": "Sample: headline risk is high this week.",
+            "factIds": [
+              "news.1"
+            ]
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 182,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 6.1,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 55,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.012,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: export control headlines weighed on chip stocks midweek",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "export-controls",
+            "geopolitics"
+          ]
+        },
+        {
+          "id": "macro.dgs2",
+          "kind": "macro",
+          "label": "Sample: 2-year Treasury yield",
+          "value": 3.55,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs10",
+          "kind": "macro",
+          "label": "Sample: 10-year Treasury yield",
+          "value": 4.1,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dfii10",
+          "kind": "macro",
+          "label": "Sample: 10-year real yield",
+          "value": 1.75,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dxy",
+          "kind": "macro",
+          "label": "Sample: dollar index",
+          "value": 99.2,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.vix",
+          "kind": "macro",
+          "label": "Sample: VIX",
+          "value": 17.4,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-25.gdp",
+          "kind": "calendar",
+          "label": "Sample: GDP second estimate",
+          "value": "gdp",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "kind": "calendar",
+          "label": "Sample: PCE inflation",
+          "value": "pce",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ]
+    },
+    {
+      "assetId": "mAAPL",
+      "status": "ok",
+      "recap": [
+        {
+          "text": "Sample: Apple rose over the week, driven by steady demand.",
+          "factIds": [
+            "px.1w.change",
+            "news.1"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            262,
+            255
+          ],
+          "resistance": [
+            275,
+            282
+          ],
+          "positionInRange": 0.46,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ],
+          "text": [
+            {
+              "text": "Sample: daily bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last",
+                "ind.1d.rsi14"
+              ]
+            }
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            248
+          ],
+          "resistance": [
+            288
+          ],
+          "positionInRange": 0.5,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ],
+          "text": [
+            {
+              "text": "Sample: weekly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1w.change"
+              ]
+            }
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            225
+          ],
+          "resistance": [
+            290
+          ],
+          "positionInRange": 0.66,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ],
+          "text": [
+            {
+              "text": "Sample: monthly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last"
+              ]
+            }
+          ]
+        }
+      },
+      "market": [
+        {
+          "text": "Sample: Treasury yields and the dollar were little changed, keeping the risk mood steady.",
+          "factIds": [
+            "macro.dgs10",
+            "macro.dxy",
+            "macro.vix"
+          ]
+        }
+      ],
+      "news": [
+        {
+          "text": "Sample: company announced its quarterly dividend date.",
+          "factIds": [
+            "news.1"
+          ]
+        }
+      ],
+      "weekAhead": [
+        {
+          "id": "cal.2026-11-25.gdp",
+          "date": "2026-11-25",
+          "timeUtc": "13:30",
+          "kind": "gdp",
+          "name": "Sample: GDP second estimate",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "date": "2026-11-26",
+          "timeUtc": "13:30",
+          "kind": "pce",
+          "name": "Sample: PCE inflation",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample: price clears the nearest resistance on firm demand.",
+          "factIds": [
+            "px.1d.last"
+          ],
+          "probability": 30,
+          "levels": [
+            275,
+            282
+          ],
+          "trigger": "Sample: a daily close above resistance"
+        },
+        "base": {
+          "text": "Sample: price stays between support and resistance.",
+          "factIds": [
+            "ind.1d.atr14"
+          ],
+          "probability": 45,
+          "levels": [
+            262,
+            275
+          ],
+          "trigger": "Sample: no surprise in the week's data"
+        },
+        "bear": {
+          "text": "Sample: a weak data print pushes price below support.",
+          "factIds": [
+            "macro.dgs2",
+            "news.1"
+          ],
+          "probability": 25,
+          "levels": [
+            262,
+            255
+          ],
+          "trigger": "Sample: a daily close below support"
+        }
+      },
+      "view": {
+        "view": "hold",
+        "conviction": "medium",
+        "levels": {
+          "buyZone": null,
+          "invalidation": 257.8,
+          "support": [
+            262,
+            255
+          ],
+          "resistance": [
+            275,
+            282
+          ],
+          "basis": "invalidation = 1 ATR (ATR14 4.2) below the nearest daily support 262"
+        },
+        "reasons": [
+          {
+            "text": "Sample: the chart and steady demand support a hold view this week.",
+            "factIds": [
+              "px.1d.last",
+              "px.1w.change"
+            ]
+          },
+          {
+            "text": "Sample: market conditions are steady.",
+            "factIds": [
+              "macro.vix"
+            ]
+          }
+        ]
+      },
+      "borrowing": {
+        "assetId": "mAAPL",
+        "lltv": 0.625,
+        "examples": [
+          {
+            "drop": 0.1,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.5555555555555556
+          },
+          {
+            "drop": 0.2,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.625
+          },
+          {
+            "drop": 0.3,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.7142857142857143
+          }
+        ],
+        "dropToLimitAtHalfUse": 0.5,
+        "text": "Apple can be borrowed against up to 62.5% of its value. A loan at 50% of the limit (31.3% of the collateral value) moves to 62.5% of the limit after a 20% fall. It reaches the limit after a 50% fall. Stackday's optional emergency rule sends the whole next SIP share to collateral when a loan gets close to the limit."
+      },
+      "debate": {
+        "bull": [
+          {
+            "text": "Sample: trend and flows point up.",
+            "factIds": [
+              "px.1w.change"
+            ]
+          }
+        ],
+        "bear": [
+          {
+            "text": "Sample: headline risk is high this week.",
+            "factIds": [
+              "news.1"
+            ]
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 268,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 4.2,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 58,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.009,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: company announced its quarterly dividend date",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "macro.dgs2",
+          "kind": "macro",
+          "label": "Sample: 2-year Treasury yield",
+          "value": 3.55,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs10",
+          "kind": "macro",
+          "label": "Sample: 10-year Treasury yield",
+          "value": 4.1,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dfii10",
+          "kind": "macro",
+          "label": "Sample: 10-year real yield",
+          "value": 1.75,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dxy",
+          "kind": "macro",
+          "label": "Sample: dollar index",
+          "value": 99.2,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.vix",
+          "kind": "macro",
+          "label": "Sample: VIX",
+          "value": 17.4,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-25.gdp",
+          "kind": "calendar",
+          "label": "Sample: GDP second estimate",
+          "value": "gdp",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "kind": "calendar",
+          "label": "Sample: PCE inflation",
+          "value": "pce",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ]
+    },
+    {
+      "assetId": "mSPX",
+      "status": "ok",
+      "recap": [
+        {
+          "text": "Sample: S&P 500 rose over the week, driven by broad market trend.",
+          "factIds": [
+            "px.1w.change",
+            "news.1"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            6580,
+            6500
+          ],
+          "resistance": [
+            6720,
+            6800
+          ],
+          "positionInRange": 0.5,
+          "patterns": [
+            {
+              "id": "pat.1d.golden-cross",
+              "kind": "golden-cross",
+              "interval": "1d",
+              "direction": "bullish",
+              "confidence": "medium",
+              "invalidation": 6480,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ],
+          "text": [
+            {
+              "text": "Sample: daily bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last",
+                "ind.1d.rsi14"
+              ]
+            }
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            6400
+          ],
+          "resistance": [
+            6850
+          ],
+          "positionInRange": 0.56,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ],
+          "text": [
+            {
+              "text": "Sample: weekly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1w.change"
+              ]
+            }
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            6000
+          ],
+          "resistance": [
+            6900
+          ],
+          "positionInRange": 0.72,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ],
+          "text": [
+            {
+              "text": "Sample: monthly bars show a higher highs higher lows structure.",
+              "factIds": [
+                "px.1d.last"
+              ]
+            }
+          ]
+        }
+      },
+      "market": [
+        {
+          "text": "Sample: Treasury yields and the dollar were little changed, keeping the risk mood steady.",
+          "factIds": [
+            "macro.dgs10",
+            "macro.dxy",
+            "macro.vix"
+          ]
+        }
+      ],
+      "news": [
+        {
+          "text": "Sample: Fed speakers kept a cautious tone on further rate cuts.",
+          "factIds": [
+            "news.1"
+          ]
+        }
+      ],
+      "weekAhead": [
+        {
+          "id": "cal.2026-11-25.gdp",
+          "date": "2026-11-25",
+          "timeUtc": "13:30",
+          "kind": "gdp",
+          "name": "Sample: GDP second estimate",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "date": "2026-11-26",
+          "timeUtc": "13:30",
+          "kind": "pce",
+          "name": "Sample: PCE inflation",
+          "assetIds": [],
+          "source": {
+            "name": "Sample data (not real market data)"
+          }
+        }
+      ],
+      "scenarios": {
+        "bull": {
+          "text": "Sample: price clears the nearest resistance on firm demand.",
+          "factIds": [
+            "px.1d.last"
+          ],
+          "probability": 40,
+          "levels": [
+            6720,
+            6800
+          ],
+          "trigger": "Sample: a daily close above resistance"
+        },
+        "base": {
+          "text": "Sample: price stays between support and resistance.",
+          "factIds": [
+            "ind.1d.atr14"
+          ],
+          "probability": 45,
+          "levels": [
+            6580,
+            6720
+          ],
+          "trigger": "Sample: no surprise in the week's data"
+        },
+        "bear": {
+          "text": "Sample: a weak data print pushes price below support.",
+          "factIds": [
+            "macro.dgs2",
+            "news.1"
+          ],
+          "probability": 15,
+          "levels": [
+            6580,
+            6500
+          ],
+          "trigger": "Sample: a daily close below support"
+        }
+      },
+      "view": {
+        "view": "accumulate",
+        "conviction": "low",
+        "levels": {
+          "buyZone": {
+            "low": 6580,
+            "high": 6611
+          },
+          "invalidation": 6487,
+          "support": [
+            6580,
+            6500
+          ],
+          "resistance": [
+            6720,
+            6800
+          ],
+          "basis": "zone = nearest daily support 6580 to +0.5 ATR (ATR14 62), capped at the close 6650; invalidation = 1.5 ATR below the zone"
+        },
+        "reasons": [
+          {
+            "text": "Sample: the chart and broad market trend support a accumulate view this week.",
+            "factIds": [
+              "px.1d.last",
+              "px.1w.change"
+            ]
+          },
+          {
+            "text": "Sample: market conditions are steady.",
+            "factIds": [
+              "macro.vix"
+            ]
+          }
+        ]
+      },
+      "borrowing": {
+        "assetId": "mSPX",
+        "lltv": 0.77,
+        "examples": [
+          {
+            "drop": 0.1,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.5555555555555556
+          },
+          {
+            "drop": 0.2,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.625
+          },
+          {
+            "drop": 0.3,
+            "fromLimitUse": 0.5,
+            "toLimitUse": 0.7142857142857143
+          }
+        ],
+        "dropToLimitAtHalfUse": 0.5,
+        "text": "S&P 500 can be borrowed against up to 77% of its value. A loan at 50% of the limit (38.5% of the collateral value) moves to 62.5% of the limit after a 20% fall. It reaches the limit after a 50% fall. Stackday's optional emergency rule sends the whole next SIP share to collateral when a loan gets close to the limit."
+      },
+      "debate": {
+        "bull": [
+          {
+            "text": "Sample: trend and flows point up.",
+            "factIds": [
+              "px.1w.change"
+            ]
+          }
+        ],
+        "bear": [
+          {
+            "text": "Sample: headline risk is high this week.",
+            "factIds": [
+              "news.1"
+            ]
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 6650,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 62,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 56,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.006,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: Fed speakers kept a cautious tone on further rate cuts",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.golden-cross",
+          "kind": "pattern",
+          "label": "Sample: golden-cross on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs2",
+          "kind": "macro",
+          "label": "Sample: 2-year Treasury yield",
+          "value": 3.55,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dgs10",
+          "kind": "macro",
+          "label": "Sample: 10-year Treasury yield",
+          "value": 4.1,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dfii10",
+          "kind": "macro",
+          "label": "Sample: 10-year real yield",
+          "value": 1.75,
+          "unit": "%",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.dxy",
+          "kind": "macro",
+          "label": "Sample: dollar index",
+          "value": 99.2,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "macro.vix",
+          "kind": "macro",
+          "label": "Sample: VIX",
+          "value": 17.4,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-25.gdp",
+          "kind": "calendar",
+          "label": "Sample: GDP second estimate",
+          "value": "gdp",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "cal.2026-11-26.pce",
+          "kind": "calendar",
+          "label": "Sample: PCE inflation",
+          "value": "pce",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ]
+    }
+  ],
+  "ideas": {
+    "ranked": [
+      {
+        "rank": 1,
+        "assetId": "mPAXG",
+        "view": "accumulate",
+        "reasons": [
+          {
+            "text": "Sample: lower real yields and the chart read back this view.",
+            "factIds": [
+              "mPAXG:px.1d.last",
+              "mPAXG:px.1w.change"
+            ]
+          }
+        ],
+        "dependsOn": {
+          "text": "Sample: depends on yields and the dollar staying calm.",
+          "factIds": [
+            "mPAXG:macro.dgs10",
+            "mPAXG:macro.dxy"
+          ]
+        },
+        "mainRisk": {
+          "text": "Sample: a weak data print or a headline shock.",
+          "factIds": [
+            "mPAXG:news.1"
+          ]
+        }
+      },
+      {
+        "rank": 2,
+        "assetId": "mSPX",
+        "view": "accumulate",
+        "reasons": [
+          {
+            "text": "Sample: broad market trend and the chart read back this view.",
+            "factIds": [
+              "mSPX:px.1d.last",
+              "mSPX:px.1w.change"
+            ]
+          }
+        ],
+        "dependsOn": {
+          "text": "Sample: depends on yields and the dollar staying calm.",
+          "factIds": [
+            "mSPX:macro.dgs10",
+            "mSPX:macro.dxy"
+          ]
+        },
+        "mainRisk": {
+          "text": "Sample: a weak data print or a headline shock.",
+          "factIds": [
+            "mSPX:news.1"
+          ]
+        }
+      },
+      {
+        "rank": 3,
+        "assetId": "mcbBTC",
+        "view": "hold",
+        "reasons": [
+          {
+            "text": "Sample: fund flows and the chart read back this view.",
+            "factIds": [
+              "mcbBTC:px.1d.last",
+              "mcbBTC:px.1w.change"
+            ]
+          }
+        ],
+        "dependsOn": {
+          "text": "Sample: depends on yields and the dollar staying calm.",
+          "factIds": [
+            "mcbBTC:macro.dgs10",
+            "mcbBTC:macro.dxy"
+          ]
+        },
+        "mainRisk": {
+          "text": "Sample: a weak data print or a headline shock.",
+          "factIds": [
+            "mcbBTC:news.1"
+          ]
+        }
+      },
+      {
+        "rank": 4,
+        "assetId": "mNVDA",
+        "view": "hold",
+        "reasons": [
+          {
+            "text": "Sample: earnings ahead and the chart read back this view.",
+            "factIds": [
+              "mNVDA:px.1d.last",
+              "mNVDA:px.1w.change"
+            ]
+          }
+        ],
+        "dependsOn": {
+          "text": "Sample: depends on yields and the dollar staying calm.",
+          "factIds": [
+            "mNVDA:macro.dgs10",
+            "mNVDA:macro.dxy"
+          ]
+        },
+        "mainRisk": {
+          "text": "Sample: a weak data print or a headline shock.",
+          "factIds": [
+            "mNVDA:news.1"
+          ]
+        }
+      },
+      {
+        "rank": 5,
+        "assetId": "mAAPL",
+        "view": "hold",
+        "reasons": [
+          {
+            "text": "Sample: steady demand and the chart read back this view.",
+            "factIds": [
+              "mAAPL:px.1d.last",
+              "mAAPL:px.1w.change"
+            ]
+          }
+        ],
+        "dependsOn": {
+          "text": "Sample: depends on yields and the dollar staying calm.",
+          "factIds": [
+            "mAAPL:macro.dgs10",
+            "mAAPL:macro.dxy"
+          ]
+        },
+        "mainRisk": {
+          "text": "Sample: a weak data print or a headline shock.",
+          "factIds": [
+            "mAAPL:news.1"
+          ]
+        }
+      },
+      {
+        "rank": 6,
+        "assetId": "mWETH",
+        "view": "avoid-new-buys",
+        "reasons": [
+          {
+            "text": "Sample: weaker momentum and the chart read back this view.",
+            "factIds": [
+              "mWETH:px.1d.last",
+              "mWETH:px.1w.change"
+            ]
+          }
+        ],
+        "dependsOn": {
+          "text": "Sample: depends on yields and the dollar staying calm.",
+          "factIds": [
+            "mWETH:macro.dgs10",
+            "mWETH:macro.dxy"
+          ]
+        },
+        "mainRisk": {
+          "text": "Sample: a weak data print or a headline shock.",
+          "factIds": [
+            "mWETH:news.1"
+          ]
+        }
+      }
+    ],
+    "exampleSplits": [
+      {
+        "profile": "cautious",
+        "slices": [
+          {
+            "assetId": "mcbBTC",
+            "share": 0.05
+          },
+          {
+            "assetId": "mPAXG",
+            "share": 0.3
+          },
+          {
+            "assetId": "mNVDA",
+            "share": 0.1
+          },
+          {
+            "assetId": "mAAPL",
+            "share": 0.25
+          },
+          {
+            "assetId": "mSPX",
+            "share": 0.3
+          }
+        ],
+        "why": {
+          "text": "Sample: example cautious split computed in code from the views and risk buckets. General research, not an order for anyone.",
+          "factIds": []
+        }
+      },
+      {
+        "profile": "growth",
+        "slices": [
+          {
+            "assetId": "mcbBTC",
+            "share": 0.15
+          },
+          {
+            "assetId": "mPAXG",
+            "share": 0.2
+          },
+          {
+            "assetId": "mNVDA",
+            "share": 0.3
+          },
+          {
+            "assetId": "mAAPL",
+            "share": 0.15
+          },
+          {
+            "assetId": "mSPX",
+            "share": 0.2
+          }
+        ],
+        "why": {
+          "text": "Sample: example growth split computed in code from the views and risk buckets. General research, not an order for anyone.",
+          "factIds": []
+        }
+      }
+    ]
+  },
+  "scorecard": {
+    "weekOf": "2026-11-09",
+    "rows": [
+      {
+        "assetId": "mcbBTC",
+        "view": "hold",
+        "conviction": "medium",
+        "priceAtCall": 94943,
+        "priceAfter": 92000,
+        "change": -0.031,
+        "invalidated": false,
+        "result": "right",
+        "why": "Sample: hand-made example row."
+      },
+      {
+        "assetId": "mWETH",
+        "view": "avoid-new-buys",
+        "conviction": "low",
+        "priceAtCall": 3277,
+        "priceAfter": 3100,
+        "change": -0.054,
+        "invalidated": false,
+        "result": "wrong",
+        "why": "Sample: a wrong call, kept visible."
+      },
+      {
+        "assetId": "mPAXG",
+        "view": "accumulate",
+        "conviction": "medium",
+        "priceAtCall": 3978,
+        "priceAfter": 4050,
+        "change": 0.018,
+        "invalidated": false,
+        "result": "right",
+        "why": "Sample: hand-made example row."
+      },
+      {
+        "assetId": "mNVDA",
+        "view": "hold",
+        "conviction": "low",
+        "priceAtCall": 180,
+        "priceAfter": 182,
+        "change": 0.012,
+        "invalidated": false,
+        "result": "mixed",
+        "why": "Sample: hand-made example row."
+      },
+      {
+        "assetId": "mAAPL",
+        "view": "hold",
+        "conviction": "medium",
+        "priceAtCall": 266,
+        "priceAfter": 268,
+        "change": 0.009,
+        "invalidated": false,
+        "result": "right",
+        "why": "Sample: hand-made example row."
+      },
+      {
+        "assetId": "mSPX",
+        "view": "accumulate",
+        "conviction": "low",
+        "priceAtCall": 6610,
+        "priceAfter": 6650,
+        "change": 0.006,
+        "invalidated": false,
+        "result": "right",
+        "why": "Sample: hand-made example row."
+      }
+    ],
+    "calibration": [
+      {
+        "conviction": "low",
+        "calls": 4,
+        "right": 2
+      },
+      {
+        "conviction": "medium",
+        "calls": 6,
+        "right": 4
+      },
+      {
+        "conviction": "high",
+        "calls": 0,
+        "right": 0
+      }
+    ]
+  },
+  "review": {
+    "approved": true,
+    "sentBack": 0,
+    "removedClaims": 0,
+    "notes": [
+      "Sample report: no real review took place."
+    ]
+  },
+  "model": {
+    "analysts": "sample",
+    "editor": "sample"
+  },
+  "disclaimer": "Research only, not financial advice. This is general research for every reader, not a recommendation for you. AI-written analysis is marked as such and every number shows its source and time. Past calls can be wrong and are all shown in the scorecard, nothing here is a promise of returns, and tokenized assets can lose value. Stackday runs on Base Sepolia testnet with mock tokens."
+}
