@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { handleGetPortfolio, handlePreviewPortfolio, handleSavePortfolio, type Deps, type PortfolioStore } from "./handlers.ts";
-import { asSnapshot, asWeeklyReport, fetchResearchLoader, lastPriceFact, readResearch, staticResearchLoader } from "./research-source.ts";
+import { asSnapshot, asWeeklyReport, lastPriceFact, readResearch, staticResearchLoader } from "./research-source.ts";
 import { FIXTURE_CATALOG, makeSnapshot, makeWeekly, quote } from "./fixtures.ts";
 import type { AccessCheck, PortfolioInput } from "../types.ts";
 import type { ReportRequest } from "../access/gate.ts";
@@ -69,7 +69,7 @@ test("preview: no sign-in needed, nothing saved, returns analysis and reportKind
   assert.deepEqual(body.analysis.viewSource, { product: "daily-note", date: "2026-11-19" });
   assert.equal(portfolios.size, 0);
   assert.equal(d.gateCalls.length, 0);
-  assert.deepEqual(d.feedAsked, [], "no feed read when research priced everything");
+  assert.deepEqual(d.feedAsked, [["mAAPL"]], "the feed is always read: it alone measures loan health");
 
   const spx = deps();
   await handlePreviewPortfolio(spx, { holdings: [{ assetId: "mSPX", amount: 1 }] });
@@ -77,7 +77,10 @@ test("preview: no sign-in needed, nothing saved, returns analysis and reportKind
 });
 
 test("preview: views from the weekly report when there is one, prices from the daily notes first", async () => {
-  const r = await handlePreviewPortfolio(deps({ loadResearch: staticResearchLoader(WEEKLY, SNAP) }), { holdings: [{ assetId: "mAAPL", amount: 1 }] });
+  const r = await handlePreviewPortfolio(
+    deps({ loadResearch: staticResearchLoader(makeWeekly([{ assetId: "mAAPL", price: 90, view: "accumulate" }]), SNAP) }),
+    { holdings: [{ assetId: "mAAPL", amount: 1 }] },
+  );
   const a = (r.body as { analysis: PortfolioAnalysisResult }).analysis;
   assert.equal(a.holdings[0].generalView, "accumulate", "weekly view");
   assert.equal(a.totalUsd, 100, "daily price");
@@ -88,7 +91,7 @@ test("preview: holdings research does not price are valued from the feed, labell
   const d = deps();
   const r = await handlePreviewPortfolio(d, { holdings: [{ assetId: "mMSFT", amount: 2, origin: "vault" }, { assetId: "mAAPL", amount: 1 }] });
   assert.equal(r.status, 200);
-  assert.deepEqual(d.feedAsked, [["mMSFT"]]);
+  assert.deepEqual(d.feedAsked, [["mMSFT", "mAAPL"]]);
   const a = (r.body as { analysis: PortfolioAnalysisResult }).analysis;
   assert.equal(a.totalUsd, 140);
   assert.match(a.byAsset.find((s) => s.key === "mMSFT")!.label, /not covered by research/);
@@ -165,15 +168,25 @@ test("research source: shape checks, price facts and reading", async () => {
   assert.equal(read.prices.mAAPL!.price, 90);
   assert.equal(read.prices.mSPX, undefined, "the S&P 500 research price (index or SPY) never values a deSPXA token");
   assert.equal(readResearch(null, SNAP).prices.mSPX, undefined);
-  const urls: string[] = [];
-  const fake = (async (url: string) => {
-    urls.push(url);
-    return new Response(JSON.stringify(url.endsWith("/weekly") ? { report: WEEKLY } : { snapshot: SNAP }), { status: 200 });
-  }) as unknown as typeof fetch;
-  const loaded = await fetchResearchLoader("https://example.test/api/research/portfolio/preview", fake)();
-  assert.deepEqual(urls.sort(), ["https://example.test/api/research/snapshot", "https://example.test/api/research/weekly"]);
-  assert.equal(loaded.weekly?.weekOf, "2026-11-16");
-  assert.equal(loaded.snapshot?.date, "2026-11-19");
-  const failing = (async () => new Response("no", { status: 500 })) as unknown as typeof fetch;
-  assert.deepEqual(await fetchResearchLoader("https://example.test/", failing)(), { weekly: null, snapshot: null });
+});
+
+test("a live weekly report never shows sample prices under a live label", async () => {
+  const liveWeekly = makeWeekly([{ assetId: "mAAPL", price: 90, view: "accumulate" }], { kind: "live" });
+  const read = readResearch(liveWeekly, SNAP);
+  assert.equal(read.kind, "live");
+  assert.equal(read.prices.mAAPL!.price, 90, "the sample snapshot price (100) is ignored");
+  assert.deepEqual(read.viewSource, { product: "weekly-report", weekOf: "2026-11-16" });
+  assert.equal(readResearch(liveWeekly, makeSnapshot([{ assetId: "mAAPL", price: 95, view: "hold" }], { kind: "live" })).prices.mAAPL!.price, 95);
+  assert.equal(readResearch(makeWeekly([{ assetId: "mAAPL", price: 90, view: "hold" }]), null).kind, "sample");
+  assert.equal(readResearch(null, SNAP).kind, "sample");
+  assert.equal(readResearch(null, null).kind, "sample");
+
+  const r = await handlePreviewPortfolio(
+    deps({ loadResearch: staticResearchLoader(liveWeekly, SNAP), readFeedPrices: async () => ({ mAAPL: quote(70) }) }),
+    { holdings: [{ assetId: "mAAPL", amount: 1, loanUsd: 20 }] },
+  );
+  const body = r.body as { analysis: PortfolioAnalysisResult; reportKind: string };
+  assert.equal(body.reportKind, "live");
+  assert.equal(body.analysis.totalUsd, 90);
+  assert.match(body.analysis.loans.facts[0].text, /of \$70\.00 at the lending market's price/, "loan health at the feed price, not the report's $90");
 });

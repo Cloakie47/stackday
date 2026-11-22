@@ -65,12 +65,13 @@ export async function handlePreviewPortfolio(deps: Deps, rawBody: unknown): Prom
     research = readResearch(null, null);
   }
 
-  // Holdings research had no price for are valued from the Stackday test price feeds, labelled so.
-  const missing = [...new Set(mergeHoldings(p.value.holdings).map((h) => h.assetId))].filter((id) => !research.prices[id]);
+  // Every held asset's Stackday price feed is read: it is the price Morpho values collateral with on
+  // Base Sepolia, so it alone measures loan health. It also values holdings research had no price for.
+  const held = [...new Set(mergeHoldings(p.value.holdings).map((h) => h.assetId))];
   let feed: Partial<Record<string, PriceQuote>> = {};
-  if (missing.length) {
+  if (held.length) {
     try {
-      feed = await deps.readFeedPrices(missing);
+      feed = await deps.readFeedPrices(held);
     } catch (e) {
       deps.onError?.("portfolio: feed prices", e);
     }
@@ -84,6 +85,7 @@ export async function handlePreviewPortfolio(deps: Deps, rawBody: unknown): Prom
     views: research.views,
     viewSource: research.viewSource,
     prices: { ...feed, ...research.prices },
+    loanPrices: feed,
   });
   return { status: 200, body: { analysis, reportKind: research.kind } };
 }

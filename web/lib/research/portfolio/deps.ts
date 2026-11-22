@@ -4,21 +4,20 @@ import { checkReportAccess } from "../access/gate.ts";
 import { makeCatalog, type Catalog } from "./catalog.ts";
 import { readStackdayFeedPrices } from "./feed-prices.ts";
 import type { Deps, Result } from "./handlers.ts";
-import { fetchResearchLoader } from "./research-source.ts";
-import { portfolioStore } from "./store.ts";
+import { portfolioStore, publishedWeeklyLoader } from "./store.ts";
 
 /** Every Stackday asset in this deployment, with its liquidation limit (0 when invest only). */
 export const stackdayCatalog = (): Catalog =>
   makeCatalog(ASSETS.map((a) => ({ assetId: a.symbol, name: a.name, assetClass: a.kind, lltv: a.borrowable ? Number(a.lltv) / 1e18 : 0 })));
 
-/** Real dependencies for one request: session cookie, Supabase (if connected), access gate, research routes, price feeds. */
+/** Real dependencies for one request: session cookie, Supabase (if connected), access gate, published research, price feeds. */
 export function requestDeps(request: Request): Deps {
   const catalog = stackdayCatalog();
   return {
     wallet: sessionWallet(request),
     store: portfolioStore(catalog),
     catalog,
-    loadResearch: fetchResearchLoader(request.url),
+    loadResearch: publishedWeeklyLoader,
     readFeedPrices: readStackdayFeedPrices,
     checkAccess: checkReportAccess,
     now: () => new Date(),

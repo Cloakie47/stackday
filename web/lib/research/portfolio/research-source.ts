@@ -7,9 +7,8 @@ import type { PriceQuote, ViewSource } from "./analyze.ts";
  * daily snapshot when there is no report yet. Only the views (one per asset, the same for every
  * reader) and the code-made price facts are taken. Nothing personal comes from here.
  *
- * The default loaders call the engine's public routes on the same site (`GET /api/research/weekly`
- * answers `{ report }`, `GET /api/research/snapshot` answers `{ snapshot }`). Both fall back to the
- * labelled sample when nothing live is available.
+ * The default loader reads the newest published Monday report from the research tables directly
+ * (`publishedWeeklyLoader` in store.ts).
  */
 
 export type ResearchRead = {
@@ -70,16 +69,20 @@ const quote = (f: Fact): PriceQuote => ({ price: f.value as number, source: f.so
  * Views from the weekly report when there is one (it is the product), otherwise from the daily
  * notes. Prices from the daily notes first (fresher), then the weekly report. A section or note
  * with no reading gives no view.
+ *
+ * `kind` is "sample" whenever anything read is the labelled sample, so a sample price can never sit
+ * under a live label: a sample snapshot next to a live weekly report is ignored entirely.
  */
 export function readResearch(weekly: WeeklyReport | null, snapshot: ResearchSnapshot | null): ResearchRead {
-  const out: ResearchRead = { kind: "sample", viewSource: null, views: {}, prices: {}, asOf: null };
+  const out: ResearchRead = { kind: "live", viewSource: null, views: {}, prices: {}, asOf: null };
+  if (weekly?.kind === "live" && snapshot?.kind === "sample") snapshot = null;
+  if (!weekly && !snapshot) return { ...out, kind: "sample" };
+  if (weekly?.kind === "sample" || snapshot?.kind === "sample") out.kind = "sample";
   if (weekly) {
     out.viewSource = { product: "weekly-report", weekOf: weekly.weekOf };
-    out.kind = weekly.kind;
     for (const a of weekly.assets) if (a.status === "ok") out.views[a.assetId] = a.view.view;
   } else if (snapshot) {
     out.viewSource = { product: "daily-note", date: snapshot.date };
-    out.kind = snapshot.kind;
     for (const n of snapshot.notes) if (n.status !== "no-reading") out.views[n.assetId] = n.view;
   }
   for (const n of snapshot?.notes ?? []) {
@@ -95,26 +98,6 @@ export function readResearch(weekly: WeeklyReport | null, snapshot: ResearchSnap
   const times = [weekly?.generatedAt, snapshot?.generatedAt].filter((t): t is string => typeof t === "string").sort();
   out.asOf = times.at(-1) ?? null;
   return out;
-}
-
-async function getJson(url: string, fetchImpl: typeof fetch): Promise<unknown> {
-  try {
-    const res = await fetchImpl(url, { headers: { accept: "application/json" }, cache: "no-store" });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-/** Loader that reads the engine's weekly and snapshot routes on the same site as `requestUrl`. */
-export function fetchResearchLoader(requestUrl: string, fetchImpl: typeof fetch = fetch): ResearchLoader {
-  const weeklyUrl = new URL("/api/research/weekly", requestUrl).toString();
-  const snapshotUrl = new URL("/api/research/snapshot", requestUrl).toString();
-  return async () => {
-    const [w, s] = await Promise.all([getJson(weeklyUrl, fetchImpl), getJson(snapshotUrl, fetchImpl)]);
-    return { weekly: asWeeklyReport(w), snapshot: asSnapshot(s) };
-  };
 }
 
 /** Loader that always returns the given research. For tests and fixtures. */

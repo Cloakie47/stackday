@@ -6,13 +6,15 @@ import { FIXTURE_ASSETS, FIXTURE_CATALOG, FIXTURE_TIME, quote } from "./fixtures
 import { deployedLltv } from "../universe.ts";
 import type { PortfolioInput } from "../types.ts";
 
+const PRICES = { mAAPL: quote(100), mSPX: quote(50), mcbBTC: quote(1000), mNVDA: quote(10), mMSFT: quote(20), mMSTR: quote(5), mGOOGL: quote(10) };
 const ctx = (over: Partial<PortfolioContext> = {}): PortfolioContext => ({
   kind: "sample",
   asOf: FIXTURE_TIME,
   catalog: FIXTURE_CATALOG,
   views: { mAAPL: "hold", mSPX: "accumulate", mcbBTC: "avoid-new-buys", mNVDA: "reduce" },
   viewSource: { product: "weekly-report", weekOf: "2026-11-16" },
-  prices: { mAAPL: quote(100), mSPX: quote(50), mcbBTC: quote(1000), mNVDA: quote(10), mMSFT: quote(20), mMSTR: quote(5), mGOOGL: quote(10) },
+  prices: PRICES,
+  loanPrices: PRICES,
   ...over,
 });
 
@@ -194,4 +196,25 @@ test("helpers: merge, diversification, limit use", () => {
 test("same input, same output", () => {
   const input: PortfolioInput = { holdings: [{ assetId: "mAAPL", amount: 1, origin: "vault" }, { assetId: "mSPX", amount: 1, origin: "vault" }] };
   assert.deepEqual(analyzePortfolio(input, ctx()), analyzePortfolio(input, ctx()));
+});
+
+test("loan health uses the lending market's feed price, never the research price", () => {
+  // Research says $100, the feed Morpho reads says $80 (for example after the judges' stress step).
+  const a = analyzePortfolio(
+    { holdings: [{ assetId: "mAAPL", amount: 1, origin: "vault", loanUsd: 40 }] },
+    ctx({ loanPrices: { mAAPL: quote(80) } }),
+  );
+  const lltv = FIXTURE_CATALOG.get("mAAPL")!.lltv;
+  assert.equal(a.totalUsd, 100, "the allocation still values the holding at the research price");
+  assert.ok(Math.abs(a.loans.worstLimitUse! - 40 / (80 * lltv)) < 1e-9, "limit use at the feed price");
+  assert.equal(a.holdings[0].limitUse, a.loans.worstLimitUse);
+  assert.ok(a.facts.some((f) => f.id === "mAAPL:loan-price" && f.value === 80));
+  assert.ok(a.loans.facts[0].factIds.includes("mAAPL:loan-price"));
+});
+
+test("a loan with no feed price is not measured at a research price", () => {
+  const a = analyzePortfolio({ holdings: [{ assetId: "mAAPL", amount: 1, origin: "vault", loanUsd: 40 }] }, ctx({ loanPrices: {} }));
+  assert.equal(a.loans.worstLimitUse, null);
+  assert.equal(a.holdings[0].limitUse, undefined);
+  assert.match(a.loans.facts[0].text, /could not be read, so the loan's limit use is not measured/);
 });

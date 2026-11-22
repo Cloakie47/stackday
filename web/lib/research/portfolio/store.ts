@@ -2,6 +2,7 @@ import { configured, db } from "../../server/backend.ts";
 import type { PortfolioInput } from "../types.ts";
 import type { Catalog } from "./catalog.ts";
 import type { PortfolioStore } from "./handlers.ts";
+import { asWeeklyReport, type ResearchLoader } from "./research-source.ts";
 import { parsePortfolioInput } from "./validate.ts";
 
 /**
@@ -26,3 +27,22 @@ export function portfolioStore(catalog: Catalog): PortfolioStore | null {
     },
   };
 }
+
+/**
+ * The default loader: the newest published (reviewer-approved) Monday report, read straight from
+ * the research tables. No call back into this site's own API (no shared rate-limit bucket, no URL
+ * built from the Host header). Daily notes are reviewer-only, so the public portfolio check never
+ * reads them. Nothing connected or nothing published yet gives no research (and no views).
+ */
+export const publishedWeeklyLoader: ResearchLoader = async () => {
+  if (!configured()) return { weekly: null, snapshot: null };
+  const { data, error } = await db()
+    .from("research_weekly")
+    .select("body")
+    .eq("approved", true)
+    .order("week_of", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error("load published weekly report failed");
+  return { weekly: data ? asWeeklyReport(data.body) : null, snapshot: null };
+};

@@ -54,6 +54,12 @@ export type PortfolioContext = {
   views: Partial<Record<string, View>>;
   viewSource: ViewSource | null;
   prices: Partial<Record<string, PriceQuote>>;
+  /**
+   * Prices loan health is measured with: the Stackday price feeds Morpho values collateral with on
+   * Base Sepolia. Research prices never measure a loan, so a loan with no feed price is shown as not
+   * measured instead of being measured at a market price the lending market does not use.
+   */
+  loanPrices: Partial<Record<string, PriceQuote>>;
 };
 
 /** A holding that could not be valued because no price was available. */
@@ -106,6 +112,10 @@ type Priced = {
   valueUsd: number;
   share: number;
   factIds: string[];
+  /** Collateral value at the lending market's own price (`loanPrices`), null when there is none. */
+  loanValueUsd: number | null;
+  /** Facts the loan health lines cite: amount, loan and the lending market's price. */
+  loanFactIds: string[];
 };
 
 /** Holdings of the same asset added together (amounts, cost and loans), in order of first appearance. */
@@ -216,7 +226,32 @@ export function analyzePortfolio(input: PortfolioInput, ctx: PortfolioContext): 
     });
     const ids = [amountFactId, priceFactId];
     if (loanFactId) ids.push(loanFactId);
-    pricedRaw.push({ holding, asset, covered, valueUsd: holding.amount * quote.price, factIds: ids });
+    // Loan health uses the lending market's price only (the feed Morpho reads), never a research price.
+    const loanQuote = ctx.loanPrices[asset.assetId];
+    const hasLoanQuote = !!loanQuote && Number.isFinite(loanQuote.price) && loanQuote.price > 0;
+    const loanPriceFactId =
+      hasLoanQuote && loanFactId
+        ? loanQuote === quote
+          ? priceFactId
+          : addFact({
+              id: `${asset.assetId}:loan-price`,
+              kind: "price",
+              label: `${asset.name} price the lending market uses`,
+              value: loanQuote.price,
+              unit: "USD",
+              source: loanQuote.source,
+              asOf: loanQuote.asOf,
+            })
+        : null;
+    pricedRaw.push({
+      holding,
+      asset,
+      covered,
+      valueUsd: holding.amount * quote.price,
+      factIds: ids,
+      loanValueUsd: hasLoanQuote ? holding.amount * loanQuote.price : null,
+      loanFactIds: [amountFactId, ...(loanFactId ? [loanFactId] : []), ...(loanPriceFactId ? [loanPriceFactId] : [])],
+    });
   }
 
   const totalUsd = pricedRaw.reduce((s, p) => s + p.valueUsd, 0);
@@ -281,7 +316,7 @@ export function analyzePortfolio(input: PortfolioInput, ctx: PortfolioContext): 
   // 5. Per holding: facts, general view (covered only), loan limit use, borrowing note (covered only).
   const holdings: HoldingRow[] = priced.map((p) => {
     const loan = p.holding.loanUsd ?? 0;
-    const limitUse = limitUseOf(loan, p.valueUsd, p.asset.lltv);
+    const limitUse = p.loanValueUsd === null ? null : limitUseOf(loan, p.loanValueUsd, p.asset.lltv);
     const row: HoldingRow = {
       assetId: p.asset.assetId,
       name: p.asset.name,
@@ -302,18 +337,26 @@ export function analyzePortfolio(input: PortfolioInput, ctx: PortfolioContext): 
   for (const p of priced) {
     const loan = p.holding.loanUsd ?? 0;
     if (!(loan > 0)) continue;
-    const use = limitUseOf(loan, p.valueUsd, p.asset.lltv);
+    if (!(p.asset.lltv > 0)) {
+      loanFacts.push({ text: `A loan of ${usd(loan)} is entered against ${p.asset.name}, which has no lending market, so its limit cannot be measured.`, factIds: p.loanFactIds });
+      continue;
+    }
+    const use = p.loanValueUsd === null ? null : limitUseOf(loan, p.loanValueUsd, p.asset.lltv);
     if (use === null) {
-      loanFacts.push({ text: `A loan of ${usd(loan)} is entered against ${p.asset.name}, which has no lending market, so its limit cannot be measured.`, factIds: p.factIds });
+      loanFacts.push({
+        text: `A loan of ${usd(loan)} is entered against ${p.asset.name}, but the lending market's price for it could not be read, so the loan's limit use is not measured.`,
+        factIds: p.loanFactIds,
+      });
       continue;
     }
     worstLimitUse = worstLimitUse === null ? use : Math.max(worstLimitUse, use);
-    const limitUsd = p.valueUsd * p.asset.lltv;
+    const collateralUsd = p.loanValueUsd!;
+    const limitUsd = collateralUsd * p.asset.lltv;
     loanFacts.push({
       text:
-        `The loan of ${usd(loan)} against ${p.asset.name} is ${pct(use)} of its limit (${usd(limitUsd)}, which is ${pct(p.asset.lltv)} of ${usd(p.valueUsd)}).` +
+        `The loan of ${usd(loan)} against ${p.asset.name} is ${pct(use)} of its limit (${usd(limitUsd)}, which is ${pct(p.asset.lltv)} of ${usd(collateralUsd)} at the lending market's price).` +
         (use >= 1 ? " At or above the limit, the loan can be liquidated." : ` It reaches the limit after a ${pct(Math.max(0, 1 - use))} fall in ${p.asset.name}.`),
-      factIds: p.factIds,
+      factIds: p.loanFactIds,
     });
   }
   for (const u of unpricedLoans) {
