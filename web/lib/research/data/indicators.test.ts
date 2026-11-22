@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PriceBar } from "../types.ts";
-import { atr, atrSeries, changePct, computeIndicators, emaSeries, macd, macdLineSeries, maxDrawdown, rollingVolatility, rsi, rsiSeries, sma, smaSeries, supportResistance, volatility } from "./indicators.ts";
+import { atr, atrSeries, changePct, computeIndicators, emaSeries, macd, macdLineSeries, maxDrawdown, periodsPerYear, rollingVolatility, rsi, rsiSeries, sma, smaSeries, supportResistance, volatility } from "./indicators.ts";
 
 const close = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} is not close to ${b}`);
 const DAY = 86_400_000;
@@ -57,6 +57,13 @@ test("volatility: alternating +-ln(1.1) returns", () => {
   // mean ~0 (10 ups, 10 downs), sample variance 20 r^2 / 19, annualised with 252.
   close(volatility(closes, 252)!, r * Math.sqrt(20 / 19) * Math.sqrt(252), 1e-12);
   assert.equal(volatility(closes.slice(0, 10), 252), undefined);
+});
+
+test("bars per year: hourly stock bars use 7 per session (Twelve Data), crypto trades every hour", () => {
+  assert.equal(periodsPerYear("1h", false), 252 * 7);
+  assert.equal(periodsPerYear("1h", true), 365 * 24);
+  assert.equal(periodsPerYear("1d", false), 252);
+  assert.equal(periodsPerYear("1d", true), 365);
 });
 
 test("max drawdown is the worst fall from a running peak", () => {

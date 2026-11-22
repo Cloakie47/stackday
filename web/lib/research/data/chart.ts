@@ -12,7 +12,8 @@ import { atrSeries, macdLineSeries, periodsPerYear, rollingVolatility, rsiSeries
  *
  * Each pattern carries a confidence and an invalidation price: the price that, on a close beyond
  * it, would prove the pattern wrong. Confidence rules are simple and stated per detector; they are
- * a rough grade of how textbook the shape is, not a probability.
+ * a rough grade of how textbook the shape is, not a probability. A pattern whose last close is
+ * already beyond its invalidation is never published (`isInvalidated`, applied in `readChart`).
  */
 
 export type Swing = { i: number; t: string; price: number; type: "high" | "low" };
@@ -372,9 +373,11 @@ export function detectHeadShoulders(ctx: Ctx, inverse: boolean): Pattern | null 
 
 /**
  * Golden or death cross: the 50-bar average crossed the 200-bar average within the last
- * `crossRecent` bars (the newest cross wins). Golden: high when price is above the 50-bar average
- * and the 200-bar average is rising over 10 bars, medium when price is above the 200-bar average,
- * otherwise low. Death cross mirrors it. Invalidation: a close back across the 200-bar average.
+ * `crossRecent` bars (the newest cross wins). Invalidation: a close back across the 200-bar
+ * average, so a golden cross with the last close at or below the 200-bar average is not reported.
+ * Golden: high when price is above the 50-bar average and the 200-bar average is rising over 10
+ * bars, medium when only one of those holds, otherwise low (price between the two averages with
+ * the 200-bar average falling). Death cross mirrors it.
  */
 export function detectCross(ctx: Ctx): Pattern | null {
   const { closes, n, p, last } = ctx;
@@ -389,10 +392,11 @@ export function detectCross(ctx: Ctx): Pattern | null {
     if (!golden && !death) continue;
     const m200 = s200[n - 1]!;
     const m50 = s50[n - 1]!;
+    if (golden ? last <= m200 : last >= m200) return null;
     const rising = m200 > (s200[n - 11] ?? m200);
-    const conf: Confidence = golden
-      ? last > m50 && rising ? "high" : last > m200 ? "medium" : "low"
-      : last < m50 && !rising ? "high" : last < m200 ? "medium" : "low";
+    const withPrice = golden ? last > m50 : last < m50;
+    const withTrend = golden ? rising : !rising;
+    const conf: Confidence = withPrice && withTrend ? "high" : withPrice || withTrend ? "medium" : "low";
     const detail = `50-bar average ${fmt(a1)} crossed ${golden ? "above" : "below"} the 200-bar average ${fmt(b1)} ${n - 1 - j} bars ago`;
     return pattern(ctx, golden ? "golden-cross" : "death-cross", golden ? "bullish" : "bearish", conf, m200, j, detail);
   }
@@ -441,6 +445,15 @@ export function detectDivergence(ctx: Ctx, osc: "rsi" | "macd", bullish: boolean
   const v = (x: number) => (osc === "rsi" ? x.toFixed(1) : Number(x.toPrecision(3)).toString());
   const detail = `price ${bullish ? "lower low" : "higher high"} ${fmt(a.price)} to ${fmt(b.price)} while ${name} ${bullish ? "rose" : "fell"} ${v(oa)} to ${v(ob)}`;
   return pattern(ctx, kind, bullish ? "bullish" : "bearish", conf, b.price, b.i, detail);
+}
+
+/**
+ * True when the last close is already beyond the pattern's published (rounded) invalidation: below
+ * it for bullish and neutral patterns (a range is invalidated below its floor), above it for
+ * bearish ones. Such a pattern is already proven wrong and is never published.
+ */
+export function isInvalidated(p: Pattern, last: number): boolean {
+  return p.direction === "bearish" ? last > p.invalidation : last < p.invalidation;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -554,7 +567,8 @@ export function readChart(rawBars: PriceBar[], iv: ChartInterval, opts: { crypto
     support,
     resistance,
     positionInRange: positionInRange(last, support[0], resistance[0]),
-    patterns: found,
+    // One check for every detector: nothing already past its invalidation is published.
+    patterns: found.filter((f) => !isInvalidated(f, last)),
     volatility: volatilityRegime(bars, iv, opts.crypto),
     factIds: [],
     supportTouches: lv.support.map((l) => l.touches),

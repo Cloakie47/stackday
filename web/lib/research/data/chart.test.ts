@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { PatternKind, PriceBar } from "../types.ts";
-import { CHART_PARAMS, clusterLevels, findSwings, levelTolerance, percentileRank, positionInRange, readChart, slope, trendStructure, volatilityRegime } from "./chart.ts";
+import type { Pattern, PatternKind, PriceBar } from "../types.ts";
+import { CHART_PARAMS, clusterLevels, findSwings, isInvalidated, levelTolerance, percentileRank, positionInRange, readChart, slope, trendStructure, volatilityRegime } from "./chart.ts";
 import { smaSeries } from "./indicators.ts";
 
 /**
@@ -151,6 +151,38 @@ test("golden and death crosses of the 50- and 200-bar averages", () => {
   assert.equal(get(mirror(bs), "death-cross").direction, "bearish");
   // Too long ago: not reported.
   assert.ok(!kinds(bars(closes.slice(0, j + 30))).includes("golden-cross"));
+  // A golden cross whose last close is back below the 200-bar average is already invalidated:
+  // not reported (it used to come out as "low" confidence with the invalidation above the price).
+  const back = [...closes.slice(0, j + 2), 125];
+  const a50 = smaSeries(back, 50).at(-1)!;
+  const a200 = smaSeries(back, 200).at(-1)!;
+  assert.ok(a50 > a200 && 125 < a200, "the 50-bar average is still above the 200-bar average, the price is below both");
+  assert.ok(!kinds(bars(back)).includes("golden-cross"));
+  assert.ok(!kinds(mirror(bars(back))).includes("death-cross"));
+});
+
+test("no pattern is published once the last close is past its invalidation", () => {
+  const p = (direction: Pattern["direction"], invalidation: number): Pattern => ({ id: "pat.1d.x", kind: "golden-cross", interval: "1d", direction, confidence: "low", invalidation, asOf: "", detail: "" });
+  // The reviewer's example: last 89.00 under a golden cross invalidated at 89.26.
+  assert.equal(isInvalidated(p("bullish", 89.26), 89.0), true);
+  assert.equal(isInvalidated(p("bullish", 89.26), 89.26), false);
+  assert.equal(isInvalidated(p("bearish", 120), 121), true);
+  assert.equal(isInvalidated(p("bearish", 120), 119), false);
+  assert.equal(isInvalidated(p("neutral", 95), 94.9), true, "a range breaks below its floor");
+  // Double top confirmed, then a rally closes above the higher top (121): no double top.
+  const dt = [...wave(100, 0.5, 30), ...seg(100, 120, 10), ...seg(120, 108, 6), ...seg(108, 120, 6), ...seg(120, 104, 8)];
+  assert.ok(kinds(bars(dt)).includes("double-top"));
+  assert.ok(!kinds(bars([...dt, ...seg(104, 125, 3)])).includes("double-top"));
+  // Bullish divergences, then a close below the lower low (77): neither divergence is published.
+  const dv = [...wave(100, 0.5, 40), ...seg(100, 80, 4), ...seg(80, 90, 8), ...seg(90, 78, 12), ...seg(78, 82, 4)];
+  assert.ok(kinds(bars(dv)).includes("rsi-bullish-divergence"));
+  const dropped = kinds(bars([...dv, ...seg(82, 74, 2)]));
+  assert.ok(!dropped.includes("rsi-bullish-divergence") && !dropped.includes("macd-bullish-divergence"), dropped.join(", "));
+  // Every detector goes through the same check.
+  for (const cs of [dt, [...dt, ...seg(104, 125, 3)], dv, [...dv, ...seg(82, 74, 2)]]) {
+    const r = read(bars(cs));
+    for (const x of r.patterns) assert.equal(isInvalidated(x, cs.at(-1)!), false, x.kind);
+  }
 });
 
 test("RSI and MACD divergences: lower price low, higher oscillator low (and the mirror)", () => {
