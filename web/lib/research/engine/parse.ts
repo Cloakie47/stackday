@@ -1,5 +1,6 @@
 import { sanitizeText } from "../../themes/mood.ts";
 import type { Fact, Reasoned } from "../types.ts";
+import { isUntrusted, looksLikeInjection } from "./facts.ts";
 
 /**
  * Strict parsing helpers shared by every step. The model may only pick from fixed lists and write
@@ -7,8 +8,8 @@ import type { Fact, Reasoned } from "../types.ts";
  * - not JSON, unknown keys, wrong types or values outside the fixed lists: the whole answer is
  *   rejected (`StepRejected`), and the step counts as failed;
  * - a claim whose fact ids are all unknown (or flagged as injection) is removed and counted;
- * - text with a link, a banned phrase, or a number that appears in no fact or code level is removed
- *   and counted (the model never writes numbers of its own).
+ * - text with a link, injection-like text, a banned phrase, or a number that appears in no trusted
+ *   fact or code level is removed and counted (the model never writes numbers of its own).
  */
 
 export class StepRejected extends Error {}
@@ -38,8 +39,14 @@ const LINK_RE = /https?:|www\.|\.(com|io|org|net|xyz)\b/i;
  * Promises, certainty and personal advice the risk reviewer never lets through (founder spec
  * section 6). Matching text is removed.
  */
+const MOVES = "reach|hit|go to|rise|surge|soar|rally|climb|jump|rebound|recover|skyrocket|explode|fall|drop|crash|plunge|tank|double|moon";
+
 export const BANNED_PHRASES: RegExp[] = [
-  /\bwill (reach|hit|go to|rise to|fall to|double|moon)\b/i,
+  new RegExp(`\\bwill (definitely |certainly |surely )?(${MOVES})\\b`, "i"),
+  new RegExp(`\\b(is|are) (going|set|bound|sure|certain) to (${MOVES})\\b`, "i"),
+  /\b(buy|sell) (it |them |this |more )?(right )?(now|today|immediately)\b/i,
+  /\b(we|i) (strongly |would )?(recommend|advise|suggest)\b/i,
+  /\b(our|my) (recommendation|advice)\b/i,
   /\bguarantee(d|s)?\b/i,
   /\bcan(?:'|no)?t lose\b/i,
   /\bcannot lose\b/i,
@@ -61,24 +68,28 @@ export function bannedPhrase(text: string): string | null {
   return null;
 }
 
-/** Every number a fact contains, plus the percent form of fractions (0.25 volatility may read as 25%). */
+/**
+ * Every number a trusted fact contains, plus the percent form of fractions (0.25 volatility may read
+ * as 25%) and the year, month and day of its date (so "on November 26" can be written when a fact
+ * is dated then). News and filing facts add nothing: a number that appears only in untrusted text
+ * is not backed.
+ */
 export function factNumbers(facts: Fact[]): number[] {
   const out: number[] = [];
   for (const f of facts) {
-    const strings = [f.label, typeof f.value === "string" ? f.value : "", f.unit ?? "", f.quote ?? ""];
+    if (isUntrusted(f)) continue;
+    const strings = [f.label, typeof f.value === "string" ? f.value : "", f.unit ?? "", f.quote ?? "", typeof f.asOf === "string" ? f.asOf.slice(0, 10) : ""];
     if (typeof f.value === "number") out.push(f.value, ...(Math.abs(f.value) <= 1 ? [f.value * 100] : []));
     for (const s of strings) for (const m of s.match(NUMBER_RE) ?? []) out.push(Number(m.replace(/,/g, "")));
   }
   return out.filter(Number.isFinite).map(Math.abs);
 }
 
-/** True when every number in `text` is a small count, a year, or matches an allowed number after rounding. */
+/** True when every number in `text` matches an allowed number after rounding. No free numbers: small counts and years must come from the facts too. */
 export function numbersBacked(text: string, allowed: number[]): boolean {
   for (const m of text.match(NUMBER_RE) ?? []) {
     const n = Number(m.replace(/,/g, ""));
     if (!Number.isFinite(n)) return false;
-    if (Number.isInteger(n) && n <= 31) continue;
-    if (Number.isInteger(n) && n >= 1990 && n <= 2100) continue;
     if (!allowed.some((v) => Math.abs(n - v) <= Math.max(0.011 * v, 0.051))) return false;
   }
   return true;
@@ -106,6 +117,7 @@ export class Ctx {
     if (!text) why = "empty";
     else if (text.length > max) why = "too long";
     else if (LINK_RE.test(text)) why = "contains a link";
+    else if (looksLikeInjection(text)) why = "looks like an injection";
     else if (bannedPhrase(text)) why = `banned phrase "${bannedPhrase(text)}"`;
     else if (!numbersBacked(text, this.numbers)) why = "number not in the facts";
     if (why) {

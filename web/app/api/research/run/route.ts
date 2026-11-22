@@ -13,6 +13,9 @@ import { supabaseStore } from "@/lib/research/engine/store";
  * Needs (server only, set by the founder): CRON_SECRET, RESEARCH_ENGINE_ENABLED=true,
  * ANTHROPIC_API_KEY, the account database with the research_* tables, and the data source from
  * gg/research-data. Without them it does nothing and says what is missing.
+ *
+ * Vercel Hobby allows 300 seconds: the engine stops model calls at 270 seconds and gives each call
+ * at most the time left (one retry included), so a slow model cannot push the route past the limit.
  */
 export const maxDuration = 300;
 

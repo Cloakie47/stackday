@@ -2,7 +2,15 @@
   "crons": [
     { "path": "/api/keeper", "schedule": "0 16 * * 1-5" },
     { "path": "/api/research/run", "schedule": "30 22 * * 1-5" },
-    { "path": "/api/research/weekly/run", "schedule": "0 12 * * 1" },
+    { "path": "/api/research/weekly/run?slot=1", "schedule": "0 12 * * 1" },
+    { "path": "/api/research/weekly/run?slot=2", "schedule": "0 13 * * 1" },
+    { "path": "/api/research/weekly/run?slot=3", "schedule": "0 14 * * 1" },
+    { "path": "/api/research/weekly/run?slot=4", "schedule": "0 15 * * 1" },
+    { "path": "/api/research/weekly/run?slot=5", "schedule": "0 16 * * 1" },
+    { "path": "/api/research/weekly/run?slot=6", "schedule": "0 17 * * 1" },
+    { "path": "/api/research/weekly/run?slot=7", "schedule": "0 18 * * 1" },
+    { "path": "/api/research/weekly/run?slot=8", "schedule": "0 19 * * 1" },
+    { "path": "/api/research/weekly/run?slot=9", "schedule": "0 20 * * 1" },
     { "path": "/api/research/scores/run", "schedule": "0 23 * * 1-5" }
   ]
 }

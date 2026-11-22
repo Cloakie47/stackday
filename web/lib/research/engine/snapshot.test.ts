@@ -5,7 +5,7 @@ import { isReviewer, reviewerList } from "./reviewers.ts";
 import { memoryStore } from "./store.ts";
 import { runDaily } from "./daily.ts";
 import { runWeekly } from "./weekly.ts";
-import { fakeModel, goodDaily, makeInput, makeMarket, weeklyAnswers } from "./test-helpers.ts";
+import { fakeModel, goodDaily, makeInput, makeMarket, runWeekFully, weeklyAnswers } from "./test-helpers.ts";
 import { snapshotProblems, weeklyProblems } from "./validate.ts";
 import { BETA_LABEL } from "../types.ts";
 
@@ -61,24 +61,59 @@ test("live daily notes are reviewer-only; everyone else gets the sample with int
 
 test("weekly reports are public only after approval; approve and grade are reviewer-only", async () => {
   const { store } = memoryStore();
-  await runWeekly({ gather: async (a, d) => makeInput(a, d), gatherMarket: async (d) => makeMarket(d), model: fakeModel(weeklyAnswers()).fn, store, maxRunCostUsd: 4, maxDayCostUsd: 6, now: () => new Date("2026-11-23T12:00:00Z") });
+  const deps = { gather: async (a: string, d: string) => makeInput(a, d), gatherMarket: async (d: string) => makeMarket(d), model: fakeModel(weeklyAnswers()).fn, store, maxRunCostUsd: 4, maxDayCostUsd: 6, now: () => new Date("2026-11-23T12:00:00Z") };
+  const { last } = await runWeekFully(deps);
+  assert.equal(last.status, "ok", last.problems.join("\n"));
+  const runId = last.runId;
   const kind = async (reviewer: boolean, weekOf: string | null = null) => ((await weeklyReply(store, { weekOf, reviewer, access: allowed })).body as { report: { kind: string } }).report.kind;
   assert.equal(await kind(false), "sample");
   assert.equal(await kind(false, "2026-11-23"), "sample");
   assert.equal(await kind(true), "live");
   assert.equal((await weeklyReply(store, { weekOf: "bad", reviewer: false, access: allowed })).status, 400);
 
-  assert.equal((await approveReply(store, null, false, { weekOf: "2026-11-23" })).status, 401);
-  assert.equal((await approveReply(store, ME, false, { weekOf: "2026-11-23" })).status, 403);
-  assert.equal((await approveReply(store, ME, true, { weekOf: "2026-11-30" })).status, 404);
-  assert.deepEqual((await approveReply(store, ME, true, { weekOf: "2026-11-23" })).body, { ok: true });
+  assert.equal((await approveReply(store, null, false, { weekOf: "2026-11-23", runId })).status, 401);
+  assert.equal((await approveReply(store, ME, false, { weekOf: "2026-11-23", runId })).status, 403);
+  assert.equal((await approveReply(store, ME, true, { weekOf: "2026-11-23" })).status, 400);
+  assert.equal((await approveReply(store, ME, true, { weekOf: "2026-11-30", runId })).status, 404);
+  // A run id other than the report's (a version the reviewer never read) approves nothing.
+  assert.equal((await approveReply(store, ME, true, { weekOf: "2026-11-23", runId: "2026-11-23-weekly-other" })).status, 404);
+  assert.equal(await kind(false), "sample");
+  assert.deepEqual((await approveReply(store, ME, true, { weekOf: "2026-11-23", runId })).body, { ok: true });
   assert.equal(await kind(false), "live");
   assert.equal(await kind(false, "2026-11-23"), "live");
+
+  // A re-run that week (duplicate cron, manual call) skips and leaves the approved report as it is.
+  const again = await runWeekly(deps);
+  assert.equal(again.status, "skipped");
+  assert.equal(again.step, "skipped");
+  assert.equal((await store.weekly("2026-11-23"))?.approved, true);
+  assert.equal((await store.weekly("2026-11-23"))?.report.runId, runId);
+  // Even a direct second write never replaces it.
+  const report = (await store.weekly("2026-11-23"))!.report;
+  assert.equal(await store.writeWeekly("2026-11-23-weekly-dup", { ...report, runId: "2026-11-23-weekly-dup" }), false);
+  assert.equal((await store.weekly("2026-11-23"))?.approved, true);
 
   // Paywall answer from the access gate is respected for live reports.
   const paid = await weeklyReply(store, { weekOf: null, reviewer: false, access: async () => ({ allowed: false, reason: "payment-required" }) });
   assert.equal(paid.status, 402);
   assert.equal((paid.body as { report: unknown }).report, null);
+
+  // A paid live report is sent only after its credit was spent; any error there is a 402.
+  const spends = async () => ({ allowed: true as const, consumesCredit: true });
+  const spent: string[] = [];
+  const ok = await weeklyReply(store, { weekOf: null, reviewer: false, access: spends, consume: async (w) => void spent.push(w), paidCheck: true });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(spent, ["2026-11-23"]);
+  assert.ok(!ok.publicCache);
+  const broken = await weeklyReply(store, { weekOf: null, reviewer: false, access: spends, consume: async () => Promise.reject(new Error("db down")) });
+  assert.equal(broken.status, 402);
+  assert.deepEqual(broken.body, { report: null, access: { allowed: false, reason: "payment-required" } });
+  assert.equal((await weeklyReply(store, { weekOf: null, reviewer: false, access: spends })).status, 402);
+  // Even the free sample is not publicly cached after a paid access check.
+  const sampleOnly = await weeklyReply(null, { weekOf: null, reviewer: false, access: allowed, paidCheck: true });
+  assert.equal((sampleOnly.body as { report: { kind: string } }).report.kind, "sample");
+  assert.ok(!sampleOnly.publicCache);
+  assert.ok((await weeklyReply(null, { weekOf: null, reviewer: false, access: allowed })).publicCache);
 });
 
 test("scores are public; grading is reviewer-only and the score cron fills results", async () => {

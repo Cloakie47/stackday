@@ -159,6 +159,31 @@ export function sectionProblems(a: unknown): string[] {
   return out;
 }
 
+/** Ids an idea may cite: market fact ids, and section fact ids written as "assetId:factId". */
+export function citableIds(r: Record<string, unknown>): Set<string> {
+  const ids = new Set<string>();
+  const m = r.market;
+  if (isObject(m) && Array.isArray(m.facts)) for (const f of m.facts) if (isObject(f) && typeof f.id === "string") ids.add(f.id);
+  if (Array.isArray(r.assets))
+    for (const a of r.assets) if (isObject(a) && Array.isArray(a.facts)) for (const f of a.facts) if (isObject(f) && typeof f.id === "string") ids.add(`${String(a.assetId)}:${f.id}`);
+  return ids;
+}
+
+/** Every published idea rests on facts: at least one reason, and every part cites known fact ids. */
+export function ideaProblems(ranked: unknown[], ids: Set<string>): string[] {
+  const out: string[] = [];
+  ranked.forEach((idea, i) => {
+    if (!isObject(idea)) {
+      out.push(`idea ${i}: not an object`);
+      return;
+    }
+    const w = `idea ${i} (${String(idea.assetId)})`;
+    if (!Array.isArray(idea.reasons) || idea.reasons.length === 0) out.push(`${w}: no reason`);
+    out.push(...listProblems(idea.reasons, `${w} reasons`, ids), ...reasonedProblems(idea.dependsOn, `${w} dependsOn`, ids), ...reasonedProblems(idea.mainRisk, `${w} mainRisk`, ids));
+  });
+  return out;
+}
+
 export function weeklyProblems(r: unknown): string[] {
   if (!isObject(r)) return ["report is not an object"];
   const out: string[] = [];
@@ -180,6 +205,7 @@ export function weeklyProblems(r: unknown): string[] {
   }
   if (!isObject(r.ideas) || !Array.isArray(r.ideas.ranked) || !Array.isArray(r.ideas.exampleSplits)) out.push("bad ideas");
   else {
+    out.push(...ideaProblems(r.ideas.ranked, citableIds(r)));
     for (const sp of r.ideas.exampleSplits) {
       if (!isObject(sp) || !Array.isArray(sp.slices)) {
         out.push("bad example split");

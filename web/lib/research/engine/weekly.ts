@@ -19,9 +19,10 @@ import type {
 } from "../types.ts";
 import { CHART_INTERVALS, RESEARCH_DISCLAIMER } from "../types.ts";
 import type { UniverseAsset } from "../universe.ts";
-import { costBudget, CostAbort, guardedCall, pool, type Budget } from "./budget.ts";
-import { defaultAssets, MAX_NO_READINGS, newRunId, type GatherFn, type RunOutcome } from "./daily.ts";
-import { calendarFacts, chartBlock, chartLevels, ensurePriceFacts, factBlock, factsFor, hashInputs, isUntrusted, patternFacts, prepareFacts, sentFacts } from "./facts.ts";
+import { defaultAlert, type AlertFn } from "./alert.ts";
+import { costBudget, CostAbort, guardedCall, type Budget } from "./budget.ts";
+import { assetNumbers, defaultAssets, MAX_NO_READINGS, newRunId, readSpend, RUN_TIME_LIMIT_MS, type GatherFn, type RunOutcome } from "./daily.ts";
+import { calendarFacts, chartBlock, chartLevels, ensurePriceFacts, factBlock, factsFor, hashInputs, isUntrusted, patternFacts, prepareFacts, sentFacts, untrustedNotes } from "./facts.ts";
 import { computeLevels, levelNumbers, roundPrice } from "./levels.ts";
 import type { ModelFn, ModelRequest } from "./model.ts";
 import { Ctx, oneOf, parseJsonObject, StepRejected, stringList } from "./parse.ts";
@@ -46,8 +47,8 @@ import {
 } from "./prompts.ts";
 import { blocking, codeIssues, finalizeDraft, parseDraft, parseReview, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
 import { qualityBar, weeklyScorecard } from "./scores.ts";
-import type { ResearchStore } from "./store.ts";
-import { weeklyProblems } from "./validate.ts";
+import type { ResearchStore, StoredSection } from "./store.ts";
+import { citableIds, ideaProblems, sectionProblems, weeklyProblems } from "./validate.ts";
 
 /**
  * The Monday weekly report (founder spec sections 3 and 4), every step on RESEARCH_MODELS.weekly.
@@ -59,11 +60,27 @@ import { weeklyProblems } from "./validate.ts";
  * 3. Bull and bear cases from the facts and the analyst notes, then one rebuttal round.
  * 4. Editor draft as strict JSON, then the risk reviewer: code checks (fact ids, banned phrases,
  *    levels from code, probabilities add up to 100, view matches the evidence) plus a model review
- *    that may send ONE section back once. What still fails is fixed in code and recorded.
+ *    that may send ONE section back once. What still fails is fixed in code and recorded; a section
+ *    that still cannot pass (a scenario or the view without a valid fact) becomes "no reading".
  * 5. Week-ahead calendar, buy zone, invalidation and borrowing note are added by code.
  * Then one summary call (market mood, ranked ideas, example split explanations; split shares are
  * computed in code) and the scorecard of last week's views, computed in code.
- * Same failure policy and cost guard as the daily run: a failed or over-budget run writes nothing.
+ *
+ * Model text written after reading news (analyst notes, debate, draft, reviewer notes, our own
+ * earlier notes) reaches later steps only inside an <untrusted_notes> block.
+ *
+ * Time limit (Vercel Hobby, 300 s per invocation): ONE ASSET PER INVOCATION. Each call of
+ * `runWeekly` does the next step of the week and returns:
+ * - "asset": researches the next asset without a section (or a failed one, at most
+ *   MAX_SECTION_ATTEMPTS tries) and saves it in research_weekly_sections;
+ * - "final": when every asset has a section, builds the summary and the report and writes it once;
+ * - "skipped": the week already has a report (a re-run never replaces or un-approves it).
+ * The cron entries in web/vercel.json call it once an hour on Monday from 12:00 to 20:00 UTC (six
+ * assets, the final step and two spare slots for retries).
+ *
+ * Cost: the weekly cap (`maxRunCostUsd`) covers all weekly invocations of the week, the day cap
+ * covers every run of the day; spend is recorded before each model call. Failure policy: more
+ * than MAX_NO_READINGS assets without a reading, or a failed whole-report check, writes nothing.
  */
 
 export type GatherMarketFn = (date: IsoDate) => Promise<MarketResearchInput>;
@@ -73,18 +90,27 @@ export type WeeklyDeps = {
   gatherMarket: GatherMarketFn;
   model: ModelFn;
   store: ResearchStore;
+  /** Weekly cap: all weekly invocations of one week together. */
   maxRunCostUsd: number;
   maxDayCostUsd: number;
   now?: () => Date;
   assets?: UniverseAsset[];
-  concurrency?: number;
+  /** Wall-clock limit of one invocation in ms (default RUN_TIME_LIMIT_MS). */
+  timeLimitMs?: number;
+  /** Called when a spend cap is hit (default: warning plus optional webhook). */
+  alert?: AlertFn;
 };
 
-export const MAX_TOKENS = { analyst: 3000, case: 2500, rebuttal: 1500, editor: 6000, review: 1500, revise: 6000, summary: 5000 } as const;
+/** Room for adaptive thinking plus the JSON answer on every step (thinking counts toward max_tokens). */
+export const MAX_TOKENS = { analyst: 12000, case: 10000, rebuttal: 8000, editor: 16000, review: 8000, revise: 16000, summary: 16000 } as const;
+/** A failed asset section is tried again once in a later invocation. */
+export const MAX_SECTION_ATTEMPTS = 2;
 const ROLES = ["technical", "macro", "news", "fundamentals"] as const;
 type Role = (typeof ROLES)[number];
 type Stance = "bullish" | "neutral" | "bearish";
 type AnalystNote = { role: Role; stance: Stance; points: Reasoned[]; chart?: Partial<Record<ChartInterval, Reasoned[]>> };
+
+export type WeeklyOutcome = RunOutcome & { step: "asset" | "final" | "skipped"; assetId?: string; report?: WeeklyReport };
 
 /** Monday of the week that contains `date` (UTC). */
 export function mondayOf(date: IsoDate): IsoDate {
@@ -132,7 +158,7 @@ function parsePoints(text: string, facts: Fact[], extra: number[], cap: number):
 
 const placeholderScenario = (text: string): WeeklyScenario => ({ text, factIds: [], probability: 0, levels: [], trigger: "" });
 
-function noReadingSection(asset: UniverseAsset, weekAhead: CalendarEvent[]): WeeklyAssetSection {
+export function noReadingSection(asset: UniverseAsset, weekAhead: CalendarEvent[]): WeeklyAssetSection {
   const s = placeholderScenario("No reading this week.");
   return {
     assetId: asset.assetId,
@@ -174,7 +200,8 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const chart = input.chart ?? {};
   const own = ensurePriceFacts(input);
   const { facts: prepared, screened } = prepareFacts([...own, ...patternFacts(chart, own), ...calendarFacts(weekAhead), ...(market?.facts ?? [])]);
-  const extra = chartLevels(chart);
+  const levelsFromChart = chartLevels(chart);
+  const extra = [...levelsFromChart, ...assetNumbers(asset)];
   const header = `Asset: ${asset.assetId} (${asset.name}, underlying ${asset.underlying}), class ${asset.assetClass}, sector ${asset.sector}, risk bucket ${asset.risk}.${asset.note ? ` Note: ${asset.note}` : ""}\nWeek of ${weekOf}, data as of ${input.date}.`;
   const notes: string[] = screened.length ? [`${asset.assetId}: ${screened.length} news items screened as possible injection`] : [];
   const fail = (why: string): SectionResult => ({ section: noReadingSection(asset, weekAhead), failed: true, approved: false, sentBack: 0, removed: 0, notes: [...notes, `${asset.assetId}: ${why}`], input });
@@ -195,6 +222,7 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   if (okAnalysts.length < 3) return fail(`${4 - okAnalysts.length} analyst steps failed`);
   const flagged = new Set(okAnalysts.flatMap((a) => a.flagged));
   const citable = sentFacts(prepared.filter((f) => !flagged.has(f.id)));
+  // Written by the analysts after reading news: passed on only as untrusted notes.
   const analystText = okAnalysts.map((a) => `${a.note.role.toUpperCase()} ANALYST (${a.note.stance}):\n${reasonedLines(a.note.points)}`).join("\n\n");
   // Shared, cached context for every later step on this asset.
   const context = [header, chartBlock(chart), factBlock(citable)].join("\n\n");
@@ -202,7 +230,7 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   // 3. Bull and bear, then one rebuttal round.
   const cases = await Promise.all(
     (["bull", "bear"] as const).map((side) =>
-      step(s, { step: `weekly.${side}`, context, user: `${CASE_ROLE[side]}\n\nANALYST NOTES:\n${analystText}`, schema: CASE_SCHEMA, maxTokens: MAX_TOKENS.case, effort: "low" }, (t) =>
+      step(s, { step: `weekly.${side}`, context, user: `${CASE_ROLE[side]}\n\n${untrustedNotes(`ANALYST NOTES:\n${analystText}`)}`, schema: CASE_SCHEMA, maxTokens: MAX_TOKENS.case, effort: "low" }, (t) =>
         parsePoints(t, citable, extra, LIMITS.casePoints),
       ),
     ),
@@ -213,7 +241,14 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
     (["bull", "bear"] as const).map((side) =>
       step(
         s,
-        { step: `weekly.${side}.rebuttal`, context, user: `${REBUTTAL_ROLE[side]}\n\n${side === "bull" ? "BEAR" : "BULL"} CASE:\n${reasonedLines(side === "bull" ? bear : bull)}`, schema: CASE_SCHEMA, maxTokens: MAX_TOKENS.rebuttal, effort: "low" },
+        {
+          step: `weekly.${side}.rebuttal`,
+          context,
+          user: `${REBUTTAL_ROLE[side]}\n\n${untrustedNotes(`${side === "bull" ? "BEAR" : "BULL"} CASE:\n${reasonedLines(side === "bull" ? bear : bull)}`)}`,
+          schema: CASE_SCHEMA,
+          maxTokens: MAX_TOKENS.rebuttal,
+          effort: "low",
+        },
         (t) => parsePoints(t, citable, extra, LIMITS.rebuttal),
       ),
     ),
@@ -222,17 +257,18 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
 
   // 4. Editor draft, risk review, at most one send-back.
   const daily = input.indicators?.["1d"];
-  const allowedLevels = [...new Set([...extra, ...(["accumulate", "hold", "reduce"] as View[]).flatMap((v) => levelNumbers(computeLevels(v, daily, chart["1d"])))])].map(roundPrice);
+  const allowedLevels = [...new Set([...levelsFromChart, ...(["accumulate", "hold", "reduce"] as View[]).flatMap((v) => levelNumbers(computeLevels(v, daily, chart["1d"])))])].map(roundPrice);
   const allowedNumbers = [...extra, ...allowedLevels];
   const past = await s.deps.store.notes(asset.assetId, addDays(weekOf, -7), addDays(weekOf, -1)).catch(() => []);
   const pastText = past.length ? past.map((n) => `- ${n.date}: ${n.status}, ${n.view}, ${n.conviction} conviction. ${n.summary.replace(/\n/g, " ")}`).join("\n") : "- (no daily notes last week)";
-  const editorInputs = [
-    `ALLOWED LEVELS (from the code chart read): ${allowedLevels.join(", ") || "none"}`,
+  const levelsLine = `ALLOWED LEVELS (from the code chart read): ${allowedLevels.join(", ") || "none"}`;
+  const deskNotes = [
     `ANALYST NOTES:\n${analystText}`,
     `BULL CASE AND REBUTTAL:\n${reasonedLines(debate.bull)}`,
     `BEAR CASE AND REBUTTAL:\n${reasonedLines(debate.bear)}`,
     `LAST WEEK'S DAILY NOTES (our own earlier research, context only, not citable):\n${pastText}`,
   ].join("\n\n");
+  const editorInputs = `${levelsLine}\n\n${untrustedNotes(deskNotes)}`;
   const ctx = new Ctx(citable, allowedNumbers);
   const draft = await step(s, { step: "weekly.editor", context, user: `${EDITOR_ROLE}\n\n${editorInputs}`, schema: EDITOR_SCHEMA, maxTokens: MAX_TOKENS.editor, effort: "medium" }, (t) => parseDraft(t, ctx, allowedLevels));
   if (!draft) return fail("editor step failed");
@@ -241,12 +277,14 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const issues = codeIssues(draft, hasNews);
   const reviewCtx = new Ctx(citable);
   const draftJson = JSON.stringify(stripEvidence(draft.draft));
+  // Code check lines quote removed model text, so they travel with the draft as untrusted notes.
+  const checkLines = issues.map((i) => `- ${i.section}: ${i.issue}`).join("\n") || "- none";
   const review: Review | null = await step(
     s,
     {
       step: "weekly.review",
       context,
-      user: `${REVIEW_ROLE}\n\nCODE CHECKS:\n${issues.map((i) => `- ${i.section}: ${i.issue}`).join("\n") || "- none"}\n\nDRAFT:\n${draftJson}`,
+      user: `${REVIEW_ROLE}\n\n${untrustedNotes(`CODE CHECKS:\n${checkLines}\n\nDRAFT:\n${draftJson}`)}`,
       schema: REVIEW_SCHEMA,
       maxTokens: MAX_TOKENS.review,
       effort: "medium",
@@ -259,12 +297,14 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   let sentBack = 0;
   if (sendBack) {
     sentBack = 1;
+    const reviewerNotes = (review?.notes ?? []).map((n) => `- ${n}`).join("\n") || "- (none)";
+    const sectionChecks = issues.filter((i) => i.section === sendBack).map((i) => `- ${i.issue}`).join("\n") || "- none";
     const revised = await step(
       s,
       {
         step: "weekly.revise",
         context,
-        user: `${REVISE_ROLE}\n\nSEND BACK: ${sendBack}\nREVIEWER NOTES:\n${(review?.notes ?? []).map((n) => `- ${n}`).join("\n") || "- (none)"}\nCODE CHECKS:\n${issues.filter((i) => i.section === sendBack).map((i) => `- ${i.issue}`).join("\n") || "- none"}\n\n${editorInputs}\n\nDRAFT:\n${draftJson}`,
+        user: `${REVISE_ROLE}\n\nSEND BACK: ${sendBack}\n${levelsLine}\n\n${untrustedNotes(`REVIEWER NOTES:\n${reviewerNotes}\nCODE CHECKS:\n${sectionChecks}\n\n${deskNotes}\n\nDRAFT:\n${draftJson}`)}`,
         schema: EDITOR_SCHEMA,
         maxTokens: MAX_TOKENS.revise,
         effort: "medium",
@@ -276,6 +316,10 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   }
   const remaining = blocking(codeIssues(final, hasNews));
   const { draft: fixed, corrections } = finalizeDraft(final.draft);
+  // What code cannot fix makes this one section "no reading" (the rest of the report still goes out).
+  const unbacked = (["bull", "base", "bear"] as const).filter((k) => !fixed.scenarios[k].evidence || fixed.scenarios[k].factIds.length === 0);
+  if (unbacked.length) return fail(`${unbacked.join(", ")} scenario still cites no valid fact after the send-back: no reading for this asset`);
+  if (fixed.view.reasons.length === 0) return fail("the view still has no reason with a valid fact after the send-back: no reading for this asset");
   const removed = removedCount(final);
   const approved = (review?.approve ?? false) || (sendBack !== null && remaining.length === 0);
 
@@ -301,6 +345,8 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
     debate,
     facts: citable.filter(keep),
   };
+  const shape = sectionProblems(section);
+  if (shape.length) return fail(`section check failed (${shape.slice(0, 3).join("; ")}): no reading for this asset`);
   const reviewNotes = [
     ...notes,
     ...(review ? review.notes.map((n) => `${asset.assetId} reviewer: ${n}`) : [`${asset.assetId}: model review failed, code checks only`]),
@@ -351,28 +397,30 @@ function fallbackSummary(weekOf: IsoDate, marketFacts: Fact[], okSections: Weekl
   const sorted = [...okSections].sort((a, b) => VIEW_ORDER.indexOf(a.view.view) - VIEW_ORDER.indexOf(b.view.view));
   return {
     market: { date: weekOf, summary: `Views this week across ${okSections.length} assets, written from the approved asset sections. General research only, not advice.`, developments: [], facts: marketFacts },
-    ranked: sorted.map((a, i) => ideaFromSection(a, i + 1)),
+    ranked: sorted.map((a, i) => ideaFromSection(a, i + 1)).filter((x): x is InvestmentIdea => x !== null),
     splitWhy: null,
     ok: false,
   };
 }
 
-function ideaFromSection(a: WeeklyAssetSection, rank: number, over: Partial<InvestmentIdea> = {}): InvestmentIdea {
-  const first = a.view.reasons[0] ?? a.recap[0] ?? { text: "Thin evidence this week.", factIds: [] };
+/** An idea built from a section's own cited claims; null when the section has none to rest on. */
+function ideaFromSection(a: WeeklyAssetSection, rank: number, over: Partial<InvestmentIdea> = {}): InvestmentIdea | null {
+  const first = [...a.view.reasons, ...a.recap].find((r) => r.factIds.length > 0);
+  if (!first) return null;
   return {
     rank,
     assetId: a.assetId,
     view: a.view.view,
-    reasons: a.view.reasons.slice(0, 2).map((r) => prefixed(a.assetId, r)),
-    dependsOn: prefixed(a.assetId, a.market[0] ?? first),
+    reasons: a.view.reasons.filter((r) => r.factIds.length > 0).slice(0, 2).map((r) => prefixed(a.assetId, r)),
+    dependsOn: prefixed(a.assetId, a.market.find((r) => r.factIds.length > 0) ?? first),
     mainRisk: prefixed(a.assetId, { text: a.scenarios.bear.text, factIds: a.scenarios.bear.factIds }),
     ...over,
   };
 }
 
-async function summarize(weekOf: IsoDate, market: MarketResearchInput | null, okSections: WeeklyAssetSection[], assets: UniverseAsset[], s: StepCtx): Promise<Summary> {
+async function summarize(weekOf: IsoDate, market: MarketResearchInput | null, okSections: WeeklyAssetSection[], assets: UniverseAsset[], s: StepCtx, useModel: boolean): Promise<Summary> {
   const marketFacts = prepareFacts(market?.facts ?? []).facts;
-  if (okSections.length === 0) return fallbackSummary(weekOf, marketFacts, okSections);
+  if (okSections.length === 0 || !useModel) return fallbackSummary(weekOf, marketFacts, okSections);
   const ids = okSections.map((a) => a.assetId);
   const sectionFacts = okSections.flatMap((a) => a.facts.map((f) => ({ ...f, id: `${a.assetId}:${f.id}` })));
   const digest = okSections
@@ -387,10 +435,11 @@ async function summarize(weekOf: IsoDate, market: MarketResearchInput | null, ok
       ].join("\n");
     })
     .join("\n\n");
-  const ctx = new Ctx([...marketFacts, ...sectionFacts], okSections.flatMap((a) => [...chartLevels(a.chart), ...levelNumbers(a.view.levels)]));
+  const ctx = new Ctx([...marketFacts, ...sectionFacts], okSections.flatMap((a) => [...chartLevels(a.chart), ...levelNumbers(a.view.levels), ...assetNumbers(assets.find((x) => x.assetId === a.assetId)!)]));
   const parsed = await step(
     s,
-    { step: "weekly.summary", context: factBlock(marketFacts), user: `${SUMMARY_ROLE}\n\n${digest}`, schema: summarySchema(ids), maxTokens: MAX_TOKENS.summary, effort: "medium" },
+    // The sections were written by models after reading news: untrusted notes.
+    { step: "weekly.summary", context: factBlock(marketFacts), user: `${SUMMARY_ROLE}\n\n${untrustedNotes(digest)}`, schema: summarySchema(ids), maxTokens: MAX_TOKENS.summary, effort: "medium" },
     (t) => {
       const raw = parseJsonObject(t, ["marketSummaryLines", "developments", "ranking", "ideas", "splitWhy"]);
       const lines = stringList(raw.marketSummaryLines, "marketSummaryLines").slice(0, 3).map((l) => ctx.text(l, LIMITS.summaryLine)).filter((l): l is string => l !== null);
@@ -417,7 +466,7 @@ async function summarize(weekOf: IsoDate, market: MarketResearchInput | null, ok
     },
   );
   if (!parsed) return fallbackSummary(weekOf, marketFacts, okSections);
-  const ranked = parsed.ranking.map((id, i) => ideaFromSection(okSections.find((a) => a.assetId === id)!, i + 1, parsed.byAsset.get(id)));
+  const ranked = parsed.ranking.map((id, i) => ideaFromSection(okSections.find((a) => a.assetId === id)!, i + 1, parsed.byAsset.get(id))).filter((x): x is InvestmentIdea => x !== null);
   return { market: { date: weekOf, summary: parsed.lines.join("\n"), developments: parsed.developments, facts: marketFacts }, ranked, splitWhy: parsed.splitWhy, ok: true };
 }
 
@@ -426,63 +475,151 @@ const SPLIT_WHY: Record<ExampleSplit["profile"], string> = {
   growth: "Example only: gives more room to growth and crypto assets where the view allows it. General research, not an order for anyone.",
 };
 
+/** A stored section as the final step uses it. A section that no longer passes its check becomes "no reading". */
+function fromStored(stored: StoredSection | undefined, asset: UniverseAsset): SectionResult {
+  if (!stored) return { section: noReadingSection(asset, []), failed: true, approved: false, sentBack: 0, removed: 0, notes: [`${asset.assetId}: no section was researched`] };
+  const r = stored.result;
+  const problems = sectionProblems(r.section);
+  if (stored.failed || r.section.status !== "ok" || problems.length || r.section.assetId !== asset.assetId) {
+    const section = r.section.status === "no-reading" && !problems.length && r.section.assetId === asset.assetId ? r.section : noReadingSection(asset, []);
+    const why = problems.length ? [`${asset.assetId}: stored section failed its check (${problems.slice(0, 2).join("; ")}): no reading`] : [];
+    return { section, failed: true, approved: false, sentBack: r.sentBack, removed: r.removed, notes: [...r.notes, ...why] };
+  }
+  return { section: r.section, failed: false, approved: r.approved, sentBack: r.sentBack, removed: r.removed, notes: r.notes };
+}
+
 // ---------------------------------------------------------------------------------------------
-// The run
+// The run: one step of the week per invocation
 // ---------------------------------------------------------------------------------------------
 
-export async function runWeekly(deps: WeeklyDeps): Promise<RunOutcome & { report?: WeeklyReport }> {
+export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
   const now = (deps.now ?? (() => new Date()))().toISOString();
   const date = now.slice(0, 10);
   const weekOf = mondayOf(date);
-  const runId = newRunId(date, "weekly");
   const assets = deps.assets ?? defaultAssets();
-  const spentToday = await deps.store.daySpend(date).catch(() => 0);
-  const budget = costBudget({ maxRunUsd: deps.maxRunCostUsd, maxDayUsd: deps.maxDayCostUsd, spentTodayUsd: spentToday });
+  const alert = deps.alert ?? defaultAlert;
+  const early = (status: RunOutcome["status"], problems: string[]): WeeklyOutcome => ({ runId: "", kind: "weekly", date, status, written: false, costUsd: 0, counts: {}, problems, step: "skipped" });
+  const msg = (e: unknown, n = 200) => (e instanceof Error ? e.message.slice(0, n) : "unknown");
+
+  // A week that already has a report is never run again: a re-run must not replace it or hide an
+  // approved report.
+  let existing: string | null;
+  let stored: StoredSection[];
+  try {
+    existing = await deps.store.weeklyRunId(weekOf);
+    stored = existing ? [] : await deps.store.weeklySections(weekOf);
+  } catch (e) {
+    return early("failed", [`could not read this week's report or sections: ${msg(e)}`]);
+  }
+  if (existing) return early("skipped", [`the report for the week of ${weekOf} was already written by run ${existing}: nothing to do`]);
+  const byAsset = new Map(stored.map((x) => [x.assetId, x]));
+  const next =
+    assets.find((a) => !byAsset.has(a.assetId)) ??
+    assets.find((a) => {
+      const x = byAsset.get(a.assetId)!;
+      return x.failed && x.attempts < MAX_SECTION_ATTEMPTS;
+    });
+  const phase: "asset" | "final" = next ? "asset" : "final";
+
+  const runId = newRunId(date, "weekly");
+  const [spentToday, spentWeek] = await Promise.all([readSpend(() => deps.store.daySpend(date)), readSpend(() => deps.store.weeklySpend(weekOf))]);
+  const budget = costBudget({
+    maxRunUsd: deps.maxRunCostUsd - (spentWeek ?? Infinity),
+    maxDayUsd: deps.maxDayCostUsd,
+    spentTodayUsd: spentToday ?? Infinity,
+    runCapLabel: `weekly cap $${deps.maxRunCostUsd} (spent this week $${(spentWeek ?? 0).toFixed(2)})`,
+    record: (usd) => deps.store.recordSpend(runId, usd),
+    timeLimitMs: deps.timeLimitMs ?? RUN_TIME_LIMIT_MS,
+  });
   const model = RESEARCH_MODELS.weekly;
   const s: StepCtx = { deps, budget, model };
-
   await deps.store.startRun({ runId, kind: "weekly", date, models: { analysts: model, debate: model, reviewer: model, editor: model, summary: model }, promptVersion: PROMPT_VERSION });
-  let market: MarketResearchInput | null = null;
-  const inputs: (AssetResearchInput | MarketResearchInput | null)[] = [];
 
-  const finish = async (status: RunOutcome["status"], results: SectionResult[], problems: string[], written: boolean, report?: WeeklyReport) => {
-    const counts = {
-      ok: results.filter((r) => r.section.status === "ok").length,
-      noReading: results.filter((r) => r.section.status === "no-reading").length,
-      sentBack: results.reduce((t, r) => t + r.sentBack, 0),
-      removedClaims: results.reduce((t, r) => t + r.removed, 0),
-      calls: budget.calls.length,
-    };
-    if (status === "aborted-cost") console.warn(`[research] weekly run ${runId} stopped by the cost guard: ${problems[0] ?? ""}`);
-    const all = [market, ...results.map((r) => r.input ?? null), ...inputs];
-    const dataHash = all.some(Boolean) ? hashInputs(all) : null;
-    const detail = [`${status}: ${counts.ok} ok, ${counts.noReading} no reading, ${counts.sentBack} sent back, ${counts.removedClaims} claims removed, ${counts.calls} model calls`, ...problems].join("\n");
-    await deps.store.finishRun(runId, { status, costUsd: budget.spent, detail, dataHash });
-    return { runId, kind: "weekly" as const, date, status, written, costUsd: budget.spent, counts, problems, ...(report ? { report } : {}) };
+  const finish = async (status: RunOutcome["status"], problems: string[], o: { counts?: Record<string, number>; written?: boolean; inputs?: unknown; report?: WeeklyReport } = {}): Promise<WeeklyOutcome> => {
+    const where = next ? `${phase} ${next.assetId}` : phase;
+    if (status === "aborted-cost") await alert(`weekly run ${runId} (${where}) stopped by the cost guard: ${problems[0] ?? ""}`);
+    const counts = { ...o.counts, calls: budget.calls.length };
+    const dataHash = o.inputs ? hashInputs(o.inputs) : null;
+    const detail = [`${status}: ${where}, ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ")}`, ...problems].join("\n");
+    // A run that spent but wrote nothing because another run was first is logged as failed.
+    await deps.store.finishRun(runId, { status: status === "skipped" ? "failed" : status, costUsd: budget.spent, detail, dataHash, inputs: o.inputs ?? null, outputs: budget.calls });
+    return { runId, kind: "weekly", date, status, written: o.written ?? false, costUsd: budget.spent, counts, problems, step: phase, ...(next ? { assetId: next.assetId } : {}), ...(o.report ? { report: o.report } : {}) };
   };
 
-  if (!(budget.cap > 0)) return finish("aborted-cost", [], [`cost guard: the day cap $${deps.maxDayCostUsd} is already used (spent today $${spentToday.toFixed(2)})`], false);
+  if (spentToday === null || spentWeek === null) return finish("aborted-cost", ["cost guard: today's or this week's spend could not be read, so the run is blocked"]);
+  const capMessage = `cost guard: no budget left (day cap $${deps.maxDayCostUsd}, spent today $${spentToday.toFixed(2)}; weekly cap $${deps.maxRunCostUsd}, spent this week $${spentWeek.toFixed(2)})`;
 
   const problems: string[] = [];
-  try {
-    market = await deps.gatherMarket(date);
-  } catch (e) {
-    problems.push(`market data failed (${e instanceof Error ? e.message.slice(0, 120) : "unknown"}): sections use asset facts only`);
+  let market: MarketResearchInput | null = null;
+  const loadMarket = async () => {
+    try {
+      market = await deps.gatherMarket(date);
+    } catch (e) {
+      problems.push(`market data failed (${msg(e, 120)}): asset facts only`);
+    }
+  };
+
+  // ---- One asset ------------------------------------------------------------------------------
+  if (next) {
+    if (!(budget.cap > 0)) return finish("aborted-cost", [capMessage]);
+    await loadMarket();
+    const attempts = (byAsset.get(next.assetId)?.attempts ?? 0) + 1;
+    let status: RunOutcome["status"] = "ok";
+    let result: SectionResult;
+    try {
+      result = await researchSection(next, weekOf, date, market, s);
+    } catch (e) {
+      status = e instanceof CostAbort ? "aborted-cost" : "failed";
+      const why = e instanceof CostAbort ? e.message : `run error: ${msg(e)}`;
+      problems.unshift(why);
+      result = { section: noReadingSection(next, []), failed: true, approved: false, sentBack: 0, removed: 0, notes: [`${next.assetId}: ${why}`] };
+    }
+    if (result.failed && status === "ok") status = "failed";
+    let saved = true;
+    try {
+      const { section, approved, sentBack, removed, notes } = result;
+      await deps.store.saveWeeklySection(weekOf, { assetId: next.assetId, runId, failed: result.failed, attempts, costUsd: budget.spent, result: { section, approved, sentBack, removed, notes } });
+    } catch (e) {
+      saved = false;
+      status = status === "ok" ? "failed" : status;
+      problems.push(`section write failed: ${msg(e)}`);
+    }
+    const counts = { attempt: attempts, sentBack: result.sentBack, removedClaims: result.removed };
+    return finish(status, [...problems, ...result.notes], { counts, written: saved && !result.failed, inputs: { market, input: result.input ?? null } });
   }
 
-  let results: SectionResult[];
+  // ---- Final: summary, ideas, scorecard, one write ---------------------------------------------
+  const results = assets.map((a) => fromStored(byAsset.get(a.assetId), a));
+  const failures = results.filter((r) => r.failed).length;
+  const counts = {
+    ok: results.filter((r) => r.section.status === "ok").length,
+    noReading: results.filter((r) => r.section.status === "no-reading").length,
+    sentBack: results.reduce((t, r) => t + r.sentBack, 0),
+    removedClaims: results.reduce((t, r) => t + r.removed, 0),
+  };
+  const sectionNotes = results.flatMap((r) => r.notes);
+  if (failures > MAX_NO_READINGS) return finish("failed", [`${failures} assets had no reading (limit ${MAX_NO_READINGS}): nothing written`, ...sectionNotes], { counts });
+
+  await loadMarket();
+  const okSections = results.filter((r) => r.section.status === "ok").map((r) => r.section);
   let summary: Summary;
+  let capHit: string | null = budget.cap > 0 ? null : capMessage;
   try {
-    results = await pool(assets, deps.concurrency ?? 3, (a) => researchSection(a, weekOf, date, market, s));
-    const failures = results.filter((r) => r.failed).length;
-    if (failures > MAX_NO_READINGS) {
-      return finish("failed", results, [`${failures} assets had no reading (limit ${MAX_NO_READINGS}): nothing written`, ...problems, ...results.flatMap((r) => r.notes)], false);
-    }
-    summary = await summarize(weekOf, market, results.filter((r) => r.section.status === "ok").map((r) => r.section), assets, s);
+    summary = await summarize(weekOf, market, okSections, assets, s, capHit === null);
   } catch (e) {
-    if (e instanceof CostAbort) return finish("aborted-cost", [], [e.message, ...problems], false);
-    return finish("failed", [], [`run error: ${e instanceof Error ? e.message.slice(0, 200) : "unknown"}`, ...problems], false);
+    if (!(e instanceof CostAbort)) return finish("failed", [`run error: ${msg(e)}`, ...problems], { counts });
+    capHit = e.message;
+    summary = fallbackSummary(weekOf, prepareFacts((market as MarketResearchInput | null)?.facts ?? []).facts, okSections);
   }
+  if (capHit) {
+    problems.push(`${capHit}: summary built in code`);
+    await alert(`weekly run ${runId} (final) hit a spend cap, summary built in code: ${capHit}`);
+  }
+
+  // Every published idea must rest on facts of the report; ideas that do not are dropped.
+  const ids = citableIds({ market: summary.market, assets: results.map((r) => r.section) });
+  const ranked = summary.ranked.filter((i) => ideaProblems([i], ids).length === 0).map((i, n) => ({ ...i, rank: n + 1 }));
+  if (ranked.length < summary.ranked.length) problems.push(`${summary.ranked.length - ranked.length} ideas dropped: they did not cite facts of the report`);
 
   const [previous, scores] = await Promise.all([deps.store.weekliesBefore(weekOf, 4).catch(() => []), deps.store.scores(null, addDays(weekOf, -120)).catch(() => [])]);
   const lastWeek = previous[0]?.report ?? null;
@@ -494,6 +631,7 @@ export async function runWeekly(deps: WeeklyDeps): Promise<RunOutcome & { report
     slices: exampleSplit(profile, okItems),
     why: summary.splitWhy?.[profile] ?? { text: SPLIT_WHY[profile], factIds: [] },
   }));
+  const sectionCost = stored.reduce((t, x) => t + (Number.isFinite(x.costUsd) ? x.costUsd : 0), 0);
 
   const report: WeeklyReport = {
     kind: "live",
@@ -503,24 +641,27 @@ export async function runWeekly(deps: WeeklyDeps): Promise<RunOutcome & { report
     beta: !bar.met,
     market: summary.market,
     assets: results.map((r) => r.section),
-    ideas: { ranked: summary.ranked, exampleSplits },
+    ideas: { ranked, exampleSplits },
     scorecard: weeklyScorecard(lastWeek, later, scores),
     review: {
       approved: results.every((r) => r.section.status !== "ok" || r.approved),
-      sentBack: results.reduce((t, r) => t + r.sentBack, 0),
-      removedClaims: results.reduce((t, r) => t + r.removed, 0),
-      notes: [...problems, ...(summary.ok ? [] : ["summary step failed: ideas built in code from the approved sections"]), ...results.flatMap((r) => r.notes)].slice(0, 60),
+      sentBack: counts.sentBack,
+      removedClaims: counts.removedClaims,
+      notes: [...problems, ...(summary.ok ? [] : ["summary step failed: ideas built in code from the approved sections"]), ...sectionNotes].slice(0, 60),
     },
     model: { analysts: model, editor: model },
-    costUsd: Math.round(budget.spent * 10_000) / 10_000,
+    costUsd: Math.round((sectionCost + budget.spent) * 10_000) / 10_000,
     disclaimer: RESEARCH_DISCLAIMER,
   };
+  const inputs = { market, sections: stored.map((x) => ({ assetId: x.assetId, runId: x.runId })) };
   const shape = weeklyProblems(report);
-  if (shape.length) return finish("failed", results, ["whole-report check failed: nothing written", ...shape.slice(0, 20), ...problems], false);
+  if (shape.length) return finish("failed", ["whole-report check failed: nothing written", ...shape.slice(0, 20), ...problems], { counts, inputs });
+  let wrote: boolean;
   try {
-    await deps.store.writeWeekly(runId, report);
+    wrote = await deps.store.writeWeekly(runId, report);
   } catch (e) {
-    return finish("failed", results, [`write failed: ${e instanceof Error ? e.message.slice(0, 200) : "unknown"}`], false);
+    return finish("failed", [`write failed: ${msg(e)}`, ...problems], { counts, inputs });
   }
-  return finish("ok", results, problems, true, report);
+  if (!wrote) return finish("skipped", ["another run wrote this week's report first: it was left as it is", ...problems], { counts, inputs });
+  return finish("ok", problems, { counts, written: true, inputs, report });
 }

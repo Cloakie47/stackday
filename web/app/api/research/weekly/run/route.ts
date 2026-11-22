@@ -7,15 +7,23 @@ import { supabaseStore } from "@/lib/research/engine/store";
 import { runWeekly } from "@/lib/research/engine/weekly";
 
 /**
- * Monday weekly report run, called by Vercel's cron (web/vercel.json, Monday 12:00 UTC) with
- * `Authorization: Bearer ${CRON_SECRET}`. Writes the report unapproved: nobody but the reviewers
- * sees it until one of them approves it (POST /api/research/weekly/approve).
+ * Monday weekly report, ONE STEP PER CALL, called by Vercel's cron with
+ * `Authorization: Bearer ${CRON_SECRET}`. web/vercel.json calls it once an hour on Monday from
+ * 12:00 to 20:00 UTC (`?slot=1` to `?slot=9`, the slot only keeps the cron entries apart):
+ * - each call researches the next asset that has no section yet (or a failed one, at most twice);
+ * - when every asset has a section, the next call writes the report (summary, ideas, scorecard);
+ * - once the week has a report, every later call does nothing (a re-run never replaces it or
+ *   un-approves it).
+ * Six assets plus the final step take seven calls; the last two slots are spare for retries.
+ * Each call stays under 300 seconds (Vercel Hobby): the engine stops model calls at 270 seconds.
  *
- * The weekly run uses the strongest model for many steps, so it gets its own per-run cap:
- * RESEARCH_MAX_WEEKLY_RUN_COST_USD (default $4, researchFlags().maxWeeklyRunCostUsd).
- * The per-day cap (RESEARCH_MAX_DAY_COST_USD) always applies.
+ * The report is written unapproved: nobody but the reviewers sees it until one of them approves it
+ * (POST /api/research/weekly/approve with its runId).
+ *
+ * The weekly cap RESEARCH_MAX_WEEKLY_RUN_COST_USD (default $4, researchFlags().maxWeeklyRunCostUsd)
+ * covers all weekly calls of one week; the per-day cap (RESEARCH_MAX_DAY_COST_USD) always applies.
  */
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   if (!cronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) return json({ error: "Not allowed." }, 401);
@@ -34,7 +42,7 @@ export async function GET(request: Request) {
     });
     // The report itself is read through GET /api/research/weekly; the cron only gets the summary.
     const outcome = { ...result, report: undefined };
-    return json(outcome, outcome.status === "ok" ? 200 : 500);
+    return json(outcome, outcome.status === "ok" || outcome.status === "skipped" ? 200 : 500);
   } catch (e) {
     return json({ error: "Weekly research run failed.", detail: e instanceof Error ? e.message.slice(0, 200) : "unknown" }, 500);
   }

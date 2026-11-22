@@ -39,8 +39,13 @@ test("a weekday run writes six notes on the cheaper model with levels from code"
   // Reproducibility fields and a first score per note.
   const run = [...runs.values()][0];
   assert.equal(run.kind, "daily");
-  assert.match(run.promptVersion, /^research-v2/);
+  assert.match(run.promptVersion, /^research-v3/);
   assert.ok(run.dataHash && run.dataHash.length === 32);
+  // Input data and raw model output are kept with the run.
+  assert.equal((run.inputs as unknown[]).length, 6);
+  const outputs = run.outputs as { step: string; text: string }[];
+  assert.equal(outputs.length, 6);
+  assert.deepEqual(JSON.parse(outputs[0].text), goodDaily());
   assert.equal(scores.size, 6);
   assert.equal([...scores.values()][0].factsShare, 1);
 });
@@ -117,6 +122,34 @@ test("the day cap counts earlier runs today", async () => {
   const out2 = await runDaily({ gather, model: none.fn, store, ...caps, now: THURSDAY });
   assert.equal(out2.status, "aborted-cost");
   assert.equal(none.calls.length, 0);
+});
+
+test("the day cap fails closed: an unreadable day spend blocks the run and raises an alert", async () => {
+  const { store, runs, writes } = memoryStore();
+  store.daySpend = async () => {
+    throw new Error("database down");
+  };
+  const alerts: string[] = [];
+  const model = fakeModel(() => goodDaily());
+  const out = await runDaily({ gather, model: model.fn, store, ...caps, now: THURSDAY, alert: async (m) => void alerts.push(m) });
+  assert.equal(out.status, "aborted-cost");
+  assert.match(out.problems[0], /could not be read/);
+  assert.equal(model.calls.length, 0);
+  assert.equal(writes.daily, 0);
+  assert.equal([...runs.values()][0].status, "aborted-cost");
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0], /daily run .* stopped by the cost guard/);
+});
+
+test("a failed spend record stops the call before it is made", async () => {
+  const { store } = memoryStore();
+  store.recordSpend = async () => {
+    throw new Error("write failed");
+  };
+  const model = fakeModel(() => goodDaily());
+  const out = await runDaily({ gather, model: model.fn, store, ...caps, now: THURSDAY, alert: async () => {} });
+  assert.equal(out.status, "aborted-cost");
+  assert.equal(model.calls.length, 0);
 });
 
 test("injection text is screened in code and never sent", async () => {

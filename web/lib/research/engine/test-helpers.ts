@@ -1,7 +1,25 @@
 import type { AssetResearchInput, ChartRead, Fact, MarketResearchInput } from "../types.ts";
 import type { ModelFn, ModelRequest } from "./model.ts";
+import { runWeekly, type WeeklyDeps, type WeeklyOutcome } from "./weekly.ts";
+
+/**
+ * Calls the weekly run the way the Monday cron does, one step per call, until the final step or a
+ * skip (at most `max` calls). Returns every outcome and the last one.
+ */
+export async function runWeekFully(deps: WeeklyDeps, max = 14): Promise<{ outcomes: WeeklyOutcome[]; last: WeeklyOutcome }> {
+  const outcomes: WeeklyOutcome[] = [];
+  for (let i = 0; i < max; i++) {
+    const o = await runWeekly(deps);
+    outcomes.push(o);
+    if (o.step !== "asset") break;
+  }
+  return { outcomes, last: outcomes[outcomes.length - 1] };
+}
 
 /** Small hand-made inputs for tests. Numbers here are test fixtures, not market data. No network. */
+
+// Tests never post alerts, even on a machine where the webhook is set.
+delete process.env.RESEARCH_ALERT_WEBHOOK_URL;
 
 const src = { name: "Test fixture" };
 const asOf = "2026-11-19T21:00:00Z";

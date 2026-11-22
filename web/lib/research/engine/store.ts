@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DailyScore, IsoDate, MarketOverview, ResearchNote, ResearchSnapshot, WeeklyReport } from "../types.ts";
+import type { DailyScore, IsoDate, MarketOverview, ResearchNote, ResearchSnapshot, WeeklyAssetSection, WeeklyReport } from "../types.ts";
 import { isNote, isWeeklyReport } from "./validate.ts";
 
 /**
@@ -8,21 +8,46 @@ import { isNote, isWeeklyReport } from "./validate.ts";
  * A run writes its rows only after every check passed, in one final step; a failed or over-budget
  * run writes only its research_runs row, so the last good note or report stays live.
  * For daily notes the research_market row is written last and acts as the commit marker.
+ * The weekly report is built one asset per invocation (research_weekly_sections), then written once:
+ * an existing report for a week is never overwritten, so a re-run cannot hide an approved report.
  */
 
 export type RunKind = "daily" | "weekly";
 export type RunStatus = "running" | "ok" | "failed" | "aborted-cost";
 
 export type RunStart = { runId: string; kind: RunKind; date: IsoDate; models: Record<string, string>; promptVersion: string };
-export type RunFinish = { status: Exclude<RunStatus, "running">; costUsd: number; detail: string; dataHash: string | null };
+export type RunFinish = {
+  status: Exclude<RunStatus, "running">;
+  costUsd: number;
+  detail: string;
+  dataHash: string | null;
+  /** Snapshot of the input data the run used (so a report can be reproduced). */
+  inputs?: unknown;
+  /** Raw model output of every call (step, model, stop reason, text, cost). */
+  outputs?: unknown;
+};
 
 export type StoredWeekly = { report: WeeklyReport; approved: boolean };
+
+/** One asset's part of a weekly report, kept between invocations. */
+export type StoredSection = {
+  assetId: string;
+  runId: string;
+  failed: boolean;
+  attempts: number;
+  costUsd: number;
+  result: { section: WeeklyAssetSection; approved: boolean; sentBack: number; removed: number; notes: string[] };
+};
 
 export interface ResearchStore {
   startRun(run: RunStart): Promise<void>;
   finishRun(runId: string, f: RunFinish): Promise<void>;
+  /** Sets a running run's spend so far (settled plus reserved), written before every model call. */
+  recordSpend(runId: string, costUsd: number): Promise<void>;
   /** Sum of the cost of every run started on this UTC date (for the per-day cap). */
   daySpend(date: IsoDate): Promise<number>;
+  /** Sum of the cost of the weekly runs from `weekOf` to six days later (for the weekly cap). */
+  weeklySpend(weekOf: IsoDate): Promise<number>;
   /** Writes one finished daily run: first scores (facts share, price), then notes, then the market row. */
   writeDaily(runId: string, date: IsoDate, notes: ResearchNote[], market: MarketOverview, scores: DailyScore[]): Promise<void>;
   latestSnapshot(): Promise<ResearchSnapshot | null>;
@@ -30,13 +55,19 @@ export interface ResearchStore {
   notes(assetId: string | null, from: IsoDate, to: IsoDate): Promise<ResearchNote[]>;
   /** One asset's newest notes, oldest first. */
   history(assetId: string, limit: number): Promise<ResearchNote[]>;
-  writeWeekly(runId: string, report: WeeklyReport): Promise<void>;
+  /** Writes a finished report unapproved. Never overwrites: false when the week already has one. */
+  writeWeekly(runId: string, report: WeeklyReport): Promise<boolean>;
   weekly(weekOf: IsoDate): Promise<StoredWeekly | null>;
+  /** Run id of the report written for this week, or null when there is none. */
+  weeklyRunId(weekOf: IsoDate): Promise<string | null>;
+  weeklySections(weekOf: IsoDate): Promise<StoredSection[]>;
+  saveWeeklySection(weekOf: IsoDate, s: StoredSection): Promise<void>;
   /** Newest report; only approved ones when `approvedOnly`. */
   latestWeekly(approvedOnly: boolean): Promise<StoredWeekly | null>;
   /** Up to `n` reports before `weekOf`, newest first. */
   weekliesBefore(weekOf: IsoDate, n: number): Promise<StoredWeekly[]>;
-  approveWeekly(weekOf: IsoDate, reviewer: string): Promise<boolean>;
+  /** Approves exactly the report the reviewer read: matched on week and run id. */
+  approveWeekly(weekOf: IsoDate, runId: string, reviewer: string): Promise<boolean>;
   scores(assetId: string | null, from: IsoDate): Promise<DailyScore[]>;
   /** Writes the automatic part of each score; never touches the human grade. */
   upsertScores(rows: DailyScore[]): Promise<void>;
@@ -50,7 +81,8 @@ export function memoryStore() {
   const runs = new Map<string, MemRun>();
   const notes = new Map<string, ResearchNote>(); // date|asset
   const market = new Map<IsoDate, { runId: string; overview: MarketOverview }>();
-  const weeklies = new Map<IsoDate, StoredWeekly & { reviewer?: string }>();
+  const weeklies = new Map<IsoDate, StoredWeekly & { runId: string; reviewer?: string }>();
+  const sections = new Map<string, StoredSection>(); // week|asset
   const scores = new Map<string, DailyScore>(); // date|asset
   const writes = { daily: 0, weekly: 0 };
   const key = (d: string, a: string) => `${d}|${a}`;
@@ -62,8 +94,16 @@ export function memoryStore() {
       const r = runs.get(runId);
       if (r) runs.set(runId, { ...r, ...f });
     },
+    async recordSpend(runId, costUsd) {
+      const r = runs.get(runId);
+      if (r) runs.set(runId, { ...r, costUsd });
+    },
     async daySpend(date) {
       return [...runs.values()].filter((r) => r.date === date).reduce((s, r) => s + r.costUsd, 0);
+    },
+    async weeklySpend(weekOf) {
+      const end = new Date(Date.parse(`${weekOf}T00:00:00Z`) + 6 * 86_400_000).toISOString().slice(0, 10);
+      return [...runs.values()].filter((r) => r.kind === "weekly" && r.date >= weekOf && r.date <= end).reduce((s, r) => s + r.costUsd, 0);
     },
     async writeDaily(runId, date, list, overview, rows) {
       writes.daily++;
@@ -84,13 +124,24 @@ export function memoryStore() {
     async history(assetId, limit) {
       return [...notes.values()].filter((n) => n.assetId === assetId).sort((a, b) => a.date.localeCompare(b.date)).slice(-limit);
     },
-    async writeWeekly(_runId, report) {
+    async writeWeekly(runId, report) {
+      if (weeklies.has(report.weekOf)) return false;
       writes.weekly++;
-      weeklies.set(report.weekOf, { report, approved: false });
+      weeklies.set(report.weekOf, { report, approved: false, runId });
+      return true;
     },
     async weekly(weekOf) {
       const w = weeklies.get(weekOf);
       return w ? { report: w.report, approved: w.approved } : null;
+    },
+    async weeklyRunId(weekOf) {
+      return weeklies.get(weekOf)?.runId ?? null;
+    },
+    async weeklySections(weekOf) {
+      return [...sections.entries()].filter(([k]) => k.startsWith(`${weekOf}|`)).map(([, s]) => s);
+    },
+    async saveWeeklySection(weekOf, s) {
+      sections.set(key(weekOf, s.assetId), s);
     },
     async latestWeekly(approvedOnly) {
       const list = [...weeklies.values()].filter((w) => !approvedOnly || w.approved).sort((a, b) => b.report.weekOf.localeCompare(a.report.weekOf));
@@ -103,9 +154,9 @@ export function memoryStore() {
         .slice(0, n)
         .map((w) => ({ report: w.report, approved: w.approved }));
     },
-    async approveWeekly(weekOf, reviewer) {
+    async approveWeekly(weekOf, runId, reviewer) {
       const w = weeklies.get(weekOf);
-      if (!w) return false;
+      if (!w || w.runId !== runId) return false;
       weeklies.set(weekOf, { ...w, approved: true, reviewer });
       return true;
     },
@@ -125,7 +176,7 @@ export function memoryStore() {
       return true;
     },
   };
-  return { store, runs, notes, market, weeklies, scores, writes };
+  return { store, runs, notes, market, weeklies, sections, scores, writes };
 }
 
 const isScore = (x: unknown): x is DailyScore =>
@@ -148,13 +199,31 @@ export function supabaseStore(db: SupabaseClient): ResearchStore {
     async finishRun(runId, f) {
       const { error } = await db
         .from("research_runs")
-        .update({ status: f.status, cost_usd: Number(f.costUsd.toFixed(4)), detail: f.detail.slice(0, 4000), data_hash: f.dataHash, finished_at: new Date().toISOString() })
+        .update({
+          status: f.status,
+          cost_usd: Number(f.costUsd.toFixed(4)),
+          detail: f.detail.slice(0, 4000),
+          data_hash: f.dataHash,
+          inputs: f.inputs ?? null,
+          outputs: f.outputs ?? null,
+          finished_at: new Date().toISOString(),
+        })
         .eq("run_id", runId);
       fail("finish run", error);
+    },
+    async recordSpend(runId, costUsd) {
+      const { error } = await db.from("research_runs").update({ cost_usd: Number(costUsd.toFixed(4)) }).eq("run_id", runId);
+      fail("record spend", error);
     },
     async daySpend(date) {
       const { data, error } = await db.from("research_runs").select("cost_usd").eq("run_date", date);
       fail("read day spend", error);
+      return (data ?? []).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
+    },
+    async weeklySpend(weekOf) {
+      const end = new Date(Date.parse(`${weekOf}T00:00:00Z`) + 6 * 86_400_000).toISOString().slice(0, 10);
+      const { data, error } = await db.from("research_runs").select("cost_usd").eq("kind", "weekly").gte("run_date", weekOf).lte("run_date", end);
+      fail("read weekly spend", error);
       return (data ?? []).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
     },
     async writeDaily(runId, date, notes, market, scores) {
@@ -198,10 +267,30 @@ export function supabaseStore(db: SupabaseClient): ResearchStore {
       return (data ?? []).map((r) => r.note).filter(isNote).reverse();
     },
     async writeWeekly(runId, report) {
-      const { error } = await db
+      // Insert only: an existing row (maybe already approved) is left as it is.
+      const { data, error } = await db
         .from("research_weekly")
-        .upsert({ week_of: report.weekOf, run_id: runId, beta: report.beta, approved: false, published_at: null, reviewed_by: null, body: report }, { onConflict: "week_of" });
+        .upsert({ week_of: report.weekOf, run_id: runId, beta: report.beta, approved: false, published_at: null, reviewed_by: null, body: report }, { onConflict: "week_of", ignoreDuplicates: true })
+        .select("week_of");
       fail("write weekly", error);
+      return (data ?? []).length > 0;
+    },
+    async weeklyRunId(weekOf) {
+      const { data, error } = await db.from("research_weekly").select("run_id").eq("week_of", weekOf).maybeSingle();
+      fail("read weekly", error);
+      return typeof data?.run_id === "string" ? data.run_id : null;
+    },
+    async weeklySections(weekOf) {
+      const { data, error } = await db.from("research_weekly_sections").select("asset_id, run_id, failed, attempts, cost_usd, result").eq("week_of", weekOf);
+      fail("read weekly sections", error);
+      return (data ?? []).map((r) => ({ assetId: r.asset_id, runId: r.run_id, failed: r.failed, attempts: r.attempts, costUsd: Number(r.cost_usd ?? 0), result: r.result as StoredSection["result"] }));
+    },
+    async saveWeeklySection(weekOf, s) {
+      const { error } = await db.from("research_weekly_sections").upsert(
+        { week_of: weekOf, asset_id: s.assetId, run_id: s.runId, failed: s.failed, attempts: s.attempts, cost_usd: Number(s.costUsd.toFixed(4)), result: s.result, updated_at: new Date().toISOString() },
+        { onConflict: "week_of,asset_id" },
+      );
+      fail("write weekly section", error);
     },
     async weekly(weekOf) {
       const { data, error } = await db.from("research_weekly").select("body, approved").eq("week_of", weekOf).maybeSingle();
@@ -220,11 +309,12 @@ export function supabaseStore(db: SupabaseClient): ResearchStore {
       fail("read weeklies", error);
       return (data ?? []).map(weeklyRow).filter((w): w is StoredWeekly => w !== null);
     },
-    async approveWeekly(weekOf, reviewer) {
+    async approveWeekly(weekOf, runId, reviewer) {
       const { data, error } = await db
         .from("research_weekly")
         .update({ approved: true, published_at: new Date().toISOString(), reviewed_by: reviewer })
         .eq("week_of", weekOf)
+        .eq("run_id", runId)
         .select("week_of");
       fail("approve weekly", error);
       return (data ?? []).length > 0;

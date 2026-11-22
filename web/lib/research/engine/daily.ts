@@ -3,12 +3,13 @@ import { RESEARCH_MODELS } from "../flags.ts";
 import type { AssetResearchInput, Confidence, DailyScore, Fact, IsoDate, ResearchNote, ResearchSnapshot, View } from "../types.ts";
 import { VIEWS } from "../types.ts";
 import { researchableUniverse, type UniverseAsset } from "../universe.ts";
+import { defaultAlert, type AlertFn } from "./alert.ts";
 import { costBudget, CostAbort, guardedCall, pool, type Budget } from "./budget.ts";
 import { chartBlock, chartLevels, ensurePriceFacts, factBlock, hashInputs, isUntrusted, patternFacts, prepareFacts, sentFacts } from "./facts.ts";
 import { computeLevels } from "./levels.ts";
 import { buildMarketOverview } from "./market.ts";
 import type { ModelFn } from "./model.ts";
-import { Ctx, oneOf, parseJsonObject, StepRejected, stringList } from "./parse.ts";
+import { Ctx, NUMBERS_IN, oneOf, parseJsonObject, StepRejected, stringList } from "./parse.ts";
 import { DAILY_SCHEMA, DAILY_SYSTEM, LIMITS, PROMPT_VERSION } from "./prompts.ts";
 import { initialScore } from "./scores.ts";
 import type { ResearchStore } from "./store.ts";
@@ -26,7 +27,10 @@ import { snapshotProblems } from "./validate.ts";
  * 5. Buy zone and invalidation computed in code from support, resistance and ATR.
  * Failure policy: at most 2 assets may end with no reading; more than that, a failed whole-run
  * check, or the cost guard (per run and per day) means the run writes nothing and the last good
- * snapshot stays live.
+ * snapshot stays live. If today's spend cannot be read the run is blocked (the day cap fails closed),
+ * and every hit cap raises an alert (alert.ts).
+ * Time: the whole run stays inside `timeLimitMs` (default 270 s, under the route's 300 s limit); a
+ * model call never gets more than the time left.
  */
 
 export type GatherFn = (assetId: string, date: IsoDate) => Promise<AssetResearchInput>;
@@ -42,13 +46,17 @@ export type DailyDeps = {
   concurrency?: number;
   /** Most escalation calls in one run (keeps the stronger model rare). */
   maxEscalations?: number;
+  /** Wall-clock limit of the whole run in ms (default RUN_TIME_LIMIT_MS). */
+  timeLimitMs?: number;
+  /** Called when a spend cap stops the run (default: warning plus optional webhook). */
+  alert?: AlertFn;
 };
 
 export type RunOutcome = {
   runId: string;
   kind: "daily" | "weekly";
   date: IsoDate;
-  status: "ok" | "failed" | "aborted-cost";
+  status: "ok" | "failed" | "aborted-cost" | "skipped";
   written: boolean;
   costUsd: number;
   counts: Record<string, number>;
@@ -56,8 +64,11 @@ export type RunOutcome = {
 };
 
 export const MAX_NO_READINGS = 2;
-export const TRIAGE_MAX_TOKENS = 3000;
-export const ESCALATE_MAX_TOKENS = 6000;
+/** Room for adaptive thinking plus the JSON answer (thinking counts toward max_tokens). */
+export const TRIAGE_MAX_TOKENS = 8000;
+export const ESCALATE_MAX_TOKENS = 12000;
+/** A run's time limit: the routes allow 300 s (Vercel Hobby), this keeps a margin for the writes. */
+export const RUN_TIME_LIMIT_MS = 270_000;
 /** A one-day move larger than this many daily ATRs counts as a big mover. */
 export const BIG_MOVE_ATR = 2;
 
@@ -186,7 +197,7 @@ async function researchAsset(asset: UniverseAsset, date: IsoDate, now: string, p
   const withCode = ensurePriceFacts(input);
   const { facts: prepared, screened } = prepareFacts([...withCode, ...patternFacts(chart, withCode)]);
   const facts = sentFacts(prepared.filter((f) => DAILY_KINDS.has(f.kind)));
-  const extra = chartLevels(chart);
+  const extra = [...chartLevels(chart), ...assetNumbers(asset)];
   const prevView = previous && previous.status !== "no-reading" ? previous.view : undefined;
   const user = [
     `Asset: ${asset.assetId} (${asset.name}, underlying ${asset.underlying}), class ${asset.assetClass}, sector ${asset.sector}.`,
@@ -258,6 +269,19 @@ async function researchAsset(asset: UniverseAsset, date: IsoDate, now: string, p
   return { note, failed: false, escalated, factsShare: ctx.factsShare(), input, problems: [...problems, ...removed, ...check.notes.map((n) => `${asset.assetId}: ${n}`)] };
 }
 
+/** Numbers in the asset's own name (for example "S&P 500") may be written: they come from code, not the model. */
+export const assetNumbers = (asset: UniverseAsset) => NUMBERS_IN(`${asset.name} ${asset.underlying}`);
+
+/** Today's spend, or null when it cannot be read (the caller then blocks the run). */
+export async function readSpend(read: () => Promise<number>): Promise<number | null> {
+  try {
+    const n = await read();
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 export function newRunId(date: IsoDate, kind: string) {
   return `${date}-${kind}-${globalThis.crypto.randomUUID().slice(0, 8)}`;
 }
@@ -267,15 +291,21 @@ export async function runDaily(deps: DailyDeps): Promise<RunOutcome> {
   const date = now.slice(0, 10);
   const runId = newRunId(date, "daily");
   const assets = deps.assets ?? defaultAssets();
-  const spentToday = await deps.store.daySpend(date).catch(() => 0);
-  const budget = costBudget({ maxRunUsd: deps.maxRunCostUsd, maxDayUsd: deps.maxDayCostUsd, spentTodayUsd: spentToday });
+  const spentToday = await readSpend(() => deps.store.daySpend(date));
+  const budget = costBudget({
+    maxRunUsd: deps.maxRunCostUsd,
+    maxDayUsd: deps.maxDayCostUsd,
+    spentTodayUsd: spentToday ?? Infinity,
+    record: (usd) => deps.store.recordSpend(runId, usd),
+    timeLimitMs: deps.timeLimitMs ?? RUN_TIME_LIMIT_MS,
+  });
   const escalations = { left: deps.maxEscalations ?? 3 };
 
   await deps.store.startRun({ runId, kind: "daily", date, models: { triage: RESEARCH_MODELS.dailyTriage, escalation: RESEARCH_MODELS.dailyEscalation }, promptVersion: PROMPT_VERSION });
   const last = await deps.store.latestSnapshot().catch(() => null);
   const previous = new Map((last?.notes ?? []).map((n) => [n.assetId, n]));
 
-  const finish = async (status: RunOutcome["status"], results: AssetResult[], problems: string[], written: boolean): Promise<RunOutcome> => {
+  const finish = async (status: Exclude<RunOutcome["status"], "skipped">, results: AssetResult[], problems: string[], written: boolean): Promise<RunOutcome> => {
     const counts = {
       ok: results.filter((r) => r.note.status === "ok").length,
       carried: results.filter((r) => r.note.status === "carried").length,
@@ -283,13 +313,15 @@ export async function runDaily(deps: DailyDeps): Promise<RunOutcome> {
       escalated: results.filter((r) => r.escalated).length,
       calls: budget.calls.length,
     };
-    if (status === "aborted-cost") console.warn(`[research] daily run ${runId} stopped by the cost guard: ${problems[0] ?? ""}`);
-    const dataHash = results.some((r) => r.input) ? hashInputs(results.map((r) => r.input ?? null)) : null;
+    if (status === "aborted-cost") await (deps.alert ?? defaultAlert)(`daily run ${runId} stopped by the cost guard: ${problems[0] ?? ""}`);
+    const inputs = results.map((r) => r.input ?? null);
+    const dataHash = results.some((r) => r.input) ? hashInputs(inputs) : null;
     const detail = [`${status}: ${counts.ok} ok, ${counts.carried} carried, ${counts.noReading} no reading, ${counts.escalated} escalated, ${counts.calls} model calls`, ...problems].join("\n");
-    await deps.store.finishRun(runId, { status, costUsd: budget.spent, detail, dataHash });
+    await deps.store.finishRun(runId, { status, costUsd: budget.spent, detail, dataHash, inputs: dataHash ? inputs : null, outputs: budget.calls });
     return { runId, kind: "daily", date, status, written, costUsd: budget.spent, counts, problems };
   };
 
+  if (spentToday === null) return finish("aborted-cost", [], ["cost guard: today's spend could not be read, so the run is blocked"], false);
   if (!(budget.cap > 0)) return finish("aborted-cost", [], [`cost guard: the day cap $${deps.maxDayCostUsd} is already used (spent today $${spentToday.toFixed(2)})`], false);
 
   let results: AssetResult[];

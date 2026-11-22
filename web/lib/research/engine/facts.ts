@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { sanitizeText } from "../../themes/mood.ts";
-import type { AssetResearchInput, CalendarEvent, ChartInterval, ChartRead, Fact, FactKind, MarketResearchInput } from "../types.ts";
+import type { AssetResearchInput, CalendarEvent, ChartInterval, ChartRead, Fact, FactKind } from "../types.ts";
 import { CHART_INTERVALS } from "../types.ts";
 
 /**
@@ -20,7 +20,10 @@ const INJECTION = [
   /\b(system|developer) (prompt|message|instructions?)\b/i,
   /\byou are (now )?(an?|the) (ai|assistant|model|language model)\b/i,
   /\b(as an ai|chatgpt|claude|llm)\b/i,
-  /<\/?(untrusted_news|system|assistant|user|instructions?)>/i,
+  // Tag-like text in any spacing or case (</untrusted_news >, < /UNTRUSTED_NEWS>, <system foo>), and
+  // any mention of our block names at all.
+  /<\s*\/?\s*(untrusted[\s_-]*\w*|system|assistant|user|human|instructions?)\b[^<>]*>/i,
+  /\buntrusted[\s_-]*(news|notes)\b/i,
   /\b(respond|reply|answer|output) (only )?(with|in) (json|the following)\b/i,
   /\b(set|change) (the )?(view|action|rating|recommendation|conviction|probability) to\b/i,
 ];
@@ -121,6 +124,17 @@ export function factBlock(facts: Fact[], limit: number = FACT_LIMITS.sentPerCall
   return ["FACTS:", ...(t.length ? t : ["(none)"]), "", "<untrusted_news>", ...(u.length ? u : ["(none)"]), "</untrusted_news>"].join("\n");
 }
 
+/**
+ * Text written by earlier model steps after they read the news (analyst notes, the debate, the
+ * draft, reviewer notes, our own earlier notes). It may carry an injection forward, so later steps
+ * get it inside a marked <untrusted_notes> block, never as trusted instructions. Each item already
+ * passed `Ctx.text` (which drops injection-like text); any tag-like text left is removed here too.
+ */
+export function untrustedNotes(text: string): string {
+  const clean = text.replace(/<\s*\/?\s*untrusted[\s_-]*\w*[^<>]*>/gi, "");
+  return ["<untrusted_notes>", clean.trim() || "(none)", "</untrusted_notes>"].join("\n");
+}
+
 /** Facts actually sent by `factBlock` with the same limit (only these may be cited). */
 export function sentFacts(facts: Fact[], limit: number = FACT_LIMITS.sentPerCall): Fact[] {
   const trusted = facts.filter((f) => !isUntrusted(f));
@@ -177,7 +191,7 @@ const canonical = (x: unknown): unknown =>
   Array.isArray(x) ? x.map(canonical) : x && typeof x === "object" ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)])) : x;
 
 /** Short sha256 of the inputs, logged with the run so a report can be reproduced. */
-export function hashInputs(inputs: (AssetResearchInput | MarketResearchInput | null)[]): string {
+export function hashInputs(inputs: unknown): string {
   return createHash("sha256").update(JSON.stringify(canonical(inputs))).digest("hex").slice(0, 32);
 }
 

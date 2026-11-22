@@ -85,10 +85,18 @@ export async function historyReply(store: ResearchStore | null, assetId: string,
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** GET /api/research/weekly?weekOf= -> { report, access } */
+const PAYMENT_REQUIRED: Reply = { status: 402, body: { report: null, access: { allowed: false, reason: "payment-required" } } };
+
+/**
+ * GET /api/research/weekly?weekOf= -> { report, access }.
+ * - When the access check says the live report consumes a credit, the credit is spent (`consume`)
+ *   BEFORE the report is sent; any error there means 402 and no report body.
+ * - A reply that went through a paid access check (`paidCheck`: paywall on and a wallet present, or
+ *   a check that consumes a credit) is never marked for the public cache.
+ */
 export async function weeklyReply(
   store: ResearchStore | null,
-  opts: { weekOf: string | null; reviewer: boolean; access: () => Promise<AccessCheck> },
+  opts: { weekOf: string | null; reviewer: boolean; access: () => Promise<AccessCheck>; consume?: (weekOf: IsoDate) => Promise<void>; paidCheck?: boolean },
 ): Promise<Reply> {
   if (opts.weekOf !== null && !DATE.test(opts.weekOf)) return { status: 400, body: { error: "weekOf must be YYYY-MM-DD." } };
   let report: WeeklyReport = sampleWeekly();
@@ -102,18 +110,34 @@ export async function weeklyReply(
   }
   const access = await opts.access();
   if (!access.allowed && report.kind === "live") return { status: access.reason === "sign-in" ? 401 : 402, body: { report: null, access } };
-  return { status: 200, body: { report, access }, publicCache: !opts.reviewer && report.kind === "sample" };
+  const spendsCredit = access.allowed && access.consumesCredit;
+  if (spendsCredit && report.kind === "live") {
+    if (!opts.consume) return PAYMENT_REQUIRED;
+    try {
+      await opts.consume(report.weekOf);
+    } catch {
+      return PAYMENT_REQUIRED;
+    }
+  }
+  const paid = opts.paidCheck === true || spendsCredit;
+  return { status: 200, body: { report, access }, publicCache: !opts.reviewer && report.kind === "sample" && !paid };
 }
 
-/** POST /api/research/weekly/approve { weekOf } */
+const RUN_ID = /^[A-Za-z0-9_.:-]{1,80}$/;
+
+/**
+ * POST /api/research/weekly/approve { weekOf, runId }. The run id is the `runId` of the report the
+ * reviewer read, so a report written by another run is never approved by mistake.
+ */
 export async function approveReply(store: ResearchStore | null, wallet: string | null, reviewer: boolean, body: unknown): Promise<Reply> {
   if (!wallet) return { status: 401, body: { error: "Sign in with your wallet first." } };
   if (!reviewer) return { status: 403, body: { error: "Only research reviewers can approve a report." } };
-  const weekOf = (body as { weekOf?: unknown } | null)?.weekOf;
-  if (typeof weekOf !== "string" || !DATE.test(weekOf)) return { status: 400, body: { error: "weekOf must be YYYY-MM-DD." } };
+  const b = (body ?? {}) as { weekOf?: unknown; runId?: unknown };
+  if (typeof b.weekOf !== "string" || !DATE.test(b.weekOf)) return { status: 400, body: { error: "weekOf must be YYYY-MM-DD." } };
+  if (typeof b.runId !== "string" || !RUN_ID.test(b.runId)) return { status: 400, body: { error: "runId of the report you read is required." } };
   if (!store) return { status: 503, body: { error: "The account database is not connected yet." } };
-  const ok = await store.approveWeekly(weekOf, wallet);
-  return ok ? { status: 200, body: { ok: true } } : { status: 404, body: { error: "No report for that week." } };
+  const ok = await store.approveWeekly(b.weekOf, b.runId, wallet);
+  return ok ? { status: 200, body: { ok: true } } : { status: 404, body: { error: "No report for that week and run." } };
 }
 
 /** GET /api/research/scores?asset= -> { scores, calibration } (public). */

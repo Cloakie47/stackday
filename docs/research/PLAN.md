@@ -65,7 +65,7 @@ Reviewers are the wallets in `RESEARCH_REVIEWERS` (comma-separated, lowercase), 
 | Route | Who | Returns |
 |---|---|---|
 | `GET /api/research/weekly?weekOf=YYYY-MM-DD` (engine) | everyone | `{ report: WeeklyReport, access: AccessCheck }`. Latest approved report when `weekOf` is missing. Unapproved reports only for reviewers. Falls back to the sample report (`kind: "sample"`). |
-| `POST /api/research/weekly/approve` `{ weekOf }` (engine) | reviewers | `{ ok: true }`: marks the report approved and published |
+| `POST /api/research/weekly/approve` `{ weekOf, runId }` (engine) | reviewers | `{ ok: true }`: marks the report approved and published. `runId` is the report's `runId`, so only the version the reviewer read is approved |
 | `GET /api/research/snapshot` (engine) | reviewers for live daily notes, everyone for the sample | `{ snapshot: ResearchSnapshot, internal: boolean }` |
 | `GET /api/research/history?asset=mAAPL` (engine) | reviewers (live), everyone (sample) | `{ assetId, kind: "live" \| "sample", notes: { date, view, conviction, price, summary }[], track: { calls, right } }` |
 | `GET /api/research/scores?asset=mAAPL` (engine) | everyone | `{ scores: DailyScore[], calibration: Scorecard["calibration"] }` |
@@ -76,12 +76,12 @@ Reviewers are the wallets in `RESEARCH_REVIEWERS` (comma-separated, lowercase), 
 | `GET /api/research/access` (access) | everyone | `{ paywallEnabled, prices, entitlement \| null, payment: { enabled, payTo, usdc } }` |
 | `POST /api/research/access/pay` `{ txHash, purpose }` (access) | signed in | verifies a test-USDC payment for `weekly-single` or `monthly` |
 
-Crons (in `web/vercel.json`, engine branch): daily run `30 22 * * 1-5`, weekly run `0 12 * * 1`, score update `0 23 * * 1-5`. Never the founder's keeper cron on our own Vercel project.
+Crons (in `web/vercel.json`, engine branch): daily run `30 22 * * 1-5`, weekly run once an hour on Monday from 12:00 to 20:00 UTC (`0 12 * * 1` to `0 20 * * 1`, paths `?slot=1` to `?slot=9`), score update `0 23 * * 1-5`. The weekly run does one step per call to stay under the 300 second Vercel Hobby limit: one asset per call (a failed asset is tried once more), then one call that writes the report; once a week has a report, later calls do nothing. Never the founder's keeper cron on our own Vercel project.
 
 ## Needs the founder
 
 1. Amounts for the single Monday report and the monthly plan (spec section 8).
 2. A stock price provider whose plan allows showing data to users (the Twelve Data free plan does not), and a licensed news feed.
-3. `ANTHROPIC_API_KEY` with an account spend limit, `CRON_SECRET`, `SEC_USER_AGENT`, `RESEARCH_ENGINE_ENABLED=true`.
+3. `ANTHROPIC_API_KEY` with an account spend limit, `CRON_SECRET`, `SEC_USER_AGENT`, `RESEARCH_ENGINE_ENABLED=true`, and optionally `RESEARCH_ALERT_WEBHOOK_URL` (an https webhook that gets a message when a spend cap stops a run).
 4. Apply the `research_*` tables from `supabase/schema.sql`.
 5. The legal check before the paywall is switched on.

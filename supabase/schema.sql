@@ -160,6 +160,10 @@ create table if not exists research_runs (
   finished_at  timestamptz
 );
 alter table research_runs enable row level security;
+-- Reproducibility: the input data each run used and the raw model output of every call. cost_usd is
+-- written before every model call (spend reserved so far), so a run killed mid-call still counts.
+alter table research_runs add column if not exists inputs jsonb;
+alter table research_runs add column if not exists outputs jsonb;
 
 -- Daily note per asset (ResearchNote in web/lib/research/types.ts). Internal while testing: the
 -- founder or growth reviews it before anyone else sees it. Kept forever for the track record.
@@ -197,6 +201,22 @@ create table if not exists research_weekly (
   created_at   timestamptz not null default now()
 );
 alter table research_weekly enable row level security;
+
+-- One asset's part of the weekly report (WeeklyAssetSection plus review counts). The weekly run
+-- researches one asset per call (Vercel time limit) and keeps the result here until the final call
+-- writes research_weekly. A failed section is tried once more (attempts).
+create table if not exists research_weekly_sections (
+  week_of     date not null,
+  asset_id    text not null check (asset_id ~ '^m[A-Za-z]{2,10}$'),
+  run_id      text not null references research_runs(run_id),
+  failed      boolean not null,
+  attempts    integer not null default 1 check (attempts >= 1),
+  cost_usd    numeric(10, 4) not null default 0,
+  result      jsonb not null,
+  updated_at  timestamptz not null default now(),
+  primary key (week_of, asset_id)
+);
+alter table research_weekly_sections enable row level security;
 
 -- Score of each daily note (DailyScore), filled in after 1 and 5 trading days, plus a human grade.
 create table if not exists research_scores (

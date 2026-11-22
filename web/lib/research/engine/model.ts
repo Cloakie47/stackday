@@ -29,6 +29,11 @@ export type ModelRequest = {
   schema: Record<string, unknown>;
   maxTokens: number;
   effort: Effort;
+  /**
+   * Wall-clock limit for this call including the one retry, in ms. Set by `guardedCall` from the
+   * run's time limit so a slow model can never push a route past its Vercel limit.
+   */
+  timeoutMs?: number;
 };
 
 export type ModelUsage = { input: number; output: number; cacheRead: number; cacheWrite: number };
@@ -36,6 +41,8 @@ export type ModelUsage = { input: number; output: number; cacheRead: number; cac
 export type ModelResult = {
   /** The model's text answer (expected to be JSON). Empty when it gave none or stopped early. */
   text: string;
+  /** Everything the model wrote, even when it stopped early. Logged with the run for reproducibility. */
+  raw?: string;
   model: string;
   stopReason: string | null;
   usage: ModelUsage;
@@ -57,20 +64,41 @@ export function costOf(model: string, u: ModelUsage): number {
   return (u.input * p.input + u.cacheWrite * p.input * 1.25 + u.cacheRead * p.cacheRead + u.output * p.output) / 1_000_000;
 }
 
-/** Rough token count of a prompt (about 3.5 characters per token, rounded up for safety). */
-export const approxTokens = (s: string) => Math.ceil(s.length / 3);
+/**
+ * Conservative token count of a prompt: 2 characters per token. English is usually 3.5 to 4, but
+ * numbers, ids and JSON tokenize much worse, and the reservation must never undershoot.
+ */
+export const approxTokens = (s: string) => Math.ceil(s.length / 2);
 
-/** Highest possible cost of one call (no cache, every output token used). Reserved before the call. */
+/**
+ * Highest possible cost of one call, reserved before the call: every input token billed as a cache
+ * write (1.25 x input, because system and context carry cache breakpoints) and every output token
+ * used (thinking counts as output).
+ */
 export function worstCaseCost(req: Pick<ModelRequest, "model" | "system" | "context" | "user" | "maxTokens">): number {
   const input = approxTokens(req.system) + approxTokens(req.context ?? "") + approxTokens(req.user) + 500;
-  return costOf(req.model, { input, output: req.maxTokens, cacheRead: 0, cacheWrite: 0 });
+  return costOf(req.model, { input: 0, output: req.maxTokens, cacheRead: 0, cacheWrite: input });
 }
+
+/** Default wall-clock limit of one call when the caller sets none. */
+export const DEFAULT_CALL_TIMEOUT_MS = 120_000;
+
+/**
+ * Smallest max_tokens any step may use. Thinking is adaptive and always on for these models (effort
+ * only sets how much), and thinking tokens count toward max_tokens. A step that runs out returns no
+ * answer but is still billed, so every step leaves room for thinking plus its JSON answer.
+ */
+export const MIN_MAX_TOKENS = 8000;
 
 let client: Anthropic | undefined;
 
 /** Real implementation on the Anthropic API. Never called by tests. */
 export const callModel: ModelFn = async (req) => {
-  client ??= new Anthropic({ timeout: 120_000, maxRetries: 2 });
+  client ??= new Anthropic();
+  // One retry at most, each attempt half the limit, so the call never runs past `timeoutMs`
+  // (plus the SDK's short retry back-off).
+  const limit = req.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
+  const maxRetries = limit >= 60_000 ? 1 : 0;
   const content: Anthropic.TextBlockParam[] = [];
   if (req.context) content.push({ type: "text", text: req.context, cache_control: { type: "ephemeral" } });
   content.push({ type: "text", text: req.user });
@@ -80,7 +108,7 @@ export const callModel: ModelFn = async (req) => {
     system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
     output_config: { effort: req.effort, format: { type: "json_schema", schema: req.schema } },
-  });
+  }, { timeout: Math.floor(limit / (maxRetries + 1)), maxRetries });
   const usage: ModelUsage = {
     input: res.usage.input_tokens,
     output: res.usage.output_tokens,
@@ -91,5 +119,5 @@ export const callModel: ModelFn = async (req) => {
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("");
-  return { text: res.stop_reason === "end_turn" ? text : "", model: req.model, stopReason: res.stop_reason, usage, costUsd: costOf(req.model, usage) };
+  return { text: res.stop_reason === "end_turn" ? text : "", raw: text, model: req.model, stopReason: res.stop_reason, usage, costUsd: costOf(req.model, usage) };
 };
