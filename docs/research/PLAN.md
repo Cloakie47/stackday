@@ -37,7 +37,7 @@ Daily notes use a short version (one technical-plus-news pass, then the risk che
 - Levels, patterns and the borrowing note are computed in code and say how.
 - News, filings and web text are untrusted: inside the `<untrusted_news>` block and through the injection screen.
 - The agent has no wallet, no keys and no tool that moves money.
-- Spend caps per run (`RESEARCH_MAX_RUN_COST_USD`, default $2) and per day (`RESEARCH_MAX_DAY_COST_USD`, default $6). A failed run writes nothing.
+- Spend caps per daily run (`RESEARCH_MAX_RUN_COST_USD`, default $2), per weekly run (`RESEARCH_MAX_WEEKLY_RUN_COST_USD`, default $4) and per day (`RESEARCH_MAX_DAY_COST_USD`, default $6). A failed run writes nothing.
 - Model ids, prompt version and a hash of the data are logged per run so any report can be reproduced.
 - The scorecard is public and complete, wrong calls included. No claims of beating the market.
 - Every page and report carries `RESEARCH_DISCLAIMER`; the weekly report carries `BETA_LABEL` until the quality bar holds.
@@ -67,13 +67,13 @@ Reviewers are the wallets in `RESEARCH_REVIEWERS` (comma-separated, lowercase), 
 | `GET /api/research/weekly?weekOf=YYYY-MM-DD` (engine) | everyone | `{ report: WeeklyReport, access: AccessCheck }`. Latest approved report when `weekOf` is missing. Unapproved reports only for reviewers. Falls back to the sample report (`kind: "sample"`). |
 | `POST /api/research/weekly/approve` `{ weekOf }` (engine) | reviewers | `{ ok: true }`: marks the report approved and published |
 | `GET /api/research/snapshot` (engine) | reviewers for live daily notes, everyone for the sample | `{ snapshot: ResearchSnapshot, internal: boolean }` |
-| `GET /api/research/history?asset=mAAPL` (engine) | reviewers (live), everyone (sample) | `{ assetId, notes: { date, view, conviction, price, summary }[], track: { calls, right } }` |
+| `GET /api/research/history?asset=mAAPL` (engine) | reviewers (live), everyone (sample) | `{ assetId, kind: "live" \| "sample", notes: { date, view, conviction, price, summary }[], track: { calls, right } }` |
 | `GET /api/research/scores?asset=mAAPL` (engine) | everyone | `{ scores: DailyScore[], calibration: Scorecard["calibration"] }` |
 | `POST /api/research/scores/grade` `{ date, assetId, grade }` (engine) | reviewers | `{ ok: true }` |
 | `GET /api/research/run`, `GET /api/research/weekly/run` (engine) | Vercel cron with `CRON_SECRET` | run summary |
 | `POST /api/research/portfolio/preview` `PortfolioInput` (portfolio) | everyone, nothing saved | `{ analysis: PortfolioAnalysis, reportKind: "live" \| "sample" }` |
 | `GET/PUT /api/research/portfolio` (portfolio) | signed in | saved manual holdings |
-| `GET /api/research/access` (access) | everyone | `{ paywallEnabled, prices, entitlement \| null }` |
+| `GET /api/research/access` (access) | everyone | `{ paywallEnabled, prices, entitlement \| null, payment: { enabled, payTo, usdc } }` |
 | `POST /api/research/access/pay` `{ txHash, purpose }` (access) | signed in | verifies a test-USDC payment for `weekly-single` or `monthly` |
 
 Crons (in `web/vercel.json`, engine branch): daily run `30 22 * * 1-5`, weekly run `0 12 * * 1`, score update `0 23 * * 1-5`. Never the founder's keeper cron on our own Vercel project.

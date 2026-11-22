@@ -190,6 +190,8 @@ export type Fact = {
   quote?: string;
   /** Topic tags set by code, for example "geopolitics", "tariffs", "export-controls", "fed". */
   tags?: string[];
+  /** False when the source's terms do not allow showing this value to users (internal use only). */
+  display?: boolean;
 };
 
 export type CalendarEventKind = "fomc" | "fed-speech" | "cpi" | "jobs" | "pce" | "gdp" | "earnings" | "token-unlock" | "options-expiry" | "other";
