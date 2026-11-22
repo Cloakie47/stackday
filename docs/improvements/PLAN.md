@@ -113,10 +113,10 @@ If only three ship: 1, 3 and 4. These touch the founder's pages, so agree the li
 
 ### Grok
 
-- I found no record of the "Grok bot plan" in the repo, issues or docs. **Please tell me which it is:**
-  - an xAI API key;
-  - X Premium with Grok in the app, which cannot be programmed;
-  - a paid X developer account for a bot.
+- **Answered 2026-11-22:** the user has X Premium+ only. There is no xAI API key and no paid X developer account.
+  - Premium+ gives Grok inside the X app and on grok.com for personal use. It does not give an API that our app or a bot can call.
+  - A Grok bot would need an xAI API key (pay per use at console.x.ai, billed separately) and X API credits for posting.
+  - So for the hackathon: no Grok bot. The chat demo (item 4) should use Claude through the ANTHROPIC_API_KEY already planned for the research agent, inside our app, not on X.
 - Recommended role: **post the approved weekly summary on X.** Posting through the X API costs $0.015 a post, or $0.20 if the post has a link.
 - Do not use it to write the research. Justin's spec fixes the models (Claude Opus for the weekly report), and changing that needs his approval.
 - Grok could later add X sentiment as one extra data source, passed through the same injection screen as other news.
@@ -311,4 +311,4 @@ My recommended order:
 4. Item 5 after the hackathon.
 5. Item 1 is a sentence in the submission plus a later issue.
 
-**One question for you:** what exactly is the Grok plan? An xAI API key, X Premium with Grok, or a paid X developer account? Items 3 and 4 depend on it.
+**Grok plan (answered 2026-11-22):** X Premium+ only, so there is no programmable Grok. Item 3 posts nothing on X for now, and item 4 uses Claude inside the app.
