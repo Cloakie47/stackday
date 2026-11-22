@@ -5,7 +5,8 @@ import { checkReportAccess, checkReportAccessWith, consumeReportCredit, consumeR
 import { memoryAccessStore, type AccessStore } from "./store.ts";
 
 const W = "0x00000000000000000000000000000000000000a1";
-const NOW = new Date("2026-11-19T12:00:00Z");
+// The Tuesday after MON, so MON is a past Monday a credit may be spent on.
+const NOW = new Date("2026-11-24T12:00:00Z");
 const MON = "2026-11-23";
 
 test("paywall off: everything free, sign-in only for the portfolio check, store never read", async () => {
@@ -17,10 +18,7 @@ test("paywall off: everything free, sign-in only for the portfolio check, store 
     save: async () => {
       throw new Error("must not be called");
     },
-    recordPayment: async () => {
-      throw new Error("must not be called");
-    },
-    forgetPayment: async () => {
+    recordPaymentAndGrant: async () => {
       throw new Error("must not be called");
     },
   };
@@ -75,7 +73,7 @@ test("consumeReportCredit unlocks the Monday, and reopening it is free", async (
 
 test("consumeReportCredit is atomic: 3 credits, 20 parallel spends on different Mondays, exactly 3 succeed", async () => {
   const store = memoryAccessStore([{ ...freeEntitlement(W), plan: "weekly-single", weeklyCredits: 3 }]);
-  const deps: GateDeps = { paywallEnabled: true, store, now: NOW };
+  const deps: GateDeps = { paywallEnabled: true, store, now: new Date("2027-06-01T00:00:00Z") };
   const weeks = Array.from({ length: 20 }, (_, i) => new Date(Date.UTC(2026, 10, 23) + i * 7 * 86_400_000).toISOString().slice(0, 10));
   const results = await Promise.allSettled(weeks.map((w) => consumeReportCreditWith(W, w, deps)));
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 3);
@@ -97,4 +95,19 @@ test("consumeReportCredit refuses when there is no credit or no database", async
   await assert.rejects(consumeReportCreditWith(W, MON, { paywallEnabled: true, store, now: NOW }), NoReportCreditError);
   await assert.rejects(consumeReportCreditWith(W, MON, { paywallEnabled: true, store: null, now: NOW }), NoReportCreditError);
   assert.equal(store.peek(W), undefined, "nothing written");
+});
+
+test("a credit is never spent on a malformed, non-Monday, future or unpublished week", async () => {
+  const store = memoryAccessStore([{ ...freeEntitlement(W), plan: "weekly-single", weeklyCredits: 2 }]);
+  const published = new Set([MON]);
+  const deps: GateDeps = { paywallEnabled: true, store, now: NOW, isPublished: async (w) => published.has(w) };
+  for (const bad of ["2026-11-31", "nope", "2026-11-25", "2026-11-30", "2026-11-16"]) {
+    await assert.rejects(consumeReportCreditWith(W, bad, deps), NoReportCreditError, bad);
+  }
+  assert.equal(store.peek(W)?.weeklyCredits, 2, "nothing spent");
+  assert.deepEqual(await checkReportAccessWith({ wallet: W, product: "weekly-report", weekOf: "2026-11-30" }, deps), { allowed: false, reason: "payment-required" });
+  // A failed published check counts as not published.
+  await assert.rejects(consumeReportCreditWith(W, MON, { ...deps, isPublished: async () => { throw new Error("db"); } }), NoReportCreditError);
+  await consumeReportCreditWith(W, MON, deps);
+  assert.equal(store.peek(W)?.weeklyCredits, 1);
 });

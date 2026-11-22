@@ -1,4 +1,4 @@
-import { parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import type { AccessCheck, Entitlement, IsoDate, Plan } from "../types.ts";
 import { MAX_CREDITS_PER_PAYMENT, PRICE_LIST, USDC_DECIMALS, type Purpose } from "./prices.ts";
 import type { ReportRequest } from "./gate.ts";
@@ -16,7 +16,18 @@ const DAY_MS = 86_400_000;
 export const MAX_UNLOCKED_WEEKS = 260;
 const WEEK_RULE = /^\d{4}-\d{2}-\d{2}$/;
 
-export const isWeekOf = (s: unknown): s is IsoDate => typeof s === "string" && WEEK_RULE.test(s) && Number.isFinite(Date.parse(`${s}T00:00:00Z`));
+export const isWeekOf = (s: unknown): s is IsoDate =>
+  typeof s === "string" && WEEK_RULE.test(s) && Number.isFinite(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().startsWith(s);
+
+/**
+ * A Monday a credit may be spent on: a real date, a Monday, and not after today (UTC). Whether that
+ * Monday's report is published is checked by the gate against the database.
+ */
+export function isSpendableWeek(s: unknown, now: Date): s is IsoDate {
+  if (!isWeekOf(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return d.getUTCDay() === 1 && d.getTime() <= now.getTime();
+}
 
 /** A wallet with no row yet. */
 export const freeEntitlement = (owner: string): Entitlement => ({
@@ -57,18 +68,24 @@ export function decideAccess(req: ReportRequest, ent: Entitlement | null, now: D
   if (req.product === "portfolio-check") return { allowed: true, consumesCredit: false };
   const e = effectiveEntitlement(ent ?? freeEntitlement(req.wallet), now);
   if (monthlyActive(e, now)) return { allowed: true, consumesCredit: false };
+  if (req.weekOf && !isSpendableWeek(req.weekOf, now)) return { allowed: false, reason: "payment-required" };
   if (req.weekOf && e.unlockedWeeks.includes(req.weekOf)) return { allowed: true, consumesCredit: false };
   if (req.weekOf && e.weeklyCredits > 0) return { allowed: true, consumesCredit: true };
   return { allowed: false, reason: "payment-required" };
 }
 
-export type Unlock = { kind: "already-unlocked" } | { kind: "no-credit" } | { kind: "unlocked"; next: Entitlement };
+export type Unlock = { kind: "already-unlocked" } | { kind: "no-credit" } | { kind: "bad-week" } | { kind: "unlocked"; next: Entitlement };
 
-/** Spends one credit on a Monday. Reopening an unlocked Monday spends nothing. */
+/**
+ * Spends one credit on a Monday. Reopening an unlocked Monday spends nothing. A malformed, non-Monday
+ * or future week is refused. At the cap the oldest Mondays are dropped, never the one just opened.
+ */
 export function unlockWeek(ent: Entitlement, weekOf: IsoDate, now: Date): Unlock {
+  if (!isSpendableWeek(weekOf, now)) return { kind: "bad-week" };
   if (ent.unlockedWeeks.includes(weekOf)) return { kind: "already-unlocked" };
   if (ent.weeklyCredits < 1) return { kind: "no-credit" };
-  const unlockedWeeks = [...ent.unlockedWeeks, weekOf].sort().slice(-MAX_UNLOCKED_WEEKS);
+  const older = ent.unlockedWeeks.filter((w) => w !== weekOf).sort().slice(-(MAX_UNLOCKED_WEEKS - 1));
+  const unlockedWeeks = [...older, weekOf].sort();
   const next: Entitlement = { ...ent, weeklyCredits: ent.weeklyCredits - 1, unlockedWeeks };
   if (!monthlyActive(ent, now)) {
     next.plan = planWithoutMonthly(next);
@@ -84,9 +101,11 @@ export type Grant = { ok: true; next: Entitlement; summary: string } | { ok: fal
 
 /**
  * What a verified payment of `amount` base units for `purpose` adds to the entitlement.
- * - weekly-single: one Monday credit per full price paid (at most MAX_CREDITS_PER_PAYMENT), any
- *   remainder is not counted.
- * - monthly: 30 days added to the later of now and the current end date.
+ * - weekly-single: one Monday credit per full price paid. Paying for more than
+ *   MAX_CREDITS_PER_PAYMENT reports in one transaction is refused (nothing is stored, so the team
+ *   can return it), and any remainder below one price is named in the summary as not counted.
+ * - monthly: 30 days added to the later of now and the current end date; anything paid above the
+ *   price is named in the summary as not counted.
  * Paying less than one price is refused (the payment is then not stored, see pay.ts).
  */
 export function applyPayment(ent: Entitlement, purpose: Purpose, amount: bigint, now: Date): Grant {
@@ -99,13 +118,21 @@ export function applyPayment(ent: Entitlement, purpose: Purpose, amount: bigint,
 
   if (purpose === "weekly-single") {
     const bought = amount / price;
-    const credits = Number(bought > BigInt(MAX_CREDITS_PER_PAYMENT) ? BigInt(MAX_CREDITS_PER_PAYMENT) : bought) * (item.credits ?? 1);
+    if (bought > BigInt(MAX_CREDITS_PER_PAYMENT))
+      return {
+        ok: false,
+        error: `This payment covers more than ${MAX_CREDITS_PER_PAYMENT} Monday reports, the most one payment can buy, so it was not applied. Contact the Stackday team to have the test USDC returned.`,
+      };
+    const credits = Number(bought) * (item.credits ?? 1);
     const next: Entitlement = { ...current, weeklyCredits: current.weeklyCredits + credits };
     if (!active) next.plan = "weekly-single";
-    return { ok: true, next, summary: `${credits} Monday report${credits === 1 ? "" : "s"} added.` };
+    const rest = amount - bought * price;
+    const note = rest > BigInt(0) ? ` ${formatUnits(rest, USDC_DECIMALS)} test USDC above the price was not counted.` : "";
+    return { ok: true, next, summary: `${credits} Monday report${credits === 1 ? "" : "s"} added.${note}` };
   }
 
   const from = active ? Date.parse(current.validUntil!) : now.getTime();
   const validUntil = new Date(from + (item.days ?? 30) * DAY_MS).toISOString();
-  return { ok: true, next: { ...current, plan: "monthly", validUntil }, summary: `Monthly plan active until ${validUntil}.` };
+  const extra = amount > price ? ` ${formatUnits(amount - price, USDC_DECIMALS)} test USDC above the price was not counted.` : "";
+  return { ok: true, next: { ...current, plan: "monthly", validUntil }, summary: `Monthly plan active until ${validUntil}.${extra}` };
 }

@@ -2,7 +2,7 @@ import { erc20Abi, formatUnits, getAddress, isAddress, parseEventLogs, zeroAddre
 import type { Entitlement } from "../types.ts";
 import { applyPayment, priceUnits } from "./entitlement.ts";
 import { MIN_CONFIRMATIONS, PRICE_LIST, USDC_DECIMALS, type Purpose } from "./prices.ts";
-import { updateEntitlement, type AccessStore } from "./store.ts";
+import type { AccessStore, Loaded } from "./store.ts";
 
 /**
  * Checks a research payment on Base Sepolia and grants what it bought.
@@ -13,7 +13,11 @@ import { updateEntitlement, type AccessStore } from "./store.ts";
  * - the transaction succeeded and has at least MIN_CONFIRMATIONS confirmations;
  * - it holds USDC `Transfer` logs from the token contract in web/lib/deployment.json, from the
  *   signed-in wallet to RESEARCH_TREASURY_ADDRESS, adding up to at least the price;
+ * - it was mined at or after RESEARCH_PAY_FROM_BLOCK, so transfers made to the treasury before
+ *   research payments opened can never be redeemed;
  * - the tx hash was never stored before (the `research_payments` primary key rejects replays).
+ * The treasury must be a wallet used for research payments only: it may not be the token or any
+ * Stackday contract in deployment.json (payroll, router, vault factory and so on).
  * The server only reads the chain. It never holds a key and never sends a transaction.
  */
 
@@ -36,21 +40,28 @@ export type PaymentConfig = {
   usdc: `0x${string}`;
   treasury: `0x${string}`;
   minConfirmations: number;
+  /** First block a research payment may be in (RESEARCH_PAY_FROM_BLOCK). */
+  fromBlock: bigint;
 };
 
 export type Failure = { ok: false; status: number; error: string };
 const fail = (status: number, error: string): Failure => ({ ok: false, status, error });
 
 /**
- * Reads RESEARCH_TREASURY_ADDRESS. Returns null (payments switched off) when it is missing, not
- * an address, the zero address, or the USDC contract itself.
+ * Reads RESEARCH_TREASURY_ADDRESS and RESEARCH_PAY_FROM_BLOCK. Returns null (payments switched off)
+ * when the treasury is missing, not an address, the zero address, the USDC contract or any known
+ * Stackday contract, or when the start block is missing or not a whole number.
  */
-export function paymentConfig(env: Record<string, string | undefined>, usdc: string): PaymentConfig | null {
+export function paymentConfig(env: Record<string, string | undefined>, usdc: string, knownContracts: readonly string[] = []): PaymentConfig | null {
   const t = env.RESEARCH_TREASURY_ADDRESS?.trim();
   if (!t || !isAddress(t, { strict: false }) || !isAddress(usdc, { strict: false })) return null;
   const treasury = getAddress(t);
   if (treasury === zeroAddress || treasury === getAddress(usdc)) return null;
-  return { usdc: getAddress(usdc), treasury, minConfirmations: MIN_CONFIRMATIONS };
+  const known = new Set(knownContracts.filter((a) => isAddress(a, { strict: false })).map((a) => getAddress(a)));
+  if (known.has(treasury)) return null;
+  const from = env.RESEARCH_PAY_FROM_BLOCK?.trim();
+  if (!from || !/^\d{1,15}$/.test(from)) return null;
+  return { usdc: getAddress(usdc), treasury, minConfirmations: MIN_CONFIRMATIONS, fromBlock: BigInt(from) };
 }
 
 /** Sum of USDC sent from `wallet` to the treasury in these logs. Other tokens and recipients are ignored. */
@@ -97,6 +108,7 @@ export async function verifyPayment(p: {
   }
   if (!receipt || receipt.transactionHash?.toLowerCase() !== hash) return fail(502, "The node returned a different transaction.");
   if (receipt.status !== "success") return fail(400, "That transaction failed on chain, so nothing was paid.");
+  if (receipt.blockNumber < p.cfg.fromBlock) return fail(400, "That transaction is from before research payments opened, so it cannot be used.");
 
   const confirmations = head >= receipt.blockNumber ? head - receipt.blockNumber + BigInt(1) : BigInt(0);
   if (confirmations < BigInt(p.cfg.minConfirmations))
@@ -110,8 +122,10 @@ export async function verifyPayment(p: {
 export type PaymentResult = { ok: true; entitlement: Entitlement; amountUsdc: string; summary: string } | Failure;
 
 /**
- * The whole payment flow: check on chain, check the price, store the tx hash once, grant.
- * If granting fails after the hash was stored, the row is removed again so the person can retry.
+ * The whole payment flow: check on chain, check the price, then store the tx hash AND grant in one
+ * database transaction (`recordPaymentAndGrant`). Either both happen or neither does, so a crash
+ * can never lose a payment and a retry can never grant twice. A clash with a parallel change to
+ * the same entitlement rolls the whole step back and it is tried again on fresh data.
  */
 export async function processPayment(p: {
   txHash: string;
@@ -121,6 +135,7 @@ export async function processPayment(p: {
   cfg: PaymentConfig;
   store: AccessStore;
   now: Date;
+  attempts?: number;
 }): Promise<PaymentResult> {
   const wallet = p.wallet.toLowerCase();
   const v = await verifyPayment({ txHash: p.txHash, wallet, reader: p.reader, cfg: p.cfg });
@@ -132,25 +147,25 @@ export async function processPayment(p: {
 
   const txHash = p.txHash.toLowerCase();
   const amountUsdc = formatUnits(v.amount, USDC_DECIMALS);
-  let stored: "stored" | "duplicate";
-  try {
-    stored = await p.store.recordPayment({ txHash, wallet, chainId: TESTNET_CHAIN_ID, amountUsdc, purpose: p.purpose });
-  } catch {
-    return fail(500, "Could not record the payment. Try again.");
+  const row = { txHash, wallet, chainId: TESTNET_CHAIN_ID, amountUsdc, purpose: p.purpose };
+  for (let i = 0; i < (p.attempts ?? 8); i++) {
+    let prev: Loaded;
+    try {
+      prev = await p.store.load(wallet);
+    } catch {
+      return fail(500, "Could not read your plan. Try again.");
+    }
+    const g = applyPayment(prev.ent, p.purpose, v.amount, p.now);
+    if (!g.ok) return fail(400, g.error);
+    const next: Entitlement = { ...g.next, owner: wallet };
+    let r: "stored" | "duplicate" | "clash";
+    try {
+      r = await p.store.recordPaymentAndGrant(prev, next, row);
+    } catch {
+      return fail(500, "Could not record the payment, and nothing was applied. Try again.");
+    }
+    if (r === "duplicate") return fail(409, "This transaction was already used for a payment.");
+    if (r === "stored") return { ok: true, entitlement: next, amountUsdc, summary: g.summary };
   }
-  if (stored === "duplicate") return fail(409, "This transaction was already used for a payment.");
-
-  let summary = "";
-  try {
-    const next = await updateEntitlement(p.store, wallet, (ent) => {
-      const g = applyPayment(ent, p.purpose, v.amount, p.now);
-      if (!g.ok) throw new Error(g.error);
-      summary = g.summary;
-      return g.next;
-    });
-    return { ok: true, entitlement: next!, amountUsdc, summary };
-  } catch {
-    await p.store.forgetPayment(txHash).catch(() => undefined);
-    return fail(500, "The payment was found but could not be applied. Try again.");
-  }
+  return fail(503, "Your plan is busy. Try again.");
 }

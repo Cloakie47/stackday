@@ -7,6 +7,7 @@ import {
   decideAccess,
   effectiveEntitlement,
   freeEntitlement,
+  isSpendableWeek,
   isWeekOf,
   MAX_UNLOCKED_WEEKS,
   monthlyActive,
@@ -16,7 +17,8 @@ import {
 import { MAX_CREDITS_PER_PAYMENT, PRICE_LIST, PRICING_STATUS, PURPOSES, planCards } from "./prices.ts";
 
 const W = "0x00000000000000000000000000000000000000a1";
-const NOW = new Date("2026-11-19T12:00:00Z");
+// The Tuesday after MON, so MON is a past Monday a credit may be spent on.
+const NOW = new Date("2026-11-24T12:00:00Z");
 const DAY = 86_400_000;
 const MON = "2026-11-23";
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -84,18 +86,31 @@ test("unlockWeek spends one credit per new Monday and nothing on a reopen", () =
   // With an active monthly plan the plan stays monthly.
   const m = unlockWeek(ent({ plan: "monthly", validUntil: iso(NOW.getTime() + DAY), weeklyCredits: 1 }), MON, NOW);
   assert.ok(m.kind === "unlocked" && m.next.plan === "monthly");
-  // The list is capped.
+  // The list is capped, dropping the oldest Monday.
+  const LATER = new Date("2030-02-01T00:00:00Z");
   const many = Array.from({ length: MAX_UNLOCKED_WEEKS }, (_, i) => iso(Date.UTC(2020, 0, 6) + i * 7 * DAY).slice(0, 10));
-  const capped = unlockWeek(ent({ weeklyCredits: 1, unlockedWeeks: many }), "2030-01-07", NOW);
+  const capped = unlockWeek(ent({ weeklyCredits: 1, unlockedWeeks: many }), "2030-01-07", LATER);
   assert.ok(capped.kind === "unlocked" && capped.next.unlockedWeeks.length === MAX_UNLOCKED_WEEKS && capped.next.unlockedWeeks.at(-1) === "2030-01-07");
+  // At the cap, unlocking a Monday OLDER than every kept one still keeps it (it is never charged twice).
+  const recent = Array.from({ length: MAX_UNLOCKED_WEEKS }, (_, i) => iso(Date.UTC(2025, 0, 6) + i * 7 * DAY).slice(0, 10));
+  const old = unlockWeek(ent({ weeklyCredits: 1, unlockedWeeks: recent }), "2024-12-30", LATER);
+  assert.ok(old.kind === "unlocked" && old.next.unlockedWeeks.includes("2024-12-30") && old.next.unlockedWeeks.length === MAX_UNLOCKED_WEEKS);
+  assert.deepEqual(unlockWeek(old.kind === "unlocked" ? old.next : ent(), "2024-12-30", LATER), { kind: "already-unlocked" });
+  // Malformed, non-Monday and future weeks are refused.
+  assert.deepEqual(unlockWeek(ent({ weeklyCredits: 1 }), "2026-11-25", NOW), { kind: "bad-week" });
+  assert.deepEqual(unlockWeek(ent({ weeklyCredits: 1 }), "2026-11-30", NOW), { kind: "bad-week" });
+  assert.deepEqual(unlockWeek(ent({ weeklyCredits: 1 }), "2026-02-30", NOW), { kind: "bad-week" });
 });
 
-test("weekly-single payment adds credits per full price, capped, remainder ignored", () => {
+test("weekly-single payment adds credits per full price, refuses more than the cap, names any remainder", () => {
   const one = priceUnits("weekly-single");
   const g = applyPayment(ent(), "weekly-single", one * BigInt(3) + BigInt(1), NOW);
   assert.ok(g.ok && g.next.weeklyCredits === 3 && g.next.plan === "weekly-single");
+  assert.ok(g.ok && /0\.000001 test USDC above the price was not counted/.test(g.summary));
+  const max = applyPayment(ent(), "weekly-single", one * BigInt(MAX_CREDITS_PER_PAYMENT), NOW);
+  assert.ok(max.ok && max.next.weeklyCredits === MAX_CREDITS_PER_PAYMENT && !/not counted/.test(max.summary));
   const big = applyPayment(ent(), "weekly-single", one * BigInt(1000), NOW);
-  assert.ok(big.ok && big.next.weeklyCredits === MAX_CREDITS_PER_PAYMENT);
+  assert.ok(!big.ok && /more than 10 Monday reports/.test(big.error), "never kept with nothing granted for it");
   const low = applyPayment(ent(), "weekly-single", one - BigInt(1), NOW);
   assert.equal(low.ok, false);
   // Buying a single Monday during a monthly plan keeps the plan monthly.
@@ -116,6 +131,10 @@ test("monthly payment adds 30 days to the later of now and the current end", () 
 
 test("isWeekOf accepts real dates only", () => {
   assert.equal(isWeekOf(MON), true);
+  assert.equal(isWeekOf("2026-02-30"), false, "rolled-over dates are not real");
+  assert.equal(isSpendableWeek(MON, NOW), true);
+  assert.equal(isSpendableWeek("2026-11-30", NOW), false, "future Monday");
+  assert.equal(isSpendableWeek("2026-11-24", NOW), false, "not a Monday");
   assert.equal(isWeekOf("2026-13-40"), false);
   assert.equal(isWeekOf("23/11/2026"), false);
   assert.equal(isWeekOf(20261123), false);

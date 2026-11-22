@@ -1,7 +1,7 @@
 import type { AccessCheck, Entitlement, IsoDate } from "../types.ts";
 import { researchFlags } from "../flags.ts";
 import { configured, db } from "../../server/backend.ts";
-import { decideAccess, effectiveEntitlement, freeEntitlement, unlockWeek } from "./entitlement.ts";
+import { decideAccess, effectiveEntitlement, freeEntitlement, isSpendableWeek, unlockWeek } from "./entitlement.ts";
 import { supabaseAccessStore, updateEntitlement, type AccessStore } from "./store.ts";
 
 /**
@@ -25,21 +25,40 @@ export type ReportRequest = {
   weekOf?: IsoDate;
 };
 
-/** Thrown by consumeReportCredit when the wallet has no credit left (a parallel request used it). */
+/**
+ * Thrown by consumeReportCredit when a credit cannot be spent: none left (a parallel request used
+ * it), or the Monday is malformed, in the future or not published. The caller treats it, and any
+ * other error, as "not allowed".
+ */
 export class NoReportCreditError extends Error {
-  constructor() {
-    super("No Monday report credit left.");
+  constructor(message = "No Monday report credit left.") {
+    super(message);
     this.name = "NoReportCreditError";
   }
 }
 
-export type GateDeps = { paywallEnabled: boolean; store: AccessStore | null; now: Date };
+export type GateDeps = {
+  paywallEnabled: boolean;
+  store: AccessStore | null;
+  now: Date;
+  /** True when that Monday's report is published (reviewer-approved). Not checked when absent (tests). */
+  isPublished?: (weekOf: IsoDate) => Promise<boolean>;
+};
+
+/** Reads research_weekly: a credit may only be spent on a Monday whose report is approved. */
+async function publishedInDb(weekOf: IsoDate): Promise<boolean> {
+  const { data, error } = await db().from("research_weekly").select("week_of").eq("week_of", weekOf).eq("approved", true).maybeSingle();
+  if (error) throw new Error("Could not read the weekly report.");
+  return !!data;
+}
 
 function defaultDeps(): GateDeps {
+  const on = configured();
   return {
     paywallEnabled: researchFlags().paywallEnabled,
-    store: configured() ? supabaseAccessStore(db) : null,
+    store: on ? supabaseAccessStore(db) : null,
     now: new Date(),
+    isPublished: on ? publishedInDb : async () => false,
   };
 }
 
@@ -67,13 +86,17 @@ export async function checkReportAccess(req: ReportRequest): Promise<AccessCheck
 export async function consumeReportCreditWith(wallet: string, weekOf: IsoDate, deps: GateDeps): Promise<void> {
   if (!deps.paywallEnabled) return;
   if (!deps.store) throw new NoReportCreditError();
-  let noCredit = false;
+  if (!isSpendableWeek(weekOf, deps.now)) throw new NoReportCreditError("That is not a Monday with a published report.");
+  const published = deps.isPublished ? await deps.isPublished(weekOf).catch(() => false) : true;
+  if (!published) throw new NoReportCreditError("That Monday's report is not published.");
+  let refused: "no-credit" | "bad-week" | null = null;
   await updateEntitlement(deps.store, wallet.toLowerCase(), (ent) => {
     const u = unlockWeek(ent, weekOf, deps.now);
-    noCredit = u.kind === "no-credit";
+    refused = u.kind === "no-credit" || u.kind === "bad-week" ? u.kind : null;
     return u.kind === "unlocked" ? u.next : null; // already unlocked: nothing to write
   });
-  if (noCredit) throw new NoReportCreditError();
+  if (refused === "bad-week") throw new NoReportCreditError("That is not a Monday with a published report.");
+  if (refused) throw new NoReportCreditError();
 }
 
 /**

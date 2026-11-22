@@ -15,7 +15,8 @@ const NOW = new Date("2026-11-19T12:00:00Z");
 const HASH = `0x${"ab".repeat(32)}` as const;
 const hashN = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as `0x${string}`;
 
-const cfg: PaymentConfig = paymentConfig({ RESEARCH_TREASURY_ADDRESS: TREASURY }, USDC)!;
+const ENV = { RESEARCH_TREASURY_ADDRESS: TREASURY, RESEARCH_PAY_FROM_BLOCK: "50" };
+const cfg: PaymentConfig = paymentConfig(ENV, USDC)!;
 
 function transferLog(p: { token?: string; from?: string; to?: string; value: bigint }): Log {
   return {
@@ -61,8 +62,13 @@ function mockChain(txs: Record<string, Tx>, opts: { head?: bigint; chainId?: num
 const pay = (reader: ChainReader, store = memoryAccessStore(), o: Partial<{ txHash: string; wallet: string; purpose: "weekly-single" | "monthly" }> = {}) =>
   processPayment({ txHash: HASH, wallet: ALICE, purpose: "weekly-single", reader, cfg, store, now: NOW, ...o });
 
-test("paymentConfig needs a real, testnet-only treasury address", () => {
+test("paymentConfig needs a real, dedicated treasury address and a start block", () => {
   assert.equal(paymentConfig({}, USDC), null);
+  assert.equal(paymentConfig({ RESEARCH_TREASURY_ADDRESS: TREASURY }, USDC), null, "no start block, no payments");
+  assert.equal(paymentConfig({ ...ENV, RESEARCH_PAY_FROM_BLOCK: "-1" }, USDC), null);
+  assert.equal(paymentConfig({ ...ENV, RESEARCH_PAY_FROM_BLOCK: "12abc" }, USDC), null);
+  assert.equal(paymentConfig(ENV, USDC, ["0x00000000000000000000000000000000000fee01"]), null, "treasury must not be a Stackday contract");
+  assert.equal(cfg.fromBlock, BigInt(50));
   assert.equal(paymentConfig({ RESEARCH_TREASURY_ADDRESS: "nope" }, USDC), null);
   assert.equal(paymentConfig({ RESEARCH_TREASURY_ADDRESS: "0x0000000000000000000000000000000000000000" }, USDC), null);
   assert.equal(paymentConfig({ RESEARCH_TREASURY_ADDRESS: USDC.toLowerCase() }, USDC), null, "treasury must not be the token");
@@ -173,12 +179,32 @@ test("a monthly payment grants 30 days and is stored with its purpose", async ()
   assert.equal(store.payments.get(HASH)?.purpose, "monthly");
 });
 
-test("if granting fails after storing, the payment row is removed so the person can retry", async () => {
+test("storing and granting is one step: a failure stores nothing and grants nothing, so a retry works once", async () => {
   const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("weekly-single") })] } });
   const store = memoryAccessStore();
-  const broken = { ...store, save: async () => { throw new Error("db down"); } };
+  const broken = { ...store, recordPaymentAndGrant: async () => { throw new Error("db down"); } };
   const r = await pay(reader, broken);
   assert.deepEqual([r.ok, !r.ok && r.status], [false, 500]);
   assert.equal(store.payments.size, 0);
+  assert.equal(store.peek(ALICE), undefined, "nothing granted either");
   assert.ok((await pay(reader, store)).ok);
+  assert.equal((await pay(reader, store)).ok, false, "the retry cannot grant twice");
+  assert.equal(store.peek(ALICE)?.weeklyCredits, 1);
+});
+
+test("a transfer mined before research payments opened cannot be redeemed", async () => {
+  const { reader } = mockChain({ [HASH]: { block: BigInt(49), logs: [transferLog({ value: priceUnits("weekly-single") })] } });
+  const store = memoryAccessStore();
+  const r = await pay(reader, store);
+  assert.deepEqual([r.ok, !r.ok && r.status], [false, 400]);
+  assert.equal(store.payments.size, 0);
+});
+
+test("paying for more Monday reports than one payment can buy is refused, not silently kept", async () => {
+  const { reader } = mockChain({ [HASH]: { logs: [transferLog({ value: priceUnits("weekly-single") * BigInt(11) })] } });
+  const store = memoryAccessStore();
+  const r = await pay(reader, store);
+  assert.equal(r.ok, false);
+  assert.match(!r.ok ? r.error : "", /more than 10 Monday reports/);
+  assert.equal(store.payments.size, 0, "not stored, so the team can return it");
 });

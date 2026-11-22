@@ -241,4 +241,47 @@ create table if not exists research_payments (
   verified_at  timestamptz not null default now()
 );
 alter table research_payments enable row level security;
+
+-- Store a research payment AND grant what it bought in one transaction (PR #68 review): either
+-- both happen or neither does. The grant itself is worked out in code (web/lib/research/access);
+-- this function only writes it if the entitlement row is unchanged since it was read
+-- (updated_at is the row version). Returns 'stored', 'duplicate' (hash used before) or 'clash'
+-- (the row changed meanwhile: nothing written, the caller reads again and retries).
+create or replace function research_record_payment(
+  p_tx_hash text, p_wallet text, p_chain_id integer, p_amount_usdc numeric, p_purpose text,
+  p_prev_updated_at timestamptz, p_plan text, p_valid_until timestamptz,
+  p_weekly_credits integer, p_unlocked_weeks date[], p_updated_at timestamptz
+) returns text
+language plpgsql
+set search_path = public
+as $$
+declare
+  n integer;
+begin
+  if exists (select 1 from research_payments where tx_hash = p_tx_hash) then
+    return 'duplicate';
+  end if;
+  if p_prev_updated_at is null then
+    insert into research_entitlements (wallet, plan, valid_until, weekly_credits, unlocked_weeks, updated_at)
+    values (p_wallet, p_plan, p_valid_until, p_weekly_credits, p_unlocked_weeks, p_updated_at)
+    on conflict (wallet) do nothing;
+  else
+    update research_entitlements
+       set plan = p_plan, valid_until = p_valid_until, weekly_credits = p_weekly_credits,
+           unlocked_weeks = p_unlocked_weeks, updated_at = p_updated_at
+     where wallet = p_wallet and updated_at = p_prev_updated_at;
+  end if;
+  get diagnostics n = row_count;
+  if n <> 1 then
+    return 'clash';
+  end if;
+  insert into research_payments (tx_hash, wallet, chain_id, amount_usdc, purpose)
+  values (p_tx_hash, p_wallet, p_chain_id, p_amount_usdc, p_purpose);
+  return 'stored';
+exception when unique_violation then
+  -- A parallel request stored the same hash first. The block is rolled back, grant included.
+  return 'duplicate';
+end;
+$$;
+revoke all on function research_record_payment(text, text, integer, numeric, text, timestamptz, text, timestamptz, integer, date[], timestamptz) from public, anon, authenticated;
 -- No policies on any research table: only the server (service role) reads or writes them.
