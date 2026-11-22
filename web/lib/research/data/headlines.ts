@@ -91,8 +91,9 @@ export async function fetchPressNews(asset: UniverseAsset, date: IsoDate, deps: 
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Outlets we accept, checked again in code against each article's domain. Paywalled sites are
- * fine because we keep only the headline and the link GDELT already indexed.
+ * Outlets we accept, checked again in code against the host name of each article's link (never
+ * GDELT's own `domain` field). Paywalled sites are fine because we keep only the headline and the
+ * link GDELT already indexed.
  */
 export const REPUTABLE_DOMAINS = ["reuters.com", "apnews.com", "bloomberg.com", "ft.com", "wsj.com", "cnbc.com", "bbc.co.uk", "bbc.com", "nytimes.com", "economist.com", "theguardian.com", "npr.org"];
 
@@ -139,11 +140,27 @@ export function gdeltUrl(key: string, date: IsoDate): string {
   return `https://api.gdeltproject.org/api/v2/doc/doc?${p}`;
 }
 
-export function isReputable(domain: string, extra: string[] = []): boolean {
-  const d = domain.toLowerCase().replace(/^www\./, "");
+/**
+ * True when a host name is a whitelisted domain or a subdomain of one: "www.reuters.com" and
+ * "uk.reuters.com" pass, "notreuters.com" and "reuters.com.evil.io" do not. A trailing dot is
+ * ignored.
+ */
+export function isReputable(host: string, extra: string[] = []): boolean {
+  const d = host.toLowerCase().replace(/\.$/, "");
   return [...REPUTABLE_DOMAINS, ...extra].some((x) => d === x || d.endsWith(`.${x}`));
 }
 
+/** Host name of an http(s) link, lowercased, or null when the link does not parse. */
+export function linkHost(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.hostname.toLowerCase().replace(/\.$/, "") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `domain` is the host name of `url` (set by our code, not copied from GDELT). */
 export type GdeltArticle = { title: string; url: string; publishedAt: string; domain: string };
 
 /** GDELT artlist JSON: { articles: [{ url, title, seendate: "20261119T143000Z", domain }] }; {} when nothing matches. */
@@ -157,8 +174,9 @@ export function parseGdelt(raw: unknown): GdeltArticle[] {
     const m = String(a.seendate ?? "").match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
     const url = safeUrl(a.url);
     const title = feedText(String(a.title ?? ""), LIMITS.title);
-    if (!m || !url || !title) continue;
-    out.push({ title, url, publishedAt: `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.000Z`, domain: String(a.domain || new URL(url).hostname) });
+    const host = url ? linkHost(url) : null;
+    if (!m || !url || !title || !host) continue;
+    out.push({ title, url, publishedAt: `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.000Z`, domain: host });
   }
   return out;
 }
@@ -198,11 +216,13 @@ export async function fetchWireNews(key: string, date: IsoDate, deps: DataDeps):
     const candidates: FeedItem[] = [];
     const domainOf = new Map<string, string>();
     for (const a of parseGdelt(raw)) {
-      if (!isReputable(a.domain, extra)) continue;
+      // The whitelist is checked on the link's own host name, so a wrong GDELT `domain` cannot let a site in.
+      const host = linkHost(a.url);
+      if (!host || !isReputable(host, extra)) continue;
       const k = titleKey(a.title);
       if (seen.has(k)) continue;
       seen.add(k);
-      domainOf.set(a.url, sanitizeText(a.domain.toLowerCase().replace(/^www\./, ""), 60));
+      domainOf.set(a.url, sanitizeText(host.replace(/^www\./, ""), 60));
       candidates.push({ title: a.title, url: a.url, publishedAt: a.publishedAt, summary: "" });
     }
     const kept = selectNews(candidates, date, deps.now(), problems, `${key} GDELT`, WIRE_WINDOW_DAYS, MAX_WIRE);

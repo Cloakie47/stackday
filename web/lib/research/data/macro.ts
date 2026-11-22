@@ -1,6 +1,7 @@
 import type { Fact, IsoDate } from "../types.ts";
 import { addDays } from "./calendar.ts";
 import { GENERIC_USER_AGENT, RateLimiter, getJson, getText, type DataDeps } from "./deps.ts";
+import { BLS_FALLBACK } from "./events.ts";
 import { sma } from "./indicators.ts";
 
 /**
@@ -13,11 +14,32 @@ import { sma } from "./indicators.ts";
  *   If the API call fails we fall back to the CSV for that series.
  *
  * Every change (basis points, percent, year over year) is computed here from the observations,
- * never by a model. Observations after the run date are dropped, so a backfill never sees the
- * future. A series that fails or is stale is a "no reading" line in `problems`.
+ * never by a model. A series that fails or is stale is a "no reading" line in `problems`.
+ *
+ * No look-ahead (`releasedBy`): FRED dates an observation by the period it measures, not by when
+ * it was published, so each series has a release-lag rule and an observation is used only once it
+ * was out on the run date.
+ * - Daily series: the day after the observation date (the close is public that evening; a run on
+ *   day D, Monday 12:00 UTC for the weekly report, never sees day D's value).
+ * - CPI (CPIAUCSL, CPILFESL): the day after the BLS CPI release for that month, from the
+ *   checked-in BLS schedule in events.ts when the month is listed there; otherwise the 16th of the
+ *   next month, a conservative bound (BLS has released CPI between the 10th and the 15th).
+ * - Payrolls and unemployment (PAYEMS, UNRATE): the day after the Employment Situation release
+ *   for that month, from the same schedule; otherwise the 11th of the next month (the jobs report
+ *   comes out on the first or second Friday, by the 10th).
+ * With FRED_API_KEY set and a run date in the past, the API is asked for the ALFRED vintage as of
+ * the run date (realtime_start = realtime_end = run date), so a backfill also sees the values as
+ * first published rather than later revisions. The public CSV has no vintages: a backfill without
+ * a key uses revised values and says so in `problems`.
+ *
+ * Licences: the S&P 500 (S&P Dow Jones Indices) and VIX (Cboe) series are owned by third parties.
+ * Their facts carry `display: false` unless RESEARCH_SHOW_SP_VIX is set to 1 (founder decision
+ * pending, see SOURCES.md).
  */
 
 export const FRED_KEY_ENV = "FRED_API_KEY";
+/** Set to 1 (or true) to allow display of the S&P 500 and VIX facts. Off by default. */
+export const SHOW_SP_VIX_ENV = "RESEARCH_SHOW_SP_VIX";
 export const fredLimiter = new RateLimiter(250);
 
 type Change = "bp" | "pct" | "points";
@@ -36,6 +58,13 @@ export type FredSeriesDef = {
    * notice): only changes and the trend are published, never the level itself.
    */
   noLevel?: boolean;
+  /**
+   * Owner whose terms restrict reproduction. Facts from the series carry `display: false` unless
+   * RESEARCH_SHOW_SP_VIX allows it.
+   */
+  restricted?: string;
+  /** Monthly series: which BLS release publishes it, and the fallback release day of the next month. */
+  release?: { schedule: "cpi" | "jobs"; fallbackDay: number };
 };
 
 /**
@@ -50,13 +79,43 @@ export const FRED_SERIES: FredSeriesDef[] = [
   { id: "DFEDTARL", label: "Fed funds target range, lower limit", unit: "%", freq: "daily" },
   { id: "DFEDTARU", label: "Fed funds target range, upper limit", unit: "%", freq: "daily" },
   { id: "DTWEXBGS", label: "Broad US dollar index (Federal Reserve, nominal)", unit: "index", freq: "daily", change: "pct" },
-  { id: "VIXCLS", label: "VIX volatility index (Cboe, close)", unit: "index", freq: "daily", change: "points" },
-  { id: "SP500", label: "S&P 500 index (close)", unit: "index", freq: "daily", change: "pct", noLevel: true },
-  { id: "CPIAUCSL", label: "CPI inflation, all items", unit: "%", freq: "monthly", monthly: "yoy" },
-  { id: "CPILFESL", label: "Core CPI inflation (less food and energy)", unit: "%", freq: "monthly", monthly: "yoy" },
-  { id: "PAYEMS", label: "Nonfarm payrolls, change from prior month", unit: "thousand jobs", freq: "monthly", monthly: "diff" },
-  { id: "UNRATE", label: "Unemployment rate", unit: "%", freq: "monthly", monthly: "level" },
+  { id: "VIXCLS", label: "VIX volatility index (Cboe, close)", unit: "index", freq: "daily", change: "points", restricted: "Cboe" },
+  { id: "SP500", label: "S&P 500 index (close)", unit: "index", freq: "daily", change: "pct", noLevel: true, restricted: "S&P Dow Jones Indices" },
+  { id: "CPIAUCSL", label: "CPI inflation, all items", unit: "%", freq: "monthly", monthly: "yoy", release: { schedule: "cpi", fallbackDay: 16 } },
+  { id: "CPILFESL", label: "Core CPI inflation (less food and energy)", unit: "%", freq: "monthly", monthly: "yoy", release: { schedule: "cpi", fallbackDay: 16 } },
+  { id: "PAYEMS", label: "Nonfarm payrolls, change from prior month", unit: "thousand jobs", freq: "monthly", monthly: "diff", release: { schedule: "jobs", fallbackDay: 11 } },
+  { id: "UNRATE", label: "Unemployment rate", unit: "%", freq: "monthly", monthly: "level", release: { schedule: "jobs", fallbackDay: 11 } },
 ];
+
+/** Days after the observation date before a daily observation is used. */
+export const DAILY_RELEASE_LAG_DAYS = 1;
+
+/** First day of the month after the reference month of `date`. */
+const nextMonth = (date: IsoDate): IsoDate => {
+  const d = new Date(`${date.slice(0, 7)}-01T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * The first run date on which an observation may be used (see the release-lag rules above).
+ * A run dated on a release day does not see that release: BLS publishes at 8:30 a.m. New York
+ * time, after the 12:00 UTC weekly run.
+ */
+export function releasedFrom(def: FredSeriesDef, obsDate: IsoDate): IsoDate {
+  if (def.freq === "daily") return addDays(obsDate, DAILY_RELEASE_LAG_DAYS);
+  const next = nextMonth(obsDate);
+  if (!def.release) return addDays(next, 30);
+  // Checked-in BLS releases are dated in the month after the reference month.
+  const known = BLS_FALLBACK.find((r) => r.kind === def.release!.schedule && r.date.slice(0, 7) === next.slice(0, 7));
+  if (known) return addDays(known.date, 1);
+  return `${next.slice(0, 8)}${String(def.release.fallbackDay).padStart(2, "0")}`;
+}
+
+/** Observations that were published by the run date. */
+export function releasedBy(def: FredSeriesDef, obs: Observation[], date: IsoDate): Observation[] {
+  return obs.filter((o) => releasedFrom(def, o.date) <= date);
+}
 
 /** Macro fact ids that matter for each asset, so the asset input can carry them too. */
 export const MACRO_FOR_ASSET: Record<string, string[]> = {
@@ -70,14 +129,19 @@ export const MACRO_FOR_ASSET: Record<string, string[]> = {
 
 /** A daily series older than this many days before the run date is stale. */
 export const STALE_DAILY_DAYS = 10;
-/** A monthly series whose newest month starts more than this many days before the run is stale. */
-export const STALE_MONTHLY_DAYS = 75;
+/**
+ * A monthly series whose newest month starts more than this many days before the run is stale.
+ * With the release lag the newest usable month can start up to 76 days back (July CPI before
+ * September 16), so the bound leaves a few days of margin.
+ */
+export const STALE_MONTHLY_DAYS = 80;
 
 export type Observation = { date: IsoDate; value: number };
 
 export const fredCsvUrl = (id: string, start: IsoDate) => `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(id)}&cosd=${start}`;
-export const fredApiUrl = (id: string, start: IsoDate, key: string) =>
-  `https://api.stlouisfed.org/fred/series/observations?${new URLSearchParams({ series_id: id, observation_start: start, file_type: "json", api_key: key })}`;
+/** `vintage`: ask ALFRED for the values as they were known on that date. */
+export const fredApiUrl = (id: string, start: IsoDate, key: string, vintage?: IsoDate) =>
+  `https://api.stlouisfed.org/fred/series/observations?${new URLSearchParams({ series_id: id, observation_start: start, file_type: "json", ...(vintage ? { realtime_start: vintage, realtime_end: vintage } : {}), api_key: key })}`;
 export const fredSeriesPage = (id: string) => `https://fred.stlouisfed.org/series/${id}`;
 
 /** Parses fredgraph.csv: a header line, then "YYYY-MM-DD,value". Missing values (".") are skipped. */
@@ -106,13 +170,13 @@ export function parseFredApi(raw: unknown): Observation[] {
   return out;
 }
 
-export async function fetchFredSeries(id: string, start: IsoDate, deps: DataDeps): Promise<Observation[]> {
+export async function fetchFredSeries(id: string, start: IsoDate, deps: DataDeps, vintage?: IsoDate): Promise<Observation[]> {
   const headers = { "User-Agent": GENERIC_USER_AGENT, Accept: "text/csv, application/json" };
   const key = deps.env[FRED_KEY_ENV]?.trim();
   if (key) {
     try {
       await fredLimiter.wait(deps);
-      return parseFredApi(await getJson(deps, fredApiUrl(id, start, key), headers));
+      return parseFredApi(await getJson(deps, fredApiUrl(id, start, key, vintage), headers));
     } catch {
       // Fall through to the public CSV.
     }
@@ -200,17 +264,31 @@ export function derivedFacts(series: Record<string, Observation[]>): Fact[] {
   return facts;
 }
 
+/** True when the env flag allows display of the S&P 500 and VIX facts. */
+export const showSpVix = (env: Record<string, string | undefined>) => /^(1|true|yes)$/i.test(env[SHOW_SP_VIX_ENV]?.trim() ?? "");
+
+/** Marks facts from restricted series (and facts derived from them) display false unless the flag allows them. */
+export function restrictFacts(facts: Fact[], env: Record<string, string | undefined>): Fact[] {
+  if (showSpVix(env)) return facts;
+  const prefixes = FRED_SERIES.filter((d) => d.restricted).map((d) => `macro.${d.id.toLowerCase()}`);
+  return facts.map((f) => (prefixes.some((p) => f.id === p || f.id.startsWith(`${p}.`)) ? { ...f, display: false } : f));
+}
+
 /** Fetches every FRED series for the run date. Never throws: failures and stale series go to problems. */
 export async function fetchMacro(date: IsoDate, deps: DataDeps): Promise<{ facts: Fact[]; problems: string[] }> {
   const facts: Fact[] = [];
   const problems: string[] = [];
   const series: Record<string, Observation[]> = {};
+  // A run date before today is a backfill: ask ALFRED for that date's vintage when a key is set.
+  const backfill = date < deps.now().toISOString().slice(0, 10);
+  const vintage = backfill ? date : undefined;
+  if (backfill && !deps.env[FRED_KEY_ENV]?.trim()) problems.push(`FRED: backfill for ${date} uses today's revised values (the public CSV has no vintages; FRED_API_KEY enables ALFRED vintages)`);
   for (const def of FRED_SERIES) {
     const start = addDays(date, def.freq === "daily" ? -420 : -800);
     try {
-      const obs = (await fetchFredSeries(def.id, start, deps)).filter((o) => o.date <= date);
+      const obs = releasedBy(def, await fetchFredSeries(def.id, start, deps, vintage), date);
       if (!obs.length) {
-        problems.push(`FRED ${def.id}: no observations up to ${date}, no reading`);
+        problems.push(`FRED ${def.id}: no observations released by ${date}, no reading`);
         continue;
       }
       const ageDays = (Date.parse(at(date)) - Date.parse(at(obs[obs.length - 1].date))) / 86_400_000;
@@ -228,5 +306,5 @@ export async function fetchMacro(date: IsoDate, deps: DataDeps): Promise<{ facts
     }
   }
   facts.push(...derivedFacts(series));
-  return { facts, problems };
+  return { facts: restrictFacts(facts, deps.env), problems };
 }

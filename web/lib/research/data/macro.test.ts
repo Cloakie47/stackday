@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FRED_SERIES, derivedFacts, fetchMacro, fredApiUrl, fredCsvUrl, parseFredApi, parseFredCsv, seriesFacts, type Observation } from "./macro.ts";
+import { FRED_SERIES, derivedFacts, fetchMacro, fredApiUrl, fredCsvUrl, parseFredApi, parseFredCsv, releasedBy, releasedFrom, restrictFacts, seriesFacts, type Observation } from "./macro.ts";
 import { redactUrl, type DataDeps } from "./deps.ts";
 
 const def = (id: string) => FRED_SERIES.find((s) => s.id === id)!;
@@ -79,11 +79,77 @@ test("fetchMacro: failures, stale series and future observations become no-readi
   };
   const r = await fetchMacro("2026-11-19", deps);
   const f = new Map(r.facts.map((x) => [x.id, x]));
-  assert.equal(f.get("macro.dgs10")!.value, 4.12, "the 2026-11-20 observation is after the run date");
+  // 2026-11-20 is after the run date, and the 2026-11-19 close is only used from the next day.
+  assert.equal(f.get("macro.dgs10")!.value, 4.1, "daily observations are used the day after");
   assert.ok(!f.has("macro.dgs2"));
   assert.ok(r.problems.some((p) => /DGS2: newest observation 2026-10-01 is stale/.test(p)));
   assert.ok(r.problems.some((p) => /VIXCLS failed, no reading/.test(p)));
   // With a key, a failing API falls back to the CSV.
   const keyed = await fetchMacro("2026-11-19", { ...deps, env: { FRED_API_KEY: "k" } });
   assert.ok(keyed.facts.some((x) => x.id === "macro.dgs10"));
+});
+
+test("release lag: October CPI is not visible on October 20, and a release day does not see its own release", () => {
+  const cpi = def("CPIAUCSL");
+  const obs = ["2026-08-01", "2026-09-01", "2026-10-01"].map((date, i) => ({ date, value: 320 + i }));
+  // September CPI (no checked-in date): from October 16. October CPI: BLS release 2026-11-10, used from 2026-11-11.
+  assert.deepEqual(releasedBy(cpi, obs, "2026-10-20").map((o) => o.date), ["2026-08-01", "2026-09-01"]);
+  assert.deepEqual(releasedBy(cpi, obs, "2026-10-15").map((o) => o.date), ["2026-08-01"]);
+  assert.equal(releasedFrom(cpi, "2026-10-01"), "2026-11-11");
+  assert.deepEqual(releasedBy(cpi, obs, "2026-11-10").map((o) => o.date), ["2026-08-01", "2026-09-01"]);
+  assert.deepEqual(releasedBy(cpi, obs, "2026-11-11").map((o) => o.date), ["2026-08-01", "2026-09-01", "2026-10-01"]);
+  // Payrolls and unemployment: the jobs report date when checked in (October 2026 on 2026-11-06), else the 11th.
+  assert.equal(releasedFrom(def("PAYEMS"), "2026-10-01"), "2026-11-07");
+  assert.equal(releasedFrom(def("UNRATE"), "2027-09-01"), "2027-10-09"); // second Friday, October 8, 2027
+  assert.equal(releasedFrom(def("PAYEMS"), "2025-09-01"), "2025-10-11");
+  assert.equal(releasedFrom(def("CPILFESL"), "2028-01-01"), "2028-02-16");
+  // Daily series: the day after.
+  assert.equal(releasedFrom(def("DGS10"), "2026-11-20"), "2026-11-21");
+});
+
+test("fetchMacro: October CPI dated 2026-10-01 is not used in an October 20 run (backfill)", async () => {
+  const months = ["2025-08-01", "2025-09-01", "2025-10-01", "2026-08-01", "2026-09-01", "2026-10-01"];
+  const deps: DataDeps = {
+    fetch: async (url) => (url.includes("id=CPIAUCSL") ? { ok: true, status: 200, text: async () => `observation_date,CPIAUCSL\n${months.map((d, i) => `${d},${300 + i}`).join("\n")}\n` } : { ok: false, status: 500, text: async () => "" }),
+    env: {},
+    now: () => new Date("2026-11-22T12:00:00Z"),
+    sleep: async () => {},
+  };
+  const r = await fetchMacro("2026-10-20", deps);
+  const yoy = r.facts.find((x) => x.id === "macro.cpiaucsl.yoy")!;
+  assert.match(yoy.label, /12 months to September 2026/);
+  assert.equal(yoy.value, Math.round((304 / 301 - 1) * 10000) / 100);
+  assert.ok(r.problems.some((p) => /backfill for 2026-10-20 uses today's revised values/.test(p)));
+});
+
+test("backfill with a key asks ALFRED for the vintage as of the run date; a live run does not", async () => {
+  const u = new URL(fredApiUrl("CPIAUCSL", "2024-01-01", "k", "2026-10-20"));
+  assert.equal(u.searchParams.get("realtime_start"), "2026-10-20");
+  assert.equal(u.searchParams.get("realtime_end"), "2026-10-20");
+  assert.equal(new URL(fredApiUrl("CPIAUCSL", "2024-01-01", "k")).searchParams.get("realtime_start"), null);
+  const seen: string[] = [];
+  const deps: DataDeps = {
+    fetch: async (url) => {
+      seen.push(url);
+      return { ok: false, status: 500, text: async () => "" };
+    },
+    env: { FRED_API_KEY: "k" },
+    now: () => new Date("2026-11-22T12:00:00Z"),
+    sleep: async () => {},
+  };
+  const back = await fetchMacro("2026-10-20", deps);
+  assert.ok(seen.filter((x) => x.includes("api.stlouisfed.org")).every((x) => x.includes("realtime_start=2026-10-20")));
+  assert.ok(!back.problems.some((p) => /revised values/.test(p)));
+  seen.length = 0;
+  await fetchMacro("2026-11-22", deps);
+  assert.ok(seen.filter((x) => x.includes("api.stlouisfed.org")).every((x) => !x.includes("realtime_start")));
+});
+
+test("S&P 500 and VIX facts are display false unless RESEARCH_SHOW_SP_VIX is set", () => {
+  const spx = daily(Array.from({ length: 220 }, (_, i) => 5000 + i * 5));
+  const facts = [...seriesFacts(def("VIXCLS"), daily(Array.from({ length: 25 }, (_, i) => 15 + i * 0.1))), ...seriesFacts(def("SP500"), spx), ...derivedFacts({ SP500: spx }), ...seriesFacts(def("DGS10"), daily([4, 4.1]))];
+  const off = new Map(restrictFacts(facts, {}).map((x) => [x.id, x]));
+  for (const id of ["macro.vixcls", "macro.vixcls.chg5", "macro.vixcls.chg20", "macro.sp500.chg5", "macro.sp500.chg20", "macro.sp500.trend"]) assert.equal(off.get(id)!.display, false, id);
+  assert.equal(off.get("macro.dgs10")!.display, undefined);
+  for (const v of ["1", "true"]) for (const x of restrictFacts(facts, { RESEARCH_SHOW_SP_VIX: v })) assert.equal(x.display, undefined, x.id);
 });

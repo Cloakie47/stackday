@@ -1,6 +1,6 @@
 import type { BarInterval, PriceBar, PriceSeries, Source } from "../types.ts";
 import type { UniverseAsset } from "../universe.ts";
-import { newYorkTimeToUtc } from "./calendar.ts";
+import { addDays, isTradingDay, lastTradingDay, newYorkParts, newYorkTimeToUtc, sessionHours } from "./calendar.ts";
 import { GENERIC_USER_AGENT, RateLimiter, getJson, type DataDeps } from "./deps.ts";
 
 /**
@@ -10,9 +10,11 @@ import { GENERIC_USER_AGENT, RateLimiter, getJson, type DataDeps } from "./deps.
  *   the API; daily bars are paged back 5 years; weekly and monthly bars are built in code from
  *   the daily bars (see `aggregateBars`).
  * - Stocks and the S&P 500: a pluggable provider chosen with RESEARCH_PRICE_PROVIDER (see
- *   `STOCK_PROVIDERS`). Today only Twelve Data is wired, and its free plan is internal use only:
- *   it must not be shown to users. "none" switches stock prices off. With no provider or no key
- *   the asset is reported in `problems` and no price is made up.
+ *   `STOCK_PROVIDERS`). The default is "none": stock prices stay off until a provider whose plan
+ *   allows display and commercial use is configured. Twelve Data can be switched on by name for
+ *   internal review, but its free plan allows neither, so every fact built from it carries
+ *   `display: false` (see `PriceHistory.display`). With no provider or no key the asset is
+ *   reported in `problems` and no price is made up.
  *
  * Terms for every source, with links and display status, are in ./SOURCES.md.
  */
@@ -45,23 +47,27 @@ export const COINBASE_SOURCE: Source = {
 export const TWELVEDATA_SOURCE: Source = { name: "Twelve Data time series", url: "https://twelvedata.com/docs#time-series" };
 
 export const PRICE_KEY_ENV = "RESEARCH_PRICE_API_KEY";
-/** Which stock price provider to use: "twelvedata" (default) or "none". */
+/** Which stock price provider to use: "none" (default) or "twelvedata" (internal use only). */
 export const PRICE_PROVIDER_ENV = "RESEARCH_PRICE_PROVIDER";
 
 export type StockProviderId = "twelvedata" | "none";
 
 /**
  * Stock price providers. `display` says whether the plan we use allows showing the numbers to
- * users. Add a provider whose plan allows display here (and in SOURCES.md) before stock prices go
- * on a public page; until then stock prices are for the engine and internal review only.
+ * users, `commercial` whether it allows commercial use (a paid report is commercial). Add a
+ * provider whose plan allows both here (and in SOURCES.md) and make it the default before stock
+ * prices go on a public page; until then stock prices are for the engine and internal review only.
  */
-export const STOCK_PROVIDERS: Record<StockProviderId, { label: string; display: boolean; keyEnv?: string; note: string }> = {
-  twelvedata: { label: "Twelve Data", display: false, keyEnv: PRICE_KEY_ENV, note: "free Basic plan: internal, non-display use only" },
-  none: { label: "No stock provider", display: false, note: "stock prices switched off" },
+export const STOCK_PROVIDERS: Record<StockProviderId, { label: string; display: boolean; commercial: boolean; keyEnv?: string; note: string }> = {
+  twelvedata: { label: "Twelve Data", display: false, commercial: false, keyEnv: PRICE_KEY_ENV, note: "free Basic plan: internal, non-display, non-commercial use only" },
+  none: { label: "No stock provider", display: false, commercial: false, note: "stock prices switched off" },
 };
 
+/** Default provider: none, because no wired provider allows display and commercial use. */
+export const DEFAULT_STOCK_PROVIDER: StockProviderId = "none";
+
 export function stockProvider(env: Record<string, string | undefined>): StockProviderId | { unknown: string } {
-  const raw = (env[PRICE_PROVIDER_ENV] ?? "twelvedata").trim().toLowerCase() || "twelvedata";
+  const raw = (env[PRICE_PROVIDER_ENV] ?? "").trim().toLowerCase() || DEFAULT_STOCK_PROVIDER;
   return raw in STOCK_PROVIDERS ? (raw as StockProviderId) : { unknown: raw };
 }
 
@@ -92,7 +98,7 @@ function weekKey(t: string): string {
 /**
  * Builds weekly (Monday to Sunday, UTC) or monthly bars from daily bars: open of the first day,
  * highest high, lowest low, close of the last day, summed volume. The newest bar is the week or
- * month so far, as providers also show it.
+ * month so far, as providers also show it; `closedBars` drops it until its period has ended.
  */
 export function aggregateBars(daily: PriceBar[], to: "1w" | "1mo"): PriceBar[] {
   const out: PriceBar[] = [];
@@ -111,6 +117,48 @@ export function aggregateBars(daily: PriceBar[], to: "1w" | "1mo"): PriceBar[] {
     }
   }
   return out;
+}
+
+/**
+ * When the period of a bar that opened at `t` ends, in ms since the epoch.
+ * - Crypto (every day, UTC): 1 hour, 1 day, the next Monday 00:00 UTC, the first of the next month.
+ * - Stocks (NYSE sessions from calendar.ts, holidays and 1:00 p.m. early closes included): an
+ *   hourly bar ends after an hour or at the session close, whichever is first (the last Twelve
+ *   Data bar of a day is 15:30 to 16:00); a daily bar at that day's close; a weekly or monthly bar
+ *   at the close of the last trading day of its week (Monday to Sunday) or month. Where no session
+ *   is known the crypto rule is used.
+ */
+export function barPeriodEnd(t: string, interval: BarInterval, crypto: boolean): number {
+  const start = Date.parse(t);
+  if (interval === "1h") {
+    const session = crypto ? null : sessionHours(newYorkParts(new Date(start)).date);
+    return session ? Math.min(start + HOUR, session.close.getTime()) : start + HOUR;
+  }
+  // First UTC day of the next period.
+  let next: string;
+  if (interval === "1d") next = addDays(t.slice(0, 10), 1);
+  else if (interval === "1w") next = addDays(weekKey(t), 7);
+  else {
+    const d = new Date(`${t.slice(0, 7)}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    next = d.toISOString().slice(0, 10);
+  }
+  const utcEnd = Date.parse(`${next}T00:00:00Z`);
+  if (crypto) return utcEnd;
+  if (interval === "1d") return sessionHours(newYorkParts(new Date(start)).date)?.close.getTime() ?? utcEnd;
+  const first = interval === "1w" ? weekKey(t) : `${t.slice(0, 7)}-01`;
+  const day = lastTradingDay("XNYS", addDays(next, -1));
+  if (day < first || !isTradingDay("XNYS", day)) return utcEnd;
+  return sessionHours(day)?.close.getTime() ?? utcEnd;
+}
+
+/**
+ * Keeps only bars whose period has ended by `at` (ms), so a still-forming hourly, daily, weekly
+ * or monthly bar is never read as closed. At a Monday 12:00 UTC run, Monday's daily bar, the week
+ * so far and the month so far are all dropped.
+ */
+export function closedBars(bars: PriceBar[], interval: BarInterval, crypto: boolean, at: number): PriceBar[] {
+  return bars.filter((b) => barPeriodEnd(b.t, interval, crypto) <= at);
 }
 
 /** Sorts oldest first, drops duplicate times and bars with non-finite or non-positive prices. */
@@ -219,7 +267,17 @@ async function twelveDataGet(deps: DataDeps, symbol: string, interval: "1h" | "1
 // Per asset
 // ---------------------------------------------------------------------------------------------
 
-export type PriceHistory = { series: Partial<Record<BarInterval, PriceSeries>>; problems: string[]; ref?: PriceSourceRef };
+export type PriceHistory = {
+  series: Partial<Record<BarInterval, PriceSeries>>;
+  problems: string[];
+  ref?: PriceSourceRef;
+  /**
+   * False when the provider's terms do not allow showing these prices to users or using them
+   * commercially. Every fact built from this history must carry it (`Fact.display`). Undefined
+   * when no restriction is recorded.
+   */
+  display?: boolean;
+};
 
 /**
  * Fetches 1h and 1d bars and builds 1w and 1mo from the daily bars. Every failure is written to
@@ -232,6 +290,7 @@ export async function fetchPriceHistory(asset: UniverseAsset, deps: DataDeps): P
   if (!ref) return { series, problems: [`${asset.assetId}: no price source configured`] };
 
   let source: Source;
+  let display: boolean | undefined;
   let hourly: () => Promise<PriceBar[]>;
   let daily: () => Promise<PriceBar[]>;
   if (ref.provider === "coinbase") {
@@ -241,10 +300,18 @@ export async function fetchPriceHistory(asset: UniverseAsset, deps: DataDeps): P
   } else {
     const prov = stockProvider(deps.env);
     if (typeof prov !== "string") return { series, problems: [`${asset.assetId}: ${PRICE_PROVIDER_ENV}="${prov.unknown.slice(0, 40)}" is not a known provider, no stock price fetched`], ref };
-    if (prov === "none") return { series, problems: [`${asset.assetId}: ${PRICE_PROVIDER_ENV}=none, no stock price fetched`], ref };
+    if (prov === "none") {
+      const why = deps.env[PRICE_PROVIDER_ENV]?.trim() ? `${PRICE_PROVIDER_ENV}=none` : `${PRICE_PROVIDER_ENV} not set (default none: no stock provider that allows display and commercial use is configured)`;
+      return { series, problems: [`${asset.assetId}: ${why}, no stock price fetched`], ref };
+    }
     const key = deps.env[PRICE_KEY_ENV];
     if (!key) return { series, problems: [`${asset.assetId}: ${PRICE_KEY_ENV} not set, no stock price fetched`], ref };
     source = TWELVEDATA_SOURCE;
+    const terms = STOCK_PROVIDERS[prov];
+    if (!terms.display || !terms.commercial) {
+      display = false;
+      problems.push(`${asset.assetId}: stock prices from ${terms.label} are internal only (${terms.note}), every fact built from them is marked display false`);
+    }
     hourly = () => twelveDataGet(deps, ref.symbol, "1h", 500, key);
     daily = () => twelveDataGet(deps, ref.symbol, "1day", 1300, key);
   }
@@ -265,5 +332,5 @@ export async function fetchPriceHistory(asset: UniverseAsset, deps: DataDeps): P
     series["1w"] = { ...make("1w", aggregateBars(d.bars, "1w")), source: { ...src, name: `${src.name}, weekly bars built from daily` } };
     series["1mo"] = { ...make("1mo", aggregateBars(d.bars, "1mo")), source: { ...src, name: `${src.name}, monthly bars built from daily` } };
   }
-  return { series, problems, ref };
+  return { series, problems, ref, ...(display === false ? { display } : {}) };
 }

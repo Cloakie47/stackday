@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import deployment from "../../deployment.json" with { type: "json" };
 import { NotResearchableError, cutSeries, gatherAsset, gatherRun } from "./gather.ts";
 import { redactUrl, type DataDeps } from "./deps.ts";
+import { barPeriodEnd } from "./prices.ts";
 import { CHART_INTERVALS, PATTERN_KINDS, type AssetResearchInput, type Fact, type MarketResearchInput, type PriceSeries } from "../types.ts";
 
 /**
@@ -82,6 +83,9 @@ test("a whole run from recorded responses: market input, every asset, sources an
   // CPI for October 2025 was never published (FRED shows "."), so year over year can be a no-reading line.
   for (const s of ["cpiaucsl", "cpilfesl"]) assert.ok(m.has(`macro.${s}.yoy`) || run.market.problems.some((p) => p.includes(`FRED ${s.toUpperCase()}`)), s);
   assert.ok(!m.has("macro.sp500"), "the S&P 500 level is never published (owner forbids reproduction)");
+  // S&P 500 and VIX facts stay internal until RESEARCH_SHOW_SP_VIX is set.
+  for (const [id, f] of m) if (id.startsWith("macro.vixcls") || id.startsWith("macro.sp500")) assert.equal(f.display, false, id);
+  assert.equal(m.get("macro.dgs10")!.display, undefined);
   assert.ok(run.market.calendar.length > 0);
   for (const e of run.market.calendar) {
     assert.ok(e.date >= date, "week ahead starts at the run date");
@@ -100,10 +104,12 @@ test("a whole run from recorded responses: market input, every asset, sources an
       for (const p of a.problems) assert.doesNotMatch(p, /prices failed/, `${a.assetId}: ${p}`);
       assert.ok(a.chart["1d"] && a.chart["1w"], `${a.assetId} has daily and weekly chart reads`);
       assert.ok(Date.parse(f.get("px.last")!.asOf) <= Date.parse(fx.recordedAt), "never dated in the future");
+      for (const s of Object.values(a.series)) for (const b of s.bars) assert.ok(barPeriodEnd(b.t, s.interval, true) <= Date.parse(fx.recordedAt), `${a.assetId} ${s.interval}: only closed bars`);
+      assert.ok(a.facts.every((x) => x.display === undefined || x.id.startsWith("macro.vixcls")), `${a.assetId}: Coinbase facts carry no display restriction`);
     } else {
-      assert.deepEqual(a.series, {}, `${a.assetId}: no stock price without a provider key, nothing faked`);
+      assert.deepEqual(a.series, {}, `${a.assetId}: no stock price with the default provider (none), nothing faked`);
       assert.ok(!f.has("px.last"));
-      assert.ok(a.problems.some((p) => /RESEARCH_PRICE_API_KEY not set/.test(p)));
+      assert.ok(a.problems.some((p) => /RESEARCH_PRICE_PROVIDER not set \(default none/.test(p)));
       assert.ok(a.problems.some((p) => /no daily bars, no chart reading/.test(p)));
     }
     assert.ok(a.calendar.every((e) => e.assetIds.length === 0 || e.assetIds.includes(a.assetId)));
@@ -126,7 +132,7 @@ test("a whole run from recorded responses: market input, every asset, sources an
 test("Apple with keys: Twelve Data bars on three timeframes, chart read, newsroom and SEC EDGAR", async () => {
   const fx = load("mAAPL");
   const date = fx.recordedAt.slice(0, 10);
-  const input = await gatherAsset("mAAPL", date, replayDeps(fx, { RESEARCH_PRICE_API_KEY: "test-key", SEC_USER_AGENT: "Test Runner test@example.invalid" }), { market: EMPTY_MARKET(date) });
+  const input = await gatherAsset("mAAPL", date, replayDeps(fx, { RESEARCH_PRICE_PROVIDER: "twelvedata", RESEARCH_PRICE_API_KEY: "test-key", SEC_USER_AGENT: "Test Runner test@example.invalid" }), { market: EMPTY_MARKET(date) });
   for (const p of input.problems) assert.doesNotMatch(p, /prices failed|SEC EDGAR failed|Newsroom feed failed|chart read/, p);
   assert.equal(input.marketOpenToday, true); // 2026-11-19 is a Thursday
   const facts = checkFacts(input.facts);
@@ -141,6 +147,13 @@ test("Apple with keys: Twelve Data bars on three timeframes, chart read, newsroo
   assert.equal(facts.get("filing.0")!.source.name, "SEC EDGAR");
   assert.ok([...facts.values()].some((f) => f.id.startsWith("filing.") && f.value === "10-K"));
   assert.ok(input.problems.some((p) => /only company press releases/.test(p)), "press releases alone are flagged as one side");
+  // Twelve Data's free plan allows no display: every fact built from its prices says so, nothing else does.
+  const fromPrices = /^(px|chg|ind|chart|lvl|vol|pat)\./;
+  const priceFacts = input.facts.filter((f) => fromPrices.test(f.id));
+  assert.ok(priceFacts.length > 20 && priceFacts.some((f) => f.kind === "pattern" || f.id.startsWith("lvl.")));
+  for (const f of priceFacts) assert.equal(f.display, false, f.id);
+  for (const f of input.facts.filter((x) => !fromPrices.test(x.id))) assert.equal(f.display, undefined, f.id);
+  assert.ok(input.problems.some((p) => /Twelve Data are internal only/.test(p)));
 });
 
 test("assets that are not researchable are refused", async () => {
@@ -166,12 +179,53 @@ test("holidays and failing sources: closed market, no prices, problems say why",
   assert.ok(btc.calendar.some((e) => e.kind === "options-expiry"), "computed events still work offline");
 });
 
-test("no look-ahead: bars after the run date are cut and weekly and monthly bars rebuilt", () => {
+test("no look-ahead: bars after the run date and bars still forming are cut, weekly and monthly bars rebuilt", () => {
   const day = (iso: string, c: number) => ({ t: `${iso}T00:00:00.000Z`, o: c, h: c, l: c, c });
-  const mk = (interval: PriceSeries["interval"], bars: ReturnType<typeof day>[]): PriceSeries => ({ assetId: "mcbBTC", interval, bars, source: { name: "test" }, fetchedAt: "2026-11-30T00:00:00Z" });
-  const daily = [day("2026-11-18", 1), day("2026-11-19", 2), day("2026-11-20", 3), day("2026-12-01", 9)];
-  const cut = cutSeries({ "1d": mk("1d", daily), "1w": mk("1w", []), "1mo": mk("1mo", []) }, "2026-11-19");
-  assert.deepEqual(cut["1d"]!.bars.map((b) => b.c), [1, 2]);
-  assert.deepEqual(cut["1w"]!.bars.map((b) => b.c), [2]);
-  assert.deepEqual(cut["1mo"]!.bars.map((b) => [b.h, b.c]), [[2, 2]]);
+  const mk = (interval: PriceSeries["interval"], bars: ReturnType<typeof day>[]): PriceSeries => ({ assetId: "mcbBTC", interval, bars, source: { name: "test" }, fetchedAt: "2026-12-02T00:00:00Z" });
+  const daily = [day("2026-10-30", 1), day("2026-11-18", 2), day("2026-11-22", 3), day("2026-11-23", 4), day("2026-12-01", 9)];
+  const all = { "1d": mk("1d", daily), "1w": mk("1w", []), "1mo": mk("1mo", []) };
+  // Run on Monday 2026-11-23 at 12:00 UTC: Monday's bar, the week so far and November are not closed.
+  const cut = cutSeries(all, "2026-11-23", true, new Date("2026-11-23T12:00:00Z"));
+  assert.deepEqual(cut["1d"]!.bars.map((b) => b.c), [1, 2, 3]);
+  assert.deepEqual(cut["1w"]!.bars.map((b) => [b.t.slice(0, 10), b.c]), [["2026-10-30", 1], ["2026-11-18", 3]]);
+  assert.deepEqual(cut["1mo"]!.bars.map((b) => b.c), [1]);
+  // Without a clock the run date's end is the cutoff: Monday's bar has closed by then, its week has not.
+  const late = cutSeries(all, "2026-11-23", true);
+  assert.deepEqual(late["1d"]!.bars.map((b) => b.c), [1, 2, 3, 4]);
+  assert.deepEqual(late["1w"]!.bars.map((b) => b.c), [1, 3]);
+});
+
+test("Monday 12:00 UTC run: the still-forming daily and hourly bars never reach changes or patterns", async () => {
+  const DAY = 86_400_000;
+  const now = new Date("2026-11-23T12:00:00Z");
+  const d0 = Date.parse("2026-11-23T00:00:00Z") - 399 * DAY;
+  // 400 daily candles; the last (Monday, still forming) spikes to 200, which would read as a breakout.
+  const closes = Array.from({ length: 400 }, (_, i) => (i === 399 ? 200 : 100 + i * 0.1));
+  const candle = (t: number, c: number) => [t / 1000, c - 0.5, c + 0.5, c, c, 10];
+  const dailyCandles = closes.map((c, i) => candle(d0 + i * DAY, c));
+  // 300 hourly candles ending with the 12:00 bar that has just opened.
+  const h0 = now.getTime() - 299 * 3_600_000;
+  const hourlyCandles = Array.from({ length: 300 }, (_, i) => candle(h0 + i * 3_600_000, i === 299 ? 300 : 140));
+  const deps: Partial<DataDeps> = {
+    fetch: async (url) => {
+      if (url.includes("api.exchange.coinbase.com")) return { ok: true, status: 200, text: async () => JSON.stringify(url.includes("granularity=3600") ? hourlyCandles : dailyCandles) };
+      return { ok: false, status: 404, text: async () => "" };
+    },
+    env: {},
+    now: () => now,
+    sleep: async () => {},
+  };
+  const input = await gatherAsset("mcbBTC", "2026-11-23", deps, { market: EMPTY_MARKET("2026-11-23") });
+  const f = checkFacts(input.facts);
+  assert.equal(input.series["1d"]!.bars.at(-1)!.t, "2026-11-22T00:00:00.000Z");
+  assert.equal(input.series["1h"]!.bars.at(-1)!.t, "2026-11-23T11:00:00.000Z");
+  assert.equal(input.series["1w"]!.bars.at(-1)!.t.slice(0, 10), "2026-11-16");
+  assert.equal(input.series["1mo"]!.bars.at(-1)!.t.slice(0, 7), "2026-10");
+  assert.equal(f.get("px.last")!.value, 140);
+  const c = (i: number) => 100 + i * 0.1;
+  assert.equal(f.get("chg.1d.bar1")!.value, Math.round((c(398) / c(397) - 1) * 10000) / 100);
+  // Last full week closed Sunday 22 November (index 398); the week before closed on index 391.
+  assert.equal(f.get("chg.1w.bar1")!.value, Math.round((c(398) / c(391) - 1) * 10000) / 100);
+  assert.ok(!f.has("pat.1d.breakout"), "the unclosed spike is not a breakout");
+  assert.ok(!input.chart["1d"]!.patterns.some((p) => p.asOf === "2026-11-23T00:00:00.000Z"));
 });

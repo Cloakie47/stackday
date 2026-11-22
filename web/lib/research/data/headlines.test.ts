@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GDELT_TOPICS, MAX_GDELT_QUERY, fetchOfficialNews, fetchPressNews, fetchWireNews, gdeltQuery, gdeltUrl, isReputable, newsFacts, parseGdelt, tagTopics } from "./headlines.ts";
+import { GDELT_TOPICS, MAX_GDELT_QUERY, fetchOfficialNews, fetchPressNews, fetchWireNews, gdeltQuery, gdeltUrl, isReputable, linkHost, newsFacts, parseGdelt, tagTopics } from "./headlines.ts";
 import { universeAsset } from "../universe.ts";
 import type { DataDeps } from "./deps.ts";
 
@@ -63,6 +63,27 @@ test("wire news: whitelist, duplicates, injection screen, window and tags", asyn
   assert.deepEqual(r.items[0].tags, ["reputable-outlet", "export-controls", "china"]);
   assert.ok(r.problems.some((p) => /looked like instructions to an AI/.test(p)));
   assert.ok(r.items[0].quote.split(" ").length <= 25);
+});
+
+test("whitelist checks the link's own host name, not GDELT's domain field", async () => {
+  assert.ok(isReputable("reuters.com") && isReputable("www.reuters.com") && isReputable("www.reuters.com."));
+  assert.ok(!isReputable("reuters.com.evil.io"));
+  assert.ok(!isReputable("evilreuters.com"));
+  assert.ok(!isReputable("www.reuters.co"));
+  assert.ok(!isReputable("coindesk.com") && isReputable("www.coindesk.com", ["coindesk.com"]));
+  assert.equal(linkHost("https://WWW.Reuters.com/a"), "www.reuters.com");
+  assert.equal(linkHost("ftp://reuters.com/a"), null);
+  const lookalikes = {
+    articles: [
+      { url: "https://reuters.com.evil.io/test/x", title: "TEST: Nvidia lookalike host", seendate: "20261119T143000Z", domain: "reuters.com", language: "English" },
+      { url: "https://evilreuters.com/test/y", title: "TEST: Nvidia lookalike prefix", seendate: "20261119T143000Z", domain: "reuters.com", language: "English" },
+      { url: "https://www.reuters.com/test/z", title: "TEST: Nvidia real outlet, odd domain field", seendate: "20261119T143000Z", domain: "randomblog.example", language: "English" },
+    ],
+  };
+  assert.deepEqual(parseGdelt(lookalikes).map((a) => a.domain), ["reuters.com.evil.io", "evilreuters.com", "www.reuters.com"]);
+  const r = await fetchWireNews("mNVDA", "2026-11-20", deps({ "api.gdeltproject.org": { status: 200, body: JSON.stringify(lookalikes) } }));
+  assert.deepEqual(r.items.map((i) => i.url), ["https://www.reuters.com/test/z"]);
+  assert.equal(r.items[0].sourceName, "reuters.com (found through GDELT)");
 });
 
 test("wire news: GDELT rate limit is retried once, then no reading", async () => {

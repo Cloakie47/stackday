@@ -8,8 +8,8 @@ import { decodeEntities } from "./news.ts";
  * Week-ahead calendar from official sources only (spec section 3.5). Server-only.
  *
  * - FOMC meetings: the Federal Reserve's FOMC calendar page, parsed in code, merged with a
- *   checked-in copy of the published 2026 and 2027 dates (the page did not list 2027 yet on
- *   2026-11-20; the 2027 dates come from the Fed's press release of November 12, 2026).
+ *   checked-in copy of the published 2026 and 2027 dates (the 2027 dates come from the Fed's press
+ *   release of November 12, 2026; the page listed them too on 2026-11-22).
  * - CPI and the jobs report: the BLS release schedule pages. BLS refuses automated clients
  *   (HTTP 403 on 2026-11-20), so a checked-in copy of the published dates is used when the page
  *   cannot be read.
@@ -19,7 +19,9 @@ import { decodeEntities } from "./news.ts";
  *   for Deribit crypto options).
  *
  * Earnings dates are not included: there is no official machine-readable source wired, so the
- * gatherer reports that instead of guessing. Every event keeps the source it came from.
+ * gatherer reports that instead of guessing. Every event keeps the source it came from, and an
+ * event from a checked-in copy cites the copy, not the live page. A page that cannot be read is
+ * a line in `problems`, never silent.
  */
 
 const eventLimiter = new RateLimiter(500);
@@ -44,6 +46,8 @@ export type FomcMeeting = {
   end: IsoDate;
   /** Marked with an asterisk on the Fed page: meeting with a Summary of Economic Projections. */
   sep: boolean;
+  /** True when `sep` follows the usual March, June, September and December pattern because the Fed has not marked the year yet. */
+  sepAssumed?: boolean;
   /** False when the Fed said no policy decision will be announced (October 2027 strategy meeting). */
   decision: boolean;
   source: { name: string; url: string };
@@ -51,30 +55,38 @@ export type FomcMeeting = {
 
 const FED_PAGE_SRC = { name: "Federal Reserve, FOMC meeting calendar", url: FOMC_PAGE };
 const FED_2027_SRC = { name: "Federal Reserve press release, revised tentative 2027 FOMC schedule (November 12, 2026)", url: FOMC_2027_RELEASE };
+/** Source for an event taken from a checked-in copy: names the copy and the day it was read, links the official page. */
+const copyOf = (s: { name: string; url: string }, read = "2026-11-20") => ({ name: `${s.name} (checked-in copy read ${read})`, url: s.url });
+const FED_PAGE_COPY = copyOf(FED_PAGE_SRC, "2026-11-22");
 
 const m = (start: IsoDate, end: IsoDate, sep: boolean, source: FomcMeeting["source"], decision = true): FomcMeeting => ({ start, end, sep, decision, source });
+/** 2027 projection meeting by the usual pattern (the Fed has not marked 2027 yet). */
+const sepAssumed = (x: FomcMeeting): FomcMeeting => ({ ...x, sep: true, sepAssumed: true });
 
 /**
- * Checked-in copy, read 2026-11-20. 2026 from the FOMC calendar page (asterisk = projections);
- * 2027 and January 2028 from the November 12, 2026 press release, which does not mark projection
- * meetings, so `sep` is false there rather than guessed. Update from the same pages when the Fed
- * publishes more (fomc fallback test fails once the list runs out).
+ * Checked-in copy. 2026 from the FOMC calendar page (asterisk = projections), re-read
+ * 2026-11-22. 2027 and January 2028 from the November 12, 2026 press release. Neither the release
+ * nor the calendar page (which listed 2027 on 2026-11-22) marks 2027 projection meetings yet, so
+ * March, June and September 2027 are marked by the usual pattern (projections at the March, June,
+ * September and December meetings) with `sepAssumed`. 2027 has no December meeting (the last is
+ * November 16 and 17), so November is left unmarked rather than guessed. Update from the same
+ * pages when the Fed publishes more (the fallback test fails once the list runs out).
  */
 export const FOMC_FALLBACK: FomcMeeting[] = [
-  m("2026-01-27", "2026-01-28", false, FED_PAGE_SRC),
-  m("2026-03-17", "2026-03-18", true, FED_PAGE_SRC),
-  m("2026-04-28", "2026-04-29", false, FED_PAGE_SRC),
-  m("2026-06-16", "2026-06-17", true, FED_PAGE_SRC),
-  m("2026-07-28", "2026-07-29", false, FED_PAGE_SRC),
-  m("2026-09-15", "2026-09-16", true, FED_PAGE_SRC),
-  m("2026-10-27", "2026-10-28", false, FED_PAGE_SRC),
-  m("2026-12-08", "2026-12-09", true, FED_PAGE_SRC),
+  m("2026-01-27", "2026-01-28", false, FED_PAGE_COPY),
+  m("2026-03-17", "2026-03-18", true, FED_PAGE_COPY),
+  m("2026-04-28", "2026-04-29", false, FED_PAGE_COPY),
+  m("2026-06-16", "2026-06-17", true, FED_PAGE_COPY),
+  m("2026-07-28", "2026-07-29", false, FED_PAGE_COPY),
+  m("2026-09-15", "2026-09-16", true, FED_PAGE_COPY),
+  m("2026-10-27", "2026-10-28", false, FED_PAGE_COPY),
+  m("2026-12-08", "2026-12-09", true, FED_PAGE_COPY),
   m("2027-01-26", "2027-01-27", false, FED_2027_SRC),
-  m("2027-03-16", "2027-03-17", false, FED_2027_SRC),
+  sepAssumed(m("2027-03-16", "2027-03-17", false, FED_2027_SRC)),
   m("2027-04-27", "2027-04-28", false, FED_2027_SRC),
-  m("2027-06-08", "2027-06-09", false, FED_2027_SRC),
+  sepAssumed(m("2027-06-08", "2027-06-09", false, FED_2027_SRC)),
   m("2027-07-27", "2027-07-28", false, FED_2027_SRC),
-  m("2027-09-14", "2027-09-15", false, FED_2027_SRC),
+  sepAssumed(m("2027-09-14", "2027-09-15", false, FED_2027_SRC)),
   m("2027-10-26", "2027-10-27", false, FED_2027_SRC, false),
   m("2027-11-16", "2027-11-17", false, FED_2027_SRC),
   m("2028-01-25", "2028-01-26", false, FED_2027_SRC),
@@ -110,10 +122,22 @@ export function parseFomcPage(html: string): FomcMeeting[] {
   return out;
 }
 
-/** Merges page and fallback: the page wins for every year it lists, the fallback fills the rest. */
+/**
+ * Merges page and fallback: the page wins for every year it lists, the fallback fills the rest.
+ * Two facts the page does not carry come from the matching checked-in meeting: "no policy
+ * decision" (the October 2027 strategy meeting, from the press release), and the assumed
+ * projection meetings while the page marks no meeting of that year with an asterisk.
+ */
 export function mergeFomc(page: FomcMeeting[], fallback: FomcMeeting[] = FOMC_FALLBACK): FomcMeeting[] {
   const pageYears = new Set(page.map((x) => x.start.slice(0, 4)));
-  const merged = [...page, ...fallback.filter((x) => !pageYears.has(x.start.slice(0, 4)))];
+  const starredYears = new Set(page.filter((x) => x.sep).map((x) => x.start.slice(0, 4)));
+  const enriched = page.map((x) => {
+    const fb = fallback.find((f) => f.end === x.end);
+    if (!fb) return x;
+    const out = { ...x, decision: x.decision && fb.decision };
+    return fb.sepAssumed && !starredYears.has(x.start.slice(0, 4)) ? { ...out, sep: true, sepAssumed: true } : out;
+  });
+  const merged = [...enriched, ...fallback.filter((x) => !pageYears.has(x.start.slice(0, 4)))];
   const seen = new Set<string>();
   return merged.filter((x) => (seen.has(x.end) ? false : (seen.add(x.end), true))).sort((a, b) => a.end.localeCompare(b.end));
 }
@@ -122,7 +146,7 @@ const hhmm = (d: Date) => d.toISOString().slice(11, 16);
 
 export function fomcEvent(x: FomcMeeting): CalendarEvent {
   const name = x.decision
-    ? `FOMC policy decision and statement (meeting ${x.start} to ${x.end})${x.sep ? ", with economic projections" : ""}`
+    ? `FOMC policy decision and statement (meeting ${x.start} to ${x.end})${x.sep ? (x.sepAssumed ? ", economic projections expected by the usual quarterly pattern (not yet marked by the Fed)" : ", with economic projections") : ""}`
     : `FOMC meeting on monetary policy strategy (${x.start} to ${x.end}), no policy decision announced`;
   return {
     id: `cal.${x.end}.fomc`,
@@ -144,7 +168,6 @@ export type Release = { date: IsoDate; kind: CalendarEventKind; name: string; so
 const BLS_CPI_SRC = { name: "U.S. Bureau of Labor Statistics, CPI release schedule", url: BLS_CPI_PAGE };
 const BLS_JOBS_SRC = { name: "U.S. Bureau of Labor Statistics, Employment Situation release schedule", url: BLS_JOBS_PAGE };
 const BEA_SRC = { name: "U.S. Bureau of Economic Analysis, release schedule", url: BEA_SCHEDULE_PAGE };
-const copyOf = (s: { name: string; url: string }) => ({ name: `${s.name} (checked-in copy read 2026-11-20)`, url: s.url });
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const refMonth = (date: IsoDate, back: number) => {
@@ -284,13 +307,16 @@ export async function fetchWeekAhead(date: IsoDate, deps: DataDeps): Promise<{ e
   const inWindow = (d: IsoDate) => d >= date && d <= to;
   const events: CalendarEvent[] = [];
 
+  const why = (e: unknown) => (e instanceof Error ? e.message : "unknown error").replace(/ (from|for) https?:\/\/\S+/, "");
+
   // FOMC
   let page: FomcMeeting[] = [];
   try {
     page = parseFomcPage(await fetchPage(deps, FOMC_PAGE));
     if (!page.length) throw new Error("no meetings found on the page");
-  } catch {
-    // Page failed or changed shape: the checked-in dates below are the documented fallback.
+  } catch (e) {
+    // Page failed or changed shape: the checked-in dates (cited as the copy) are the fallback.
+    problems.push(`FOMC calendar page could not be read (${why(e)}), using the checked-in FOMC dates`);
   }
   const fomc = mergeFomc(page);
   if (!fomc.length || fomc[fomc.length - 1].end < to) problems.push(`FOMC dates are only known through ${fomc.at(-1)?.end ?? "nothing"}, no reading after that`);
@@ -306,10 +332,12 @@ export async function fetchWeekAhead(date: IsoDate, deps: DataDeps): Promise<{ e
     let list: Release[] = [];
     try {
       list = await s.load();
-    } catch {
-      // Official page refused or failed: the checked-in copy below is the documented fallback.
+      if (!list.length) throw new Error("no release dates found on the page");
+    } catch (e) {
+      // Official page refused or failed: the checked-in copy (cited as the copy) is the fallback.
+      problems.push(`${s.label} page could not be read (${why(e)}), using the checked-in copy`);
+      list = s.fallback;
     }
-    if (!list.length) list = s.fallback;
     const last = list.map((r) => r.date).sort().at(-1);
     if (!last || last < to) problems.push(`${s.label}: dates only known through ${last ?? "nothing"}, no reading for later releases`);
     events.push(...list.filter((r) => inWindow(r.date)).map(releaseEvent));

@@ -7,8 +7,9 @@
  *
  * Every response is saved keyed by the URL with any API key removed (see `redactUrl`), together
  * with the time it was recorded. Keys are read from the environment and never written to disk.
- * Without RESEARCH_PRICE_API_KEY a stock is recorded with Twelve Data's public "demo" key, which
- * only answers for a few symbols such as AAPL. Large responses are trimmed afterwards to what the
+ * A single stock is recorded through Twelve Data (internal use, RESEARCH_PRICE_PROVIDER defaults to
+ * "twelvedata" here only); without RESEARCH_PRICE_API_KEY with its public "demo" key, which only
+ * answers for a few symbols such as AAPL. Large responses are trimmed afterwards to what the
  * parsers read (see the fixture's `note`).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -41,7 +42,7 @@ async function record(target: string): Promise<void> {
   const { fetch, responses } = recorder(base);
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
-  const env = { ...process.env, RESEARCH_PRICE_API_KEY: process.env.RESEARCH_PRICE_API_KEY || "demo" };
+  const env = { ...process.env, RESEARCH_PRICE_PROVIDER: process.env.RESEARCH_PRICE_PROVIDER || "twelvedata", RESEARCH_PRICE_API_KEY: process.env.RESEARCH_PRICE_API_KEY || "demo" };
   const deps = { ...base, fetch, env, now: () => now };
   let summary: string;
   if (target === "run") {

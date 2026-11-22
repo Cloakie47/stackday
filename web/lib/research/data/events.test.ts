@@ -64,6 +64,27 @@ test("the page wins for the years it lists; the checked-in 2027 dates fill the r
   assert.match(fomcEvent(strategy).name, /no policy decision/);
 });
 
+test("checked-in FOMC dates cite the copy; 2027 projection meetings follow the usual pattern until the Fed marks them", () => {
+  for (const x of FOMC_FALLBACK.filter((f) => f.start.startsWith("2026"))) assert.match(x.source.name, /checked-in copy read 2026-11-22/);
+  const sep2027 = FOMC_FALLBACK.filter((x) => x.start.startsWith("2027") && x.sep).map((x) => x.end);
+  assert.deepEqual(sep2027, ["2027-03-17", "2027-06-09", "2027-09-15"]);
+  assert.ok(FOMC_FALLBACK.filter((x) => x.start.startsWith("2027") && x.sep).every((x) => x.sepAssumed));
+  const march = fomcEvent(FOMC_FALLBACK.find((x) => x.end === "2027-03-17")!);
+  assert.match(march.name, /economic projections expected by the usual quarterly pattern \(not yet marked by the Fed\)/);
+  // The Fed page listing 2027 without asterisks (as on 2026-11-22) keeps the assumed projections and the strategy meeting.
+  const page2027 = `<h4><a id="1">2027 FOMC Meetings</a></h4>
+<div class="fomc-meeting__month"><strong>March</strong></div><div class="fomc-meeting__date">16-17</div>
+<div class="fomc-meeting__month"><strong>October</strong></div><div class="fomc-meeting__date">26-27</div>`;
+  const merged = mergeFomc(parseFomcPage(page2027));
+  const mar = merged.find((x) => x.end === "2027-03-17")!;
+  assert.equal(mar.source.url, "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm");
+  assert.ok(mar.sep && mar.sepAssumed);
+  assert.equal(merged.find((x) => x.end === "2027-10-27")!.decision, false);
+  // Once the page stars a 2027 meeting, the page's own marks win.
+  const starred = mergeFomc(parseFomcPage(page2027.replace("16-17", "16-17*")));
+  assert.equal(starred.find((x) => x.end === "2027-03-17")!.sepAssumed, undefined);
+});
+
 test("checked-in official dates have not run out (warns 120 days ahead, fails once out)", (t) => {
   const today = new Date().toISOString().slice(0, 10);
   for (const [name, last] of [
@@ -116,7 +137,16 @@ test("week ahead with every official page failing: checked-in copies, gaps repor
   assert.ok(ids.includes("cal.2026-11-20.options-expiry"));
   assert.ok(ids.includes("cal.2026-11-27.crypto-options-expiry"));
   assert.ok(!ids.some((id) => id.endsWith(".fomc")), "no FOMC meeting that week");
-  assert.deepEqual(r.problems, []);
+  // Every failed page is a line in problems (none silent); the checked-in copies cover the week.
+  assert.deepEqual(r.problems, [
+    "FOMC calendar page could not be read (HTTP 403), using the checked-in FOMC dates",
+    "BLS CPI schedule page could not be read (HTTP 403), using the checked-in copy",
+    "BLS jobs report schedule page could not be read (HTTP 403), using the checked-in copy",
+    "BEA release schedule page could not be read (HTTP 403), using the checked-in copy",
+  ]);
+  const dec = await fetchWeekAhead("2026-12-07", deps);
+  const fomc = dec.events.find((e) => e.id === "cal.2026-12-09.fomc")!;
+  assert.match(fomc.source.name, /checked-in copy read 2026-11-22/, "the fallback is cited as the copy, not the live page");
   // In late December the BEA copy runs out, which is reported instead of guessed.
   const late = await fetchWeekAhead("2026-12-20", deps);
   assert.ok(late.problems.some((p) => /BEA release schedule: dates only known through 2026-12-23/.test(p)));

@@ -2,7 +2,7 @@ import deployment from "../../deployment.json" with { type: "json" };
 import type { AssetResearchInput, BarInterval, CalendarEvent, ChartInterval, Fact, Indicators, IsoDate, IsoDateTime, MarketResearchInput, PriceBar, PriceSeries, Source } from "../types.ts";
 import { CHART_INTERVAL_LABEL, CHART_INTERVALS } from "../types.ts";
 import { checkResearchable, researchableUniverse, type DeploymentLike, type UniverseAsset } from "../universe.ts";
-import { NYSE_SOURCE, calendarCovers, holidayName, isEarlyClose, isTradingDay, lastTradingDay, newYorkParts, sessionHours } from "./calendar.ts";
+import { NYSE_SOURCE, calendarCovers, holidayName, isEarlyClose, isTradingDay, lastTradingDay } from "./calendar.ts";
 import { PATTERN_LABEL, readChart } from "./chart.ts";
 import { assertServer, defaultDeps, type DataDeps } from "./deps.ts";
 import { eventsForAsset, fetchWeekAhead } from "./events.ts";
@@ -11,7 +11,7 @@ import { fetchOfficialNews, fetchPressNews, fetchWireNews, newsFacts } from "./h
 import { computeIndicators } from "./indicators.ts";
 import { MACRO_FOR_ASSET, fetchMacro } from "./macro.ts";
 import { fetchFilings } from "./news.ts";
-import { PRICE_SOURCES, aggregateBars, fetchPriceHistory } from "./prices.ts";
+import { PRICE_SOURCES, aggregateBars, barPeriodEnd, closedBars, fetchPriceHistory } from "./prices.ts";
 
 /**
  * Gathers everything the engine needs, code only (spec section 4.1). Every number in `facts`
@@ -37,7 +37,11 @@ import { PRICE_SOURCES, aggregateBars, fetchPriceHistory } from "./prices.ts";
  *   flow.funding.last, flow.funding.avg7d, flow.stablecoins.total | chg7d | chg30d
  *   news.0 .., filing.0 ..
  *
- * No look-ahead: bars, observations and headlines after the run date are dropped.
+ * No look-ahead: bars, observations and headlines after the run date are dropped, and so is any
+ * bar whose period has not ended at the run time (see `cutSeries`).
+ *
+ * Licences: a fact built from a source whose terms do not allow display carries `display: false`
+ * (see `withDisplay`), for example every price fact from the Twelve Data free plan.
  */
 
 const BAR_INTERVALS: BarInterval[] = ["1h", "1d", "1w", "1mo"];
@@ -66,17 +70,16 @@ export function seriesAsOf(s: PriceSeries, crypto: boolean): IsoDateTime {
 }
 
 /**
- * When a bar closed: start + 1 hour or 1 day for crypto; for stocks never later than that day's
- * NYSE close (16:00 New York, 13:00 on early closes). Capped at `fetchedAt` for a bar still open.
+ * When a bar closed (`barPeriodEnd`): start + 1 hour or 1 day for crypto; for stocks never later
+ * than that day's NYSE close (16:00 New York, 13:00 on early closes). Capped at `fetchedAt`.
  */
 export function barCloseTime(bar: PriceBar, interval: BarInterval, crypto: boolean, fetchedAt: IsoDateTime): IsoDateTime {
-  const start = Date.parse(bar.t);
-  let close = start + (interval === "1h" ? 3_600_000 : 86_400_000);
-  if (!crypto) {
-    const session = sessionHours(newYorkParts(new Date(start)).date);
-    if (session) close = interval === "1h" ? Math.min(close, session.close.getTime()) : session.close.getTime();
-  }
-  return new Date(Math.min(close, Date.parse(fetchedAt))).toISOString();
+  return new Date(Math.min(barPeriodEnd(bar.t, interval, crypto), Date.parse(fetchedAt))).toISOString();
+}
+
+/** Copies a source's display permission onto the facts built from it: `display: false` when its terms forbid display. */
+export function withDisplay(facts: Fact[], display: boolean | undefined): Fact[] {
+  return display === false ? facts.map((f) => ({ ...f, display: false })) : facts;
 }
 
 type FactSpec = { key: string; label: string; value: number | undefined; unit?: string };
@@ -125,21 +128,27 @@ export function eventFacts(events: CalendarEvent[], at: IsoDateTime): Fact[] {
   return events.map((e) => ({ id: e.id, kind: "calendar" as const, label: e.name, value: e.timeUtc ? `${e.date} ${e.timeUtc} UTC` : e.date, source: e.source, asOf: at }));
 }
 
-/** Drops bars that start after the run date and rebuilds weekly and monthly bars from what is left. */
-export function cutSeries(series: Partial<Record<BarInterval, PriceSeries>>, date: IsoDate): Partial<Record<BarInterval, PriceSeries>> {
-  const end = Date.parse(`${date}T23:59:59.999Z`);
+/**
+ * Keeps only closed bars and rebuilds weekly and monthly bars from the closed daily bars. The run
+ * time is `now`, capped at the end of the run date for a backfill: a bar is kept only when its
+ * period (hour, NYSE session or UTC day, week, month; see `barPeriodEnd`) has ended by then, so
+ * changes such as chg.1w.bar1 and chart patterns never read a bar that is still forming.
+ */
+export function cutSeries(series: Partial<Record<BarInterval, PriceSeries>>, date: IsoDate, crypto: boolean, now?: Date): Partial<Record<BarInterval, PriceSeries>> {
+  const at = Math.min(Date.parse(`${date}T00:00:00Z`) + 86_400_000, now ? now.getTime() : Infinity);
   const out: Partial<Record<BarInterval, PriceSeries>> = {};
   for (const iv of ["1h", "1d"] as const) {
     const s = series[iv];
     if (!s) continue;
-    const bars = s.bars.filter((b) => Date.parse(b.t) <= end);
+    const bars = closedBars(s.bars, iv, crypto, at);
     if (bars.length) out[iv] = { ...s, bars };
   }
   const d = out["1d"];
   if (d) {
     for (const iv of ["1w", "1mo"] as const) {
       const s = series[iv];
-      if (s) out[iv] = { ...s, bars: aggregateBars(d.bars, iv) };
+      const bars = s ? closedBars(aggregateBars(d.bars, iv), iv, crypto, at) : [];
+      if (s && bars.length) out[iv] = { ...s, bars };
     }
   }
   return out;
@@ -202,9 +211,11 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
 
   // Prices and indicators
   const history = await fetchPriceHistory(asset, d);
-  out.series = cutSeries(history.series, date);
+  out.series = cutSeries(history.series, date, crypto, d.now());
   out.problems.push(...history.problems);
   const proxy = PRICE_SOURCES[assetId]?.proxyNote;
+  // Every fact from here to the end of the chart read is built from the price history.
+  const priceFrom = out.facts.length;
 
   for (const iv of BAR_INTERVALS) {
     const s = out.series[iv];
@@ -240,7 +251,8 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
   const wv = weekly?.bars.at(-1)?.v;
   if (weekly && daily && wv !== undefined && Number.isFinite(wv)) {
     const unit = crypto ? `${PRICE_SOURCES[assetId].symbol.split("-")[0]} traded` : "shares traded";
-    out.facts.push({ id: "px.1w.volume", kind: "price", label: `Volume this week so far (week starting ${weekly.bars.at(-1)!.t.slice(0, 10)})`, value: Math.round(wv), unit, source: weekly.source, asOf: seriesAsOf(daily, crypto) });
+    const wk = weekly.bars.at(-1)!;
+    out.facts.push({ id: "px.1w.volume", kind: "price", label: `Volume in the last full week (week starting ${wk.t.slice(0, 10)})`, value: Math.round(wv), unit, source: weekly.source, asOf: barCloseTime(wk, "1w", crypto, weekly.fetchedAt) });
   }
 
   // Chart read in code on daily, weekly and monthly bars.
@@ -248,6 +260,7 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
     if (out.series[iv]) chartFacts(out, iv, crypto);
     else out.problems.push(`${assetId}: no ${CHART_INTERVAL_LABEL[iv].toLowerCase()} bars, no chart reading`);
   }
+  out.facts.splice(priceFrom, Infinity, ...withDisplay(out.facts.slice(priceFrom), history.display));
 
   // Week-ahead calendar: shared with the market input when given.
   let events: CalendarEvent[];
