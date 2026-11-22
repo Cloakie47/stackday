@@ -24,6 +24,21 @@ import { getWeekly, type Loaded } from "./api";
    Data loading
 --------------------------------------------------------------------------------------------- */
 
+
+/**
+ * A source link only when it is a well-formed https URL. Sources are already cleaned upstream and
+ * React escapes attributes; this is a second line of defence against javascript: or data: links.
+ */
+export function httpsUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export type LoadState<T> =
   | { status: "loading" }
   | { status: "error"; error: string }
@@ -403,9 +418,9 @@ export function FactLine({ fact }: { fact: Fact }) {
         {factValue(fact)}
       </span>
       <span aria-hidden>·</span>
-      {fact.source.url ? (
+      {httpsUrl(fact.source.url) ? (
         <a
-          href={fact.source.url}
+          href={httpsUrl(fact.source.url)}
           target="_blank"
           rel="noreferrer"
           className="underline decoration-line underline-offset-2 hover:text-ink hover:decoration-ink"

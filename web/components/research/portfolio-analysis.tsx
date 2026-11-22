@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Badge, Card, SplitBar, Stat, cx, splitColor } from "@/components/ui";
 import type { AllocationSlice, PortfolioAnalysis } from "@/lib/research/types";
-import { AsOf, DataLabel, ReasonList, ResearchAssetIcon, SubHead, ViewBadge, assetName, fmtPct, fmtUsd } from "./bits";
+import { universeAsset } from "@/lib/research/universe";
+import { AsOf, DataLabel, NotCoveredBadge, ReasonList, ResearchAssetIcon, SubHead, ViewBadge, assetName, fmtPct, fmtUsd } from "./bits";
 
 function Allocation({ title, slices }: { title: string; slices: AllocationSlice[] }) {
   return (
@@ -85,13 +86,17 @@ export function PortfolioAnalysisView({ a, preview = false }: { a: PortfolioAnal
                     </span>
                   </span>
                 </span>
-                <span className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-muted">General view:</span>
-                  {h.generalView ? <ViewBadge view={h.generalView} /> : <span className="text-muted">none this week</span>}
-                  <Link href={`/research/${h.assetId}`} className="inline-flex min-h-11 items-center font-medium text-ink underline underline-offset-2 sm:min-h-0">
-                    Read it
-                  </Link>
-                </span>
+                {universeAsset(h.assetId) ? (
+                  <span className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-muted">General view:</span>
+                    {h.generalView ? <ViewBadge view={h.generalView} /> : <span className="text-muted">none this week</span>}
+                    <Link href={`/research/${h.assetId}`} className="inline-flex min-h-11 items-center font-medium text-ink underline underline-offset-2 sm:min-h-0">
+                      Read it
+                    </Link>
+                  </span>
+                ) : (
+                  <NotCoveredBadge />
+                )}
               </div>
               {h.borrowing && (
                 <p className="mt-2 text-xs leading-relaxed text-ink-soft">

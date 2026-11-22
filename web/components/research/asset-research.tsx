@@ -22,6 +22,7 @@ import {
   ResearchAssetIcon,
   ResearchTabs,
   SampleBanner,
+  httpsUrl,
   SubHead,
   UniverseWarning,
   ViewChip,
@@ -316,8 +317,8 @@ function Section({ s, r }: { s: WeeklyAssetSection; r: WeeklyReport }) {
                     <span className="text-ink"> · {e.name}</span>
                   </span>
                   <span className="text-xs text-muted">
-                    {e.source.url ? (
-                      <a href={e.source.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">
+                    {httpsUrl(e.source.url) ? (
+                      <a href={httpsUrl(e.source.url)} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">
                         {e.source.name}
                       </a>
                     ) : (

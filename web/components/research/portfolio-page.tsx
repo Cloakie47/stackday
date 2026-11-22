@@ -8,7 +8,7 @@ import type { Holding, PortfolioAnalysis, PortfolioInput, View } from "@/lib/res
 import { universeAsset } from "@/lib/research/universe";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { previewPortfolio } from "./api";
-import { Disclaimer, LoadError, NOT_COVERED, NotCoveredBadge, ResearchAssetIcon, ResearchTabs, SampleBanner, assetName, fmtUsd, useWeekly } from "./bits";
+import { BetaBanner, Disclaimer, LoadError, NOT_COVERED, NotCoveredBadge, ResearchAssetIcon, ResearchTabs, SampleBanner, assetName, fmtUsd, useWeekly } from "./bits";
 import { PortfolioAnalysisView } from "./portfolio-analysis";
 import { previewAnalysis } from "./portfolio-preview";
 
@@ -58,15 +58,15 @@ export function PortfolioPage() {
   }
 
   const holdings = [...vault, ...manual];
-  const covered = holdings.filter((h) => universeAsset(h.assetId));
   const notCovered = holdings.filter((h) => !universeAsset(h.assetId));
   const pickCovered = Boolean(universeAsset(pick));
 
   async function run() {
     setBusy(true);
     setError(null);
-    // Only research-universe holdings go to the check; the rest are listed as not covered.
-    const input: PortfolioInput = { holdings: covered };
+    // Every holding goes to the check, so allocation and concentration count all of it. The server
+    // marks holdings outside the six research assets "not covered" (no view, no borrowing note).
+    const input: PortfolioInput = { holdings };
     const views = new Map<string, View>();
     if (weekly.status === "ready") for (const s of weekly.data.report.assets) if (s.status === "ok") views.set(s.assetId, s.view.view);
     try {
@@ -83,6 +83,7 @@ export function PortfolioPage() {
     <>
       <PageHeader title="Portfolio check" lead="Facts about your holdings: allocation, overlap, concentration and loan health, with a link to the general view for each asset." />
       <ResearchTabs />
+      <BetaBanner />
       <Disclaimer />
       <Notice>
         This check states facts and links to the weekly research, which is the same for every reader. It never gives a personal buy or sell order, and
@@ -150,17 +151,17 @@ export function PortfolioPage() {
             Add
           </Button>
         </form>
-        {!pickCovered && <p className="mt-2 text-xs text-muted">{NOT_COVERED} It is listed, but not part of the check.</p>}
+        {!pickCovered && <p className="mt-2 text-xs text-muted">{NOT_COVERED} It counts in allocation and concentration, without a general view or borrowing note.</p>}
 
-        <Button className="mt-4" disabled={covered.length === 0 || busy} onClick={run}>
+        <Button className="mt-4" disabled={holdings.length === 0 || busy} onClick={run}>
           {busy ? "Checking" : "Check these holdings"}
         </Button>
-        {covered.length === 0 && <p className="mt-2 text-xs text-muted">Add at least one covered holding first.</p>}
+        {holdings.length === 0 && <p className="mt-2 text-xs text-muted">Add at least one holding first.</p>}
       </Card>
 
       {notCovered.length > 0 && (
         <Card title="Not covered">
-          <p className="mb-3 text-[13px] text-ink-soft">{NOT_COVERED} These holdings are left out of the check.</p>
+          <p className="mb-3 text-[13px] text-ink-soft">{NOT_COVERED} These holdings count in allocation and concentration, but get no general view or borrowing note.</p>
           <ul className="flex flex-wrap gap-2">
             {notCovered.map((h) => (
               <li key={`${h.origin}-${h.assetId}`} className="inline-flex items-center gap-2 rounded-[10px] border border-line bg-popover px-3 py-1.5 text-[13px]">
