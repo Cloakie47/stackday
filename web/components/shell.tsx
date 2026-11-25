@@ -54,6 +54,7 @@ const P = {
   borrow: { href: "/borrow", label: "Borrow", short: "Loan" },
   themes: { href: "/themes", label: "Themes" },
   research: { href: "/research", label: "Research" },
+  gifts: { href: "/gifts", label: "Gifts" },
   risk: { href: "/risk", label: "Risk" },
   payroll: { href: "/employer", label: "Payroll" },
 } satisfies Record<string, NavItem>;
@@ -64,11 +65,11 @@ const P = {
  * Before a choice every page is listed. Risk lives under Borrow (its tab bar and the menu).
  */
 const NAVS: Record<Role | "all", NavItem[]> = {
-  individual: [P.portfolio, P.invest, P.borrow, P.themes, P.research],
+  individual: [P.portfolio, P.invest, P.borrow, P.themes, P.research, P.gifts],
   owner: [P.payroll, P.risk],
   // In the order of the journey: overview, get paid, invest, borrow.
-  employee: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research],
-  all: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research, P.payroll],
+  employee: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research, P.gifts],
+  all: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research, P.gifts, P.payroll],
 };
 /** The phone's section switch: the mode's two or three main pages. Everything else is in the menu. */
 const SEGMENTS: Record<Role | "all", NavItem[]> = {
@@ -79,7 +80,7 @@ const SEGMENTS: Record<Role | "all", NavItem[]> = {
 };
 /** Pages that belong to both interfaces. */
 const SHARED = ["/risk", "/demo", "/docs", "/start", "/gifts"];
-/** Pages that only live in the menu. */
+/** Pages that only live in the menu (Gifts too for a business owner, whose bar does not list it). */
 const EXTRA: NavItem[] = [
   { href: "/gifts", label: "Gifts" },
   { href: "/docs", label: "Docs" },
@@ -288,7 +289,7 @@ function MenuBody({ pages, onNavigate }: { pages: NavItem[]; onNavigate?: () => 
 
       <div className="my-1 border-t border-line-soft" />
       <nav aria-label="More pages" className="grid gap-0.5">
-        {[...pages, ...EXTRA].map((item) => (
+        {[...pages, ...EXTRA.filter((e) => !pages.some((p) => p.href === e.href))].map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -549,6 +550,7 @@ function DesktopNav({ items }: { items: NavItem[] }) {
   const isActive = useIsActive();
   const pathname = usePathname();
   const riskUnderBorrow = !items.some((i) => i.href === "/risk");
+  const { address } = useAccount();
   return (
     <nav aria-label="Main" className="flex items-center gap-1">
       {items.map((item) => {
@@ -564,6 +566,11 @@ function DesktopNav({ items }: { items: NavItem[] }) {
             )}
           >
             {item.label}
+            {item.href === "/gifts" && (
+              <span className="ml-1.5 flex">
+                <GiftBadge address={address} />
+              </span>
+            )}
           </Link>
         );
       })}
