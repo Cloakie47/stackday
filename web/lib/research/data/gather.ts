@@ -229,10 +229,11 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
   out.problems.push(...history.problems);
   const proxy = PRICE_SOURCES[assetId]?.proxyNote;
   const cutoff = runCutoff(date, d.now());
-  // Before 12:00 UTC on the run date the cut is "now": whatever was just read is current (a block
-  // time a few seconds past the server clock is not the future). Later, or for a backfill, a value
-  // read from chain counts only if it was published by 12:00 UTC on the run date.
-  const usable = (asOf: IsoDateTime) => cutoff >= d.now().getTime() || Date.parse(asOf) <= cutoff;
+  // A live run (run date is today, as in macro.ts) uses the current price and pool facts as read,
+  // even when the cron fires a little after 12:00 UTC. A backfill (run date before today) uses a
+  // value read from chain only if it was published by 12:00 UTC on the run date, so never today's.
+  const live = date >= d.now().toISOString().slice(0, 10);
+  const usable = (asOf: IsoDateTime) => live || Date.parse(asOf) <= cutoff;
 
   for (const iv of BAR_INTERVALS) {
     const s = out.series[iv];

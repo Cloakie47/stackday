@@ -21,13 +21,16 @@ import { sma } from "./indicators.ts";
  * was out on the run date.
  * The weekly run is Monday 12:00 UTC (7:00 or 8:00 a.m. New York), so a value published later on
  * the run date is never visible to it.
- * - H.15 series (Treasury yields DGS2, DGS10, real yield DFII10, effective fed funds DFF): the
- *   Federal Reserve posts day D's rates on the next business day at 4:15 p.m. New York time, so
- *   they are used from the day after that release (`h15Release`). Friday's yields are not visible
- *   on Monday, Thursday's are.
- * - H.10 (broad dollar index DTWEXBGS): posted weekly on Monday at 4:15 p.m. for the week before
- *   (Tuesday when Monday is a Federal Reserve holiday), so used from the day after (`h10Release`).
- *   A Monday run sees the dollar through the Friday before last.
+ * - H.15 series (Treasury yields DGS2, DGS10, real yield DFII10, effective fed funds DFF): "The
+ *   release is posted daily Monday through Friday at 4:15pm" and not on holidays
+ *   (https://www.federalreserve.gov/releases/h15/, read 2026-11-25); the release dated November
+ *   24, 2026 ends with November 23, so day D's rates appear on the next business day. They are
+ *   used from the day after that release (`h15Release`): Friday's yields are not visible on
+ *   Monday, Thursday's are.
+ * - H.10 (broad dollar index DTWEXBGS): "On Mondays at 4:15 p.m." for "the previous business
+ *   week"; "If Monday falls on a Federal Holiday, the data will be released on the following
+ *   business day" (https://www.federalreserve.gov/releases/h10/, read 2026-11-25). Used from the
+ *   day after (`h10Release`): a Monday run sees the dollar through the Friday before last.
  * - Other daily series (VIX and S&P 500 closes, the target range): the day after the observation.
  * - CPI (CPIAUCSL, CPILFESL) and payrolls and unemployment (PAYEMS, UNRATE): the day after BLS
  *   published that reference month (`BLS_RELEASED_FOR` in events.ts: actual dates from January
@@ -119,12 +122,19 @@ const lastWeekday = (y: number, m: number, wd: number): string => {
 };
 
 /**
- * Federal Reserve holidays: the federal holidays; one on a Sunday is observed on Monday, one on a
- * Saturday is not moved (https://www.federalreserve.gov/aboutthefed/k8.htm).
+ * Days the Board of Governors (which publishes H.15 and H.10) is closed: the federal holidays on
+ * https://www.federalreserve.gov/aboutthefed/k8.htm (read 2026-11-25). A holiday on a Sunday is
+ * observed on Monday; for one on a Saturday the Reserve Banks open on Friday "however, the Board of
+ * Governors will be closed", so Friday counts as a holiday here (July 3, 2026; December 24, 2027).
  */
 export function isFedHoliday(date: IsoDate): boolean {
   const y = Number(date.slice(0, 4));
-  const fixed = [`${y}-01-01`, `${y}-06-19`, `${y}-07-04`, `${y}-11-11`, `${y}-12-25`].map((d) => (new Date(`${d}T00:00:00Z`).getUTCDay() === 0 ? addDays(d, 1) : d));
+  const observed = (d: string) => {
+    const wd = new Date(`${d}T00:00:00Z`).getUTCDay();
+    return wd === 0 ? addDays(d, 1) : wd === 6 ? addDays(d, -1) : d;
+  };
+  // Next year's New Year's Day on a Saturday closes the Board on December 31.
+  const fixed = [`${y}-01-01`, `${y}-06-19`, `${y}-07-04`, `${y}-11-11`, `${y}-12-25`, `${y + 1}-01-01`].map(observed);
   const moving = [nthWeekday(y, 1, 1, 3), nthWeekday(y, 2, 1, 3), lastWeekday(y, 5, 1), nthWeekday(y, 9, 1, 1), nthWeekday(y, 10, 1, 2), nthWeekday(y, 11, 4, 4)];
   return fixed.includes(date) || moving.includes(date);
 }

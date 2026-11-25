@@ -221,7 +221,8 @@ export function detectBreak(ctx: Ctx, up: boolean): Pattern | null {
     const still = up ? last > level : last < level;
     if (!still) return null;
     const margin = (up ? last - level : level - last) / atr;
-    const vAvg = avgVolume(bars, j - 20, j);
+    // No volume on the breakout bar (on-chain stocks after the backfill): no volume statement at all.
+    const vAvg = bars[j].v === undefined ? undefined : avgVolume(bars, j - 20, j);
     const vOk = vAvg !== undefined && (bars[j].v ?? 0) >= 1.2 * vAvg;
     const conf: Confidence = margin >= 0.5 && vOk ? "high" : margin >= 0.2 ? "medium" : "low";
     const inv = up ? level - 0.5 * atr : level + 0.5 * atr;

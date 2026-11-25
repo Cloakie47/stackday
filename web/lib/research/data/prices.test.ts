@@ -48,6 +48,16 @@ test("weekly and monthly bars are built from daily bars", () => {
   ]);
 });
 
+test("weekly and monthly volume is left out when a day has none", () => {
+  const daily = [
+    { t: "2026-11-23T14:30:00.000Z", o: 1, h: 1, l: 1, c: 1, v: 5 },
+    { t: "2026-11-24T14:30:00.000Z", o: 1, h: 1, l: 1, c: 1 },
+    { t: "2026-11-30T14:30:00.000Z", o: 1, h: 1, l: 1, c: 1, v: 7 },
+  ];
+  assert.deepEqual(aggregateBars(daily, "1w").map((b) => b.v), [undefined, 7]);
+  assert.deepEqual(aggregateBars(daily, "1mo").map((b) => b.v), [undefined], "November has a day without volume");
+});
+
 test("Coinbase series carry display true on their source; a failing source is reported and nothing is faked", async () => {
   const btc = await fetchPriceHistory(universeAsset("mcbBTC")!, { ...noNetwork, fetch: async () => ({ ok: true, status: 200, text: async () => "[[1795046400, 1, 4, 2, 3, 10]]" }) });
   assert.equal(btc.series["1d"]!.source.display, true);

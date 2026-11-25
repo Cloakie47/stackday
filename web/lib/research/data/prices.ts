@@ -71,25 +71,35 @@ function weekKey(t: string): string {
 
 /**
  * Builds weekly (Monday to Sunday, UTC) or monthly bars from daily bars: open of the first day,
- * highest high, lowest low, close of the last day, summed volume. The newest bar is the week or
+ * highest high, lowest low, close of the last day, summed volume. Volume is left out when any day
+ * of the period has none (a partial sum would read as low volume). The newest bar is the week or
  * month so far, as providers also show it; `closedBars` drops it until its period has ended.
  */
 export function aggregateBars(daily: PriceBar[], to: "1w" | "1mo"): PriceBar[] {
   const out: PriceBar[] = [];
   let key = "";
+  let missingV = false;
+  const close = () => {
+    const cur = out[out.length - 1];
+    if (cur && missingV) delete cur.v;
+  };
   for (const b of daily) {
     const k = to === "1w" ? weekKey(b.t) : b.t.slice(0, 7);
     const cur = out[out.length - 1];
     if (k !== key || !cur) {
+      close();
       out.push({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, ...(b.v !== undefined ? { v: b.v } : {}) });
+      missingV = b.v === undefined;
       key = k;
     } else {
       cur.h = Math.max(cur.h, b.h);
       cur.l = Math.min(cur.l, b.l);
       cur.c = b.c;
-      if (b.v !== undefined) cur.v = (cur.v ?? 0) + b.v;
+      if (b.v === undefined) missingV = true;
+      else cur.v = (cur.v ?? 0) + b.v;
     }
   }
+  close();
   return out;
 }
 

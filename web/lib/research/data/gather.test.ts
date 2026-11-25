@@ -7,6 +7,7 @@ import deployment from "../../deployment.json" with { type: "json" };
 import { NotResearchableError, cutSeries, gatherAsset, gatherRun } from "./gather.ts";
 import { redactUrl, type DataDeps } from "./deps.ts";
 import { barPeriodEnd } from "./prices.ts";
+import { fetchOnchainHistory } from "./onchain.ts";
 import { rpcKey, type Fixture } from "./record-fixtures.ts";
 import { CHART_INTERVALS, PATTERN_KINDS, isDisplayable, type AssetResearchInput, type Fact, type MarketResearchInput, type PriceSeries } from "../types.ts";
 
@@ -18,11 +19,12 @@ import { CHART_INTERVALS, PATTERN_KINDS, isDisplayable, type AssetResearchInput,
 const dir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const load = (id: string): Fixture => JSON.parse(readFileSync(join(dir, `${id}.json`), "utf8"));
 
-function replayDeps(fx: Fixture, env: Record<string, string>): Partial<DataDeps> {
+function replayDeps(fx: Fixture, env: Record<string, string>, asset?: string): Partial<DataDeps> {
   // Recorded JSON-RPC answers are replayed in order per call; the last one repeats.
+  const rpc = asset ? fx.rpcByAsset?.[asset] : fx.rpc;
   const used = new Map<string, number>();
   const answer = (key: string) => {
-    const list = fx.rpc?.[key];
+    const list = rpc?.[key];
     if (!list?.length) return { error: { code: -32000, message: "not recorded" } };
     const i = used.get(key) ?? 0;
     used.set(key, i + 1);
@@ -32,7 +34,7 @@ function replayDeps(fx: Fixture, env: Record<string, string>): Partial<DataDeps>
     fetch: async (url, init) => {
       if (init?.method === "POST") {
         // JSON-RPC: answer each call of the batch from the recorded answers; anything else is an error answer.
-        if (!fx.rpc) return { ok: false, status: 404, text: async () => "not recorded" };
+        if (!rpc) return { ok: false, status: 404, text: async () => "not recorded" };
         const reqs = JSON.parse(init.body ?? "[]") as { id: number; method: string; params: unknown[] }[];
         const body = reqs.map((q) => ({ jsonrpc: "2.0", id: q.id, ...answer(rpcKey(q.method, q.params)) }));
         return { ok: true, status: 200, text: async () => JSON.stringify(body) };
@@ -165,11 +167,11 @@ test("Apple newsroom and SEC EDGAR from recorded responses", async () => {
 
 test("on-chain stocks from recorded Base responses: current price, daily, weekly and monthly bars, chart read, honest gaps", async () => {
   const fx = load("onchain");
-  assert.ok(fx.rpc && fx.backfill, "fixture holds RPC answers and its backfill");
+  assert.ok(fx.rpcByAsset && fx.backfill, "fixture holds RPC answers and its backfill");
+  assert.match(fx.backfill!.note, /TEST COPY: truncated/, "the backfill copy ends days before the recording, so the run-time tail is replayed");
   const date = fx.recordedAt.slice(0, 10);
-  const deps = replayDeps(fx, {});
   for (const id of ["mAAPL", "mNVDA", "mSPX"]) {
-    const input = await gatherAsset(id, date, deps, { market: EMPTY_MARKET(date), onchainBackfill: fx.backfill });
+    const input = await gatherAsset(id, date, replayDeps(fx, {}, id), { market: EMPTY_MARKET(date), onchainBackfill: fx.backfill });
     const f = checkFacts(input.facts);
     const why = `${id}: ${input.problems.join(" | ")}`;
     assert.deepEqual(Object.keys(input.series).sort(), ["1d", "1mo", "1w"], why);
@@ -212,8 +214,7 @@ test("on-chain stocks from recorded Base responses: current price, daily, weekly
 
 test("on-chain backfill run: the current price and pool facts read today are not used for an earlier date", async () => {
   const fx = load("onchain");
-  // The on-chain fixture replays in recording order (mAAPL, mNVDA, mSPX) per replayDeps instance, so start with mAAPL.
-  const input = await gatherAsset("mAAPL", "2026-11-23", replayDeps(fx, {}), { market: EMPTY_MARKET("2026-11-23"), onchainBackfill: fx.backfill });
+  const input = await gatherAsset("mAAPL", "2026-11-23", replayDeps(fx, {}, "mAAPL"), { market: EMPTY_MARKET("2026-11-23"), onchainBackfill: fx.backfill });
   const f = checkFacts(input.facts);
   assert.ok(!f.has("px.pool.last") && !f.has("px.pool.premium"));
   // Monday's session closes at 21:00 UTC, after the 12:00 cut: the last close is Friday's.
@@ -221,6 +222,35 @@ test("on-chain backfill run: the current price and pool facts read today are not
   const last = f.get("px.last")!;
   assert.equal(last.asOf, "2026-11-20T21:00:00.000Z");
   assert.match(last.label, /^Last price \(on-chain price of AAPLc on Base, not Apple's exchange price\)$/);
+});
+
+test("on-chain run-time tail: rounds and pool swaps after a days-old backfill, within the time budget", async () => {
+  const fx = load("onchain");
+  const date = fx.recordedAt.slice(0, 10);
+  const bf = fx.backfill!;
+  for (const id of ["mAAPL", "mNVDA", "mSPX"]) {
+    const deps = { ...replayDeps(fx, {}, id), now: () => new Date(fx.recordedAt) } as DataDeps;
+    const h = await fetchOnchainHistory(id, deps, bf);
+    assert.ok(h.daily && h.daily.length > 20, `${id}: ${h.problems.join(" | ")}`);
+    assert.ok(h.requests <= 10, `${id}: ${h.requests} requests`);
+    assert.ok(!h.problems.some((p) => /not read|budget/.test(p) && !/pool volume after/.test(p)), `${id}: ${h.problems.join(" | ")}`);
+    if (id === "mSPX") {
+      // 7 days of pool logs after the backfill: about 61 ranges of 50,000 blocks in batches of 10.
+      const ranges = Object.keys(fx.rpcByAsset![id]).filter((k) => k.startsWith("eth_getLogs")).length;
+      assert.ok(ranges > 50, `${ranges} getLogs ranges replayed`);
+      const lastBf = Math.max(...bf.assets.mSPX.pool!.hours.map((r) => r[0]!));
+      assert.ok(Date.parse(h.daily!.at(-1)!.t) > lastBf * 1000, "bars continue after the backfill");
+    } else {
+      const lastBfRound = bf.assets[id].feed!.lastRound["2"];
+      const m = h.source!.name.match(/rounds 1\.1 to 2\.(\d+)/);
+      assert.ok(m && Number(m[1]) > lastBfRound, `${id}: rounds after 2.${lastBfRound} were read (${h.source!.name.slice(0, 120)})`);
+    }
+  }
+  // A live run that fires a few minutes after 12:00 UTC still uses the current price and pool facts.
+  const late = await gatherAsset("mSPX", date, { ...replayDeps(fx, {}, "mSPX"), now: () => new Date(`${date}T12:03:00Z`) }, { market: EMPTY_MARKET(date), onchainBackfill: bf });
+  const lf = checkFacts(late.facts);
+  assert.match(lf.get("px.last")!.label, /Morpho market oracle/);
+  assert.ok(lf.has("px.pool.premium"));
 });
 
 test("assets that are not researchable are refused", async () => {

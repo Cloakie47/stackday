@@ -5,6 +5,7 @@
  *   node lib/research/data/record-fixtures.ts run          # whole run for today -> fixtures/run.json
  *   node lib/research/data/record-fixtures.ts mAAPL        # one asset -> fixtures/mAAPL.json
  *   node lib/research/data/record-fixtures.ts onchain      # on-chain reads for the stocks -> fixtures/onchain.json
+ *   node lib/research/data/record-fixtures.ts onchain --backfill=path.json   # against a (truncated) backfill copy
  *
  * Every response is saved keyed by the URL with any API key removed (see `redactUrl`), together
  * with the time it was recorded. Keys are read from the environment and never written to disk.
@@ -13,7 +14,7 @@
  * asks for exactly the recorded blocks and rounds. Large responses are trimmed afterwards to what
  * the parsers read (see the fixture's `note`).
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultDeps, redactUrl, type DataDeps, type FetchLike } from "./deps.ts";
@@ -30,6 +31,8 @@ export type Fixture = {
    * (for example the latest block) can answer differently later in a recording.
    */
   rpc?: Record<string, RpcAnswer[]>;
+  /** The on-chain fixture: the same, per asset, so each asset replays on its own. */
+  rpcByAsset?: Record<string, Record<string, RpcAnswer[]>>;
   /** The on-chain backfill the RPC answers were recorded against. */
   backfill?: Backfill;
 };
@@ -71,7 +74,7 @@ function recorder(base: DataDeps): { fetch: FetchLike; responses: Fixture["respo
   return { fetch: fetchRec, responses, rpc };
 }
 
-async function record(target: string): Promise<void> {
+async function record(target: string, backfill: Backfill = ONCHAIN_BACKFILL): Promise<void> {
   const base = defaultDeps();
   const { fetch, responses, rpc } = recorder(base);
   const now = new Date();
@@ -84,12 +87,15 @@ async function record(target: string): Promise<void> {
     summary = `market ${run.market.facts.length} facts; ${run.assets.map((a) => `${a.assetId} ${a.facts.length}`).join(", ")}; problems: ${[...run.market.problems, ...run.assets.flatMap((a) => a.problems)].join(" | ")}`;
   } else if (target === "onchain") {
     const parts: string[] = [];
+    const rpcByAsset: NonNullable<Fixture["rpcByAsset"]> = {};
     for (const id of Object.keys(ONCHAIN_ASSETS)) {
-      const h = await fetchOnchainHistory(id, deps, ONCHAIN_BACKFILL);
+      const h = await fetchOnchainHistory(id, deps, backfill);
+      rpcByAsset[id] = { ...rpc };
+      for (const k of Object.keys(rpc)) delete rpc[k];
       parts.push(`${id}: ${h.daily?.length ?? 0} daily bars, current ${h.current?.value}, ${h.requests} requests, problems: ${h.problems.join(" | ") || "none"}`);
     }
     summary = parts.join("\n");
-    extra = { rpc, backfill: ONCHAIN_BACKFILL };
+    extra = { rpcByAsset, backfill };
   } else {
     const input = await gatherAsset(target, date, deps);
     summary = `${input.facts.length} facts, problems: ${input.problems.join(" | ") || "none"}`;
@@ -99,9 +105,11 @@ async function record(target: string): Promise<void> {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${target}.json`), JSON.stringify(fixture));
-  console.log(`${target}: ${Object.keys(responses).length} responses, ${Object.keys(rpc).length} rpc answers\n${summary}`);
+  console.log(`${target}: ${Object.keys(responses).length} responses, ${Object.keys(extra.rpcByAsset ?? {}).length} assets with rpc answers\n${summary}`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  for (const id of process.argv.slice(2)) await record(id);
+  const bfArg = process.argv.find((a) => a.startsWith("--backfill="));
+  const backfill = bfArg ? (JSON.parse(readFileSync(bfArg.slice("--backfill=".length), "utf8")) as Backfill) : undefined;
+  for (const id of process.argv.slice(2).filter((a) => !a.startsWith("--"))) await record(id, backfill);
 }

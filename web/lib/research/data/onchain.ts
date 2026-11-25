@@ -216,6 +216,8 @@ export type RpcAnswer = { result?: unknown; error?: { code?: number; message?: s
 /** Batched JSON-RPC over `deps.fetch`. Errors never contain the RPC URL (it may hold a key). */
 export class RpcClient {
   requests = 0;
+  /** When set (ms since the epoch, by `deps.now`), no request starts after it and none may run past it. */
+  deadline?: number;
   private readonly deps: DataDeps;
   private readonly url: string;
   private readonly timeoutMs: number;
@@ -231,11 +233,17 @@ export class RpcClient {
 
   async batch(calls: RpcCall[]): Promise<RpcAnswer[]> {
     if (!calls.length) return [];
+    let timeoutMs = this.timeoutMs;
+    if (this.deadline !== undefined) {
+      const left = this.deadline - this.deps.now().getTime();
+      if (left < 500) throw new Error(`time budget of ${ONCHAIN_BUDGET_MS / 1000} s used up`);
+      timeoutMs = Math.min(timeoutMs, left);
+    }
     this.requests++;
     const body = JSON.stringify(calls.map((c, i) => ({ jsonrpc: "2.0", id: i + 1, method: c.method, params: c.params })));
     let res;
     try {
-      res = await this.deps.fetch(this.url, { method: "POST", body, headers: { "Content-Type": "application/json", Accept: "application/json" }, timeoutMs: this.timeoutMs });
+      res = await this.deps.fetch(this.url, { method: "POST", body, headers: { "Content-Type": "application/json", Accept: "application/json" }, timeoutMs });
     } catch (e) {
       throw new Error(`Base RPC network error: ${this.scrub(e instanceof Error ? e.message : "unknown")}`);
     }
@@ -530,6 +538,7 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
   if (!cfg) return { facts, problems: [`${assetId}: no on-chain price source configured`], requests: 0 };
   const rpc = new RpcClient(deps, deps.env[BASE_RPC_ENV]?.trim() || DEFAULT_BASE_RPC_URL);
   const deadline = deps.now().getTime() + ONCHAIN_BUDGET_MS;
+  rpc.deadline = deadline;
   const sym = cfg.token.symbol;
   const bf = backfill.assets[assetId] ?? {};
   const out = (x: Partial<OnchainHistory>): OnchainHistory => ({ facts, problems, requests: rpc.requests, ...x });

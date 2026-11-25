@@ -140,7 +140,11 @@ test("H.15 and H.10 publish in the afternoon: their same-day values are not visi
   assert.equal(isFedHoliday("2026-11-11"), true);
   assert.equal(isFedHoliday("2026-11-26"), true);
   assert.equal(isFedHoliday("2027-07-05"), true, "July 4, 2027 is a Sunday, observed Monday");
-  assert.equal(isFedHoliday("2027-12-24"), false, "a Saturday holiday is not moved to Friday");
+  assert.equal(isFedHoliday("2027-12-24"), true, "Christmas 2027 is a Saturday: the Board is closed on Friday");
+  assert.equal(isFedHoliday("2026-07-03"), true, "July 4, 2026 is a Saturday: the Board is closed on Friday July 3");
+  assert.equal(isFedHoliday("2027-12-31"), true, "New Year's Day 2028 is a Saturday");
+  assert.equal(isFedHoliday("2026-11-27"), false, "the day after Thanksgiving is a business day");
+  assert.equal(h15Release("2026-07-02"), "2026-07-06", "Thursday July 2 is published on Monday July 6");
   assert.equal(h15Release("2026-11-10"), "2026-11-12");
   assert.equal(h15Release("2026-11-25"), "2026-11-27");
   // H.10: weekly on Monday afternoon for the week before; Tuesday after a Monday holiday.
