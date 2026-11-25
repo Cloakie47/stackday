@@ -20,8 +20,14 @@ const factNumber = (facts: { id: string; value: string | number }[], id: string)
 };
 
 /** Close on the note's date: the code fact "px.1d.last" (or "px.last" from older notes). */
+/**
+ * The price when the note was written: "px.last" (the latest price read, e.g. the last closed hour
+ * for crypto at 22:30 UTC, or the feed price for on-chain stocks) first, then the last daily close.
+ * Scoring from the daily close would let a crypto note's "1 day" result include most of a day that
+ * was already known when the note was written (audit, 2026-11-25).
+ */
 export function notePrice(n: { facts: { id: string; value: string | number }[] }): number | null {
-  return factNumber(n.facts, "px.1d.last") ?? factNumber(n.facts, "px.last");
+  return factNumber(n.facts, "px.last") ?? factNumber(n.facts, "px.1d.last");
 }
 
 export const noteAtrPct = (n: { facts: { id: string; value: string | number }[] }, price: number): number | null => {

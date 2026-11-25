@@ -13,3 +13,9 @@ test("a note needs a fresh price: none, or one older than a long weekend (stocks
   assert.equal(priceProblem([px("2026-11-29T00:00:00Z")], "2026-11-30", true), null);
   assert.match(priceProblem([px("2026-11-26T00:00:00Z")], "2026-11-30", true)!, /too old/);
 });
+
+test("a note is scored from the price when it was written (px.last), not the older daily close", async () => {
+  const { notePrice } = await import("./scores.ts");
+  assert.equal(notePrice({ facts: [{ id: "px.1d.last", value: 100 }, { id: "px.last", value: 104 }] }), 104);
+  assert.equal(notePrice({ facts: [{ id: "px.1d.last", value: 100 }] }), 100);
+});
