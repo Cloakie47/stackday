@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cronAuthorized, planDecision, scheduleDecision } from "./keeper.ts";
+import { cronAuthorized, giftDecision, planDecision, refundExpiredGifts, scheduleDecision } from "./keeper.ts";
 
 const plan = { usdcPerBuy: 10_000_000n, nextBuyAt: 1000, allowance: 30_000_000n, walletUsdc: 50_000_000n };
 
@@ -43,4 +43,48 @@ test("cron calls need the exact secret, and a short or missing secret never auth
   assert.equal(cronAuthorized(null, secret), false);
   assert.equal(cronAuthorized("Bearer short", "short"), false);
   assert.equal(cronAuthorized("Bearer ", undefined), false);
+});
+
+test("a pending gift box is refunded only at or after its expiry", () => {
+  assert.equal(giftDecision({ status: 1, expiresAt: 1000 }, 999), "not-expired");
+  assert.equal(giftDecision({ status: 1, expiresAt: 1000 }, 1000), "refund");
+  for (const status of [0, 2, 3, 4, 5]) assert.equal(giftDecision({ status, expiresAt: 1 }, 2000), "not-pending");
+});
+
+test("the gift step reads every box in chunks and refunds only expired pending ones", async () => {
+  // 250 boxes: every 10th is pending and expired, every 7th pending and not yet expired, the rest closed.
+  const boxes = new Map<bigint, { status: number; expiresAt: number }>();
+  for (let id = 1n; id <= 250n; id++) {
+    const n = Number(id);
+    boxes.set(id, n % 10 === 0 ? { status: 1, expiresAt: 500 } : n % 7 === 0 ? { status: 1, expiresAt: 5000 } : { status: 2, expiresAt: 500 });
+  }
+  const reads: number[] = [];
+  const refunded: bigint[] = [];
+  const skipped: string[] = [];
+  const tried = await refundExpiredGifts(
+    {
+      nextId: async () => 251n,
+      giftsOf: async (ids) => {
+        reads.push(ids.length);
+        return ids.map((id) => boxes.get(id)!);
+      },
+      refund: async (id) => {
+        refunded.push(id);
+      },
+      skip: (why) => skipped.push(why),
+    },
+    1000,
+  );
+  assert.deepEqual(reads, [100, 100, 50]);
+  assert.equal(refunded.length, 25);
+  assert.ok(refunded.every((id) => id % 10n === 0n));
+  assert.deepEqual(tried, refunded);
+  assert.equal(skipped.filter((s) => s === "gift-not-expired").length, 32, "pending but not expired: multiples of 7 that are not multiples of 10");
+});
+
+test("the gift step does nothing when no box was ever made", async () => {
+  let reads = 0;
+  const tried = await refundExpiredGifts({ nextId: async () => 1n, giftsOf: async () => (reads++, []), refund: async () => {}, skip: () => {} }, 1000);
+  assert.deepEqual(tried, []);
+  assert.equal(reads, 0);
 });

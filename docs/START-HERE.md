@@ -54,6 +54,7 @@ Built, tested and live on testnet:
 | Revenue | Small fixed fees, 0.2 percent at most: 0.15 percent on recurring buys (one-time free), 0.1 percent a year on loans, paid on repayment, 0.1 percent a year from interest on idle USDC | Payroll, SipRouter, EmployeeVault (settings in VaultFactory) |
 | Web app | Landing, Start (Personal or Business), Home, My pay, Invest (with real price chart), Borrow (collateral basket), Risk, Payroll, Docs, Testnet tools | web/app |
 | Account database | Unique name per wallet, saved team lists, attendance check-in. Connected on the live site | web/app/api, supabase/schema.sql |
+| Gift boxes | /gifts: send a box of test USDC (one stock, my mix, surprise or research pick) to a Stackday ID or wallet, the recipient opens it into their own vault with a box animation, or declines; the sender can take it back; expired boxes are refunded by the trigger bot. Optional message kept in the `gifts` table (the founder adds it to the live database). Contract src/GiftBox.sol on Base Sepolia | src/GiftBox.sol, web/lib/gifts, web/app/(app)/gifts, web/app/api/gifts |
 
 Tests: 69 local tests pass. Separate tests run the same code against the real AAPLc token, a real Aerodrome pool and the real Morpho market on a private copy of Base mainnet.
 

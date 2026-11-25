@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivatePaySetup, PrivatePayWaiting } from "@/components/private-collect";
+import { GiftWaitingCard } from "@/components/gifts/gift-waiting";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -500,6 +501,7 @@ export default function DashboardPage() {
 
       {!viewer.address && <Notice>Connect a wallet to see your portfolio.</Notice>}
       {viewer.address && <PrivatePayWaiting address={viewer.address} />}
+      {viewer.address && viewer.canAct && <GiftWaitingCard address={viewer.address} />}
 
       {businessMode && p.totalClaimable > 0n && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-[18px] border border-line bg-surface p-4 shadow-card sm:p-5">
