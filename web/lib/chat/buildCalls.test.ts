@@ -211,3 +211,17 @@ test("every card from every intent names only the connected wallet as receiver",
     assertOnlyMine(plan.calls);
   }
 });
+
+test("borrow locks a 1% buffer so interest before the transaction lands cannot cross the cap", () => {
+  const a = asset("mAAPL");
+  const c = ctx({ positions: positions({ mAAPL: { idle: tokens(2, 8) } }) });
+  const plan = ok(buildPlan({ action: "borrow", params: { asset: "mAAPL", usdc: "100", risk: "mid" } }, c));
+  const locked = flatten(plan.calls)[0].args[1] as bigint;
+  const capLimit = (((assetValue(locked, a.startPrice, 8) * a.lltv) / WAD) * 5000n) / 10_000n;
+  assert.ok(capLimit >= usd(101), `cap limit ${capLimit} leaves room for 1% interest`);
+});
+
+test("gift hand-off links to the Gifts page without the recipient in the address bar", () => {
+  const plan = ok(buildPlan({ action: "gift", params: { recipient_id: "maya_k", usdc: "5", box: "surprise" } }, ctx()));
+  assert.equal(plan.link!.href, "/gifts?usdc=5&box=surprise");
+});

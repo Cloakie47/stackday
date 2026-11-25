@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, Notice, Row, TxStatus } from "@/components/ui";
 import type { Address } from "@/lib/contracts";
@@ -11,10 +12,25 @@ import { useTx } from "@/lib/useTx";
  * come from (lib/chat/buildCalls.ts). The person signs in their own wallet with useTx, which simulates
  * every call first. The card expires two minutes after it was built.
  */
-export function ActionCard({ result, me, onClose }: { result: BuildResult; me: Address; onClose: (outcome: "done" | "cancelled" | "expired") => void }) {
+export function ActionCard({
+  result,
+  me,
+  onClose,
+  onBusyChange,
+}: {
+  result: BuildResult;
+  me: Address;
+  onClose: (outcome: "done" | "cancelled" | "expired") => void;
+  /** True while the wallet steps run, so the panel keeps the card open until they finish. */
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const tx = useTx();
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   const [finished, setFinished] = useState(false);
+
+  useEffect(() => {
+    onBusyChange?.(tx.state.busy);
+  }, [tx.state.busy, onBusyChange]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
@@ -81,7 +97,12 @@ export function ActionCard({ result, me, onClose }: { result: BuildResult; me: A
       {plan.handoff ? (
         <div className="mt-3">
           <Notice>{plan.handoff}</Notice>
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 flex items-center justify-end gap-3">
+            {plan.link && (
+              <Link href={plan.link.href} className="text-xs font-semibold text-ink underline hover:text-brand-ink">
+                {plan.link.label}
+              </Link>
+            )}
             <Button size="sm" variant="ghost" onClick={() => onClose("cancelled")}>
               Close
             </Button>

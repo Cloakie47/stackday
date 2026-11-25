@@ -9,10 +9,13 @@ import type { CreateFn } from "./agent.ts";
 
 let client: Anthropic | undefined;
 
-/** One chat step. Short limit, one retry: a chat answer that takes longer is not worth waiting for. */
-export const createMessage: CreateFn = (params) => {
+/**
+ * One chat step, limited to the time left in the turn (at most 45 s) and never retried by the SDK, so
+ * a turn cannot outrun the route's 60 s function limit.
+ */
+export const createMessage: CreateFn = (params, opts) => {
   client ??= new Anthropic();
-  return client.beta.messages.create(params, { timeout: 45_000, maxRetries: 1 });
+  return client.beta.messages.create(params, { timeout: Math.min(45_000, opts?.timeoutMs ?? 45_000), maxRetries: 0 });
 };
 
 /** Plain words for a failed model call, most specific first. Never includes the error body. */

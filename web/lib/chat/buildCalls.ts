@@ -87,6 +87,8 @@ export type Plan = {
   registerKeeper?: Address;
   /** Set when the action cannot be signed from chat yet; the card shows this instead of a button. */
   handoff?: string;
+  /** Page that can finish a handed-off action. */
+  link?: { href: string; label: string };
 };
 export type Refusal = { ok: false; reason: string };
 export type BuildResult = Plan | Refusal;
@@ -359,9 +361,11 @@ function borrow(params: { asset: string; usdc: string; risk: "low" | "mid" | "hi
   const level = LEVELS.find((l) => l.key === params.risk)!;
   const levelBps = level.pct * 100n;
   const debtAfter = pos.debt + usdc;
-  // Collateral needed so the loan stays inside `limitBps` of the liquidation limit, rounded up.
+  // Collateral needed so the loan stays inside `limitBps` of the liquidation limit, rounded up, with a
+  // 1% buffer: interest keeps building on an open loan until the transaction lands.
+  const target = debtAfter + debtAfter / 100n;
   const collateralFor = (limitBps: bigint) => {
-    const value = (debtAfter * 10_000n * WAD + limitBps * a.lltv - 1n) / (limitBps * a.lltv);
+    const value = (target * 10_000n * WAD + limitBps * a.lltv - 1n) / (limitBps * a.lltv);
     let tokens = assetForUsdc(value, pos.price!, a.decimals);
     while (assetValue(tokens, pos.price!, a.decimals) < value) tokens += 1n;
     return tokens;
@@ -481,6 +485,8 @@ function gift(params: { recipient_id: string; usdc: string; box: string }, ctx: 
       usdcValue: parseUsdc(params.usdc),
       doneMessage: "",
       handoff: "Open the Gifts page to send. Sending a gift from chat is not connected yet.",
+      // Amount and box only: the recipient's ID is not put in the address bar.
+      link: { href: `/gifts?usdc=${encodeURIComponent(params.usdc)}&box=${encodeURIComponent(params.box)}`, label: "Open the Gifts page" },
     },
     ctx,
   );

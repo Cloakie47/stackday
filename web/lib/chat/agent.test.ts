@@ -180,3 +180,17 @@ test("history is rebuilt from the last user turn, capped, and starts with the pe
   assert.equal(out[0].role, "user");
   assert.ok(out.length <= 16);
 });
+
+test("a turn stops before the route's time limit: no model call starts with too little time left", async () => {
+  let t = 0;
+  const m = fakeModel([
+    () => {
+      t += 45_000; // a slow first step
+      return msg([use("get_portfolio", {})]);
+    },
+    () => say("never reached"),
+  ]);
+  const r = await runChat({ history: user("what do I have?"), read: read(), create: m.create, now: () => t });
+  assert.equal(m.sent.length, 1);
+  assert.match(r.text, /took too long/);
+});

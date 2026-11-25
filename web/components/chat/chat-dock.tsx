@@ -75,6 +75,11 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState<Pending | null>(null);
+  // While a card's wallet steps run, the panel stays open and no new card can replace it.
+  const [signing, setSigning] = useState(false);
+  const close = useCallback(() => {
+    if (!signing) onClose();
+  }, [signing, onClose]);
   const plan = usePlan(pending?.intent ?? null, p, me);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -97,15 +102,15 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [close]);
 
   const send = useCallback(
     async (text: string) => {
       const clean = text.trim();
-      if (!clean || sending || !me) return;
+      if (!clean || sending || signing || !me) return;
       const next: Msg[] = [...msgs, { role: "user", text: clean.slice(0, 2000) }];
       setMsgs(next);
       setInput("");
@@ -135,7 +140,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         setSending(false);
       }
     },
-    [msgs, sending, me],
+    [msgs, sending, signing, me],
   );
 
   function onSubmit(e: FormEvent) {
@@ -144,6 +149,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   }
 
   function clear() {
+    if (signing) return;
     setMsgs([]);
     setPending(null);
     setError(undefined);
@@ -162,11 +168,11 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         </div>
         <div className="flex items-center gap-1">
           {msgs.length > 0 && (
-            <button type="button" onClick={clear} className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink">
+            <button type="button" onClick={clear} disabled={signing} className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink">
               Clear
             </button>
           )}
-          <button type="button" onClick={onClose} className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink" aria-label="Close the assistant">
+          <button type="button" onClick={close} disabled={signing} className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink" aria-label="Close the assistant">
             Close
           </button>
         </div>
@@ -226,7 +232,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
               </div>
             ))}
             {pending && me && (plan ? (
-              <ActionCard key={pending.id} result={plan} me={me} onClose={() => setPending(null)} />
+              <ActionCard key={pending.id} result={plan} me={me} onBusyChange={setSigning} onClose={() => setPending(null)} />
             ) : (
               <p className="flex items-center gap-2 text-xs text-muted">
                 <Spinner /> Preparing the card with live prices...
@@ -263,7 +269,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
             placeholder="Ask or say: buy $20 of Apple"
             className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-line bg-popover px-3 py-2 text-base text-ink placeholder:text-faint focus:border-[var(--focus)] focus:outline-none sm:text-sm"
           />
-          <Button type="submit" size="sm" disabled={sending || !input.trim()}>
+          <Button type="submit" size="sm" disabled={sending || signing || !input.trim()}>
             Send
           </Button>
         </form>

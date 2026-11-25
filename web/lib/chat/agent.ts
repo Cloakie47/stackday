@@ -26,8 +26,13 @@ type MessageParam = Params["messages"][number];
 type Message = Anthropic.Beta.Messages.BetaMessage;
 type ContentBlock = Message["content"][number];
 
-/** The one API call, injectable for tests. Real one: lib/chat/model.ts. */
-export type CreateFn = (params: Params) => Promise<Message>;
+/** The one API call, injectable for tests. Real one: lib/chat/model.ts. `timeoutMs` is the time left in the turn. */
+export type CreateFn = (params: Params, opts?: { timeoutMs: number }) => Promise<Message>;
+
+/** Whole-turn budget: the route's limit is 60 s, so the loop stops well before it. */
+export const TURN_BUDGET_MS = 50_000;
+/** No new model call starts with less than this left. */
+export const MIN_CALL_MS = 8_000;
 
 /** A message as the browser keeps it. `untrusted` marks an answer that quoted untrusted text. */
 export type ChatTurn = { role: "user" | "assistant"; text: string; untrusted?: boolean };
@@ -142,7 +147,17 @@ async function runReadTool(t: ToolUse, read: ReadHandlers): Promise<{ content: s
 }
 
 /** Runs one chat turn. Returns text, or text plus one validated intent. */
-export async function runChat(p: { history: ChatTurn[]; portfolio?: string; read: ReadHandlers; create: CreateFn; maxSteps?: number }): Promise<ChatResult> {
+export async function runChat(p: {
+  history: ChatTurn[];
+  portfolio?: string;
+  read: ReadHandlers;
+  create: CreateFn;
+  maxSteps?: number;
+  /** Clock, injectable for tests. */
+  now?: () => number;
+}): Promise<ChatResult> {
+  const now = p.now ?? Date.now;
+  const deadline = now() + TURN_BUDGET_MS;
   const messages = toMessages(p.history, p.portfolio);
   const log: ToolLog[] = [];
   const research: ResearchNote[] = [];
@@ -150,6 +165,8 @@ export async function runChat(p: { history: ChatTurn[]; portfolio?: string; read
   if (!messages.length || messages[messages.length - 1].role !== "user") return { text: "Ask me something.", untrusted, research, log };
 
   for (let step = 0; step < (p.maxSteps ?? MAX_STEPS); step++) {
+    const left = deadline - now();
+    if (left < MIN_CALL_MS) return { text: "Sorry, that took too long. Try a simpler question.", untrusted, research, log };
     const res = await p.create({
       model: CHAT_MODEL,
       max_tokens: 8000,
@@ -160,7 +177,7 @@ export async function runChat(p: { history: ChatTurn[]; portfolio?: string; read
       tools: ALL_TOOLS as unknown as Params["tools"],
       output_config: { effort: "low" },
       messages,
-    });
+    }, { timeoutMs: left });
 
     if (res.stop_reason === "refusal") return { text: "I can't help with that one.", untrusted, research, log };
     const said = textOf(res.content);
