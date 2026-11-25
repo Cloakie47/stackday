@@ -34,9 +34,14 @@ const REFUSAL: Record<string, string> = {
   "rate-limited": "Too many requests in a short time. Try again in a minute.",
 };
 
-/** Every fact in the report, so ideas and market text can cite asset facts too. */
+/**
+ * Every fact in the report, so ideas and market text can cite asset facts too. Ideas cite
+ * "assetId:factId" (for example "mPAXG:px.1d.last" or "mPAXG:macro.dgs10"), so each asset's facts
+ * and the market facts are also listed under that qualified id.
+ */
 export function allFacts(r: WeeklyReport): Fact[] {
-  return [...r.market.facts, ...r.assets.flatMap((a) => a.facts)];
+  const qualified = r.assets.flatMap((a) => [...a.facts, ...r.market.facts].map((f) => ({ ...f, id: `${a.assetId}:${f.id}` })));
+  return [...r.market.facts, ...r.assets.flatMap((a) => a.facts), ...qualified];
 }
 
 function AssetCard({ assetId, s, at }: { assetId: string; s?: WeeklyAssetSection; at: string }) {
