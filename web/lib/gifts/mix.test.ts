@@ -5,6 +5,7 @@ import {
   amountProblem,
   cleanMessage,
   expiryFrom,
+  giftLinkPrefill,
   mixProblem,
   oneStockMix,
   pickToLegs,
@@ -216,6 +217,19 @@ test("expiry, message and recipient helpers", () => {
   assert.deepEqual(recipientQuery("0xAbCdEf0000000000000000000000000000000001"), { kind: "wallet", q: "0xabcdef0000000000000000000000000000000001" });
   assert.deepEqual(recipientQuery("@Maya"), { kind: "name", q: "maya" });
   assert.equal(recipientQuery("?").kind, "none");
+});
+
+test("giftLinkPrefill reads the chat's gift link and drops anything it does not trust", () => {
+  // The chat's own box names (lib/chat/intent.ts) and the form's names both work.
+  assert.deepEqual(giftLinkPrefill("5", "surprise"), { usdc: "5", box: "surprise" });
+  assert.deepEqual(giftLinkPrefill("25.5", "one_stock"), { usdc: "25.5", box: "one" });
+  assert.deepEqual(giftLinkPrefill("500", "my_mix"), { usdc: "500", box: "mix" });
+  assert.deepEqual(giftLinkPrefill("1", "research_pick"), { usdc: "1", box: "research" });
+  assert.deepEqual(giftLinkPrefill(null, "MIX"), { box: "mix" });
+  // Outside 1 to 500 test USDC, malformed, or an unknown box: dropped, the form keeps its default.
+  for (const u of ["0.5", "500.01", "1000", "-5", "1e3", "5.1234567", "abc", "", " "]) assert.equal(giftLinkPrefill(u, null).usdc, undefined, u);
+  assert.equal(giftLinkPrefill("5", "gold").box, undefined);
+  assert.deepEqual(giftLinkPrefill(undefined, undefined), {});
 });
 
 test("with no split and no ranked ideas the pick uses the asset views: accumulate first, else hold, equal parts", () => {

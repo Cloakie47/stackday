@@ -1,4 +1,4 @@
-import deployment from "./deployment.json";
+import deployment from "./deployment.json" with { type: "json" };
 
 export type Address = `0x${string}`;
 
@@ -15,6 +15,8 @@ export const ADDR = {
   factory: d.vaultFactory as Address,
   mockSwap: d.mockSwapAdapter as Address,
   mockYieldVault: d.mockYieldVault as Address,
+  /** MOCK sell desk (testnet only): buys mock assets for test USDC at the feed price minus a spread. */
+  sellDesk: d.mockSellDesk as Address,
 };
 
 /** GiftBox (issue #77), deployed after the main contracts; undefined on a deployment without it. */

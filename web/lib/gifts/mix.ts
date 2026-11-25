@@ -41,6 +41,34 @@ export const BOX_LABEL: Record<BoxType, string> = {
   research: "Research pick",
 };
 
+/** Box names a link may use: the form's own, and the chat assistant's (lib/chat/intent.ts). */
+const LINK_BOX: Record<string, BoxType> = {
+  one: "one",
+  one_stock: "one",
+  mix: "mix",
+  my_mix: "mix",
+  surprise: "surprise",
+  research: "research",
+  research_pick: "research",
+};
+
+/**
+ * Reads the amount and box type a link to /gifts carries (the chat's gift card links to
+ * /gifts?usdc=5&box=surprise). Anything unknown, malformed or outside 1 to 500 test USDC is dropped,
+ * so the form keeps its own default. The recipient is never taken from the address bar.
+ */
+export function giftLinkPrefill(usdc: string | null | undefined, box: string | null | undefined): { usdc?: string; box?: BoxType } {
+  const out: { usdc?: string; box?: BoxType } = {};
+  const u = (usdc ?? "").trim();
+  if (/^\d{1,3}(\.\d{1,6})?$/.test(u)) {
+    const micro = BigInt(u.split(".")[0]) * 1_000_000n + BigInt((u.split(".")[1] ?? "").padEnd(6, "0"));
+    if (micro >= MIN_GIFT_USDC && micro <= MAX_GIFT_USDC) out.usdc = u;
+  }
+  const b = LINK_BOX[(box ?? "").trim().toLowerCase()];
+  if (b) out.box = b;
+  return out;
+}
+
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 const fail = <T>(error: string): Result<T> => ({ ok: false, error });
 

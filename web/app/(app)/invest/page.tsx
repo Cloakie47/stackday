@@ -4,20 +4,17 @@ import { PriceChart } from "@/components/price-chart";
 import { AssetSelect } from "@/components/asset-select";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
 import { AssetIcon, Badge, Button, Card, Empty, Field, FillAmount, InfoTip, LabelTip, MockBadge, Notice, PageHeader, Select, Stat, TxStatus } from "@/components/ui";
 import { factoryAbi, mockSwapAbi, routerAbi, vaultAbi } from "@/lib/abis";
+import { MAX_APPROVAL, MAX_BUY_SLIPPAGE_BPS, PLAN_SLIPPAGE_BPS, approveMoreCall, buysFor as plannedBuys, cancelPlanCall, investCall, minOutAfterSlippage, setPlanCall } from "@/lib/actions";
 import { ADDR, ASSETS, EARN_FEE_BPS, MAX_UINT, SIP_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parseUsdc, until, usdcInput } from "@/lib/format";
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
 import { DEFAULT_SLOT, SLOT_DAYS, nextSlot, slotLabel } from "@/lib/slots";
-
-/** Above this, a manual buy shows "Slippage is too high" (the buy itself refuses to fill past 1%). */
-const MAX_SLIPPAGE_BPS = 100n;
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
   return (
@@ -58,7 +55,7 @@ export default function InvestPage() {
   const recurringAmount = parseUsdc(perBuy);
   const plans = p.positions.filter((x) => x.recurring);
   // A one-time buy is free; only recurring buys pay the SIP fee (SipRouter.sol).
-  const min = (v: bigint) => (pos.price ? (assetForUsdc(v, pos.price, asset.decimals) * 99n) / 100n : 0n);
+  const min = (v: bigint) => (pos.price ? minOutAfterSlippage(assetForUsdc(v, pos.price, asset.decimals), MAX_BUY_SLIPPAGE_BPS) : 0n);
 
   // Manual buys work at any hour. Show the rate the exchange gives right now and flag high slippage.
   // On testnet the exchange is the mock; a mainnet quote source plugs in here later.
@@ -72,13 +69,13 @@ export default function InvestPage() {
   const exchangeOut = amount > 0n ? (quotes.data?.[0]?.result as bigint | undefined) : undefined;
   const oracleOut = amount > 0n ? (quotes.data?.[1]?.result as bigint | undefined) : undefined;
   const slippageBps = exchangeOut !== undefined && oracleOut ? (oracleOut > exchangeOut ? ((oracleOut - exchangeOut) * 10_000n) / oracleOut : 0n) : undefined;
-  const slippageTooHigh = slippageBps !== undefined && slippageBps > MAX_SLIPPAGE_BPS;
+  const slippageTooHigh = slippageBps !== undefined && slippageBps > MAX_BUY_SLIPPAGE_BPS;
   const rate = exchangeOut && exchangeOut > 0n ? (amount * 10n ** BigInt(asset.decimals) * 100n) / exchangeOut : undefined; // USDC per token, 8 decimals
 
   async function buyOnce() {
     const calls: Call[] = [
       ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
-      { label: `Buy ${asset.name} into your vault`, address: ADDR.router, abi: routerAbi, functionName: "invest", args: [asset.token, amount, min(amount)] },
+      investCall(asset, amount, min(amount)),
     ];
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
   }
@@ -88,29 +85,16 @@ export default function InvestPage() {
 
   // How long a plan runs: the wallet approval covers exactly that many buys, then the plan stops on
   // its own (the next buy cannot take the USDC). "Until I stop" approves without a limit.
-  const buysFor = (intervalDays: number) => (weeks === "0" ? 0 : Math.max(1, Math.ceil((Number(weeks) * 7) / intervalDays)));
+  const buysFor = (intervalDays: number) => plannedBuys(Number(weeks), intervalDays);
   const buyCount = buysFor(Number(interval));
-  const MAX_APPROVAL = 2n ** 256n - 1n;
-  const approveMore = (extra: bigint, label: string): Call => ({
-    label,
-    address: ADDR.usdc,
-    abi: erc20Abi,
-    functionName: "approve",
-    args: [ADDR.router, extra === MAX_APPROVAL || p.routerAllowance + extra > MAX_APPROVAL - 1n ? MAX_APPROVAL : p.routerAllowance + extra],
-  });
+  const approveMore = (extra: bigint, label: string): Call => approveMoreCall(p.routerAllowance, extra, label);
 
   async function savePlan() {
     const calls: Call[] = [
       buyCount === 0
         ? approveMore(MAX_APPROVAL, "Allow recurring buys until you stop them")
         : approveMore(recurringAmount * BigInt(buyCount), `Allow ${buyCount} recurring buys`),
-      {
-        label: "Save your recurring plan",
-        address: ADDR.router,
-        abi: routerAbi,
-        functionName: "setPlan",
-        args: [asset.token, recurringAmount, Number(interval) * 86400, 100, firstBuyAt()],
-      },
+      setPlanCall(asset, recurringAmount, Number(interval) * 86400, PLAN_SLIPPAGE_BPS, firstBuyAt()),
     ];
     if (await tx.run(calls, `Recurring plan saved. Buys run ${slotLabel(Number(slotDay), DEFAULT_SLOT.time)} New York time.`)) {
       setPerBuy("");
@@ -140,7 +124,7 @@ export default function InvestPage() {
 
   const cancelPlan = (x: Position) =>
     tx.run(
-      [{ label: `Cancel the ${x.asset.name} plan`, address: ADDR.router, abi: routerAbi, functionName: "cancelPlan", args: [x.asset.token] }],
+      [cancelPlanCall(x.asset)],
       "Recurring plan cancelled.",
     );
 
