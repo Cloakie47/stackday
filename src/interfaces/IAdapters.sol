@@ -10,6 +10,15 @@ interface ISwapAdapter {
         returns (uint256 stockOut);
 }
 
+/// @notice Sell direction (issues #35 and #77): asset in, USDC out. Testnet: MockSellDesk. Mainnet: a real DEX
+/// route, still to be built.
+interface ISellAdapter {
+    /// @notice Pulls `stockIn` of `stock` from the caller, sends at least `minUsdcOut` USDC to `to`.
+    function swapExactStockForUsdc(address stock, uint256 stockIn, uint256 minUsdcOut, address to)
+        external
+        returns (uint256 usdcOut);
+}
+
 /// @notice Where Stackday reads a stock token's USD price.
 interface IPriceAdapter {
     /// @return price USD price of one whole token

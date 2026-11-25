@@ -66,7 +66,8 @@ A manager will verify the build against this paragraph. Every contract, screen a
 - src/EmployeeVault.sol, src/VaultFactory.sol: one ownerless vault per employee (also holds idle USDC earning interest: earn, stopEarning)
 - src/SipRouter.sol: SIP for Individuals without an employer (one-time buys, and one recurring plan per asset, into their own vault)
 - src/adapters: MorphoLendingAdapter (real), SlipstreamSwapAdapter (real, mainnet), ERC4626YieldAdapter (Morpho vaults), ChainlinkPriceAdapter, FeedOracle
-- src/mocks/Mocks.sol: testnet-only mocks (these do have an owner, on purpose)
+- src/GiftBox.sol: stock gift boxes (issue #77). Holds the sender's USDC until the recipient opens it, then buys the mix (fixed, or a research pick chosen at opening) into the recipient's vault. No owner, no fee. Deploy onto the existing testnet with script/DeployGifts.s.sol (founder only). Mainnet note: the deSPXA price feed is reader-restricted (NotTolled), so the S&P 500 needs a price adapter that reads the Morpho oracle before it can be gifted or priced on mainnet (test/fork/GiftBoxFork.t.sol)
+- src/mocks/Mocks.sol: testnet-only mocks (these do have an owner, on purpose), including MockSellDesk for selling on testnet
 - test/fixtures: real Morpho and interest rate model bytecode copied from Base
 - web/: Next.js app. lib/usePortfolio.ts loads everything for one address, lib/useTx.ts sends transactions (simulates first, adds 60 percent gas), app/employer, app/employee, app/risk are the pages. Read web/AGENTS.md before changing Next.js code: this Next.js version differs from older ones.
 - web/app/api + web/lib/server/backend.ts + supabase/schema.sql: optional account database (Supabase) for unique names, team lists and attendance. Server-only secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SESSION_SECRET. Sign-in is a wallet signature checked on the server. The site must keep working when these are not set. Never ask for these keys in chat.
