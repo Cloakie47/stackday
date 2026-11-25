@@ -133,6 +133,22 @@ export function ensurePriceFacts(input: AssetResearchInput): Fact[] {
   return facts;
 }
 
+/** Oldest last daily close a note may rest on: a long weekend for stocks, two days for crypto. */
+export const MAX_PRICE_AGE_DAYS = { stock: 5, crypto: 2 } as const;
+
+/**
+ * Why there is no usable price for a note, or null when there is one: no "px.1d.last" fact (for
+ * example the price feed was down, or the series is not for display), or one older than
+ * MAX_PRICE_AGE_DAYS before the run date. A note must not rest on news alone.
+ */
+export function priceProblem(facts: Fact[], date: string, crypto: boolean): string | null {
+  const px = facts.find((f) => f.id === "px.1d.last" && typeof f.value === "number" && f.value > 0);
+  if (!px) return "no price could be read";
+  const ageDays = (Date.parse(`${date}T00:00:00Z`) - Date.parse(px.asOf.slice(0, 10) + "T00:00:00Z")) / 86_400_000;
+  const max = crypto ? MAX_PRICE_AGE_DAYS.crypto : MAX_PRICE_AGE_DAYS.stock;
+  return Number.isFinite(ageDays) && ageDays > max ? `the last price is from ${px.asOf.slice(0, 10)}, too old for ${date}` : null;
+}
+
 /** Fact kinds each analyst may see (founder spec section 4.2). */
 export const ANALYST_KINDS: Record<"technical" | "macro" | "news" | "fundamentals", FactKind[]> = {
   technical: ["price", "indicator", "pattern"],

@@ -339,35 +339,30 @@ function pricesRestricted(assetId: string, date: string): AssetResearchInput {
   return { ...base, series, facts: base.facts.map((f) => (f.kind === "price" || f.kind === "indicator" ? { ...f, display: false } : f)) };
 }
 
-test("with every price restricted (daily bars too), the weekly section is built from the other facts and shows no price data", async () => {
+test("with every price restricted (daily bars too), the weekly section is no reading, with no model call and no price data", async () => {
   const { store } = memoryStore();
-  // A model that cites only what it was given (no price facts are sent).
-  const draft = goodDraftWithout();
-  const model = fakeModel(weeklyAnswers({ "weekly.editor": () => draft, "weekly.revise": () => draft, "weekly.analyst.technical": () => ({ stance: "neutral", points: [], chart: { "1d": [], "1w": [], "1mo": [] }, injectionFactIds: [] }) }));
+  const model = fakeModel(weeklyAnswers());
   const deps = { gather: async (id: string, d: string) => pricesRestricted(id, d), gatherMarket, model: model.fn, store, maxRunCostUsd: 100, maxDayCostUsd: 100, assets: [UNIVERSE[0]], ...quiet };
-  await runWeekly({ ...deps, now: at(1), slot: 1 });
-  const final = await runWeekly({ ...deps, now: at(2), slot: 2 });
-  assert.equal(final.status, "ok", final.problems.join("\n"));
-  // Fact lines are "[id] kind | ..."; the system prompt only uses an id as an example.
-  const given = JSON.stringify(model.calls.map((c) => [c.context, c.user]));
-  for (const s of ["[px.1d.last]", "[ind.1d.rsi14]", "58.2", "support 97"]) assert.ok(!given.includes(s), `model input contains ${s}`);
+  const first = await runWeekly({ ...deps, now: at(1), slot: 1 });
+  // A section never rests on news alone: without a price it is no reading, and nothing is spent.
+  assert.equal(first.costUsd, 0);
+  assert.ok(first.problems.some((p) => /no price could be read/.test(p)), first.problems.join(" | "));
+  const final = await runWeekly({ ...deps, now: at(9), slot: 9 });
   const a = final.report!.assets[0];
-  assert.equal(a.status, "ok");
-  assert.deepEqual(a.chart, {});
-  assert.equal(a.view.levels, null);
+  assert.equal(a.status, "no-reading");
   assert.ok(a.facts.every((f) => f.kind !== "price" && f.kind !== "indicator"));
+  const given = JSON.stringify(model.calls.filter((c) => c.context?.includes(`Asset: ${UNIVERSE[0].assetId}`)).map((c) => [c.context, c.user]));
+  for (const s of ["[px.1d.last]", "[ind.1d.rsi14]", "58.2"]) assert.ok(!given.includes(s), `model input contains ${s}`);
 });
 
-test("with every price restricted, the daily note carries no price data and the snapshot still passes its check", async () => {
+test("with every price restricted, the daily note is no reading: no model call, no price data, no score", async () => {
   const { store, scores } = memoryStore();
-  const model = fakeModel(() => goodDaily({ reasons: [{ text: "Results news was firm.", factIds: ["news.1"] }], summaryLines: ["Results news was firm this week.", "View: hold with low conviction."], view: "hold", conviction: "low" }));
+  const model = fakeModel(() => goodDaily());
   const out = await runDaily({ gather: async (id, d) => pricesRestricted(id, d), model: model.fn, store, maxRunCostUsd: 2, maxDayCostUsd: 6, now: () => new Date("2026-11-19T22:30:00Z") });
-  assert.equal(out.status, "ok", out.problems.join("\n"));
-  const given = JSON.stringify(model.calls.map((c) => [c.context, c.user]));
-  for (const s of ["[px.1d.last]", "[ind.1d.rsi14]", "58.2"]) assert.ok(!given.includes(s), `model input contains ${s}`);
-  const snap = (await store.latestSnapshot())!;
-  assert.ok(snap.notes.every((n) => n.facts.every((f) => f.kind !== "price" && f.kind !== "indicator") && n.levels === null && Object.keys(n.chart).length === 0));
-  // No price, so no score can be started for these notes.
+  assert.equal(model.calls.length, 0, "nothing is sent to the model without a price");
+  assert.ok(out.problems.some((p) => /no price could be read/.test(p)), out.problems.join(" | "));
+  const snap = await store.latestSnapshot();
+  assert.ok(!snap || snap.notes.every((n) => n.status === "no-reading" && n.facts.every((f) => f.kind !== "price" && f.kind !== "indicator")));
   assert.equal(scores.size, 0);
 });
 

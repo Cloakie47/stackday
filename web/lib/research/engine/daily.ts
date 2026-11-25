@@ -5,7 +5,7 @@ import { VIEWS } from "../types.ts";
 import { researchableUniverse, type UniverseAsset } from "../universe.ts";
 import { defaultAlert, type AlertFn } from "./alert.ts";
 import { callErrors, costBudget, CostAbort, guardedCall, pool, type Budget } from "./budget.ts";
-import { chartBlock, chartLevels, displayableInput, ensurePriceFacts, factBlock, hashInputs, isUntrusted, patternFacts, prepareFacts, sentFacts } from "./facts.ts";
+import { chartBlock, chartLevels, displayableInput, ensurePriceFacts, factBlock, hashInputs, isUntrusted, patternFacts, prepareFacts, priceProblem, sentFacts } from "./facts.ts";
 import { computeLevels } from "./levels.ts";
 import { buildMarketOverview } from "./market.ts";
 import type { ModelFn } from "./model.ts";
@@ -197,6 +197,8 @@ async function researchAsset(asset: UniverseAsset, date: IsoDate, now: string, p
   const view = displayableInput(input).input;
   const chart = view.chart ?? {};
   const withCode = ensurePriceFacts(view);
+  const noPrice = priceProblem(withCode, date, asset.assetClass === "crypto");
+  if (noPrice) return { note: noReadingNote(asset, date, now, "No reading today: no fresh price could be read, so nothing is shown instead of a guess.", previous), failed: true, escalated: false, factsShare: 1, problems: [`${asset.assetId}: ${noPrice}`], input };
   const { facts: prepared, screened } = prepareFacts([...withCode, ...patternFacts(chart, withCode, view.series)]);
   const facts = sentFacts(prepared.filter((f) => DAILY_KINDS.has(f.kind)));
   const extra = [...chartLevels(chart), ...assetNumbers(asset)];
