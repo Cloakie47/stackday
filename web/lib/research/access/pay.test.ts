@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { encodeAbiParameters, encodeEventTopics, erc20Abi, type Log } from "viem";
 import { priceUnits } from "./entitlement.ts";
-import { paidToTreasury, paymentConfig, processPayment, verifyPayment, type ChainReader, type PaymentConfig } from "./pay.ts";
+import { paidToTreasury, paymentConfig, processPayment, stackdayContracts, verifyPayment, type ChainReader, type PaymentConfig } from "./pay.ts";
 import { memoryAccessStore } from "./store.ts";
 
 // Circle test USDC on Base Sepolia (web/lib/deployment.json). Treasury and wallets are made up.
@@ -74,6 +74,13 @@ test("paymentConfig needs a real, dedicated treasury address and a start block",
   assert.equal(paymentConfig({ RESEARCH_TREASURY_ADDRESS: USDC.toLowerCase() }, USDC), null, "treasury must not be the token");
   assert.equal(cfg.treasury.toLowerCase(), TREASURY.toLowerCase());
   assert.equal(cfg.minConfirmations >= 1, true);
+});
+
+test("stackdayContracts lists every address in a deployment file, so GET and POST refuse the same treasuries", () => {
+  const deployment = { chainId: 84532, payroll: "0x00000000000000000000000000000000000fee01", vaults: { a: "0x1" }, note: "0xnot-an-address" };
+  assert.deepEqual(stackdayContracts(deployment), ["0x00000000000000000000000000000000000fee01"]);
+  assert.deepEqual(stackdayContracts(null), []);
+  assert.equal(paymentConfig({ ...ENV, RESEARCH_TREASURY_ADDRESS: "0x00000000000000000000000000000000000fee01" }, USDC, stackdayContracts(deployment)), null);
 });
 
 test("receipt parsing counts only USDC transfers from the wallet to the treasury", () => {

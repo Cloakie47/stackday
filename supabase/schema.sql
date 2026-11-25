@@ -284,4 +284,5 @@ exception when unique_violation then
 end;
 $$;
 revoke all on function research_record_payment(text, text, integer, numeric, text, timestamptz, text, timestamptz, integer, date[], timestamptz) from public, anon, authenticated;
+grant execute on function research_record_payment(text, text, integer, numeric, text, timestamptz, text, timestamptz, integer, date[], timestamptz) to service_role;
 -- No policies on any research table: only the server (service role) reads or writes them.

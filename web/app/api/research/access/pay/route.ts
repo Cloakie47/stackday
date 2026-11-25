@@ -4,7 +4,7 @@ import { configured, db, json, needSignIn, notConfigured, sessionWallet } from "
 import { ADDR } from "@/lib/contracts";
 import deployment from "@/lib/deployment.json";
 import { researchFlags } from "@/lib/research/flags";
-import { paymentConfig, processPayment } from "@/lib/research/access/pay";
+import { paymentConfig, processPayment, stackdayContracts } from "@/lib/research/access/pay";
 import { isPurpose } from "@/lib/research/access/prices";
 import { supabaseAccessStore } from "@/lib/research/access/store";
 
@@ -25,8 +25,7 @@ export async function POST(request: Request) {
   if (!wallet) return needSignIn();
   if (!researchFlags().paywallEnabled) return json({ error: "The weekly report is a free beta while the paywall is off, so no payment is needed." }, 403);
   // The treasury may not be any Stackday contract (payroll, router, vaults and so on).
-  const knownContracts = Object.values(deployment as Record<string, unknown>).filter((v): v is string => typeof v === "string" && /^0x[0-9a-fA-F]{40}$/.test(v));
-  const cfg = paymentConfig(process.env, ADDR.usdc, knownContracts);
+  const cfg = paymentConfig(process.env, ADDR.usdc, stackdayContracts(deployment));
   if (!cfg) return json({ error: "Research payments are not set up yet." }, 503);
 
   const body = ((await request.json().catch(() => null)) ?? {}) as { txHash?: unknown; purpose?: unknown };

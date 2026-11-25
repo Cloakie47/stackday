@@ -48,6 +48,16 @@ export type Failure = { ok: false; status: number; error: string };
 const fail = (status: number, error: string): Failure => ({ ok: false, status, error });
 
 /**
+ * Every contract address in a deployment file (payroll, router, vaults and so on). The treasury may
+ * not be any of them; both the access and the pay routes pass this list to `paymentConfig`, so GET
+ * never advertises a treasury that POST would refuse.
+ */
+export function stackdayContracts(deployment: unknown): string[] {
+  if (!deployment || typeof deployment !== "object") return [];
+  return Object.values(deployment as Record<string, unknown>).filter((v): v is string => typeof v === "string" && /^0x[0-9a-fA-F]{40}$/.test(v));
+}
+
+/**
  * Reads RESEARCH_TREASURY_ADDRESS and RESEARCH_PAY_FROM_BLOCK. Returns null (payments switched off)
  * when the treasury is missing, not an address, the zero address, the USDC contract or any known
  * Stackday contract, or when the start block is missing or not a whole number.
