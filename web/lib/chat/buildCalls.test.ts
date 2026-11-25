@@ -48,6 +48,8 @@ test("buy: approval then SipRouter.invest, minOut is the oracle quote less 1%, n
   assert.deepEqual(plan.calls[1].args, [asset("mAAPL").token, usd(20), (quote * 9900n) / 10_000n]);
   assert.equal(plan.receiver, ME);
   assert.match(plan.fee, /free/);
+  // Plain words with the price: 20 USDC buys 0.056 AAPL, so about 357.14 per token.
+  assert.match(plan.rows.find((r) => r.label === "You buy")!.value, /^\$20\.00 of .+ at \$357\.14 each$/);
   assert.equal(plan.expiresAt, 1_800_000_000 + CARD_TTL_SEC);
   assertOnlyMine(plan.calls);
 });
@@ -97,6 +99,8 @@ test("sell half: withdraw to my wallet, approve the desk, swap with the USDC to 
   const value = assetValue(half, gold.startPrice, 18);
   assert.deepEqual(plan.calls[2].args, [gold.token, half, (value * (10_000n - 150n)) / 10_000n, ME]);
   assert.ok(plan.notes.some((n) => n.startsWith("You could borrow against it instead")));
+  assert.match(plan.rows.find((r) => r.label === "You sell")!.value, /^0\.05 mPAXG \(Gold\) at \$4,060\.00 each$/);
+  assert.match(plan.rows.find((r) => r.label === "You get about")!.value, /^\$[\d,]+\.\d\d \(.+ USDC to your wallet\)$/);
   assertOnlyMine(plan.calls);
 });
 
@@ -224,4 +228,24 @@ test("borrow locks a 1% buffer so interest before the transaction lands cannot c
 test("gift hand-off links to the Gifts page without the recipient in the address bar", () => {
   const plan = ok(buildPlan({ action: "gift", params: { recipient_id: "maya_k", usdc: "5", box: "surprise" } }, ctx()));
   assert.equal(plan.link!.href, "/gifts?usdc=5&box=surprise");
+});
+
+test("lock: one vault call from free assets; unlock: refused when the loan would pass the safety cap", () => {
+  const nv = asset("mNVDA");
+  const c = ctx({ positions: positions({ mNVDA: { idle: tokens(0.034, 8), price: 19_000_000_000n } }) });
+  const lock = ok(buildPlan({ action: "lock", params: { asset: "mNVDA", amount: "1", unit: "usdc" } }, c));
+  assert.deepEqual(lock.calls.map((x) => x.functionName), ["addCollateral"]);
+  assert.equal(lock.calls[0].address, VAULT);
+  assert.equal((lock.calls[0].args as unknown[])[0], nv.token);
+  assert.match(lock.rows[0].value, /^0\.00526\d* mNVDA \(NVIDIA\), worth about \$1\.00$/);
+  assertOnlyMine(lock.calls);
+  refused(buildPlan({ action: "lock", params: { asset: "mTSLA", amount: "10", unit: "percent" } }, c), /invest only/);
+  refused(buildPlan({ action: "lock", params: { asset: "mNVDA", amount: "1", unit: "tokens" } }, c), /free/);
+
+  const locked = ctx({ positions: positions({ mNVDA: { collateral: tokens(0.02, 8), debt: usd(1), price: 19_000_000_000n } }) });
+  const small = ok(buildPlan({ action: "unlock", params: { asset: "mNVDA", amount: "10", unit: "percent" } }, locked));
+  assert.deepEqual(small.calls.map((x) => x.functionName), ["removeCollateral"]);
+  assert.ok(small.rows.some((r) => r.label === "Health after"));
+  refused(buildPlan({ action: "unlock", params: { asset: "mNVDA", amount: "100", unit: "percent" } }, locked), /safety cap/);
+  refused(buildPlan({ action: "unlock", params: { asset: "mAAPL", amount: "10", unit: "percent" } }, locked), /no Apple locked/);
 });

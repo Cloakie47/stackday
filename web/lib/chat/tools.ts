@@ -66,6 +66,18 @@ export const ACTION_TOOLS: (ToolDef & { name: ActionName })[] = [
     input_schema: obj({ asset: { type: "string", enum: [...ASSET_SYMBOLS, "every_loan"] }, usdc: { type: "string", description: 'USDC to repay, or "0" when all is true.' }, all: { type: "boolean" } }),
   },
   {
+    name: "lock",
+    description: "Prepare locking free assets in the person's vault as collateral (needed before borrowing against them). Only assets that can be borrowed against. Amount is a percent of what is free, a number of tokens, or a USDC value.",
+    strict: true,
+    input_schema: assetAmount,
+  },
+  {
+    name: "unlock",
+    description: "Prepare unlocking collateral back to free assets in the person's vault. Refused if the loan against it would become unsafe. Amount is a percent of what is locked, a number of tokens, or a USDC value.",
+    strict: true,
+    input_schema: assetAmount,
+  },
+  {
     name: "gift",
     description: "Prepare a stock gift box for another Stackday user, named by their Stackday ID (SD-XXXXXXXX) or username. Never an address.",
     strict: true,
