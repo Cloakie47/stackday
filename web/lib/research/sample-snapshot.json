@@ -1,0 +1,1153 @@
+{
+  "kind": "sample",
+  "date": "2026-11-20",
+  "generatedAt": "2026-11-20T22:30:00Z",
+  "runId": "sample",
+  "market": {
+    "date": "2026-11-20",
+    "summary": "Sample data for the demo: hand-made text and numbers, not real market data and not real research. Daily notes are internal while the research is tested.",
+    "developments": [],
+    "facts": []
+  },
+  "notes": [
+    {
+      "assetId": "mcbBTC",
+      "date": "2026-11-20",
+      "generatedAt": "2026-11-20T22:30:00Z",
+      "dataAsOf": "2026-11-20T21:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Bitcoin moved with fund flows this week.\nSample view: hold, medium conviction.",
+      "view": "hold",
+      "conviction": "medium",
+      "levels": {
+        "buyZone": null,
+        "invalidation": 86900,
+        "support": [
+          89500,
+          86000
+        ],
+        "resistance": [
+          95500,
+          99000
+        ],
+        "basis": "invalidation = 1 ATR (ATR14 2600) below the nearest daily support 89500"
+      },
+      "reasons": [
+        {
+          "text": "Sample: price sits between daily support and resistance with RSI near 47.",
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.rsi14",
+            "pat.1d.range"
+          ]
+        },
+        {
+          "text": "Sample: the week's move reflected fund flows.",
+          "factIds": [
+            "px.1w.change"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample: a headline shock could push price through the nearest support.",
+          "factIds": [
+            "news.1",
+            "ind.1d.atr14"
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 92000,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 2600,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 47,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": -0.031,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: spot bitcoin funds saw mixed flows during the week",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.range",
+          "kind": "pattern",
+          "label": "Sample: range on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "range",
+          "support": [
+            89500,
+            86000
+          ],
+          "resistance": [
+            95500,
+            99000
+          ],
+          "positionInRange": 0.42,
+          "patterns": [
+            {
+              "id": "pat.1d.range",
+              "kind": "range",
+              "interval": "1d",
+              "direction": "neutral",
+              "confidence": "medium",
+              "invalidation": 88000,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "range",
+          "support": [
+            84000
+          ],
+          "resistance": [
+            104000
+          ],
+          "positionInRange": 0.4,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            74000
+          ],
+          "resistance": [
+            110000
+          ],
+          "positionInRange": 0.5,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ]
+        }
+      },
+      "model": {
+        "triage": "sample"
+      },
+      "previousView": "hold"
+    },
+    {
+      "assetId": "mWETH",
+      "date": "2026-11-20",
+      "generatedAt": "2026-11-20T22:30:00Z",
+      "dataAsOf": "2026-11-20T21:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Ether moved with weaker momentum this week.\nSample view: avoid new buys, low conviction.",
+      "view": "avoid-new-buys",
+      "conviction": "low",
+      "levels": {
+        "buyZone": null,
+        "invalidation": 3380,
+        "support": [
+          2980,
+          2850
+        ],
+        "resistance": [
+          3260,
+          3420
+        ],
+        "basis": "invalidation = 1 ATR (ATR14 120) above the nearest daily resistance 3260"
+      },
+      "reasons": [
+        {
+          "text": "Sample: price sits between daily support and resistance with RSI near 41.",
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.rsi14",
+            "pat.1d.bear-flag"
+          ]
+        },
+        {
+          "text": "Sample: the week's move reflected weaker momentum.",
+          "factIds": [
+            "px.1w.change"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample: a headline shock could push price through the nearest support.",
+          "factIds": [
+            "news.1",
+            "ind.1d.atr14"
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 3100,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 120,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 41,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": -0.054,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: network upgrade timeline discussed by developers",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.bear-flag",
+          "kind": "pattern",
+          "label": "Sample: bear-flag on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "lower-highs-lower-lows",
+          "support": [
+            2980,
+            2850
+          ],
+          "resistance": [
+            3260,
+            3420
+          ],
+          "positionInRange": 0.43,
+          "patterns": [
+            {
+              "id": "pat.1d.bear-flag",
+              "kind": "bear-flag",
+              "interval": "1d",
+              "direction": "bearish",
+              "confidence": "medium",
+              "invalidation": 3300,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "lower-highs-lower-lows",
+          "support": [
+            2700
+          ],
+          "resistance": [
+            3600
+          ],
+          "positionInRange": 0.44,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            2400
+          ],
+          "resistance": [
+            4100
+          ],
+          "positionInRange": 0.41,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ]
+        }
+      },
+      "model": {
+        "triage": "sample"
+      },
+      "previousView": "avoid-new-buys"
+    },
+    {
+      "assetId": "mPAXG",
+      "date": "2026-11-20",
+      "generatedAt": "2026-11-20T22:30:00Z",
+      "dataAsOf": "2026-11-20T21:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Gold moved with lower real yields this week.\nSample view: accumulate, medium conviction.",
+      "view": "accumulate",
+      "conviction": "medium",
+      "levels": {
+        "buyZone": {
+          "low": 4010,
+          "high": 4033
+        },
+        "invalidation": 3943,
+        "support": [
+          4010,
+          3960
+        ],
+        "resistance": [
+          4120,
+          4200
+        ],
+        "basis": "zone = nearest daily support 4010 to +0.5 ATR (ATR14 45), capped at the close 4050; invalidation = 1.5 ATR below the zone"
+      },
+      "reasons": [
+        {
+          "text": "Sample: price sits between daily support and resistance with RSI near 61.",
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.rsi14",
+            "pat.1d.breakout"
+          ]
+        },
+        {
+          "text": "Sample: the week's move reflected lower real yields.",
+          "factIds": [
+            "px.1w.change"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample: a headline shock could push price through the nearest support.",
+          "factIds": [
+            "news.1",
+            "ind.1d.atr14"
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 4050,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 45,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 61,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.018,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: central bank gold purchases reported higher for the quarter",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.breakout",
+          "kind": "pattern",
+          "label": "Sample: breakout on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            4010,
+            3960
+          ],
+          "resistance": [
+            4120,
+            4200
+          ],
+          "positionInRange": 0.36,
+          "patterns": [
+            {
+              "id": "pat.1d.breakout",
+              "kind": "breakout",
+              "interval": "1d",
+              "direction": "bullish",
+              "confidence": "medium",
+              "invalidation": 3990,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            3900
+          ],
+          "resistance": [
+            4250
+          ],
+          "positionInRange": 0.43,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            3600
+          ],
+          "resistance": [
+            4300
+          ],
+          "positionInRange": 0.64,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ]
+        }
+      },
+      "model": {
+        "triage": "sample"
+      },
+      "previousView": "accumulate"
+    },
+    {
+      "assetId": "mNVDA",
+      "date": "2026-11-20",
+      "generatedAt": "2026-11-20T22:30:00Z",
+      "dataAsOf": "2026-11-20T21:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. NVIDIA moved with earnings ahead this week.\nSample view: hold, low conviction.",
+      "view": "hold",
+      "conviction": "low",
+      "levels": {
+        "buyZone": null,
+        "invalidation": 169.9,
+        "support": [
+          176,
+          170
+        ],
+        "resistance": [
+          190,
+          197
+        ],
+        "basis": "invalidation = 1 ATR (ATR14 6.1) below the nearest daily support 176"
+      },
+      "reasons": [
+        {
+          "text": "Sample: price sits between daily support and resistance with RSI near 55.",
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.rsi14"
+          ]
+        },
+        {
+          "text": "Sample: the week's move reflected earnings ahead.",
+          "factIds": [
+            "px.1w.change"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample: a headline shock could push price through the nearest support.",
+          "factIds": [
+            "news.1",
+            "ind.1d.atr14"
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 182,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 6.1,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 55,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.012,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: export control headlines weighed on chip stocks midweek",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "export-controls",
+            "geopolitics"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "range",
+          "support": [
+            176,
+            170
+          ],
+          "resistance": [
+            190,
+            197
+          ],
+          "positionInRange": 0.43,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "range",
+          "support": [
+            165
+          ],
+          "resistance": [
+            205
+          ],
+          "positionInRange": 0.43,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            140
+          ],
+          "resistance": [
+            212
+          ],
+          "positionInRange": 0.58,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ]
+        }
+      },
+      "model": {
+        "triage": "sample"
+      },
+      "previousView": "hold"
+    },
+    {
+      "assetId": "mAAPL",
+      "date": "2026-11-20",
+      "generatedAt": "2026-11-20T22:30:00Z",
+      "dataAsOf": "2026-11-20T21:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. Apple moved with steady demand this week.\nSample view: hold, medium conviction.",
+      "view": "hold",
+      "conviction": "medium",
+      "levels": {
+        "buyZone": null,
+        "invalidation": 257.8,
+        "support": [
+          262,
+          255
+        ],
+        "resistance": [
+          275,
+          282
+        ],
+        "basis": "invalidation = 1 ATR (ATR14 4.2) below the nearest daily support 262"
+      },
+      "reasons": [
+        {
+          "text": "Sample: price sits between daily support and resistance with RSI near 58.",
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.rsi14"
+          ]
+        },
+        {
+          "text": "Sample: the week's move reflected steady demand.",
+          "factIds": [
+            "px.1w.change"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample: a headline shock could push price through the nearest support.",
+          "factIds": [
+            "news.1",
+            "ind.1d.atr14"
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 268,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 4.2,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 58,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.009,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: company announced its quarterly dividend date",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            262,
+            255
+          ],
+          "resistance": [
+            275,
+            282
+          ],
+          "positionInRange": 0.46,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            248
+          ],
+          "resistance": [
+            288
+          ],
+          "positionInRange": 0.5,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            225
+          ],
+          "resistance": [
+            290
+          ],
+          "positionInRange": 0.66,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ]
+        }
+      },
+      "model": {
+        "triage": "sample"
+      },
+      "previousView": "hold"
+    },
+    {
+      "assetId": "mSPX",
+      "date": "2026-11-20",
+      "generatedAt": "2026-11-20T22:30:00Z",
+      "dataAsOf": "2026-11-20T21:00:00Z",
+      "status": "ok",
+      "summary": "Sample data, not real research. S&P 500 moved with broad market trend this week.\nSample view: accumulate, low conviction.",
+      "view": "accumulate",
+      "conviction": "low",
+      "levels": {
+        "buyZone": {
+          "low": 6580,
+          "high": 6611
+        },
+        "invalidation": 6487,
+        "support": [
+          6580,
+          6500
+        ],
+        "resistance": [
+          6720,
+          6800
+        ],
+        "basis": "zone = nearest daily support 6580 to +0.5 ATR (ATR14 62), capped at the close 6650; invalidation = 1.5 ATR below the zone"
+      },
+      "reasons": [
+        {
+          "text": "Sample: price sits between daily support and resistance with RSI near 56.",
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.rsi14",
+            "pat.1d.golden-cross"
+          ]
+        },
+        {
+          "text": "Sample: the week's move reflected broad market trend.",
+          "factIds": [
+            "px.1w.change"
+          ]
+        }
+      ],
+      "risks": [
+        {
+          "text": "Sample: a headline shock could push price through the nearest support.",
+          "factIds": [
+            "news.1",
+            "ind.1d.atr14"
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "px.1d.last",
+          "kind": "price",
+          "label": "Sample: last daily close",
+          "value": 6650,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.atr14",
+          "kind": "indicator",
+          "label": "Sample: average true range, 14 daily bars",
+          "value": 62,
+          "unit": "USD",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "ind.1d.rsi14",
+          "kind": "indicator",
+          "label": "Sample: RSI 14 on daily bars",
+          "value": 56,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "px.1w.change",
+          "kind": "price",
+          "label": "Sample: change over the week",
+          "value": 0.006,
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        },
+        {
+          "id": "news.1",
+          "kind": "news",
+          "label": "Sample: Fed speakers kept a cautious tone on further rate cuts",
+          "value": "headline",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z",
+          "tags": [
+            "markets"
+          ]
+        },
+        {
+          "id": "pat.1d.golden-cross",
+          "kind": "pattern",
+          "label": "Sample: golden-cross on daily bars",
+          "value": "found by code",
+          "source": {
+            "name": "Sample data (not real market data)"
+          },
+          "asOf": "2026-11-20T21:00:00Z"
+        }
+      ],
+      "chart": {
+        "1d": {
+          "interval": "1d",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            6580,
+            6500
+          ],
+          "resistance": [
+            6720,
+            6800
+          ],
+          "positionInRange": 0.5,
+          "patterns": [
+            {
+              "id": "pat.1d.golden-cross",
+              "kind": "golden-cross",
+              "interval": "1d",
+              "direction": "bullish",
+              "confidence": "medium",
+              "invalidation": 6480,
+              "asOf": "2026-11-20T21:00:00Z",
+              "detail": "Sample pattern found by code on 1d bars"
+            }
+          ],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last",
+            "ind.1d.atr14",
+            "ind.1d.rsi14"
+          ]
+        },
+        "1w": {
+          "interval": "1w",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            6400
+          ],
+          "resistance": [
+            6850
+          ],
+          "positionInRange": 0.56,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1w.change"
+          ]
+        },
+        "1mo": {
+          "interval": "1mo",
+          "trend": "higher-highs-higher-lows",
+          "support": [
+            6000
+          ],
+          "resistance": [
+            6900
+          ],
+          "positionInRange": 0.72,
+          "patterns": [],
+          "volatility": {
+            "atrPercentile": 0.5,
+            "volPercentile": 0.5,
+            "regime": "normal"
+          },
+          "factIds": [
+            "px.1d.last"
+          ]
+        }
+      },
+      "model": {
+        "triage": "sample"
+      },
+      "previousView": "accumulate"
+    }
+  ]
+}
