@@ -41,6 +41,57 @@ export function scheduleDecision(s: ScheduleState, now: number): ScheduleDecisio
   return "run";
 }
 
+export type GiftState = { status: number; expiresAt: number };
+
+export type GiftDecision = "refund" | "not-pending" | "not-expired";
+
+/**
+ * Gift boxes (src/GiftBox.sol): a box still pending (status 1) at or after its expiry can be
+ * refunded by anyone, and the USDC can only ever go back to its sender. The bot presses that button.
+ */
+export function giftDecision(g: GiftState, now: number): GiftDecision {
+  if (g.status !== 1) return "not-pending";
+  if (now < g.expiresAt) return "not-expired";
+  return "refund";
+}
+
+/** Most gift boxes one run reads, newest first (ids run 1 to nextId - 1). */
+export const MAX_GIFTS_PER_RUN = 1000;
+/** Boxes read per multicall. */
+export const GIFT_READ_CHUNK = 100;
+
+export type GiftStepDeps = {
+  nextId(): Promise<bigint>;
+  /** giftOf for each id, in the same order. */
+  giftsOf(ids: bigint[]): Promise<GiftState[]>;
+  /** Simulates and sends refundExpired(id); reports its own failures. */
+  refund(id: bigint): Promise<void>;
+  skip(why: string): void;
+};
+
+/**
+ * The keeper's gift step: read the newest boxes in chunks and refund every pending box that has
+ * expired. Returns the ids it tried to refund. The contract re-checks everything on the refund.
+ */
+export async function refundExpiredGifts(deps: GiftStepDeps, now: number): Promise<bigint[]> {
+  const nextId = await deps.nextId();
+  const ids: bigint[] = [];
+  for (let id = nextId - 1n; id >= 1n && ids.length < MAX_GIFTS_PER_RUN; id--) ids.push(id);
+  const tried: bigint[] = [];
+  for (let i = 0; i < ids.length; i += GIFT_READ_CHUNK) {
+    const chunk = ids.slice(i, i + GIFT_READ_CHUNK);
+    const gifts = await deps.giftsOf(chunk);
+    for (let j = 0; j < chunk.length; j++) {
+      const d = giftDecision({ status: Number(gifts[j].status), expiresAt: Number(gifts[j].expiresAt) }, now);
+      if (d === "refund") {
+        tried.push(chunk[j]);
+        await deps.refund(chunk[j]);
+      } else if (d === "not-expired") deps.skip("gift-not-expired");
+    }
+  }
+  return tried;
+}
+
 /** Most transactions one run may send, so a backlog cannot drain the bot's gas in one go. */
 export const MAX_TX_PER_RUN = 25;
 

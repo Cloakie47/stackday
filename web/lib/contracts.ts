@@ -19,6 +19,9 @@ export const ADDR = {
   sellDesk: d.mockSellDesk as Address,
 };
 
+/** GiftBox (issue #77), deployed after the main contracts; undefined on a deployment without it. */
+export const GIFT_BOX = (d.giftBox as Address | undefined) || undefined;
+
 export const SIP_FEE_BPS = BigInt(d.sipFeeBps as number);
 /** One-time fee on borrowed USDC (0 on deployments before issue #45). */
 export const BORROW_FEE_BPS = BigInt((d.borrowFeeBps as number | undefined) ?? 0);

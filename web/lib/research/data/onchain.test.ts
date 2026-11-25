@@ -392,3 +392,74 @@ test("tail store failures never break the read: a failing load or save is a prob
   await fetchOnchainHistory("mSPX", replay("mSPX", { store: ahead }), bf);
   assert.equal(ahead.data.get("mSPX")!.pool!.toBlock, 99_999_999);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Issue #80: one RPC error never wipes an asset; the restricted deSPXA feed is optional
+// ---------------------------------------------------------------------------------------------
+
+const to = (p: unknown[]) => String((p[0] as { to?: string })?.to ?? "").toLowerCase();
+const DESPXA_FEED = "0x97165ad36d96567a521958cc46914160b968752b";
+
+test("a failed head block is retried once; a second failure still builds bars from the backfill", async () => {
+  const bf = onchainFx.backfill!;
+  for (const id of ["mAAPL", "mSPX"]) {
+    const full = await fetchOnchainHistory(id, replay(id), bf);
+    // One failure, then the retry answers: the same result as a clean read.
+    let n = 0;
+    const once = await fetchOnchainHistory(id, replay(id, { refuse: (m, p) => m === "eth_getBlockByNumber" && p[0] === "latest" && ++n === 1 }), bf);
+    assert.deepEqual(barKey(once.daily), barKey(full.daily), `${id}: retry gives the same bars`);
+    assert.equal(once.current?.value, full.current?.value);
+    // Both attempts fail: bars from the backfill alone, no current price, no pool or loan facts, said in a problem line.
+    const down = await fetchOnchainHistory(id, replay(id, { refuse: (m, p) => m === "eth_getBlockByNumber" && p[0] === "latest" }), bf);
+    assert.ok(down.daily?.length, `${id}: ${down.problems.join(" | ")}`);
+    assert.equal(down.current, undefined);
+    assert.deepEqual(down.facts, []);
+    assert.ok(down.problems.some((p) => /latest Base block not read after a retry .* bars from the backfill and stored tail only, up to 2026-/.test(p)), down.problems.join(" | "));
+    const lastBf = id === "mSPX" ? bf.assets.mSPX.pool!.toTime : Math.max(...bf.assets[id].feed!.rounds.map((r) => r[2]));
+    for (const b of down.daily!) assert.ok(Date.parse(b.t) / 1000 <= lastBf, `${id}: no bar after the backfill's end`);
+  }
+});
+
+test("a failed price batch is retried once; a second failure keeps the bars and drops only the current price", async () => {
+  const bf = onchainFx.backfill!;
+  const slot0 = (m: string, p: unknown[]) => m === "eth_call" && String((p[0] as { data: string }).data) === "0x0dfe1681"; // pool token0, part of the price batch
+  for (const id of ["mAAPL", "mSPX"]) {
+    const full = await fetchOnchainHistory(id, replay(id), bf);
+    let n = 0;
+    const once = await fetchOnchainHistory(id, replay(id, { refuse: (m, p) => slot0(m, p) && ++n === 1 }), bf);
+    assert.equal(once.current?.value, full.current?.value, `${id}: the retry reads the price`);
+    const down = await fetchOnchainHistory(id, replay(id, { refuse: slot0 }), bf);
+    assert.ok(down.daily?.length, `${id}: bars still come (${down.problems.join(" | ")})`);
+    assert.equal(down.current, undefined);
+    assert.ok(down.problems.some((p) => /current on-chain price not read after a retry/.test(p)));
+  }
+});
+
+test("deSPXA: px.last is the pool price (the bars' basis), the Morpho oracle is a separate loan price", async () => {
+  const bf = onchainFx.backfill!;
+  const h = await fetchOnchainHistory("mSPX", replay("mSPX"), bf);
+  const pool = h.facts.find((f) => f.id === "px.pool.last")!;
+  const loan = h.facts.find((f) => f.id === "px.loan")!;
+  assert.equal(h.current!.value, pool.value);
+  assert.match(h.current!.label, /pool .*the same basis as the chart bars/);
+  assert.match(loan.label, /Loan price .*Morpho market oracle/);
+  assert.notEqual(loan.value, pool.value);
+  // The last pool bar and px.last are within a few percent: no oracle-versus-pool gap read as a move.
+  const lastBar = h.daily!.at(-1)!;
+  assert.ok(Math.abs(h.current!.value / lastBar.c - 1) < 0.03, `pool ${h.current!.value} vs last bar ${lastBar.c}`);
+});
+
+test("deSPXA: the restricted oracle feed reverting never removes the asset; the loan price is dated at the head block", async () => {
+  const bf = onchainFx.backfill!;
+  const full = await fetchOnchainHistory("mSPX", replay("mSPX"), bf);
+  const h = await fetchOnchainHistory("mSPX", replay("mSPX", { refuse: (m, p) => m === "eth_call" && to(p) === DESPXA_FEED }), bf);
+  assert.ok(h.daily?.length && h.current, h.problems.join(" | "));
+  assert.deepEqual(barKey(h.daily), barKey(full.daily));
+  const loan = h.facts.find((f) => f.id === "px.loan")!;
+  assert.equal(loan.value, full.facts.find((f) => f.id === "px.loan")!.value);
+  assert.equal(loan.asOf, h.facts.find((f) => f.id === "px.pool.last")!.asOf, "dated at the head block");
+  // The feed is not in the batch that must not fail.
+  const log: { method: string; params: unknown[] }[] = [];
+  await fetchOnchainHistory("mSPX", replay("mSPX", { log }), bf);
+  assert.ok(log.filter((q) => to(q.params) === DESPXA_FEED).length <= 1);
+});

@@ -317,3 +317,20 @@ create table if not exists research_onchain_tail (
 );
 alter table research_onchain_tail enable row level security;
 
+
+-- Gift box messages (src/GiftBox.sol, docs/features/CHAT-AND-GIFTS.md section 2). Only the optional
+-- note a sender adds; the gift itself, its amount, mix and status live on the chain, which is the
+-- truth. The server writes a row only after reading the gift on the chain and checking that the
+-- signed-in wallet is its sender, and takes sender and recipient from the chain. Only the sender
+-- and the recipient can read it. Server only (service role): RLS on and no policies.
+create table if not exists gifts (
+  gift_id     bigint primary key check (gift_id > 0),
+  sender      text not null check (sender ~ '^0x[0-9a-f]{40}$'),
+  recipient   text not null check (recipient ~ '^0x[0-9a-f]{40}$'),
+  message     text not null check (char_length(message) between 1 and 140),
+  created_at  timestamptz not null default now()
+);
+create index if not exists gifts_recipient_idx on gifts (recipient);
+create index if not exists gifts_sender_idx on gifts (sender);
+alter table gifts enable row level security;
+-- No policies: only the server (service role) reads or writes it.

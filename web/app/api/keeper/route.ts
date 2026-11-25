@@ -1,14 +1,15 @@
 import { createPublicClient, createWalletClient, erc20Abi, http, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
-import { payrollAbi, routerAbi } from "@/lib/abis";
-import { ADDR } from "@/lib/contracts";
+import { giftBoxAbi, payrollAbi, routerAbi } from "@/lib/abis";
+import { ADDR, GIFT_BOX } from "@/lib/contracts";
 import { configured, db, json } from "@/lib/server/backend";
-import { MAX_TX_PER_RUN, cronAuthorized, planDecision, scheduleDecision } from "@/lib/server/keeper";
+import { MAX_TX_PER_RUN, cronAuthorized, planDecision, refundExpiredGifts, scheduleDecision } from "@/lib/server/keeper";
 
 /**
  * The trigger bot. Vercel's cron calls this on a timer (vercel.json). It runs every due payroll
  * schedule and every due recurring buy, so "invest on a schedule" happens without anyone clicking.
+ * It also sends expired, unopened gift boxes back to their senders (GiftBox.refundExpired).
  *
  * Server-only settings (set in Vercel, never in the repo or chat):
  *   CRON_SECRET          shared secret Vercel sends with each cron call
@@ -18,7 +19,7 @@ import { MAX_TX_PER_RUN, cronAuthorized, planDecision, scheduleDecision } from "
  */
 export const maxDuration = 60;
 
-type Tx = { kind: "payday" | "buy"; id: string; hash?: string; error?: string };
+type Tx = { kind: "payday" | "buy" | "gift-refund"; id: string; hash?: string; error?: string };
 
 export async function GET(request: Request) {
   if (!cronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) return json({ error: "Not allowed." }, 401);
@@ -59,7 +60,33 @@ export async function GET(request: Request) {
     else await send("payday", String(id), { address: ADDR.payroll, abi: payrollAbi, functionName: "runSchedule", args: [BigInt(id)] });
   }
 
-  // 2. Recurring buys: the plans people registered when they saved them (account database).
+  // 2. Gift boxes: every box is numbered 1..nextId-1 on the contract (no database needed). A pending box
+  // past its expiry is refunded; the contract only ever pays the sender. Runs before the database step,
+  // which can stop the run early.
+  const giftBox = GIFT_BOX;
+  if (giftBox) {
+    try {
+      await refundExpiredGifts(
+        {
+          nextId: async () => (await pub.readContract({ address: giftBox, abi: giftBoxAbi, functionName: "nextId" })) as bigint,
+          giftsOf: async (ids) =>
+            (await pub.multicall({
+              allowFailure: false,
+              contracts: ids.map((id) => ({ address: giftBox, abi: giftBoxAbi, functionName: "giftOf", args: [id] }) as const),
+            })) as { status: number; expiresAt: number }[],
+          refund: async (id) => {
+            await send("gift-refund", String(id), { address: giftBox, abi: giftBoxAbi, functionName: "refundExpired", args: [id] });
+          },
+          skip,
+        },
+        now,
+      );
+    } catch {
+      skip("gifts-read-failed"); // a read error never stops the recurring buys below
+    }
+  } else skip("gifts-not-deployed");
+
+  // 3. Recurring buys: the plans people registered when they saved them (account database).
   if (configured()) {
     const { data, error } = await db().from("recurring_plans").select("wallet, asset").limit(500);
     if (error) return json({ error: "Could not load plans.", sent }, 500);

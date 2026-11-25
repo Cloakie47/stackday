@@ -690,6 +690,27 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 const roundPx = (x: number) => (Math.abs(x) >= 1 ? r2(x) : Number(x.toPrecision(6)));
 const feedName = (f: FeedRef) => `Chainlink "${f.description}" feed ${f.address} on Base`;
 
+/** A contract or chain that is not the one configured: stops the read, never retried. */
+class ContractMismatch extends Error {}
+
+/** Runs `f`, and once more after a short pause if it throws anything but a contract mismatch. */
+async function retryOnce<T>(deps: DataDeps, f: () => Promise<T>): Promise<T> {
+  try {
+    return await f();
+  } catch (e) {
+    if (e instanceof ContractMismatch) throw e;
+    await deps.sleep(RETRY_PAUSE_MS);
+    return f();
+  }
+}
+const RETRY_PAUSE_MS = 1500;
+
+/** The newest time (unix seconds) the backfill and stored tail know about, for a read without the head block. */
+function knownEnd(cfg: OnchainAsset, bf: BackfillAsset): number {
+  if (cfg.bars === "feed") return Math.max(0, ...(bf.feed?.rounds ?? []).map((r) => r[2]));
+  return bf.pool?.toTime ?? 0;
+}
+
 /**
  * Reads one asset's on-chain price history: backfill plus the tail after it. Never throws:
  * failures are problem lines and a missing part is simply absent.
@@ -722,84 +743,123 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
   if (applied.note) problems.push(`${assetId}: ${applied.note}`);
   const bf = applied.asset;
 
-  // 1. Head block and chain.
-  let head: number;
-  let headTime: number;
+  // 1. Head block and chain. A wrong chain stops the read; an RPC failure is retried once, and if it
+  // still fails the bars come from the backfill and the stored tail alone (no current price, no tail read).
+  let head: number | undefined;
+  let headTime = 0;
   try {
-    const [chain, blk] = await rpc.batch([
-      { method: "eth_chainId", params: [] },
-      { method: "eth_getBlockByNumber", params: ["latest", false] },
-    ]);
-    if (Number(BigInt(String(chain.result))) !== BASE_CHAIN_ID) throw new Error(`chain id ${String(chain.result)} is not Base (8453)`);
-    const b = blk.result as { number?: string; timestamp?: string } | undefined;
-    if (!b?.number || !b.timestamp) throw new Error("no latest block");
-    head = Number(BigInt(b.number));
-    headTime = Number(BigInt(b.timestamp));
+    ({ head, headTime } = await retryOnce(deps, async () => {
+      const [chain, blk] = await rpc.batch([
+        { method: "eth_chainId", params: [] },
+        { method: "eth_getBlockByNumber", params: ["latest", false] },
+      ]);
+      if (Number(BigInt(String(chain.result))) !== BASE_CHAIN_ID) throw new ContractMismatch(`chain id ${String(chain.result)} is not Base (8453)`);
+      const b = blk.result as { number?: string; timestamp?: string } | undefined;
+      if (!b?.number || !b.timestamp) throw new Error("no latest block");
+      return { head: Number(BigInt(b.number)), headTime: Number(BigInt(b.timestamp)) };
+    }));
   } catch (e) {
-    problems.push(`${assetId}: on-chain price read failed (${e instanceof Error ? e.message : "unknown"}), no reading`);
-    return out({});
+    if (e instanceof ContractMismatch) {
+      problems.push(`${assetId}: on-chain price read failed (${e.message}), no reading`);
+      return out({});
+    }
+    const known = knownEnd(cfg, bf);
+    problems.push(`${assetId}: latest Base block not read after a retry (${e instanceof Error ? e.message : "unknown"}); ${known ? `bars from the backfill and stored tail only, up to ${iso(known).slice(0, 16)} UTC, no current price` : "no backfill either, no reading"}`);
+    if (!known) return out({});
+    headTime = known;
   }
-  const B = hexBlock(head);
+  const B = head !== undefined ? hexBlock(head) : "latest";
 
-  // 2. Current price, contract checks and the pool price, all at block B.
-  const calls: RpcCall[] = [ethCall(cfg.pool.address, SELECTORS.token0, B), ethCall(cfg.pool.address, SELECTORS.token1, B), ethCall(cfg.pool.address, SELECTORS.slot0, B)];
-  if (cfg.feed) calls.push(...(["description", "decimals", "latestRoundData", "phaseId"] as const).map((k) => ethCall(cfg.feed!.address, SELECTORS[k], B)));
-  if (cfg.oracle) calls.push(ethCall(cfg.oracle.address, SELECTORS.price, B), ethCall(cfg.oracle.baseFeed, SELECTORS.latestRoundData, B));
+  // 2. Current price, contract checks and the pool price, all at block B. A contract mismatch stops
+  // the read; any other failure (an RPC hiccup, a call that reverts) is retried once, then the read
+  // goes on without a current price: the bars still come from the backfill and the tail.
   let latest: RoundData | undefined;
   let phase = 0;
   let poolPrice: number | undefined;
-  const cur: { current?: OnchainHistory["current"] } = {};
-  try {
-    const a = await rpc.batch(calls);
-    const t0 = wordAddress(hexResult(a[0], "pool token0"));
-    const t1 = wordAddress(hexResult(a[1], "pool token1"));
-    if (t0 !== USDC.address || t1 !== cfg.token.address) throw new Error(`pool ${short(cfg.pool.address)} holds ${short(t0)} and ${short(t1)}, not USDC and ${sym}`);
+  let oraclePrice: OnchainHistory["current"];
+  let feedPrice: OnchainHistory["current"];
+  if (head !== undefined) {
+    const calls: RpcCall[] = [ethCall(cfg.pool.address, SELECTORS.token0, B), ethCall(cfg.pool.address, SELECTORS.token1, B), ethCall(cfg.pool.address, SELECTORS.slot0, B)];
+    if (cfg.feed) calls.push(...(["description", "decimals", "latestRoundData", "phaseId"] as const).map((k) => ethCall(cfg.feed!.address, SELECTORS[k], B)));
+    if (cfg.oracle) calls.push(ethCall(cfg.oracle.address, SELECTORS.price, B));
+    const readPrices = async () => {
+      const a = await rpc.batch(calls);
+      const r: { latest?: RoundData; phase: number; poolPrice?: number; poolProblem?: string; feedPrice?: OnchainHistory["current"]; oraclePrice?: OnchainHistory["current"] } = { phase: 0 };
+      const t0 = wordAddress(hexResult(a[0], "pool token0"));
+      const t1 = wordAddress(hexResult(a[1], "pool token1"));
+      if (t0 !== USDC.address || t1 !== cfg.token.address) throw new ContractMismatch(`pool ${short(cfg.pool.address)} holds ${short(t0)} and ${short(t1)}, not USDC and ${sym}`);
+      if (cfg.feed) {
+        const desc = decodeString(hexResult(a[3], "feed description"));
+        const dec = Number(word(hexResult(a[4], "feed decimals"), 0));
+        if (desc !== cfg.feed.description || dec !== cfg.feed.decimals) throw new ContractMismatch(`feed ${short(cfg.feed.address)} says "${desc.slice(0, 40)}" with ${dec} decimals, expected "${cfg.feed.description}" with ${cfg.feed.decimals}`);
+      }
+      try {
+        r.poolPrice = sqrtPriceToUsd(word(hexResult(a[2], "pool slot0"), 0), cfg.token.decimals);
+      } catch (e) {
+        r.poolProblem = `${assetId}: pool price failed (${e instanceof Error ? e.message : "unknown"}), no pool premium`;
+      }
+      if (cfg.feed) {
+        const dec = cfg.feed.decimals;
+        const lr = decodeRound(hexResult(a[5], "latestRoundData"));
+        r.latest = lr;
+        r.phase = Number(word(hexResult(a[6], "phaseId"), 0));
+        const value = Number(lr.answer) / 10 ** dec;
+        const rid = `${phaseOf(lr.roundId)}.${aggRoundOf(lr.roundId)}`;
+        if (value > 0 && lr.updatedAt > 0) {
+          const source: Source = { name: `${feedName(cfg.feed)}, round ${rid} (read at block ${head})`, url: basescan(cfg.feed.address), display: true };
+          r.feedPrice = { value: roundPx(value), asOf: iso(Math.min(lr.updatedAt, headTime)), label: `On-chain price of ${sym} on Base (Chainlink "${cfg.feed.description}" feed, round ${rid}), not ${cfg.underlying}`, source };
+        }
+      }
+      if (cfg.oracle) {
+        const o = cfg.oracle;
+        const value = morphoOraclePrice(word(hexResult(a[cfg.feed ? 7 : 3], "oracle price"), 0), o.loanDecimals, o.collateralDecimals);
+        if (value > 0) {
+          // The oracle's own feed is reader-restricted (it reverts NotTolled for most callers), so its
+          // update time is optional and read on its own: without it the price is dated at the head block.
+          let upd = 0;
+          try {
+            upd = decodeRound(String(await rpc.call("eth_call", [{ to: o.baseFeed, data: SELECTORS.latestRoundData }, B]))).updatedAt;
+          } catch {
+            upd = 0;
+          }
+          const scale = morphoOracleScale(o.loanDecimals, o.collateralDecimals);
+          const source: Source = {
+            name: `Morpho market oracle ${o.address} on Base (market ${short(o.morphoMarket)} on Morpho Blue ${short(MORPHO_BLUE)}), price() at block ${head}, scaled by 1e${scale} (36 + ${o.loanDecimals} USDC decimals - ${o.collateralDecimals} ${sym} decimals)`,
+            url: basescan(o.address),
+            display: true,
+          };
+          r.oraclePrice = { value: roundPx(value), asOf: iso(upd > 0 ? Math.min(upd, headTime) : headTime), label: `Loan price of ${sym} on Base (Morpho market oracle, the price Morpho values loans and liquidates on, not the chart basis), not ${cfg.underlying}`, source };
+        }
+      }
+      return r;
+    };
     try {
-      poolPrice = sqrtPriceToUsd(word(hexResult(a[2], "pool slot0"), 0), cfg.token.decimals);
+      const r = await retryOnce(deps, readPrices);
+      ({ latest, phase, poolPrice, feedPrice, oraclePrice } = r);
+      if (r.poolProblem) problems.push(r.poolProblem);
     } catch (e) {
-      problems.push(`${assetId}: pool price failed (${e instanceof Error ? e.message : "unknown"}), no pool premium`);
-    }
-    if (cfg.feed) {
-      const desc = decodeString(hexResult(a[3], "feed description"));
-      const dec = Number(word(hexResult(a[4], "feed decimals"), 0));
-      if (desc !== cfg.feed.description || dec !== cfg.feed.decimals) throw new Error(`feed ${short(cfg.feed.address)} says "${desc.slice(0, 40)}" with ${dec} decimals, expected "${cfg.feed.description}" with ${cfg.feed.decimals}`);
-      latest = decodeRound(hexResult(a[5], "latestRoundData"));
-      phase = Number(word(hexResult(a[6], "phaseId"), 0));
-      const value = Number(latest.answer) / 10 ** dec;
-      const rid = `${phaseOf(latest.roundId)}.${aggRoundOf(latest.roundId)}`;
-      if (value > 0 && latest.updatedAt > 0) {
-        const source: Source = { name: `${feedName(cfg.feed)}, round ${rid} (read at block ${head})`, url: basescan(cfg.feed.address), display: true };
-        cur.current = { value: roundPx(value), asOf: iso(Math.min(latest.updatedAt, headTime)), label: `On-chain price of ${sym} on Base (Chainlink "${cfg.feed.description}" feed, round ${rid}), not ${cfg.underlying}`, source };
+      if (e instanceof ContractMismatch) {
+        problems.push(`${assetId}: on-chain price read failed (${e.message}), no reading`);
+        return out({});
       }
+      problems.push(`${assetId}: current on-chain price not read after a retry (${e instanceof Error ? e.message : "unknown"}); bars from the backfill and the tail, no current price`);
     }
-    if (cfg.oracle) {
-      const o = cfg.oracle;
-      const i = cfg.feed ? 7 : 3;
-      const value = morphoOraclePrice(word(hexResult(a[i], "oracle price"), 0), o.loanDecimals, o.collateralDecimals);
-      const upd = decodeRound(hexResult(a[i + 1], "oracle feed latestRoundData")).updatedAt;
-      if (value > 0) {
-        const scale = morphoOracleScale(o.loanDecimals, o.collateralDecimals);
-        const source: Source = {
-          name: `Morpho market oracle ${o.address} on Base (market ${short(o.morphoMarket)} on Morpho Blue ${short(MORPHO_BLUE)}), price() at block ${head}, scaled by 1e${scale} (36 + ${o.loanDecimals} USDC decimals - ${o.collateralDecimals} ${sym} decimals)`,
-          url: basescan(o.address),
-          display: true,
-        };
-        cur.current = { value: roundPx(value), asOf: iso(upd > 0 ? Math.min(upd, headTime) : headTime), label: `On-chain price of ${sym} on Base (Morpho market oracle, the price Morpho liquidates on), not ${cfg.underlying}`, source };
-      }
-    }
-  } catch (e) {
-    problems.push(`${assetId}: on-chain price read failed (${e instanceof Error ? e.message : "unknown"}), no reading`);
-    return out({});
   }
-  const current = cur.current;
+  // One basis for the chart facts: the bars' own source. Chainlink assets: the feed is both the bars
+  // and the current price. Pool assets (deSPXA): the bars come from the pool, so the current price is
+  // the pool price and the Morpho oracle is a separate loan price (px.loan), never mixed with the bars.
+  let current: OnchainHistory["current"] = cfg.bars === "feed" ? feedPrice : undefined;
   if (poolPrice !== undefined && poolPrice > 0) {
     const src: Source = { name: `${sym}/USDC ${cfg.pool.venue} ${cfg.pool.address} on Base, slot0 at block ${head}`, url: basescan(cfg.pool.address), display: true };
+    if (cfg.bars !== "feed") current = { value: roundPx(poolPrice), asOf: iso(Math.min(headTime, Math.floor(deps.now().getTime() / 1000))), label: `On-chain price of ${sym} in the main ${sym}/USDC pool on Base at block ${head} (the same basis as the chart bars), not ${cfg.underlying}`, source: src };
     facts.push({ id: "px.pool.last", kind: "price", label: `Price in the main ${sym}/USDC pool on Base at block ${head} (on-chain, not ${cfg.underlying})`, value: roundPx(poolPrice), unit: "USD", source: src, asOf: iso(headTime) });
-    if (current) {
-      const what = cfg.oracle ? "Morpho oracle" : "Chainlink feed";
-      facts.push({ id: "px.pool.premium", kind: "price", label: `${sym}/USDC pool price above (+) or below (-) the ${what} price, block ${head}`, value: r2((poolPrice / current.value - 1) * 100), unit: "%", source: { ...src, name: `${src.name}, compared with ${current.source.name}` }, asOf: iso(headTime) });
+    const ref = oraclePrice ?? feedPrice;
+    if (ref) {
+      const what = oraclePrice ? "Morpho oracle (loan)" : "Chainlink feed";
+      facts.push({ id: "px.pool.premium", kind: "price", label: `${sym}/USDC pool price above (+) or below (-) the ${what} price, block ${head}`, value: r2((poolPrice / ref.value - 1) * 100), unit: "%", source: { ...src, name: `${src.name}, compared with ${ref.source.name}` }, asOf: iso(headTime) });
     }
   }
+  if (oraclePrice) facts.push({ id: "px.loan", kind: "price", label: oraclePrice.label, value: oraclePrice.value, unit: "USD", source: oraclePrice.source, asOf: oraclePrice.asOf });
 
   // 3. Chainlink rounds after the backfill (and the stored tail).
   let rounds: Round[] = (bf.feed?.rounds ?? []).map(([p, r, u, a]) => ({ phase: p, round: r, updatedAt: u, answer: a }));
@@ -852,7 +912,7 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
   let poolTo = bf.pool?.toBlock;
   const readPool = cfg.poolTail || Boolean(store);
   let poolReadFrom: number | undefined;
-  if (readPool) {
+  if (readPool && head !== undefined) {
     let from = (bf.pool?.toBlock ?? head - MAX_TAIL_LOG_REQUESTS * GETLOGS_MAX_BLOCKS) + 1;
     poolReadFrom = from;
     if (store && bf.pool) {
@@ -958,7 +1018,8 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
   if (!daily.length) problems.push(`${assetId}: no on-chain daily bars could be built, no reading`);
 
   // 6. Save the tail for the next run: never moving coverage backwards, never breaking the read.
-  if (store) {
+  // Nothing new was read without the head block, so nothing is saved then.
+  if (store && head !== undefined) {
     const covSeg = cov.length ? cov[cov.length - 1] : undefined;
     const poolPart =
       poolTo !== undefined && covSeg && (!base.pool || poolTo > base.pool.toBlock)

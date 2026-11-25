@@ -683,3 +683,262 @@ dialog.sheet::backdrop {
   --tv-widget-negative-area-top-color: var(--chart-area);
   --tv-widget-negative-area-bottom-color: color-mix(in srgb, var(--chart-line) 0%, transparent);
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Gift box (Gifts page, docs/features/CHAT-AND-GIFTS.md 2.6). Pure CSS, only transform and opacity
+   move. The page sets data-phase on .gift-stage: idle (soft bob), pending (gentle shake while the
+   wallet and the transaction run), opened (lid lifts, particles, cards rise: only after the
+   transaction is confirmed), failed (the lid closes again).
+------------------------------------------------------------------------------------------------ */
+.gift-box {
+  position: relative;
+  width: 132px;
+  height: 120px;
+  transform-origin: 50% 100%;
+}
+.gift-body {
+  position: absolute;
+  inset: 34px 8px 0;
+  border-radius: 14px;
+  background: var(--brand);
+  box-shadow: inset 0 -10px 0 rgb(0 0 0 / 0.12);
+}
+.gift-lid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18px;
+  height: 26px;
+  border-radius: 10px;
+  background: var(--brand-strong);
+  box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.12);
+  transform-origin: 15% 100%;
+}
+.gift-ribbon-v {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  transform: translateX(-50%);
+  background: var(--warn-dot);
+}
+.gift-bow {
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  width: 44px;
+  height: 22px;
+  transform: translateX(-50%);
+}
+.gift-bow::before,
+.gift-bow::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  width: 20px;
+  height: 18px;
+  border: 4px solid var(--warn-dot);
+  border-radius: 50% 50% 0 50%;
+}
+.gift-bow::before {
+  left: 0;
+  transform: rotate(-20deg);
+}
+.gift-bow::after {
+  right: 0;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(20deg);
+}
+.gift-glow {
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  width: 160px;
+  height: 160px;
+  margin-left: -80px;
+  margin-top: -80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 35%, transparent), transparent 65%);
+  opacity: 0;
+  pointer-events: none;
+}
+.gift-particle {
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px;
+  border-radius: 50%;
+  background: var(--brand);
+  opacity: 0;
+  pointer-events: none;
+}
+.gift-particle:nth-child(3n) {
+  background: var(--grow);
+}
+.gift-particle:nth-child(4n) {
+  background: var(--warn-dot, #e7a33e);
+}
+.gift-card {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gift-stage[data-phase="idle"] .gift-box {
+    animation: gift-bob 2.6s ease-in-out infinite;
+  }
+  .gift-stage[data-phase="pending"] .gift-box {
+    animation: gift-shake 0.9s ease-in-out infinite;
+  }
+  .gift-stage[data-phase="opened"] .gift-lid {
+    animation: gift-lid-open 0.7s var(--ease-out) both;
+  }
+  .gift-stage[data-phase="opened"] .gift-glow {
+    animation: gift-glow 1.2s ease-out both;
+  }
+  .gift-stage[data-phase="opened"] .gift-particle {
+    animation: gift-burst 0.9s var(--ease-out) both;
+    animation-delay: 0.15s;
+  }
+  .gift-stage[data-phase="opened"] .gift-card {
+    animation: gift-card-rise 0.55s var(--ease-out) both;
+  }
+  .gift-stage[data-phase="failed"] .gift-box {
+    animation: gift-settle 0.4s var(--ease-out) both;
+  }
+}
+/* Reduced motion: no bob, shake or particles, a plain crossfade, and the lid simply disappears. */
+@media (prefers-reduced-motion: reduce) {
+  .gift-particle,
+  .gift-glow {
+    display: none;
+  }
+  .gift-stage[data-phase="opened"] .gift-lid {
+    opacity: 0;
+    transition: opacity 250ms ease-out !important;
+  }
+  .gift-stage[data-phase="opened"] .gift-card {
+    animation: gift-fade 300ms ease-out both !important;
+    animation-duration: 300ms !important;
+  }
+}
+@keyframes gift-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes gift-shake {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1.04);
+  }
+  25% {
+    transform: rotate(-3deg) scale(1.04);
+  }
+  75% {
+    transform: rotate(3deg) scale(1.04);
+  }
+}
+@keyframes gift-lid-open {
+  to {
+    transform: translate(-6px, -54px) rotate(-24deg);
+    opacity: 0;
+  }
+}
+@keyframes gift-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+@keyframes gift-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0px), var(--dy, -60px)) scale(0.4);
+  }
+}
+@keyframes gift-card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes gift-settle {
+  0% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes gift-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The opening sheet: full height on phones (button in thumb reach), a centred panel from sm up. */
+dialog.gift-sheet {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  border: 0;
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink);
+  overscroll-behavior: contain;
+}
+dialog.gift-sheet::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+@media (min-width: 640px) {
+  dialog.gift-sheet {
+    margin: auto;
+    width: 28rem;
+    /* fit-content, not auto: a modal dialog is fixed with both insets set, so auto would stretch it. */
+    height: fit-content;
+    max-height: 90dvh;
+    border-radius: 20px;
+    box-shadow: var(--shadow-lg);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  dialog.gift-sheet[open] {
+    animation: gift-sheet-in 280ms var(--ease-drawer) both;
+  }
+}
+@keyframes gift-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

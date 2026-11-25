@@ -20,36 +20,54 @@ async function tailDeps(): Promise<{ onchainTail?: OnchainTailStore }> {
 
 /**
  * Where the engine gets its data: web/lib/research/data. The market-wide input (macro series,
- * week-ahead calendar) is fetched once per date and shared by every asset in the run, so FRED,
- * the Fed and BEA calendars and the news feeds are not asked six times.
+ * week-ahead calendar) is fetched once per run and shared by every asset in it, so FRED, the Fed
+ * and BEA calendars and the news feeds are not asked six times.
+ *
+ * The cache key is the date plus the cut time: the Monday weekly slots cut at 12:00 UTC (no cut
+ * time), the daily note at its real run time. So a warm instance never hands the 12:00 weekly
+ * market input to the 22:30 daily note. The daily path is keyed by the hour of its cut time, so the
+ * assets of one daily run share one market input (cut at the first asset's time) and no other run does.
  */
-const marketByDate = new Map<IsoDate, Promise<MarketResearchInput>>();
+const marketCache = new Map<string, Promise<MarketResearchInput>>();
 
-export const defaultGatherMarket: GatherMarketFn | null = (date) => {
-  let m = marketByDate.get(date);
+/** The cache key: the run date plus the hour of the cut time ("noon" for the weekly 12:00 UTC cut). */
+export const marketCacheKey = (date: IsoDate, cutAt?: string) => `${date}|${cutAt ? cutAt.slice(0, 13) : "noon"}`;
+
+export function gatherMarketCached(date: IsoDate, cutAt?: string, fetchMarket: typeof gatherMarket = gatherMarket): Promise<MarketResearchInput> {
+  const key = marketCacheKey(date, cutAt);
+  let m = marketCache.get(key);
   if (!m) {
-    m = gatherMarket(date);
-    m.catch(() => marketByDate.delete(date));
-    marketByDate.set(date, m);
-    // Keep only the most recent few dates in memory.
-    while (marketByDate.size > 3) marketByDate.delete(marketByDate.keys().next().value as IsoDate);
+    m = fetchMarket(date, undefined, cutAt ? { cutAt } : {});
+    m.catch(() => marketCache.delete(key));
+    marketCache.set(key, m);
+    // Keep only the most recent few runs in memory.
+    while (marketCache.size > 4) marketCache.delete(marketCache.keys().next().value as string);
   }
   return m;
-};
+}
+
+/** The weekly run's market input: cut at 12:00 UTC on the run date. */
+export const defaultGatherMarket: GatherMarketFn | null = (date) => gatherMarketCached(date);
 
 export const defaultGather: GatherFn | null = async (assetId, date) => {
-  const market = await defaultGatherMarket!(date).catch(() => undefined);
+  const market = await gatherMarketCached(date).catch(() => undefined);
   return gatherAsset(assetId, date, await tailDeps(), { market });
 };
+
+/** The daily note's cut time: its real run time when the run date is today, otherwise none (12:00 UTC). */
+export function dailyCutAt(date: IsoDate, now: Date = new Date()): string | undefined {
+  return date === now.toISOString().slice(0, 10) ? now.toISOString() : undefined;
+}
 
 /**
  * The daily note's gatherer (22:30 UTC on weekdays): when the run date is today it cuts the data at
  * the real time (`cutAt`), so the note's entry price includes today's closed session and its scores
- * never count a move that was already known. The Monday weekly slots (12:00 to 21:00 UTC) keep
- * `defaultGather`, which cuts at 12:00 UTC, so they never see intraday data.
+ * never count a move that was already known. The same cut time applies to its macro series and
+ * headlines (the market input), not only to prices. The Monday weekly slots (12:00 to 21:00 UTC)
+ * keep `defaultGather`, which cuts at 12:00 UTC, so they never see intraday data.
  */
 export const defaultGatherDaily: GatherFn | null = async (assetId, date) => {
-  const market = await defaultGatherMarket!(date).catch(() => undefined);
-  const now = new Date();
-  return gatherAsset(assetId, date, await tailDeps(), { market, ...(date === now.toISOString().slice(0, 10) ? { cutAt: now.toISOString() } : {}) });
+  const cutAt = dailyCutAt(date);
+  const market = await gatherMarketCached(date, cutAt).catch(() => undefined);
+  return gatherAsset(assetId, date, await tailDeps(), { market, ...(cutAt ? { cutAt } : {}) });
 };

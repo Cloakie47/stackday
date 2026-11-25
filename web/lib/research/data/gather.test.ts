@@ -126,11 +126,12 @@ test("a whole run from recorded responses: market input, every asset, sources an
       assert.ok(a.facts.every((x) => x.display === undefined || x.id.startsWith("macro.vixcls")), `${a.assetId}: Coinbase facts carry no display restriction`);
       for (const x of a.facts.filter((y) => /^(px|chg|ind|chart|lvl|vol|pat)\./.test(y.id))) assert.equal(x.source.display, true, `${a.assetId} ${x.id}: Coinbase source is display true`);
     } else {
-      // This fixture holds no on-chain answers: the read fails, is reported, and nothing is faked.
-      assert.deepEqual(a.series, {}, `${a.assetId}: no stock price without the chain, nothing faked`);
-      assert.ok(!f.has("px.last"));
-      assert.ok(a.problems.some((p) => /on-chain price read failed \(Base RPC answered HTTP 404\)/.test(p)), a.problems.join(" | "));
-      assert.ok(a.problems.some((p) => /no daily bars, no chart reading/.test(p)));
+      // This fixture holds no on-chain answers: the head block fails twice (one retry) and is reported;
+      // the bars still come from the checked-in backfill, and no current price, pool or loan price is made up.
+      assert.ok(a.problems.some((p) => /latest Base block not read after a retry \(Base RPC answered HTTP 404\); bars from the backfill and stored tail only/.test(p)), a.problems.join(" | "));
+      assert.ok(a.series["1d"]?.bars.length, `${a.assetId}: bars from the backfill`);
+      assert.ok(!f.has("px.pool.last") && !f.has("px.pool.premium") && !f.has("px.loan"));
+      if (f.has("px.last")) assert.doesNotMatch(f.get("px.last")!.label, /Chainlink|oracle|pool/, "px.last is the newest bar close, not a current price");
     }
     assert.ok(a.calendar.every((e) => e.assetIds.length === 0 || e.assetIds.includes(a.assetId)));
   }
@@ -180,11 +181,25 @@ test("on-chain stocks from recorded Base responses: current price, daily, weekly
     assert.ok(daily.bars.length >= (id === "mSPX" ? 20 : 70), `${id} has ${daily.bars.length} daily bars`);
     for (const b of daily.bars) assert.match(b.t, /T1[34]:30:00\.000Z$/, "stock bars open at 9:30 New York");
     for (const s of Object.values(input.series)) for (const b of s.bars) assert.ok(barPeriodEnd(b.t, s.interval, false) <= Date.parse(fx.recordedAt), `${id} ${s.interval}: only closed bars`);
-    // The current price comes from the feed or the oracle and says it is the token's on-chain price.
+    // The current price is on the same basis as the bars: the Chainlink feed for AAPLc and NVDAc, the
+    // pool for deSPXA, whose Morpho oracle price is a separate loan price (px.loan, issue #80).
     const last = f.get("px.last")!;
-    assert.match(last.label, /^On-chain price of (AAPLc|NVDAc|deSPXA) on Base \((Chainlink "Coinbase (AAPL|NVDA)" feed, round 2\.\d+|Morpho market oracle, the price Morpho liquidates on)\), not /);
+    if (id === "mSPX") {
+      assert.match(last.label, /^On-chain price of deSPXA in the main deSPXA\/USDC pool on Base at block \d+ \(the same basis as the chart bars\), not /);
+      assert.match(last.source.name, /pool 0x[0-9a-f]{40} on Base, slot0 at block \d+/);
+      assert.equal(last.value, f.get("px.pool.last")!.value);
+      const loan = f.get("px.loan")!;
+      assert.match(loan.label, /^Loan price of deSPXA on Base \(Morpho market oracle, the price Morpho values loans and liquidates on, not the chart basis\)/);
+      assert.match(loan.source.name, /Morpho market oracle 0x98c27f1C7772d66bCF837F0b8A435A31E6e85b6d .* at block \d+, scaled by 1e24/);
+      assert.match(f.get("px.pool.premium")!.label, /Morpho oracle \(loan\) price/);
+      // prevClose and the chart levels come from the same pool bars as px.last.
+      assert.match(f.get("px.1d.prevClose")!.source.name, /deSPXA\/USDC .* volume-weighted hourly prices/);
+    } else {
+      assert.match(last.label, /^On-chain price of (AAPLc|NVDAc) on Base \(Chainlink "Coinbase (AAPL|NVDA)" feed, round 2\.\d+\), not /);
+      assert.match(last.source.name, /Chainlink "Coinbase (AAPL|NVDA)" feed 0x[0-9a-fA-F]{40} on Base, round 2\.\d+ \(read at block \d+\)/);
+      assert.ok(!f.has("px.loan"));
+    }
     assert.ok(Date.parse(last.asOf) <= Date.parse(fx.recordedAt));
-    assert.match(last.source.name, id === "mSPX" ? /Morpho market oracle 0x98c27f1C7772d66bCF837F0b8A435A31E6e85b6d .* at block \d+, scaled by 1e24/ : /Chainlink "Coinbase (AAPL|NVDA)" feed 0x[0-9a-fA-F]{40} on Base, round 2\.\d+ \(read at block \d+\)/);
     assert.ok(f.has("px.pool.last") && f.has("px.pool.premium"), `${id}: pool price and premium`);
     assert.match(f.get("px.pool.last")!.source.name, /pool 0x[0-9a-f]{40} on Base, slot0 at block \d+/);
     // Daily chart read; short history says "no reading" for long-window detectors instead of guessing.
@@ -249,7 +264,8 @@ test("on-chain run-time tail: rounds and pool swaps after a days-old backfill, w
   // A live run that fires a few minutes after 12:00 UTC still uses the current price and pool facts.
   const late = await gatherAsset("mSPX", date, { ...replayDeps(fx, {}, "mSPX"), now: () => new Date(`${date}T12:03:00Z`) }, { market: EMPTY_MARKET(date), onchainBackfill: bf });
   const lf = checkFacts(late.facts);
-  assert.match(lf.get("px.last")!.label, /Morpho market oracle/);
+  assert.match(lf.get("px.last")!.label, /the same basis as the chart bars/);
+  assert.match(lf.get("px.loan")!.label, /Morpho market oracle/);
   assert.ok(lf.has("px.pool.premium"));
   // The tail store passed in the deps reaches the on-chain read through gatherAsset.
   const saved: string[] = [];
@@ -272,8 +288,10 @@ test("holidays and failing sources: closed market, no prices, problems say why",
   const facts = checkFacts(input.facts);
   assert.equal(facts.get("cal.holiday")!.value, "Thanksgiving Day");
   assert.equal(facts.get("cal.lastTradingDay")!.value, "2026-11-25");
-  assert.deepEqual(input.chart, {});
-  assert.ok(input.problems.some((p) => /no daily bars, no chart reading/.test(p)));
+  // Chain down: the S&P 500 bars come from the checked-in backfill, with no current price (issue #80).
+  assert.ok(input.problems.some((p) => /latest Base block not read after a retry/.test(p)), input.problems.join(" | "));
+  assert.ok(input.chart["1d"], "daily chart read from the backfill bars");
+  assert.ok(!facts.has("px.loan") && !facts.has("px.pool.last"));
   const btc = await gatherAsset("mcbBTC", "2026-11-26", off);
   assert.ok(btc.problems.some((p) => /1d prices failed/.test(p)));
   assert.ok(btc.problems.some((p) => /funding rate failed on every venue/.test(p)));

@@ -26,7 +26,8 @@ import type { Backfill } from "./onchain.ts";
  *   events for the asset, headlines, filings and crypto flows.
  *
  * Fact ids (stable within a run):
- *   px.last, px.1d.prevClose, px.1w.volume, px.pool.last, px.pool.premium (on-chain stocks)
+ *   px.last, px.1d.prevClose, px.1w.volume, px.pool.last, px.pool.premium (on-chain stocks), px.loan
+ *   (S&P 500 only: the Morpho oracle loan price; its px.last is the pool price, the same basis as its bars)
  *   chg.<interval>.bar1 | bar5 | bar20                      percent change over 1, 5, 20 bars
  *   ind.<interval>.<name>, for example ind.1d.rsi14, ind.1w.sma50, ind.1d.high52w
  *   chart.<interval>.trend, chart.<interval>.position
