@@ -1,7 +1,22 @@
 import type { IsoDate, MarketResearchInput } from "../types.ts";
 import type { GatherFn } from "./daily.ts";
 import type { GatherMarketFn } from "./weekly.ts";
-import { gatherAsset, gatherMarket } from "../data/index.ts";
+import { gatherAsset, gatherMarket, type OnchainTailState, type OnchainTailStore } from "../data/index.ts";
+import { supabaseOnchainTail } from "./onchain-tail.ts";
+
+/**
+ * The on-chain history store (research_onchain_tail) when the account database is connected, so
+ * each run continues the price and volume history from where the last one stopped. Without the
+ * database (or before schema.sql is applied) the reader falls back to the checked-in backfill.
+ */
+async function tailDeps(): Promise<{ onchainTail?: OnchainTailStore }> {
+  try {
+    const backend = await import("@/lib/server/backend");
+    return backend.configured() ? { onchainTail: supabaseOnchainTail<OnchainTailState>(backend.db()) } : {};
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Where the engine gets its data: web/lib/research/data. The market-wide input (macro series,
@@ -24,7 +39,7 @@ export const defaultGatherMarket: GatherMarketFn | null = (date) => {
 
 export const defaultGather: GatherFn | null = async (assetId, date) => {
   const market = await defaultGatherMarket!(date).catch(() => undefined);
-  return gatherAsset(assetId, date, undefined, { market });
+  return gatherAsset(assetId, date, await tailDeps(), { market });
 };
 
 /**
@@ -36,5 +51,5 @@ export const defaultGather: GatherFn | null = async (assetId, date) => {
 export const defaultGatherDaily: GatherFn | null = async (assetId, date) => {
   const market = await defaultGatherMarket!(date).catch(() => undefined);
   const now = new Date();
-  return gatherAsset(assetId, date, undefined, { market, ...(date === now.toISOString().slice(0, 10) ? { cutAt: now.toISOString() } : {}) });
+  return gatherAsset(assetId, date, await tailDeps(), { market, ...(date === now.toISOString().slice(0, 10) ? { cutAt: now.toISOString() } : {}) });
 };

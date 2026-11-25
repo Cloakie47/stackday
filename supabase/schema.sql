@@ -262,3 +262,14 @@ create table if not exists research_payments (
 );
 alter table research_payments enable row level security;
 -- No policies on any research table: only the server (service role) reads or writes them.
+
+-- On-chain price history read after the checked-in backfill file (web/lib/research/data/onchain.ts):
+-- one row per asset, merged by each run, so stock prices and volume stay fresh with no redeploy.
+-- Server only (service role); the reader falls back to the backfill file when this table is missing.
+create table if not exists research_onchain_tail (
+  asset_id    text primary key check (asset_id ~ '^m[A-Za-z]{2,10}$'),
+  state       jsonb not null,
+  updated_at  timestamptz not null default now()
+);
+alter table research_onchain_tail enable row level security;
+
