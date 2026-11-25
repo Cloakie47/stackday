@@ -8,6 +8,7 @@ import { BRAND } from "@/lib/brand";
 import { CHAIN_ID } from "@/lib/contracts";
 import { shortAddr } from "@/lib/format";
 import { homeFor, useAccountState, useNames, useSwitchMode, type Mode, type Role } from "@/lib/useAccount";
+import { GiftBadge } from "./gifts/gift-waiting";
 import { LearnMore } from "./learn-more";
 import { useViewer } from "./providers";
 import { ThemeToggle } from "./theme";
@@ -77,9 +78,10 @@ const SEGMENTS: Record<Role | "all", NavItem[]> = {
   all: [P.portfolio, P.invest, P.borrow],
 };
 /** Pages that belong to both interfaces. */
-const SHARED = ["/risk", "/demo", "/docs", "/start"];
+const SHARED = ["/risk", "/demo", "/docs", "/start", "/gifts"];
 /** Pages that only live in the menu. */
 const EXTRA: NavItem[] = [
+  { href: "/gifts", label: "Gifts" },
   { href: "/docs", label: "Docs" },
   { href: "/demo", label: "Testnet tools" },
   { href: "/start", label: "Account" },
@@ -295,6 +297,7 @@ function MenuBody({ pages, onNavigate }: { pages: NavItem[]; onNavigate?: () => 
             className={cx(row, isActive(item.href) && "bg-press font-medium")}
           >
             {item.label}
+            {item.href === "/gifts" && <GiftBadge address={address} />}
             <span className="text-faint" aria-hidden>
               ›
             </span>

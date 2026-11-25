@@ -44,6 +44,18 @@ function explain(e: unknown): string {
         BadThreshold: "The health threshold must be between 1.0 and 10.",
         UnsupportedStock: "This asset is not supported.",
         ZeroAmount: "Enter an amount above zero.",
+        // GiftBox
+        SelfGift: "You cannot send a gift to yourself.",
+        TooSmall: "A gift is at least 1 USDC.",
+        BadExpiry: "Pick an expiry between 1 and 365 days.",
+        BadMix: "The mix is not valid: up to 6 different assets whose shares add up to 100%.",
+        UnsupportedAsset: "One of the assets cannot go in a gift box.",
+        NotPending: "This gift was already opened, declined, taken back or refunded.",
+        NotRecipient: "Only the person the gift is for can do that.",
+        NotSender: "Only the sender can take this gift back.",
+        Expired: "This gift has expired. It goes back to the sender.",
+        NotExpired: "This gift has not expired yet.",
+        BuyFailed: "One part of the gift could not be bought right now. Try again later.",
       };
       if (name && known[name]) return known[name];
       if (name) return `The contract refused: ${name}`;

@@ -202,7 +202,6 @@ export function cleanMessage(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const m = raw.trim();
   if (m.length > MESSAGE_MAX) return null;
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(m)) return null;
   return m;
 }
