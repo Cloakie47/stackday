@@ -35,3 +35,12 @@ test("a refused call records its reason and spends nothing; the run lists distin
   assert.equal(budget.calls[0].error, "429 rate_limit_error output tokens per minute exceeded");
   assert.deepEqual(callErrors(budget.calls), ["model call failed (2x, weekly.analyst.technical, weekly.analyst.macro): 429 rate_limit_error output tokens per minute exceeded"]);
 });
+
+test("the one retry waits for the API's retry-after, within the time left", async () => {
+  const { retryDelayMs } = await import("./model.ts");
+  const withHeader = (v: string) => Object.assign(new Error("rate limited"), { status: 429, headers: new Headers({ "retry-after": v }) });
+  assert.equal(retryDelayMs(withHeader("7"), 60_000), 7_000);
+  assert.equal(retryDelayMs(withHeader("90"), 30_000), 30_000, "never waits past the time left");
+  assert.equal(retryDelayMs(new Error("overloaded"), 60_000), 1_000, "1 s without a header");
+  assert.equal(retryDelayMs(withHeader("5"), -5), 0);
+});

@@ -124,6 +124,15 @@ export function retryable(e: unknown): boolean {
  * time and paid twice. The SDK's own retries are off (they also fire on timeouts); one manual retry
  * follows a `retryable` error when at least MIN_RETRY_MS of the limit is left, with what is left.
  */
+/** Wait before the one retry: the API's `retry-after` (seconds) when given, else 1 s, never past `maxMs`. */
+export function retryDelayMs(e: unknown, maxMs: number): number {
+  const h = (e as { headers?: unknown } | null)?.headers as { get?: (k: string) => string | null } | Record<string, string> | undefined;
+  const raw = h && typeof (h as { get?: unknown }).get === "function" ? (h as { get: (k: string) => string | null }).get("retry-after") : (h as Record<string, string> | undefined)?.["retry-after"];
+  const secs = raw ? Number(raw) : NaN;
+  const want = Number.isFinite(secs) && secs > 0 ? secs * 1000 : 1000;
+  return Math.max(0, Math.min(want, maxMs));
+}
+
 export function modelCaller(create: CreateFn, clock: () => number = Date.now, wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))): ModelFn {
   return async (req) => {
     const limit = req.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
@@ -143,7 +152,8 @@ export function modelCaller(create: CreateFn, clock: () => number = Date.now, wa
       res = await create(params, { timeout: limit, maxRetries: 0 });
     } catch (e) {
       if (!retryable(e) || deadline - clock() < MIN_RETRY_MS + 1000) throw e;
-      await wait(1000);
+      // Honour the API's retry-after (rate limits), but leave MIN_RETRY_MS for the retry itself.
+      await wait(retryDelayMs(e, deadline - clock() - MIN_RETRY_MS));
       res = await create(params, { timeout: Math.max(1, deadline - clock()), maxRetries: 0 });
     }
     return toResult(req, res);

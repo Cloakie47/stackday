@@ -4,7 +4,7 @@ import type { AssetResearchInput, Fact, MarketResearchInput } from "../types.ts"
 import { UNIVERSE } from "../universe.ts";
 import { defaultAssets, runDaily, type GatherFn } from "./daily.ts";
 import type { ModelRequest } from "./model.ts";
-import { weeklyReply } from "./snapshot.ts";
+import { sampleWeekly, weeklyReply } from "./snapshot.ts";
 import { memoryStore, type StoredSection } from "./store.ts";
 import { chartRead, fakeModel, goodDaily, makeInput, makeMarket, weeklyAnswers } from "./test-helpers.ts";
 import { runWeekly, type WeeklyDeps, type WeeklyOutcome } from "./weekly.ts";
@@ -430,4 +430,32 @@ test("the final step writes the report with the code-built summary when the spen
   assert.equal(last.report!.costUsd, undefined);
   assert.match(last.report!.review.notes.join("\n"), /spend could not be read[\s\S]*summary built in code|summary built in code/);
   assert.equal(last.report!.assets.filter((a) => a.status === "ok").length, 1);
+});
+
+test("Monday: the scorecard grades only an approved earlier report, never an unapproved draft or test run", async () => {
+  for (const approved of [false, true]) {
+    const { store } = memoryStore();
+    const prev = { ...structuredClone(sampleWeekly()), kind: "live" as const, weekOf: "2026-11-23" };
+    await store.writeWeekly("prev-run", prev);
+    if (approved) await store.approveWeekly("2026-11-23", "prev-run", "0xreviewer");
+    const model = fakeModel(weeklyAnswers(), 0.01);
+    const out = await monday({ gather, gatherMarket, model: model.fn, store, maxRunCostUsd: 100, maxDayCostUsd: 100, ...quiet });
+    const w = out.find((o) => o.step === "final" && o.report);
+    assert.ok(w, JSON.stringify(out.map((o) => [o.step, o.status, o.assetId, o.problems.slice(0, 3)])));
+    const report = w.report!;
+    if (approved) assert.equal(report.scorecard?.weekOf, "2026-11-23", "the approved report is graded");
+    else assert.equal(report.scorecard ?? null, null, "an unapproved report is never graded in public");
+  }
+});
+
+test("Monday: a failed step sends an alert with the model's error, not only a spend-cap stop", async () => {
+  const { store } = memoryStore();
+  const alerts: string[] = [];
+  const refuse = async (_req: ModelRequest) => {
+    throw Object.assign(new Error("The compiled grammar is too large"), { status: 400, error: { error: { type: "invalid_request_error" } } });
+  };
+  const out = await runWeekly({ gather, gatherMarket, model: refuse, store, maxRunCostUsd: 100, maxDayCostUsd: 100, now: at(1), slot: 1, alert: async (m) => void alerts.push(m) });
+  assert.equal(out.status, "failed");
+  assert.equal(out.costUsd, 0, "refused calls are not billed");
+  assert.ok(alerts.some((a) => /failed: .*400 invalid_request_error The compiled grammar is too large/.test(a)), alerts.join("\n"));
 });

@@ -118,6 +118,10 @@ test("the quality bar needs four clean Mondays in a row", () => {
   assert.equal(qualityBar(corrected, grades).met, false);
   const lowGrade = grades.map((g, i) => (i === 0 ? { ...g, humanGrade: 2 } : g));
   assert.equal(qualityBar(clean, lowGrade).met, false);
+  // An unapproved week (a draft or a test run, never published) breaks the run of clean Mondays.
+  const unapproved = clean.map((w, i) => (i === 1 ? { ...w, approved: false } : w));
+  assert.equal(qualityBar(unapproved, grades).met, false);
+  assert.match(qualityBar(unapproved, grades).weeks[1].why.join(), /not approved/);
   const gap = clean.map((w, i) => (i === 3 ? { ...w, report: liveReport("2026-10-19") } : w));
   assert.equal(qualityBar(gap, grades).met, false);
   assert.equal(qualityBar(clean, []).met, false);

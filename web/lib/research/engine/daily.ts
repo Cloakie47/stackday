@@ -318,6 +318,7 @@ export async function runDaily(deps: DailyDeps): Promise<RunOutcome> {
     };
     problems = [...problems, ...callErrors(budget.calls)];
     if (status === "aborted-cost") await (deps.alert ?? defaultAlert)(`daily run ${runId} stopped by the cost guard: ${problems[0] ?? ""}`);
+    else if (status === "failed") await (deps.alert ?? defaultAlert)(`daily run ${runId} ${status}: ${[...problems, ...callErrors(budget.calls)].slice(0, 3).join(" | ")}`);
     const inputs = results.map((r) => r.input ?? null);
     const dataHash = results.some((r) => r.input) ? hashInputs(inputs) : null;
     const detail = [`${status}: ${counts.ok} ok, ${counts.carried} carried, ${counts.noReading} no reading, ${counts.escalated} escalated, ${counts.calls} model calls`, ...problems].join("\n");

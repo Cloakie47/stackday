@@ -178,8 +178,9 @@ export type QualityWeek = { weekOf: IsoDate; ok: boolean; why: string[] };
  * week, and calibration not clearly off. `met` needs four Mondays in a row.
  */
 export function qualityBar(previous: StoredWeekly[], scores: DailyScore[]): { met: boolean; weeks: QualityWeek[] } {
-  const weeks = previous.slice(0, 4).map(({ report }): QualityWeek => {
+  const weeks = previous.slice(0, 4).map(({ report, approved }): QualityWeek => {
     const why: string[] = [];
+    if (!approved) why.push("not approved, so never published");
     if (report.kind !== "live") why.push("not a live report");
     if (report.review.removedClaims > 0) why.push(`${report.review.removedClaims} claims removed`);
     if (report.review.sentBack > 0) why.push(`${report.review.sentBack} sections corrected`);
