@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, type Abi, type WalletClient, BaseError, ContractFunctionRevertedError } from "viem";
 import { useAccount, usePublicClient, useWalletClient, useWriteContract } from "wagmi";
@@ -19,6 +19,8 @@ export type TxState = {
   step?: string;
   error?: string;
   hash?: `0x${string}`;
+  /** Every transaction hash of the last run, in order (one for a batch, one per step otherwise). */
+  hashes?: `0x${string}`[];
   done?: string;
 };
 
@@ -76,7 +78,7 @@ function explain(e: unknown): string {
  * once for the vault part.
  */
 /** True when the wallet says it can run a batch of calls atomically on this chain (EIP-5792). */
-async function canBatchAtomically(
+export async function canBatchAtomically(
   walletClient: WalletClient,
   account: Address,
 ): Promise<boolean> {
@@ -95,6 +97,8 @@ export function useTx() {
   const { data: walletClient } = useWalletClient();
   const queryClient = useQueryClient();
   const [state, setState] = useState<TxState>({ busy: false });
+  // The hashes of the last run, readable right after `run` resolves (state updates land later).
+  const lastHashes = useRef<`0x${string}`[]>([]);
 
   const run = useCallback(
     async (calls: Call[], doneMessage = "Done.") => {
@@ -103,6 +107,8 @@ export function useTx() {
         return false;
       }
       let hash: `0x${string}` | undefined;
+      const hashes: `0x${string}`[] = [];
+      lastHashes.current = hashes;
       try {
         if (calls.length > 1 && walletClient && (await canBatchAtomically(walletClient, address))) {
           setState({ busy: true, step: `${calls.length} steps in one signature` });
@@ -113,13 +119,14 @@ export function useTx() {
           });
           const result = await walletClient.waitForCallsStatus({ id, timeout: 180_000 });
           hash = result.receipts?.at(-1)?.transactionHash;
+          for (const r of result.receipts ?? []) if (r.transactionHash && !hashes.includes(r.transactionHash)) hashes.push(r.transactionHash);
           if (result.status !== "success") throw new Error("The batch failed on-chain. Nothing in it was applied.");
           await queryClient.invalidateQueries();
-          setState({ busy: false, hash, done: doneMessage });
+          setState({ busy: false, hash, hashes, done: doneMessage });
           return hash ?? true;
         }
-        for (const call of calls) {
-          setState({ busy: true, step: call.label });
+        for (const [i, call] of calls.entries()) {
+          setState({ busy: true, step: calls.length > 1 ? `Step ${i + 1} of ${calls.length}: ${call.label}` : call.label, hashes: [...hashes] });
           const request = {
             account: address,
             address: call.address,
@@ -136,14 +143,15 @@ export function useTx() {
             args: request.args,
             gas: (gas * 16n) / 10n,
           });
+          hashes.push(hash);
           const receipt = await publicClient.waitForTransactionReceipt({ hash });
           if (receipt.status !== "success") throw new Error(`"${call.label}" failed on-chain.`);
         }
         await queryClient.invalidateQueries();
-        setState({ busy: false, hash, done: doneMessage });
+        setState({ busy: false, hash, hashes, done: doneMessage });
         return hash ?? true;
       } catch (e) {
-        setState({ busy: false, error: explain(e), hash });
+        setState({ busy: false, error: explain(e), hash, hashes });
         return false;
       }
     },
@@ -167,5 +175,7 @@ export function useTx() {
   );
 
   const reset = useCallback(() => setState({ busy: false }), []);
-  return { state, run, withApproval, reset };
+  /** Every transaction hash of the last run, in order. */
+  const hashesOfLastRun = useCallback(() => [...lastHashes.current], []);
+  return { state, run, withApproval, reset, hashesOfLastRun };
 }
