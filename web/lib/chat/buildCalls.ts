@@ -89,6 +89,14 @@ export type Plan = {
   handoff?: string;
   /** Page that can finish a handed-off action. */
   link?: { href: string; label: string };
+  /**
+   * On a sell: the most the person could borrow against the same asset instead (`usdc`, the "you could
+   * borrow against it instead" note), and `offer`, the largest amount a Mid risk borrow card accepts
+   * right now (0 if none). Only used for the "Borrow instead" option chip.
+   */
+  borrowInstead?: { asset: string; usdc: bigint; offer: bigint };
+  /** On a gift: the recipient's Stackday ID or username as asked, so the card can show their name. */
+  giftRecipient?: string;
 };
 export type Refusal = { ok: false; reason: string };
 export type BuildResult = Plan | Refusal;
@@ -275,6 +283,37 @@ function borrowInstead(pos: PositionLike, cap: bigint): bigint {
   return limit > pos.debt ? limit - pos.debt : 0n;
 }
 
+/** A USDC amount (6 decimals) floored to cents, as the plain decimal text an intent carries: 3.5 -> "3.50". */
+export function usdcText(units: bigint): string {
+  const c = units / 10_000n;
+  return `${c / 100n}.${String(c % 100n).padStart(2, "0")}`;
+}
+
+/**
+ * For the "Borrow instead" chip on a sell card: the largest amount, to the cent and at most one card,
+ * that a Mid risk borrow card against this asset accepts right now (the same borrow() below decides,
+ * with its 1% buffer, the vault cap and what the market can lend). 0 when none does.
+ */
+function midRiskOffer(pos: PositionLike, ctx: BuildContext): bigint {
+  const a = pos.asset;
+  if (!a.borrowable || !pos.price) return 0n;
+  const midBps = LEVELS.find((l) => l.key === "mid")!.pct * 100n;
+  const limitBps = midBps < ctx.borrowCapBps ? midBps : ctx.borrowCapBps;
+  const held = pos.collateral + (pos.transfersPaused ? 0n : pos.idle + pos.wallet);
+  const maxDebt = (((assetValue(held, pos.price, a.decimals) * a.lltv) / WAD) * limitBps) / 10_000n;
+  const room = (maxDebt * 100n) / 101n;
+  let usdc = room > pos.debt ? room - pos.debt : 0n;
+  if (usdc > CARD_CAP_UNITS) usdc = CARD_CAP_UNITS;
+  if (pos.liquidity !== undefined && usdc > pos.liquidity) usdc = pos.liquidity;
+  usdc = (usdc / 10_000n) * 10_000n;
+  // Rounding of the collateral can make the estimate a hair too high: step down until borrow() accepts it.
+  for (let i = 0; i < 8 && usdc >= 10_000n; i++) {
+    if (borrow({ asset: a.symbol, usdc: usdcText(usdc), risk: "mid" }, ctx).ok) return usdc;
+    usdc = ((usdc * 98n) / 100n / 10_000n) * 10_000n;
+  }
+  return 0n;
+}
+
 function withdrawOrSell(kind: "sell" | "withdraw", params: { asset: string; amount: string; unit: "percent" | "tokens" | "usdc" }, ctx: BuildContext): BuildResult {
   const a = assetBySymbol(params.asset);
   if (!a) return refuse("That asset is not available.");
@@ -341,6 +380,7 @@ function withdrawOrSell(kind: "sell" | "withdraw", params: { asset: string; amou
       calls,
       usdcValue: value,
       doneMessage: `Sold. The USDC is in your wallet.`,
+      ...(instead > 0n ? { borrowInstead: { asset: a.symbol, usdc: instead, offer: midRiskOffer(pos, ctx) } } : {}),
     },
     ctx,
   );
@@ -485,6 +525,7 @@ function gift(params: { recipient_id: string; usdc: string; box: string }, ctx: 
       usdcValue: parseUsdc(params.usdc),
       doneMessage: "",
       handoff: "Open the Gifts page to send. Sending a gift from chat is not connected yet.",
+      giftRecipient: params.recipient_id,
       // Amount and box only: the recipient's ID is not put in the address bar.
       link: { href: `/gifts?usdc=${encodeURIComponent(params.usdc)}&box=${encodeURIComponent(params.box)}`, label: "Open the Gifts page" },
     },

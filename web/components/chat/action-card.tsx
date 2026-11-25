@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient } from "wagmi";
-import { Button, Notice, Row, TxStatus } from "@/components/ui";
+import { Button, Notice, Row, Spinner, TxStatus } from "@/components/ui";
 import { EXPLORER, type Address } from "@/lib/contracts";
 import type { BuildResult } from "@/lib/chat/buildCalls";
+import { confirmAllowed, precheckLine, type PrecheckState } from "@/lib/chat/precheck";
+import { recipientName } from "@/lib/chat/recipient";
+import { searchPeople } from "@/lib/useAccount";
 import { canBatchAtomically, useTx } from "@/lib/useTx";
 
 /** What a finished card leaves behind in the chat: a receipt with every transaction hash. */
@@ -36,6 +40,33 @@ export function TxLinks({ hashes }: { hashes: `0x${string}`[] }) {
   );
 }
 
+/** The pre-check line: checking, passes, blocked (with reason, hint and "Check again") or could not check. */
+function PrecheckNote({ check, onRefresh }: { check: PrecheckState; onRefresh?: () => void }) {
+  if (check.status === "blocked") {
+    return (
+      <div className="mt-2" role="alert">
+        <Notice tone="danger">
+          {precheckLine(check)}
+          {check.hint && <span className="mt-1 block">{check.hint}</span>}
+        </Notice>
+        {onRefresh && (
+          <div className="mt-1.5 flex justify-end">
+            <button type="button" onClick={onRefresh} className="hit text-xs font-semibold text-ink underline underline-offset-2 hover:text-brand-ink">
+              Check again
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <p role="status" className={`mt-2 flex items-center gap-2 text-xs leading-relaxed ${check.status === "passes" ? "text-grow" : "text-muted"}`}>
+      {check.status === "checking" && <Spinner />}
+      {precheckLine(check)}
+    </p>
+  );
+}
+
 /** Whether the connected wallet signs every step at once (EIP-5792). Null while checking. */
 function useOneSignature(steps: number): boolean | null {
   const { address } = useAccount();
@@ -56,19 +87,32 @@ function useOneSignature(steps: number): boolean | null {
  * The confirmation card for one chat action. Everything on it comes from the same object the calls
  * come from (lib/chat/buildCalls.ts). Before confirming it says exactly what the wallet will ask
  * (one signature, or each numbered step); while signing it shows which step is open; when done it
- * becomes a receipt with every transaction hash, which the chat keeps in its history. The person
- * signs in their own wallet with useTx, which simulates every call first. The card expires two
+ * becomes a receipt with every transaction hash, which the chat keeps in its history.
+ *
+ * `check` is the pre-check from usePlan: every call simulated in order on Base Sepolia right after the
+ * card was built. While it runs, and when it says a step would fail, Confirm is off; when the network
+ * could not answer, Confirm stays on. The person signs in their own wallet with useTx, which simulates
+ * each step again before the wallet opens when the wallet signs step by step. The card expires two
  * minutes after it was built.
  */
 export function ActionCard({
   result,
   me,
+  check,
+  onRefresh,
   onClose,
   onBusyChange,
   onReceipt,
 }: {
   result: BuildResult;
   me: Address;
+  /** The pre-check of this card's calls (undefined for a refusal or a hand-off). */
+  check?: PrecheckState;
+  /**
+   * Rebuilds this card from the same intent (fresh chain reads, fresh expiry, a new pre-check). No
+   * model call. Shown as "Refresh numbers" once the card expires and "Check again" when it is blocked.
+   */
+  onRefresh?: () => void;
   onClose: (outcome: "done" | "cancelled" | "expired") => void;
   /** True while the wallet steps run, so the panel keeps the card open until they finish. */
   onBusyChange?: (busy: boolean) => void;
@@ -80,6 +124,16 @@ export function ActionCard({
   const [finished, setFinished] = useState(false);
   const steps = result.ok ? result.calls.length : 0;
   const oneSignature = useOneSignature(steps);
+  // Gift card: show the recipient's name next to the ID when the people lookup finds exactly them.
+  const giftId = result.ok ? result.giftRecipient : undefined;
+  const people = useQuery({
+    queryKey: ["chat-gift-recipient", giftId],
+    queryFn: () => searchPeople(giftId ?? ""),
+    enabled: !!giftId,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const giftName = giftId && people.data ? recipientName(giftId, people.data.people) : null;
 
 
   useEffect(() => {
@@ -109,7 +163,7 @@ export function ActionCard({
   const expired = left === 0 && !finished;
 
   async function confirm() {
-    if (Math.floor(Date.now() / 1000) >= plan.expiresAt) return;
+    if (Math.floor(Date.now() / 1000) >= plan.expiresAt || !confirmAllowed(check)) return;
     const ok = await tx.run(plan.calls, plan.doneMessage);
     if (!ok) return;
     setFinished(true);
@@ -134,7 +188,7 @@ export function ActionCard({
       <div className="mt-2">
         {plan.rows.map((r) => (
           <Row key={r.label} label={r.label}>
-            {r.value}
+            {giftName && r.value === plan.giftRecipient ? `${r.value} (${giftName})` : r.value}
           </Row>
         ))}
         <Row label="Stackday fee">{plan.fee}</Row>
@@ -170,6 +224,7 @@ export function ActionCard({
           {plan.calls.length > 1 && oneSignature === false && (
             <div className="mt-1 text-muted">A smart wallet (for example Coinbase Smart Wallet) signs all of them at once.</div>
           )}
+          <div className="mt-1 text-muted">Once confirmed on chain, it cannot be undone.</div>
         </div>
       )}
 
@@ -198,19 +253,32 @@ export function ActionCard({
           </div>
         </div>
       ) : (
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <span className="text-xs tabular-nums text-muted" aria-live="polite">
-            {expired ? "This card expired. Ask again for fresh numbers." : `Expires in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}
-          </span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="ghost" disabled={tx.state.busy} onClick={() => onClose(expired ? "expired" : "cancelled")}>
-              {expired ? "Close" : "Cancel"}
-            </Button>
-            <Button size="sm" disabled={expired || tx.state.busy || plan.calls.length === 0} onClick={confirm}>
-              Confirm in wallet
-            </Button>
+        <>
+          {check && !expired && !tx.state.busy && <PrecheckNote check={check} onRefresh={onRefresh} />}
+          <div className="mt-3 flex items-center justify-between gap-2">
+            {/* The countdown is not announced every second; only the change to expired is (below). */}
+            <span className="text-xs tabular-nums text-muted">
+              {expired ? "This card expired, so its numbers may be out of date." : `Expires in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}
+            </span>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="ghost" disabled={tx.state.busy} onClick={() => onClose(expired ? "expired" : "cancelled")}>
+                {expired ? "Close" : "Cancel"}
+              </Button>
+              {expired && onRefresh ? (
+                <Button size="sm" onClick={onRefresh}>
+                  Refresh numbers
+                </Button>
+              ) : (
+                <Button size="sm" disabled={expired || tx.state.busy || plan.calls.length === 0 || !confirmAllowed(check)} onClick={confirm}>
+                  Confirm in wallet
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+          <span className="sr-only" role="status">
+            {expired ? "This card expired. Refresh the numbers or close it." : ""}
+          </span>
+        </>
       )}
       {!finished && <TxStatus state={tx.state} />}
     </div>

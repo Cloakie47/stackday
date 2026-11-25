@@ -43,7 +43,7 @@ A chat panel inside the app. The person types in plain words and the assistant a
    - for a borrow: the health after and the liquidation price;
    - "to: your wallet 0x... (full)" and the "testnet, mock tokens" label.
 
-   It is simulated first (`useTx` already simulates) and shows failures in plain words. Confirm calls `useTx().run(calls)`, so the wallet shows its own prompt.
+   When it is shown, every call on it is simulated in order on Base Sepolia from the connected wallet (viem `simulateCalls`, one `eth_simulateV1` request; `web/lib/chat/precheck.ts`). The card says it passes, or names the failing step and the reason in plain words with Confirm off, or says it could not pre-check (Confirm stays on). Confirm calls `useTx().run(calls)`, so the wallet shows its own prompt; `useTx` simulates each step again when the wallet signs step by step.
 5. **Chat dock** `web/components/chat/chat-dock.tsx` on the `(app)` layout: a floating button, a bottom sheet on phones, history kept on the device only.
 
 ### 1.3 Tool list (the only things the model can ask for)
