@@ -7,20 +7,36 @@ import deployment from "../../deployment.json" with { type: "json" };
 import { NotResearchableError, cutSeries, gatherAsset, gatherRun } from "./gather.ts";
 import { redactUrl, type DataDeps } from "./deps.ts";
 import { barPeriodEnd } from "./prices.ts";
-import { CHART_INTERVALS, PATTERN_KINDS, type AssetResearchInput, type Fact, type MarketResearchInput, type PriceSeries } from "../types.ts";
+import { rpcKey, type Fixture } from "./record-fixtures.ts";
+import { CHART_INTERVALS, PATTERN_KINDS, isDisplayable, type AssetResearchInput, type Fact, type MarketResearchInput, type PriceSeries } from "../types.ts";
 
 /**
  * Replays recorded responses (see fixtures/*.json `recordedAt`, `note` and record-fixtures.ts).
  * The fake fetch answers HTTP 404 for any URL that was not recorded, so these tests never reach
  * the network and a missing response shows up as a "no reading" problem, as in production.
  */
-type Fixture = { recordedAt: string; note: string; responses: Record<string, { status: number; body: string }> };
 const dir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const load = (id: string): Fixture => JSON.parse(readFileSync(join(dir, `${id}.json`), "utf8"));
 
 function replayDeps(fx: Fixture, env: Record<string, string>): Partial<DataDeps> {
+  // Recorded JSON-RPC answers are replayed in order per call; the last one repeats.
+  const used = new Map<string, number>();
+  const answer = (key: string) => {
+    const list = fx.rpc?.[key];
+    if (!list?.length) return { error: { code: -32000, message: "not recorded" } };
+    const i = used.get(key) ?? 0;
+    used.set(key, i + 1);
+    return list[Math.min(i, list.length - 1)];
+  };
   return {
-    fetch: async (url) => {
+    fetch: async (url, init) => {
+      if (init?.method === "POST") {
+        // JSON-RPC: answer each call of the batch from the recorded answers; anything else is an error answer.
+        if (!fx.rpc) return { ok: false, status: 404, text: async () => "not recorded" };
+        const reqs = JSON.parse(init.body ?? "[]") as { id: number; method: string; params: unknown[] }[];
+        const body = reqs.map((q) => ({ jsonrpc: "2.0", id: q.id, ...answer(rpcKey(q.method, q.params)) }));
+        return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+      }
       const hit = fx.responses[redactUrl(url)];
       if (!hit) return { ok: false, status: 404, text: async () => "not recorded" };
       return { ok: hit.status >= 200 && hit.status < 300, status: hit.status, text: async () => hit.body };
@@ -106,10 +122,12 @@ test("a whole run from recorded responses: market input, every asset, sources an
       assert.ok(Date.parse(f.get("px.last")!.asOf) <= Date.parse(fx.recordedAt), "never dated in the future");
       for (const s of Object.values(a.series)) for (const b of s.bars) assert.ok(barPeriodEnd(b.t, s.interval, true) <= Date.parse(fx.recordedAt), `${a.assetId} ${s.interval}: only closed bars`);
       assert.ok(a.facts.every((x) => x.display === undefined || x.id.startsWith("macro.vixcls")), `${a.assetId}: Coinbase facts carry no display restriction`);
+      for (const x of a.facts.filter((y) => /^(px|chg|ind|chart|lvl|vol|pat)\./.test(y.id))) assert.equal(x.source.display, true, `${a.assetId} ${x.id}: Coinbase source is display true`);
     } else {
-      assert.deepEqual(a.series, {}, `${a.assetId}: no stock price with the default provider (none), nothing faked`);
+      // This fixture holds no on-chain answers: the read fails, is reported, and nothing is faked.
+      assert.deepEqual(a.series, {}, `${a.assetId}: no stock price without the chain, nothing faked`);
       assert.ok(!f.has("px.last"));
-      assert.ok(a.problems.some((p) => /RESEARCH_PRICE_PROVIDER not set \(default none/.test(p)));
+      assert.ok(a.problems.some((p) => /on-chain price read failed \(Base RPC answered HTTP 404\)/.test(p)), a.problems.join(" | "));
       assert.ok(a.problems.some((p) => /no daily bars, no chart reading/.test(p)));
     }
     assert.ok(a.calendar.every((e) => e.assetIds.length === 0 || e.assetIds.includes(a.assetId)));
@@ -129,31 +147,80 @@ test("a whole run from recorded responses: market input, every asset, sources an
   assert.ok(nvda.problems.some((p) => /earnings dates: no official machine-readable source/.test(p)));
 });
 
-test("Apple with keys: Twelve Data bars on three timeframes, chart read, newsroom and SEC EDGAR", async () => {
+test("Apple newsroom and SEC EDGAR from recorded responses", async () => {
   const fx = load("mAAPL");
   const date = fx.recordedAt.slice(0, 10);
-  const input = await gatherAsset("mAAPL", date, replayDeps(fx, { RESEARCH_PRICE_PROVIDER: "twelvedata", RESEARCH_PRICE_API_KEY: "test-key", SEC_USER_AGENT: "Test Runner test@example.invalid" }), { market: EMPTY_MARKET(date) });
-  for (const p of input.problems) assert.doesNotMatch(p, /prices failed|SEC EDGAR failed|Newsroom feed failed|chart read/, p);
+  const input = await gatherAsset("mAAPL", date, replayDeps(fx, { SEC_USER_AGENT: "Test Runner test@example.invalid" }), { market: EMPTY_MARKET(date), onchainBackfill: { note: "", generatedAt: "", assets: {} } });
+  for (const p of input.problems) assert.doesNotMatch(p, /SEC EDGAR failed|Newsroom feed failed/, p);
   assert.equal(input.marketOpenToday, true); // 2026-11-19 is a Thursday
   const facts = checkFacts(input.facts);
-  for (const id of ["px.last", "chg.1h.bar1", "chg.1d.bar20", "ind.1d.sma50", "ind.1d.macdHist", "ind.1w.sma50", "news.0", "filing.0", "filing.1"]) assert.ok(facts.has(id), `missing ${id}`);
-  checkChart(input);
-  // The last hourly bar starts 15:30 New York and ends at the 16:00 close, not an hour later.
-  assert.equal(facts.get("px.last")!.asOf, "2026-11-18T21:00:00.000Z");
-  assert.equal(facts.get("px.1d.prevClose")!.asOf, "2026-11-17T21:00:00.000Z");
+  for (const id of ["news.0", "filing.0", "filing.1"]) assert.ok(facts.has(id), `missing ${id}`);
   const press = [...facts.values()].find((f) => f.source.name === "Apple Newsroom")!;
   assert.ok(press.tags?.includes("press-release"));
   assert.ok(press.source.url!.startsWith("https://www.apple.com/newsroom/"));
   assert.equal(facts.get("filing.0")!.source.name, "SEC EDGAR");
   assert.ok([...facts.values()].some((f) => f.id.startsWith("filing.") && f.value === "10-K"));
   assert.ok(input.problems.some((p) => /only company press releases/.test(p)), "press releases alone are flagged as one side");
-  // Twelve Data's free plan allows no display: every fact built from its prices says so, nothing else does.
-  const fromPrices = /^(px|chg|ind|chart|lvl|vol|pat)\./;
-  const priceFacts = input.facts.filter((f) => fromPrices.test(f.id));
-  assert.ok(priceFacts.length > 20 && priceFacts.some((f) => f.kind === "pattern" || f.id.startsWith("lvl.")));
-  for (const f of priceFacts) assert.equal(f.display, false, f.id);
-  for (const f of input.facts.filter((x) => !fromPrices.test(x.id))) assert.equal(f.display, undefined, f.id);
-  assert.ok(input.problems.some((p) => /Twelve Data are internal only/.test(p)));
+});
+
+test("on-chain stocks from recorded Base responses: current price, daily, weekly and monthly bars, chart read, honest gaps", async () => {
+  const fx = load("onchain");
+  assert.ok(fx.rpc && fx.backfill, "fixture holds RPC answers and its backfill");
+  const date = fx.recordedAt.slice(0, 10);
+  const deps = replayDeps(fx, {});
+  for (const id of ["mAAPL", "mNVDA", "mSPX"]) {
+    const input = await gatherAsset(id, date, deps, { market: EMPTY_MARKET(date), onchainBackfill: fx.backfill });
+    const f = checkFacts(input.facts);
+    const why = `${id}: ${input.problems.join(" | ")}`;
+    assert.deepEqual(Object.keys(input.series).sort(), ["1d", "1mo", "1w"], why);
+    assert.ok(input.problems.some((p) => /no hourly bars from on-chain data/.test(p)));
+    const daily = input.series["1d"]!;
+    assert.ok(daily.bars.length >= (id === "mSPX" ? 20 : 70), `${id} has ${daily.bars.length} daily bars`);
+    for (const b of daily.bars) assert.match(b.t, /T1[34]:30:00\.000Z$/, "stock bars open at 9:30 New York");
+    for (const s of Object.values(input.series)) for (const b of s.bars) assert.ok(barPeriodEnd(b.t, s.interval, false) <= Date.parse(fx.recordedAt), `${id} ${s.interval}: only closed bars`);
+    // The current price comes from the feed or the oracle and says it is the token's on-chain price.
+    const last = f.get("px.last")!;
+    assert.match(last.label, /^On-chain price of (AAPLc|NVDAc|deSPXA) on Base \((Chainlink "Coinbase (AAPL|NVDA)" feed, round 2\.\d+|Morpho market oracle, the price Morpho liquidates on)\), not /);
+    assert.ok(Date.parse(last.asOf) <= Date.parse(fx.recordedAt));
+    assert.match(last.source.name, id === "mSPX" ? /Morpho market oracle 0x98c27f1C7772d66bCF837F0b8A435A31E6e85b6d .* at block \d+, scaled by 1e24/ : /Chainlink "Coinbase (AAPL|NVDA)" feed 0x[0-9a-fA-F]{40} on Base, round 2\.\d+ \(read at block \d+\)/);
+    assert.ok(f.has("px.pool.last") && f.has("px.pool.premium"), `${id}: pool price and premium`);
+    assert.match(f.get("px.pool.last")!.source.name, /pool 0x[0-9a-f]{40} on Base, slot0 at block \d+/);
+    // Daily chart read; short history says "no reading" for long-window detectors instead of guessing.
+    assert.ok(input.chart["1d"], why);
+    assert.ok(input.problems.some((p) => /golden cross \(50 over 200\), death cross \(50 under 200\) on daily bars need 211 bars, only \d+, no reading/.test(p)), why);
+    assert.ok(!f.has("ind.1d.sma200") && !f.has("ind.1d.high52w"));
+    assert.ok(input.problems.some((p) => /daily 200-bar average needs 200 bars/.test(p)));
+    assert.ok(input.problems.some((p) => /52-week high and low need a year of daily bars/.test(p)));
+    assert.ok(input.problems.some((p) => /monthly chart read needs at least 30 bars, no reading/.test(p)), "monthly chart is too thin");
+    assert.match(f.get("ind.1d.vol")?.label ?? "Annualised volatility (all ", /less than a year/);
+    // Every fact built from the series cites the feed or pool and is display true.
+    for (const x of input.facts.filter((y) => /^(px|chg|ind|chart|lvl|vol|pat)\./.test(y.id))) {
+      assert.equal(x.source.display, true, `${id} ${x.id}`);
+      assert.ok(isDisplayable(x));
+      assert.match(x.source.name, /0x[0-9a-fA-F]{40}/, `${id} ${x.id} names a contract`);
+    }
+    if (id === "mSPX") {
+      assert.match(daily.source.name, /deSPXA\/USDC Uniswap v3 pool 0xd08f1fb797bfacded23323178672557034c64cfa \(swaps in blocks \d+ to \d+\)/);
+      assert.ok(daily.bars.every((b) => b.v !== undefined && b.v > 0), "pool bars always carry volume");
+    } else {
+      assert.match(daily.source.name, /rounds 1\.1 to 2\.\d+, daily bars on NYSE sessions built by Stackday; volume in USDC from the (AAPLc|NVDAc)\/USDC/);
+      assert.ok(daily.bars.some((b) => b.v !== undefined) && daily.bars.some((b) => b.v === undefined), "volume only where the backfill read the pool");
+      assert.ok(input.problems.some((p) => /pool volume after .* is not read at run time/.test(p)));
+    }
+  }
+});
+
+test("on-chain backfill run: the current price and pool facts read today are not used for an earlier date", async () => {
+  const fx = load("onchain");
+  // The on-chain fixture replays in recording order (mAAPL, mNVDA, mSPX) per replayDeps instance, so start with mAAPL.
+  const input = await gatherAsset("mAAPL", "2026-11-23", replayDeps(fx, {}), { market: EMPTY_MARKET("2026-11-23"), onchainBackfill: fx.backfill });
+  const f = checkFacts(input.facts);
+  assert.ok(!f.has("px.pool.last") && !f.has("px.pool.premium"));
+  // Monday's session closes at 21:00 UTC, after the 12:00 cut: the last close is Friday's.
+  assert.equal(input.series["1d"]!.bars.at(-1)!.t, "2026-11-20T14:30:00.000Z");
+  const last = f.get("px.last")!;
+  assert.equal(last.asOf, "2026-11-20T21:00:00.000Z");
+  assert.match(last.label, /^Last price \(on-chain price of AAPLc on Base, not Apple's exchange price\)$/);
 });
 
 test("assets that are not researchable are refused", async () => {

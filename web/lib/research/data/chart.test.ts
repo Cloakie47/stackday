@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Pattern, PatternKind, PriceBar } from "../types.ts";
-import { CHART_PARAMS, clusterLevels, findSwings, isInvalidated, levelTolerance, percentileRank, positionInRange, publishPatterns, readChart, slope, trendStructure, volatilityRegime } from "./chart.ts";
+import { CHART_PARAMS, clusterLevels, detectorMinBars, findSwings, isInvalidated, levelTolerance, percentileRank, positionInRange, publishPatterns, readChart, slope, trendStructure, volatilityRegime } from "./chart.ts";
 import { smaSeries } from "./indicators.ts";
 
 /**
@@ -235,4 +235,16 @@ test("a filtered-out breakout does not hide the range: invalidation is checked b
   assert.equal(asked, false);
   // An invalidated range is not published either.
   assert.deepEqual(publishPatterns([], () => pat("range", "neutral", 101), 100), []);
+});
+
+test("short history: detectors that need more bars say no reading instead of guessing", () => {
+  const short = readChart(bars(wave(100, 3, 80)), "1d", { crypto: false })!;
+  assert.equal(short.bars, 80);
+  assert.deepEqual(short.noReading.map((x) => [x.kind, x.minBars]), [["golden-cross", 211], ["death-cross", 211]]);
+  assert.ok(!short.patterns.some((p) => p.kind === "golden-cross" || p.kind === "death-cross"));
+  const tiny = readChart(bars(wave(100, 3, 32)), "1d", { crypto: false })!;
+  assert.ok(tiny.noReading.some((x) => x.kind === "macd-bullish-divergence" && x.minBars === 35));
+  assert.equal(detectorMinBars("range", "1w"), 30);
+  const long = readChart(bars(wave(100, 3, 260)), "1d", { crypto: false })!;
+  assert.deepEqual(long.noReading, []);
 });

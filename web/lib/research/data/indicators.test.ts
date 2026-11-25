@@ -59,7 +59,7 @@ test("volatility: alternating +-ln(1.1) returns", () => {
   assert.equal(volatility(closes.slice(0, 10), 252), undefined);
 });
 
-test("bars per year: hourly stock bars use 7 per session (Twelve Data), crypto trades every hour", () => {
+test("bars per year: hourly stock bars use 7 per session, crypto trades every hour", () => {
   assert.equal(periodsPerYear("1h", false), 252 * 7);
   assert.equal(periodsPerYear("1h", true), 365 * 24);
   assert.equal(periodsPerYear("1d", false), 252);

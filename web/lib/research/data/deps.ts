@@ -6,7 +6,13 @@
  * touches the network.
  */
 
-export type FetchLike = (url: string, init?: { headers?: Record<string, string> }) => Promise<{
+/**
+ * GET by default. `method: "POST"` with a `body` is used for JSON-RPC (onchain.ts). `timeoutMs`
+ * overrides the default timeout for one request.
+ */
+export type FetchInit = { headers?: Record<string, string>; method?: "GET" | "POST"; body?: string; timeoutMs?: number };
+
+export type FetchLike = (url: string, init?: FetchInit) => Promise<{
   ok: boolean;
   status: number;
   text(): Promise<string>;
@@ -37,7 +43,8 @@ export function defaultDeps(): DataDeps {
   assertServer();
   return {
     // 20 second timeout so one slow source cannot stall the whole run.
-    fetch: (url, init) => fetch(url, { headers: init?.headers, cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }),
+    fetch: (url, init) =>
+      fetch(url, { method: init?.method ?? "GET", headers: init?.headers, body: init?.body, cache: "no-store", signal: AbortSignal.timeout(init?.timeoutMs ?? FETCH_TIMEOUT_MS) }),
     env: process.env,
     now: () => new Date(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),

@@ -1,4 +1,4 @@
-import type { ChartInterval, ChartRead, Confidence, Pattern, PatternKind, PriceBar, TrendStructure, VolatilityRegime } from "../types.ts";
+import { PATTERN_KINDS, type ChartInterval, type ChartRead, type Confidence, type Pattern, type PatternKind, type PriceBar, type TrendStructure, type VolatilityRegime } from "../types.ts";
 import { atrSeries, macdLineSeries, periodsPerYear, rollingVolatility, rsiSeries, smaSeries } from "./indicators.ts";
 
 /**
@@ -48,6 +48,32 @@ export const CHART_PARAMS: Record<ChartInterval, ChartParams> = {
 
 /** Fewest bars for a chart read at all. Below this the timeframe is "no reading". */
 export const MIN_CHART_BARS = 30;
+
+/**
+ * Fewest bars each detector needs on a timeframe. With fewer the detector is not run and the read
+ * lists it in `noReading`, so a short history (the on-chain stock tokens have months, not years)
+ * says "no reading" instead of guessing. Golden and death crosses need the 200-bar average plus
+ * the 10 bars its slope is measured over; MACD divergences need the 26-bar average and the 9-bar
+ * signal; breakouts their lookback plus two bars; ranges their window; the rest a chart read.
+ */
+export function detectorMinBars(kind: PatternKind, iv: ChartInterval): number {
+  const p = CHART_PARAMS[iv];
+  switch (kind) {
+    case "golden-cross":
+    case "death-cross":
+      return 211;
+    case "macd-bullish-divergence":
+    case "macd-bearish-divergence":
+      return Math.max(MIN_CHART_BARS, 35);
+    case "breakout":
+    case "breakdown":
+      return Math.max(MIN_CHART_BARS, p.breakLookback + 2);
+    case "range":
+      return Math.max(MIN_CHART_BARS, p.rangeWindow);
+    default:
+      return MIN_CHART_BARS;
+  }
+}
 
 export const PATTERN_LABEL: Record<PatternKind, string> = {
   breakout: "Breakout",
@@ -526,6 +552,10 @@ export function volatilityRegime(bars: PriceBar[], iv: ChartInterval, crypto: bo
 // ---------------------------------------------------------------------------------------------
 
 export type ChartReadDetail = ChartRead & {
+  /** Detectors not run because the series is shorter than they need (`detectorMinBars`). */
+  noReading: { kind: PatternKind; minBars: number }[];
+  /** Bars the read used. */
+  bars: number;
   /** Touch counts for each level, same order as support and resistance. */
   supportTouches: number[];
   resistanceTouches: number[];
@@ -554,20 +584,22 @@ export function readChart(rawBars: PriceBar[], iv: ChartInterval, opts: { crypto
   const support = lv.support.map((l) => round(l.price));
   const resistance = lv.resistance.map((l) => round(l.price));
 
+  const noReading = PATTERN_KINDS.filter((k) => n < detectorMinBars(k, iv)).map((kind) => ({ kind, minBars: detectorMinBars(kind, iv) }));
+  const can = (...kinds: PatternKind[]) => kinds.some((k) => n >= detectorMinBars(k, iv));
   const found = [
-    detectBreak(ctx, true),
-    detectBreak(ctx, false),
+    can("breakout") ? detectBreak(ctx, true) : null,
+    can("breakdown") ? detectBreak(ctx, false) : null,
     detectFlag(ctx, true),
     detectFlag(ctx, false),
     detectDouble(ctx, true),
     detectDouble(ctx, false),
     detectHeadShoulders(ctx, false),
     detectHeadShoulders(ctx, true),
-    detectCross(ctx),
+    can("golden-cross", "death-cross") ? detectCross(ctx) : null,
     detectDivergence(ctx, "rsi", true),
     detectDivergence(ctx, "rsi", false),
-    detectDivergence(ctx, "macd", true),
-    detectDivergence(ctx, "macd", false),
+    can("macd-bullish-divergence") ? detectDivergence(ctx, "macd", true) : null,
+    can("macd-bearish-divergence") ? detectDivergence(ctx, "macd", false) : null,
   ].filter((x): x is Pattern => x !== null);
 
   return {
@@ -576,9 +608,11 @@ export function readChart(rawBars: PriceBar[], iv: ChartInterval, opts: { crypto
     support,
     resistance,
     positionInRange: positionInRange(last, support[0], resistance[0]),
-    patterns: publishPatterns(found, () => detectRange(ctx), last),
+    patterns: publishPatterns(found, () => (can("range") ? detectRange(ctx) : null), last),
     volatility: volatilityRegime(bars, iv, opts.crypto),
     factIds: [],
+    noReading,
+    bars: n,
     supportTouches: lv.support.map((l) => l.touches),
     resistanceTouches: lv.resistance.map((l) => l.touches),
     atr,

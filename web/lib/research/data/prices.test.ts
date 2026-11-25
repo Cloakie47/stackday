@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aggregateBars, barPeriodEnd, cleanBars, closedBars, fetchPriceHistory, parseCoinbaseCandles, parseTwelveData, PRICE_SOURCES, STOCK_PROVIDERS } from "./prices.ts";
+import { aggregateBars, barPeriodEnd, cleanBars, closedBars, fetchPriceHistory, parseCoinbaseCandles, PRICE_SOURCES } from "./prices.ts";
 import { UNIVERSE, universeAsset } from "../universe.ts";
 import type { DataDeps } from "./deps.ts";
 import type { PriceBar } from "../types.ts";
@@ -14,9 +14,10 @@ const noNetwork: DataDeps = {
   sleep: async () => {},
 };
 
-test("every research asset has a price source: Coinbase for crypto and gold, the stock switch for the rest", () => {
+test("every research asset has a price source: Coinbase for crypto and gold, on-chain prices on Base for the stocks", () => {
   for (const a of UNIVERSE) assert.ok(a.assetId in PRICE_SOURCES, a.assetId);
-  for (const a of UNIVERSE) assert.equal(PRICE_SOURCES[a.assetId].provider, a.calendar === "CRYPTO" ? "coinbase" : "stock", a.assetId);
+  for (const a of UNIVERSE) assert.equal(PRICE_SOURCES[a.assetId].provider, a.calendar === "CRYPTO" ? "coinbase" : "onchain", a.assetId);
+  for (const id of ["mAAPL", "mNVDA", "mSPX"]) assert.match(PRICE_SOURCES[id].proxyNote!, /^on-chain price of .* on Base, not /);
   assert.deepEqual(Object.keys(PRICE_SOURCES).sort(), UNIVERSE.map((a) => a.assetId).sort());
 });
 
@@ -27,14 +28,6 @@ test("Coinbase candles: [time, low, high, open, close, volume], newest first", (
     { t: "2026-11-19T00:00:00.000Z", o: 2, h: 4, l: 1, c: 3, v: 10 },
   ]);
   assert.throws(() => parseCoinbaseCandles({ message: "NotFound" }), /NotFound/);
-});
-
-test("Twelve Data: daily bars stamped at the 9:30 New York open, intraday in UTC", () => {
-  const daily = parseTwelveData({ values: [{ datetime: "2026-11-18", open: "1", high: "2", low: "0.5", close: "1.5", volume: "100" }] });
-  assert.equal(daily[0].t, "2026-11-18T14:30:00.000Z");
-  const hourly = parseTwelveData({ values: [{ datetime: "2026-11-18 20:30:00", open: "1", high: "2", low: "0.5", close: "1.5" }] });
-  assert.equal(hourly[0].t, "2026-11-18T20:30:00.000Z");
-  assert.throws(() => parseTwelveData({ status: "error", code: 401, message: "bad key" }), /401/);
 });
 
 test("weekly and monthly bars are built from daily bars", () => {
@@ -55,43 +48,13 @@ test("weekly and monthly bars are built from daily bars", () => {
   ]);
 });
 
-test("stock provider: none by default (even with a key), nothing fetched or faked; no key is reported", async () => {
-  for (const env of [{}, { RESEARCH_PRICE_API_KEY: "k" }]) {
-    const r = await fetchPriceHistory(universeAsset("mAAPL")!, { ...noNetwork, env });
-    assert.deepEqual(r.series, {});
-    assert.match(r.problems[0], /RESEARCH_PRICE_PROVIDER not set \(default none: no stock provider that allows display and commercial use/);
-  }
-  const off = await fetchPriceHistory(universeAsset("mSPX")!, { ...noNetwork, env: { RESEARCH_PRICE_PROVIDER: "none", RESEARCH_PRICE_API_KEY: "k" } });
-  assert.deepEqual(off.series, {});
-  assert.match(off.problems[0], /RESEARCH_PRICE_PROVIDER=none/);
-  const noKey = await fetchPriceHistory(universeAsset("mAAPL")!, { ...noNetwork, env: { RESEARCH_PRICE_PROVIDER: "twelvedata" } });
-  assert.match(noKey.problems[0], /RESEARCH_PRICE_API_KEY not set/);
-  const bad = await fetchPriceHistory(universeAsset("mSPX")!, { ...noNetwork, env: { RESEARCH_PRICE_PROVIDER: "yahoo" } });
-  assert.match(bad.problems[0], /not a known provider/);
-  assert.equal(STOCK_PROVIDERS.twelvedata.display, false);
-  assert.equal(STOCK_PROVIDERS.twelvedata.commercial, false);
-});
-
-test("Twelve Data (internal only): the history is flagged display false for AAPL, NVDA and SPY", async () => {
-  const body = JSON.stringify({ values: [{ datetime: "2026-11-18", open: "1", high: "2", low: "0.5", close: "1.5", volume: "100" }] });
-  const deps: DataDeps = { ...noNetwork, env: { RESEARCH_PRICE_PROVIDER: "twelvedata", RESEARCH_PRICE_API_KEY: "k" }, fetch: async () => ({ ok: true, status: 200, text: async () => body }) };
-  for (const id of ["mAAPL", "mNVDA", "mSPX"]) {
-    const r = await fetchPriceHistory(universeAsset(id)!, deps);
-    assert.ok(r.series["1d"], id);
-    assert.equal(r.display, false, id);
-    assert.ok(r.problems.some((p) => /internal only .* marked display false/.test(p)), id);
-  }
-  // Coinbase has no recorded restriction, so its history carries no flag.
+test("Coinbase series carry display true on their source; a failing source is reported and nothing is faked", async () => {
   const btc = await fetchPriceHistory(universeAsset("mcbBTC")!, { ...noNetwork, fetch: async () => ({ ok: true, status: 200, text: async () => "[[1795046400, 1, 4, 2, 3, 10]]" }) });
-  assert.equal(btc.display, undefined);
-});
-
-test("a failing source is reported without leaking the API key", async () => {
-  const deps: DataDeps = { ...noNetwork, env: { RESEARCH_PRICE_PROVIDER: "twelvedata", RESEARCH_PRICE_API_KEY: "SECRET123" }, fetch: async () => ({ ok: false, status: 500, text: async () => "" }) };
-  const r = await fetchPriceHistory(universeAsset("mNVDA")!, deps);
-  assert.deepEqual(r.series, {});
-  assert.equal(r.problems.filter((p) => /prices failed/.test(p)).length, 2);
-  for (const p of r.problems) assert.ok(!p.includes("SECRET123"), p);
+  assert.equal(btc.series["1d"]!.source.display, true);
+  assert.equal(btc.series["1w"]!.source.display, true);
+  const down = await fetchPriceHistory(universeAsset("mWETH")!, { ...noNetwork, fetch: async () => ({ ok: false, status: 500, text: async () => "" }) });
+  assert.deepEqual(down.series, {});
+  assert.equal(down.problems.filter((p) => /prices failed/.test(p)).length, 2);
 });
 
 test("bar periods: crypto in UTC, stocks by NYSE session (early closes included)", () => {

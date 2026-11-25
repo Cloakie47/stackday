@@ -8,10 +8,11 @@ import { assertServer, defaultDeps, type DataDeps } from "./deps.ts";
 import { eventsForAsset, fetchWeekAhead } from "./events.ts";
 import { fetchFlows } from "./flows.ts";
 import { fetchOfficialNews, fetchPressNews, fetchWireNews, newsFacts } from "./headlines.ts";
-import { computeIndicators } from "./indicators.ts";
+import { computeIndicators, spansYear } from "./indicators.ts";
 import { MACRO_FOR_ASSET, fetchMacro } from "./macro.ts";
 import { fetchFilings } from "./news.ts";
 import { PRICE_SOURCES, aggregateBars, barPeriodEnd, closedBars, fetchPriceHistory } from "./prices.ts";
+import type { Backfill } from "./onchain.ts";
 
 /**
  * Gathers everything the engine needs, code only (spec section 4.1). Every number in `facts`
@@ -25,7 +26,7 @@ import { PRICE_SOURCES, aggregateBars, barPeriodEnd, closedBars, fetchPriceHisto
  *   events for the asset, headlines, filings and crypto flows.
  *
  * Fact ids (stable within a run):
- *   px.last, px.1d.prevClose, px.1w.volume
+ *   px.last, px.1d.prevClose, px.1w.volume, px.pool.last, px.pool.premium (on-chain stocks)
  *   chg.<interval>.bar1 | bar5 | bar20                      percent change over 1, 5, 20 bars
  *   ind.<interval>.<name>, for example ind.1d.rsi14, ind.1w.sma50, ind.1d.high52w
  *   chart.<interval>.trend, chart.<interval>.position
@@ -40,8 +41,9 @@ import { PRICE_SOURCES, aggregateBars, barPeriodEnd, closedBars, fetchPriceHisto
  * No look-ahead: bars, observations and headlines after the run date are dropped, and so is any
  * bar whose period has not ended at the run time (see `cutSeries`).
  *
- * Licences: a fact built from a source whose terms do not allow display carries `display: false`
- * (see `withDisplay`), for example every price fact from the Twelve Data free plan.
+ * Licences: every price series carries `source.display` (Coinbase and the on-chain sources: true),
+ * and every fact, level and pattern built from it copies that source, so it inherits the flag
+ * (core `isDisplayable`). FRED S&P 500 and VIX facts are display false unless RESEARCH_SHOW_SP_VIX=1.
  */
 
 const BAR_INTERVALS: BarInterval[] = ["1h", "1d", "1w", "1mo"];
@@ -62,6 +64,8 @@ export type GatherOptions = {
   deployment?: DeploymentLike;
   /** Market input from the same run: supplies the week-ahead calendar and the asset's macro facts. */
   market?: MarketResearchInput;
+  /** On-chain backfill to use instead of the checked-in onchain-backfill.json (tests). */
+  onchainBackfill?: Backfill;
 };
 
 /** When the newest bar of a series closed (or `fetchedAt` if it is still open). */
@@ -77,15 +81,13 @@ export function barCloseTime(bar: PriceBar, interval: BarInterval, crypto: boole
   return new Date(Math.min(barPeriodEnd(bar.t, interval, crypto), Date.parse(fetchedAt))).toISOString();
 }
 
-/** Copies a source's display permission onto the facts built from it: `display: false` when its terms forbid display. */
-export function withDisplay(facts: Fact[], display: boolean | undefined): Fact[] {
-  return display === false ? facts.map((f) => ({ ...f, display: false })) : facts;
-}
-
 type FactSpec = { key: string; label: string; value: number | undefined; unit?: string };
 
-function indicatorSpecs(ind: Indicators, iv: BarInterval): FactSpec[] {
+function indicatorSpecs(ind: Indicators, iv: BarInterval, bars: PriceBar[]): FactSpec[] {
   const L = INTERVAL_LABEL[iv];
+  // Volatility and drawdown use the last year of bars, or all of them when the series is shorter.
+  const span = spansYear(bars) ? `last year of ${L} bars` : `all ${bars.length} ${L} bars, less than a year`;
+  const spanCloses = spansYear(bars) ? `last year of ${L} closes` : `all ${bars.length} ${L} closes, less than a year`;
   const p = (x: number | undefined) => (x === undefined ? undefined : roundPrice(x));
   const specs: FactSpec[] = [
     { key: "rsi14", label: `RSI (14, ${L})`, value: ind.rsi14 === undefined ? undefined : round(ind.rsi14, 1) },
@@ -99,8 +101,8 @@ function indicatorSpecs(ind: Indicators, iv: BarInterval): FactSpec[] {
     { key: "sma200", label: `200-bar average (${L})`, value: p(ind.sma200), unit: "USD" },
     { key: "macd", label: `MACD line (12, 26, ${L})`, value: ind.macd ? Number(ind.macd.macd.toPrecision(4)) : undefined },
     { key: "macdSignal", label: `MACD signal (9, ${L})`, value: ind.macd ? Number(ind.macd.signal.toPrecision(4)) : undefined },
-    { key: "vol", label: `Annualised volatility (last year of ${L} bars)`, value: ind.volatility === undefined ? undefined : round(ind.volatility * 100, 1), unit: "%" },
-    { key: "mdd", label: `Max drawdown (last year of ${L} closes)`, value: ind.maxDrawdown === undefined ? undefined : round(ind.maxDrawdown * 100, 1), unit: "%" },
+    { key: "vol", label: `Annualised volatility (${span})`, value: ind.volatility === undefined ? undefined : round(ind.volatility * 100, 1), unit: "%" },
+    { key: "mdd", label: `Max drawdown (${spanCloses})`, value: ind.maxDrawdown === undefined ? undefined : round(ind.maxDrawdown * 100, 1), unit: "%" },
   );
   if (iv === "1d") {
     specs.push({ key: "high52w", label: "52-week high", value: p(ind.high52w), unit: "USD" }, { key: "low52w", label: "52-week low", value: p(ind.low52w), unit: "USD" });
@@ -199,8 +201,11 @@ function chartFacts(input: AssetResearchInput, iv: ChartInterval, crypto: boolea
   input.facts.push(...facts);
   const indIds = input.facts.filter((f) => f.id.startsWith(`ind.${iv}.`) || f.id.startsWith(`chg.${iv}.`)).map((f) => f.id);
   const ids = [...(input.facts.some((f) => f.id === "px.last") ? ["px.last"] : []), ...indIds, ...facts.map((f) => f.id)];
-  const { supportTouches: _s, resistanceTouches: _r, atr: _a, ...chart } = read;
-  input.chart[iv] = { ...chart, factIds: ids };
+  const groups = new Map<number, string[]>();
+  for (const x of read.noReading) groups.set(x.minBars, [...(groups.get(x.minBars) ?? []), PATTERN_LABEL[x.kind].toLowerCase()]);
+  for (const [min, kinds] of groups) input.problems.push(`${input.assetId}: ${kinds.join(", ")} on ${L} bars need${kinds.length > 1 ? "" : "s"} ${min} bars, only ${read.bars}, no reading`);
+  // The shared ChartRead only: touch counts, ATR and the no-reading list stay in this file.
+  input.chart[iv] = { interval: read.interval, trend: read.trend, support: read.support, resistance: read.resistance, positionInRange: read.positionInRange, patterns: read.patterns, volatility: read.volatility, factIds: ids };
   return ids;
 }
 
@@ -219,12 +224,15 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
   out.facts.push(...calendarFacts(asset, date, out.marketOpenToday, nowIso));
 
   // Prices and indicators
-  const history = await fetchPriceHistory(asset, d);
+  const history = await fetchPriceHistory(asset, d, { onchainBackfill: opts.onchainBackfill });
   out.series = cutSeries(history.series, date, crypto, d.now());
   out.problems.push(...history.problems);
   const proxy = PRICE_SOURCES[assetId]?.proxyNote;
-  // Every fact from here to the end of the chart read is built from the price history.
-  const priceFrom = out.facts.length;
+  const cutoff = runCutoff(date, d.now());
+  // Before 12:00 UTC on the run date the cut is "now": whatever was just read is current (a block
+  // time a few seconds past the server clock is not the future). Later, or for a backfill, a value
+  // read from chain counts only if it was published by 12:00 UTC on the run date.
+  const usable = (asOf: IsoDateTime) => cutoff >= d.now().getTime() || Date.parse(asOf) <= cutoff;
 
   for (const iv of BAR_INTERVALS) {
     const s = out.series[iv];
@@ -233,7 +241,7 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
     if (!ind) continue;
     out.indicators[iv] = ind;
     const asOf = seriesAsOf(iv === "1w" || iv === "1mo" ? (out.series["1d"] ?? s) : s, crypto);
-    for (const spec of indicatorSpecs(ind, iv)) {
+    for (const spec of indicatorSpecs(ind, iv, s.bars)) {
       if (spec.value === undefined || !Number.isFinite(spec.value)) continue;
       out.facts.push({ id: `ind.${iv}.${spec.key}`, kind: "indicator", label: spec.label, value: spec.value, ...(spec.unit ? { unit: spec.unit } : {}), source: s.source, asOf });
     }
@@ -244,9 +252,22 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
     }
   }
 
-  // Last price: the newest close across hourly and daily bars.
+  // Short histories: say which long-window readings are missing rather than leaving them out silently.
+  for (const iv of ["1d", "1w", "1mo"] as const) {
+    const n = out.series[iv]?.bars.length ?? 0;
+    if (n > 0 && n < 200) out.problems.push(`${assetId}: ${INTERVAL_LABEL[iv]} 200-bar average needs 200 bars, only ${n}, no reading`);
+  }
+  if (out.series["1d"] && !spansYear(out.series["1d"].bars)) {
+    out.problems.push(`${assetId}: 52-week high and low need a year of daily bars, history starts ${out.series["1d"].bars[0].t.slice(0, 10)}, no reading`);
+  }
+
+  // Last price: the source's current price (Chainlink feed or Morpho oracle) when it was published
+  // by the run time, otherwise the newest close across hourly and daily bars.
   const candidates = (["1h", "1d"] as const).map((iv) => out.series[iv]).filter((s): s is PriceSeries => Boolean(s && s.bars.length));
-  if (candidates.length) {
+  const cur = history.current;
+  if (cur && usable(cur.asOf)) {
+    out.facts.push({ id: "px.last", kind: "price", label: cur.label, value: cur.value, unit: "USD", source: cur.source, asOf: cur.asOf });
+  } else if (candidates.length) {
     const best = candidates.reduce((a, b) => (Date.parse(seriesAsOf(b, crypto)) > Date.parse(seriesAsOf(a, crypto)) ? b : a));
     const last = best.bars[best.bars.length - 1];
     out.facts.push({ id: "px.last", kind: "price", label: proxy ? `Last price (${proxy})` : "Last price", value: roundPrice(last.c), unit: "USD", source: best.source, asOf: seriesAsOf(best, crypto) });
@@ -257,19 +278,25 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
     out.facts.push({ id: "px.1d.prevClose", kind: "price", label: "Previous daily close", value: roundPrice(prev.c), unit: "USD", source: daily.source, asOf: barCloseTime(prev, "1d", crypto, daily.fetchedAt) });
   }
   const weekly = out.series["1w"];
-  const wv = weekly?.bars.at(-1)?.v;
-  if (weekly && daily && wv !== undefined && Number.isFinite(wv)) {
-    const unit = crypto ? `${PRICE_SOURCES[assetId].symbol.split("-")[0]} traded` : "shares traded";
-    const wk = weekly.bars.at(-1)!;
+  const wk = weekly?.bars.at(-1);
+  // A week's volume is only given when every session of it has volume (on-chain pool volume ends where the backfill ends).
+  const weekDays = wk && daily ? daily.bars.filter((b) => b.t >= wk.t && barPeriodEnd(b.t, "1d", crypto) <= barPeriodEnd(wk.t, "1w", crypto)) : [];
+  if (weekly && wk && weekDays.length && weekDays.every((b) => b.v !== undefined && Number.isFinite(b.v))) {
+    const onchain = history.ref?.provider === "onchain";
+    const unit = crypto ? `${PRICE_SOURCES[assetId].symbol.split("-")[0]} traded` : onchain ? `USDC traded in the ${PRICE_SOURCES[assetId].symbol}/USDC pool` : "shares traded";
+    const wv = weekDays.reduce((sum, b) => sum + (b.v ?? 0), 0);
     out.facts.push({ id: "px.1w.volume", kind: "price", label: `Volume in the last full week (week starting ${wk.t.slice(0, 10)})`, value: Math.round(wv), unit, source: weekly.source, asOf: barCloseTime(wk, "1w", crypto, weekly.fetchedAt) });
+  } else if (weekly && wk) {
+    out.problems.push(`${assetId}: volume for the week starting ${wk.t.slice(0, 10)} is not complete, no weekly volume reading`);
   }
+  // Pool price and premium (on-chain stocks), only when read by the run time.
+  out.facts.push(...(history.facts ?? []).filter((f) => usable(f.asOf)));
 
   // Chart read in code on daily, weekly and monthly bars.
   for (const iv of CHART_INTERVALS) {
     if (out.series[iv]) chartFacts(out, iv, crypto);
     else out.problems.push(`${assetId}: no ${CHART_INTERVAL_LABEL[iv].toLowerCase()} bars, no chart reading`);
   }
-  out.facts.splice(priceFrom, Infinity, ...withDisplay(out.facts.slice(priceFrom), history.display));
 
   // Week-ahead calendar: shared with the market input when given.
   let events: CalendarEvent[];

@@ -4,25 +4,59 @@
  *   cd web
  *   node lib/research/data/record-fixtures.ts run          # whole run for today -> fixtures/run.json
  *   node lib/research/data/record-fixtures.ts mAAPL        # one asset -> fixtures/mAAPL.json
+ *   node lib/research/data/record-fixtures.ts onchain      # on-chain reads for the stocks -> fixtures/onchain.json
  *
  * Every response is saved keyed by the URL with any API key removed (see `redactUrl`), together
  * with the time it was recorded. Keys are read from the environment and never written to disk.
- * A single stock is recorded through Twelve Data (internal use, RESEARCH_PRICE_PROVIDER defaults to
- * "twelvedata" here only); without RESEARCH_PRICE_API_KEY with its public "demo" key, which only
- * answers for a few symbols such as AAPL. Large responses are trimmed afterwards to what the
- * parsers read (see the fixture's `note`).
+ * JSON-RPC reads (onchain.ts) are saved per call, keyed by method and parameters, never by the RPC
+ * URL; the on-chain fixture also stores the backfill it was recorded against, so the replayed run
+ * asks for exactly the recorded blocks and rounds. Large responses are trimmed afterwards to what
+ * the parsers read (see the fixture's `note`).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultDeps, redactUrl, type DataDeps, type FetchLike } from "./deps.ts";
 import { gatherAsset, gatherRun } from "./gather.ts";
+import { ONCHAIN_ASSETS, ONCHAIN_BACKFILL, fetchOnchainHistory, type Backfill, type RpcAnswer } from "./onchain.ts";
 
-export type Fixture = { recordedAt: string; assetId: string; note: string; responses: Record<string, { status: number; body: string }> };
+export type Fixture = {
+  recordedAt: string;
+  assetId: string;
+  note: string;
+  responses: Record<string, { status: number; body: string }>;
+  /**
+   * JSON-RPC answers keyed by `rpcKey(method, params)`, in the order they were given: the same call
+   * (for example the latest block) can answer differently later in a recording.
+   */
+  rpc?: Record<string, RpcAnswer[]>;
+  /** The on-chain backfill the RPC answers were recorded against. */
+  backfill?: Backfill;
+};
 
-function recorder(base: DataDeps): { fetch: FetchLike; responses: Fixture["responses"] } {
+/** Key of one JSON-RPC call in a fixture: the method and its parameters, never the URL. */
+export const rpcKey = (method: string, params: unknown) => `${method} ${JSON.stringify(params)}`;
+
+function recorder(base: DataDeps): { fetch: FetchLike; responses: Fixture["responses"]; rpc: NonNullable<Fixture["rpc"]> } {
   const responses: Fixture["responses"] = {};
+  const rpc: NonNullable<Fixture["rpc"]> = {};
   const fetchRec: FetchLike = async (url, init) => {
+    if (init?.method === "POST") {
+      const res = await base.fetch(url, init);
+      const body = await res.text();
+      const reqs = JSON.parse(init.body ?? "[]") as { id: number; method: string; params: unknown[] }[];
+      try {
+        const answers = JSON.parse(body) as { id: number; result?: unknown; error?: RpcAnswer["error"] }[];
+        for (const q of reqs) {
+          const a = answers.find((x) => x.id === q.id);
+          if (a) (rpc[rpcKey(q.method, q.params)] ??= []).push(a.error ? { error: a.error } : { result: a.result });
+        }
+      } catch {
+        // not a batch answer: the replay will fail the same way as the live call
+      }
+      console.error(`${res.status} rpc batch of ${reqs.length}: ${[...new Set(reqs.map((q) => q.method))].join(", ")}`);
+      return { ok: res.ok, status: res.status, text: async () => body };
+    }
     try {
       const res = await base.fetch(url, init);
       const body = await res.text();
@@ -34,29 +68,38 @@ function recorder(base: DataDeps): { fetch: FetchLike; responses: Fixture["respo
       throw e;
     }
   };
-  return { fetch: fetchRec, responses };
+  return { fetch: fetchRec, responses, rpc };
 }
 
 async function record(target: string): Promise<void> {
   const base = defaultDeps();
-  const { fetch, responses } = recorder(base);
+  const { fetch, responses, rpc } = recorder(base);
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
-  const env = { ...process.env, RESEARCH_PRICE_PROVIDER: process.env.RESEARCH_PRICE_PROVIDER || "twelvedata", RESEARCH_PRICE_API_KEY: process.env.RESEARCH_PRICE_API_KEY || "demo" };
-  const deps = { ...base, fetch, env, now: () => now };
+  const deps = { ...base, fetch, now: () => now };
   let summary: string;
+  let extra: Partial<Fixture> = {};
   if (target === "run") {
-    const run = await gatherRun(date, { ...deps, env: { ...env, RESEARCH_PRICE_API_KEY: "" } });
+    const run = await gatherRun(date, deps);
     summary = `market ${run.market.facts.length} facts; ${run.assets.map((a) => `${a.assetId} ${a.facts.length}`).join(", ")}; problems: ${[...run.market.problems, ...run.assets.flatMap((a) => a.problems)].join(" | ")}`;
+  } else if (target === "onchain") {
+    const parts: string[] = [];
+    for (const id of Object.keys(ONCHAIN_ASSETS)) {
+      const h = await fetchOnchainHistory(id, deps, ONCHAIN_BACKFILL);
+      parts.push(`${id}: ${h.daily?.length ?? 0} daily bars, current ${h.current?.value}, ${h.requests} requests, problems: ${h.problems.join(" | ") || "none"}`);
+    }
+    summary = parts.join("\n");
+    extra = { rpc, backfill: ONCHAIN_BACKFILL };
   } else {
     const input = await gatherAsset(target, date, deps);
     summary = `${input.facts.length} facts, problems: ${input.problems.join(" | ") || "none"}`;
+    extra = Object.keys(rpc).length ? { rpc, backfill: ONCHAIN_BACKFILL } : {};
   }
-  const fixture: Fixture = { recordedAt: now.toISOString(), assetId: target, note: "Real responses recorded by record-fixtures.ts", responses };
+  const fixture: Fixture = { recordedAt: now.toISOString(), assetId: target, note: "Real responses recorded by record-fixtures.ts", responses, ...extra };
   const dir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${target}.json`), JSON.stringify(fixture));
-  console.log(`${target}: ${Object.keys(responses).length} responses, ${summary}`);
+  console.log(`${target}: ${Object.keys(responses).length} responses, ${Object.keys(rpc).length} rpc answers\n${summary}`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

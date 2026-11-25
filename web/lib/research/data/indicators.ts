@@ -13,7 +13,7 @@ const DAY = 24 * HOUR;
 /** Length of one bar, used to decide which timeframes a series can answer. */
 export const BAR_MS: Record<BarInterval, number> = { "1h": HOUR, "1d": DAY, "1w": 7 * DAY, "1mo": 28 * DAY };
 
-/** Hourly bars per regular NYSE session in Twelve Data's series: 9:30, 10:30, ... 14:30 and a last half-hour bar from 15:30. */
+/** Hourly bars per regular NYSE session (9:30, 10:30, ... 14:30 and a last half-hour bar from 15:30). No stock source gives hourly bars today. */
 export const STOCK_HOURLY_BARS_PER_SESSION = 7;
 
 /** Bars per year, for annualising volatility. Stocks trade about 252 sessions; hourly stock bars use 252 * 7 to match the series. */
