@@ -54,6 +54,7 @@ Built, tested and live on testnet:
 | Revenue | Small fixed fees, 0.2 percent at most: 0.15 percent on recurring buys (one-time free), 0.1 percent a year on loans, paid on repayment, 0.1 percent a year from interest on idle USDC | Payroll, SipRouter, EmployeeVault (settings in VaultFactory) |
 | Web app | Landing, Start (Personal or Business), Home, My pay, Invest (with real price chart), Borrow (collateral basket), Risk, Payroll, Docs, Testnet tools | web/app |
 | Account database | Unique name per wallet, saved team lists, attendance check-in. Connected on the live site | web/app/api, supabase/schema.sql |
+| Chat assistant (branch gg/chat-assistant, in review) | Answers about your own balances, loans, prices, fees and the approved weekly research. Prepares buy, recurring buy, stop plan, sell (testnet mock sell desk), withdraw, borrow and repay as cards you check and sign in your own wallet. Receiver is always your wallet, 500 test USDC per card. Gift cards hand off to the Gifts page | web/app/api/chat, web/lib/chat, web/components/chat |
 
 Tests: 69 local tests pass. Separate tests run the same code against the real AAPLc token, a real Aerodrome pool and the real Morpho market on a private copy of Base mainnet.
 
@@ -64,7 +65,7 @@ What is real and what is mocked on testnet:
 
 ## 4. What is not built
 
-- The Themes weekly live news refresh (plan in docs/themes/weekly-plan.md). Selling is not possible in the contracts yet: they only buy (issue #35, after the deadline).
+- The Themes weekly live news refresh (plan in docs/themes/weekly-plan.md). Selling on mainnet needs a sell adapter (issue #35, after the deadline); on testnet the chat assistant sells through the mock sell desk (issue #77).
 - Aave, for borrowing or for interest.
 - Confidential salaries inside the Payroll contract (private pay runs beside it through Fairblock, phase 1 built).
 - An automation service to release paydays. Today someone presses a button when a payday is due.
