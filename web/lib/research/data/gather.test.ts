@@ -189,10 +189,16 @@ test("no look-ahead: bars after the run date and bars still forming are cut, wee
   assert.deepEqual(cut["1d"]!.bars.map((b) => b.c), [1, 2, 3]);
   assert.deepEqual(cut["1w"]!.bars.map((b) => [b.t.slice(0, 10), b.c]), [["2026-10-30", 1], ["2026-11-18", 3]]);
   assert.deepEqual(cut["1mo"]!.bars.map((b) => b.c), [1]);
-  // Without a clock the run date's end is the cutoff: Monday's bar has closed by then, its week has not.
-  const late = cutSeries(all, "2026-11-23", true);
-  assert.deepEqual(late["1d"]!.bars.map((b) => b.c), [1, 2, 3, 4]);
-  assert.deepEqual(late["1w"]!.bars.map((b) => b.c), [1, 3]);
+  // A backfill (no clock, or a clock long after the run date) is cut at 12:00 UTC on the run date,
+  // like the live run: Monday's bar is still forming then, even though it has closed by now.
+  for (const late of [cutSeries(all, "2026-11-23", true), cutSeries(all, "2026-11-23", true, new Date("2026-12-02T00:00:00Z"))]) {
+    assert.deepEqual(late["1d"]!.bars.map((b) => b.c), [1, 2, 3]);
+    assert.deepEqual(late["1w"]!.bars.map((b) => b.c), [1, 3]);
+  }
+  // Stocks: Monday's NYSE session closes at 21:00 UTC, after the 12:00 cut, so a backfill never sees it.
+  const stock = (d: string, c: number) => ({ t: `${d}T14:30:00.000Z`, o: c, h: c, l: c, c });
+  const s = cutSeries({ "1d": { ...mk("1d", []), bars: [stock("2026-11-20", 1), stock("2026-11-23", 2)] } }, "2026-11-23", false, new Date("2026-12-02T00:00:00Z"));
+  assert.deepEqual(s["1d"]!.bars.map((b) => b.c), [1]);
 });
 
 test("Monday 12:00 UTC run: the still-forming daily and hourly bars never reach changes or patterns", async () => {

@@ -128,14 +128,23 @@ export function eventFacts(events: CalendarEvent[], at: IsoDateTime): Fact[] {
   return events.map((e) => ({ id: e.id, kind: "calendar" as const, label: e.name, value: e.timeUtc ? `${e.date} ${e.timeUtc} UTC` : e.date, source: e.source, asOf: at }));
 }
 
+/** The weekly report runs on Monday at 12:00 UTC; a backfill for an earlier date sees only what that run would have seen. */
+export const RUN_TIME_UTC = "12:00:00";
+
+/** The run time for a run date: 12:00 UTC on that date, or `now` when that is earlier. */
+export function runCutoff(date: IsoDate, now?: Date): number {
+  return Math.min(Date.parse(`${date}T${RUN_TIME_UTC}Z`), now ? now.getTime() : Infinity);
+}
+
 /**
  * Keeps only closed bars and rebuilds weekly and monthly bars from the closed daily bars. The run
- * time is `now`, capped at the end of the run date for a backfill: a bar is kept only when its
- * period (hour, NYSE session or UTC day, week, month; see `barPeriodEnd`) has ended by then, so
+ * time is 12:00 UTC on the run date (the live run's time, also used by macro.ts), or `now` when
+ * earlier: a bar is kept only when its period (hour, NYSE session or UTC day, week, month; see
+ * `barPeriodEnd`) has ended by then, so a backfill never sees the afternoon of its own run date and
  * changes such as chg.1w.bar1 and chart patterns never read a bar that is still forming.
  */
 export function cutSeries(series: Partial<Record<BarInterval, PriceSeries>>, date: IsoDate, crypto: boolean, now?: Date): Partial<Record<BarInterval, PriceSeries>> {
-  const at = Math.min(Date.parse(`${date}T00:00:00Z`) + 86_400_000, now ? now.getTime() : Infinity);
+  const at = runCutoff(date, now);
   const out: Partial<Record<BarInterval, PriceSeries>> = {};
   for (const iv of ["1h", "1d"] as const) {
     const s = series[iv];
