@@ -456,6 +456,20 @@ export function isInvalidated(p: Pattern, last: number): boolean {
   return p.direction === "bearish" ? last > p.invalidation : last < p.invalidation;
 }
 
+/**
+ * The patterns a read publishes. One check for every detector first: nothing already past its
+ * invalidation is published. Then the range: it is only reported when no published breakout or
+ * breakdown says price has just left it, so a breakout that was filtered out cannot hide a range.
+ */
+export function publishPatterns(found: Pattern[], range: () => Pattern | null, last: number): Pattern[] {
+  const live = found.filter((f) => !isInvalidated(f, last));
+  if (!live.some((f) => f.kind === "breakout" || f.kind === "breakdown")) {
+    const r = range();
+    if (r && !isInvalidated(r, last)) live.push(r);
+  }
+  return live;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Volatility regime
 // ---------------------------------------------------------------------------------------------
@@ -555,11 +569,6 @@ export function readChart(rawBars: PriceBar[], iv: ChartInterval, opts: { crypto
     detectDivergence(ctx, "macd", true),
     detectDivergence(ctx, "macd", false),
   ].filter((x): x is Pattern => x !== null);
-  // A range is only reported when price has not just broken out of it.
-  if (!found.some((f) => f.kind === "breakout" || f.kind === "breakdown")) {
-    const r = detectRange(ctx);
-    if (r) found.push(r);
-  }
 
   return {
     interval: iv,
@@ -567,8 +576,7 @@ export function readChart(rawBars: PriceBar[], iv: ChartInterval, opts: { crypto
     support,
     resistance,
     positionInRange: positionInRange(last, support[0], resistance[0]),
-    // One check for every detector: nothing already past its invalidation is published.
-    patterns: found.filter((f) => !isInvalidated(f, last)),
+    patterns: publishPatterns(found, () => detectRange(ctx), last),
     volatility: volatilityRegime(bars, iv, opts.crypto),
     factIds: [],
     supportTouches: lv.support.map((l) => l.touches),

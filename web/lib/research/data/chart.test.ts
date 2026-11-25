@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Pattern, PatternKind, PriceBar } from "../types.ts";
-import { CHART_PARAMS, clusterLevels, findSwings, isInvalidated, levelTolerance, percentileRank, positionInRange, readChart, slope, trendStructure, volatilityRegime } from "./chart.ts";
+import { CHART_PARAMS, clusterLevels, findSwings, isInvalidated, levelTolerance, percentileRank, positionInRange, publishPatterns, readChart, slope, trendStructure, volatilityRegime } from "./chart.ts";
 import { smaSeries } from "./indicators.ts";
 
 /**
@@ -220,4 +220,19 @@ test("helpers and parameters", () => {
   const ids = r.patterns.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length);
   for (const p of r.patterns) assert.ok(Number.isFinite(p.invalidation) && p.detail.length > 0);
+});
+
+test("a filtered-out breakout does not hide the range: invalidation is checked before the range rule", () => {
+  const pat = (kind: Pattern["kind"], direction: Pattern["direction"], invalidation: number): Pattern => ({ id: `pat.1d.${kind}`, kind, interval: "1d", direction, confidence: "low", invalidation, asOf: "2026-11-20T00:00:00.000Z", detail: "test" });
+  const range = pat("range", "neutral", 95);
+  // The breakout's invalidation (101) is above the last close (100): it is already proven wrong and dropped.
+  const out = publishPatterns([pat("breakout", "bullish", 101)], () => range, 100);
+  assert.deepEqual(out.map((p) => p.kind), ["range"]);
+  // A breakout that still stands keeps the range out, and the range detector is not even asked.
+  let asked = false;
+  const kept = publishPatterns([pat("breakout", "bullish", 99)], () => ((asked = true), range), 100);
+  assert.deepEqual(kept.map((p) => p.kind), ["breakout"]);
+  assert.equal(asked, false);
+  // An invalidated range is not published either.
+  assert.deepEqual(publishPatterns([], () => pat("range", "neutral", 101), 100), []);
 });
