@@ -2,7 +2,7 @@ import { configured, db, json } from "@/lib/server/backend";
 import { cronAuthorized } from "@/lib/server/keeper";
 import { researchFlags } from "@/lib/research/flags";
 import { runDaily } from "@/lib/research/engine/daily";
-import { defaultGather } from "@/lib/research/engine/gather";
+import { defaultGatherDaily } from "@/lib/research/engine/gather";
 import { callModel } from "@/lib/research/engine/model";
 import { supabaseStore } from "@/lib/research/engine/store";
 
@@ -24,9 +24,9 @@ export async function GET(request: Request) {
   const flags = researchFlags();
   if (!flags.engineEnabled) return json({ error: "The research engine is off (RESEARCH_ENGINE_ENABLED and ANTHROPIC_API_KEY)." }, 503);
   if (!configured()) return json({ error: "The account database is not connected yet." }, 503);
-  if (!defaultGather) return json({ error: "The research data source is not connected yet." }, 503);
+  if (!defaultGatherDaily) return json({ error: "The research data source is not connected yet." }, 503);
   try {
-    const outcome = await runDaily({ gather: defaultGather, model: callModel, store: supabaseStore(db()), maxRunCostUsd: flags.maxRunCostUsd, maxDayCostUsd: flags.maxDayCostUsd });
+    const outcome = await runDaily({ gather: defaultGatherDaily, model: callModel, store: supabaseStore(db()), maxRunCostUsd: flags.maxRunCostUsd, maxDayCostUsd: flags.maxDayCostUsd });
     return json(outcome, outcome.status === "ok" ? 200 : 500);
   } catch (e) {
     // Only the message, never request details or keys.

@@ -26,3 +26,15 @@ export const defaultGather: GatherFn | null = async (assetId, date) => {
   const market = await defaultGatherMarket!(date).catch(() => undefined);
   return gatherAsset(assetId, date, undefined, { market });
 };
+
+/**
+ * The daily note's gatherer (22:30 UTC on weekdays): when the run date is today it cuts the data at
+ * the real time (`cutAt`), so the note's entry price includes today's closed session and its scores
+ * never count a move that was already known. The Monday weekly slots (12:00 to 21:00 UTC) keep
+ * `defaultGather`, which cuts at 12:00 UTC, so they never see intraday data.
+ */
+export const defaultGatherDaily: GatherFn | null = async (assetId, date) => {
+  const market = await defaultGatherMarket!(date).catch(() => undefined);
+  const now = new Date();
+  return gatherAsset(assetId, date, undefined, { market, ...(date === now.toISOString().slice(0, 10) ? { cutAt: now.toISOString() } : {}) });
+};
