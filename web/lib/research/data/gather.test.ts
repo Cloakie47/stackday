@@ -332,3 +332,112 @@ test("Monday 12:00 UTC run: the still-forming daily and hourly bars never reach 
   assert.ok(!f.has("pat.1d.breakout"), "the unclosed spike is not a breakout");
   assert.ok(!input.chart["1d"]!.patterns.some((p) => p.asOf === "2026-11-23T00:00:00.000Z"));
 });
+
+test("cutAt: a 22:30 UTC run includes the day's closed NYSE bar and crypto hours up to 22:00; a 12:00 run does not; early close", () => {
+  const src = { name: "test" };
+  const mk = (interval: PriceSeries["interval"], bars: { t: string; o: number; h: number; l: number; c: number }[]): PriceSeries => ({ assetId: "x", interval, bars, source: src, fetchedAt: "2026-12-02T00:00:00Z" });
+  const bar = (t: string, c: number) => ({ t, o: c, h: c, l: c, c });
+  const late = new Date("2026-12-02T00:00:00Z");
+  // Crypto, Tuesday 2026-11-24: hourly bars 00:00 to 23:00 (close = the hour), daily bars for the 23rd and 24th.
+  const hours = Array.from({ length: 24 }, (_, h) => bar(`2026-11-24T${String(h).padStart(2, "0")}:00:00.000Z`, h));
+  const crypto = { "1h": mk("1h", hours), "1d": mk("1d", [bar("2026-11-23T00:00:00.000Z", 23), bar("2026-11-24T00:00:00.000Z", 24)]) };
+  const evening = cutSeries(crypto, "2026-11-24", true, new Date("2026-11-24T22:31:00Z"), "2026-11-24T22:30:00Z");
+  assert.equal(evening["1h"]!.bars.at(-1)!.t, "2026-11-24T21:00:00.000Z", "the 21:00 hour closed at 22:00 and is in");
+  assert.equal(evening["1d"]!.bars.at(-1)!.c, 23, "the UTC day of the 24th is still open at 22:30");
+  const noon = cutSeries(crypto, "2026-11-24", true, late);
+  assert.equal(noon["1h"]!.bars.at(-1)!.t, "2026-11-24T11:00:00.000Z");
+  assert.equal(noon["1d"]!.bars.at(-1)!.c, 23);
+  // Capped at the end of the run date: a cut on the next morning never takes the 24th's UTC day or later hours.
+  const nextDay = cutSeries(crypto, "2026-11-24", true, late, "2026-11-25T05:00:00Z");
+  assert.equal(nextDay["1d"]!.bars.at(-1)!.c, 23);
+  assert.equal(nextDay["1h"]!.bars.at(-1)!.t, "2026-11-24T22:00:00.000Z");
+  // A cut time that is not a time falls back to 12:00 instead of dropping every bar.
+  assert.deepEqual(cutSeries(crypto, "2026-11-24", true, late, "tonight"), noon);
+
+  // Stocks: Tuesday's NYSE session closes at 21:00 UTC (16:00 New York, winter time).
+  const stock = { "1d": mk("1d", [bar("2026-11-23T14:30:00.000Z", 1), bar("2026-11-24T14:30:00.000Z", 2)]) };
+  assert.equal(cutSeries(stock, "2026-11-24", false, late, "2026-11-24T22:30:00Z")["1d"]!.bars.at(-1)!.c, 2, "22:30 run: today's close is in");
+  assert.equal(cutSeries(stock, "2026-11-24", false, late, "2026-11-24T20:59:00Z")["1d"]!.bars.at(-1)!.c, 1, "before the close");
+  assert.equal(cutSeries(stock, "2026-11-24", false, late)["1d"]!.bars.at(-1)!.c, 1, "default 12:00 run: previous close");
+  assert.equal(cutSeries(stock, "2026-11-24", false, new Date("2026-11-24T20:00:00Z"), "2026-11-24T22:30:00Z")["1d"]!.bars.at(-1)!.c, 1, "never later than now");
+  // Early close: Friday 2026-11-27 closes at 13:00 New York, 18:00 UTC.
+  const friday = { "1d": mk("1d", [bar("2026-11-25T14:30:00.000Z", 1), bar("2026-11-27T14:30:00.000Z", 2)]) };
+  assert.equal(cutSeries(friday, "2026-11-27", false, late, "2026-11-27T18:00:00Z")["1d"]!.bars.at(-1)!.c, 2);
+  assert.equal(cutSeries(friday, "2026-11-27", false, late, "2026-11-27T17:59:00Z")["1d"]!.bars.at(-1)!.c, 1);
+  assert.equal(cutSeries(friday, "2026-11-27", false, late)["1d"]!.bars.at(-1)!.c, 1);
+});
+
+test("cutAt end to end: the daily note's entry price is today's close for on-chain stocks and the 21:00 hourly close for crypto", async () => {
+  const fx = load("onchain");
+  const date = "2026-11-24";
+  for (const id of ["mAAPL", "mNVDA"]) {
+    const run = (cutAt?: string) => gatherAsset(id, date, replayDeps(fx, {}, id), { market: EMPTY_MARKET(date), onchainBackfill: fx.backfill, ...(cutAt ? { cutAt } : {}) });
+    const evening = await run(`${date}T22:30:00Z`);
+    const noon = await run();
+    const daily = evening.series["1d"]!.bars;
+    assert.equal(daily.at(-1)!.t, `${date}T14:30:00.000Z`, `${id}: ${evening.problems.join(" | ")}`);
+    assert.equal(noon.series["1d"]!.bars.at(-1)!.t, "2026-11-23T14:30:00.000Z");
+    // The engine scores a note from the last daily close (px.1d.last = indicators 1d last).
+    assert.equal(evening.indicators["1d"]!.last, daily.at(-1)!.c);
+    assert.equal(checkFacts(evening.facts).get("px.1d.prevClose")!.value, Math.round(daily.at(-2)!.c * 100) / 100);
+    const bad = await run("after the close");
+    assert.equal(bad.series["1d"]!.bars.at(-1)!.t, "2026-11-23T14:30:00.000Z");
+    assert.ok(bad.problems.some((p) => /cut time "after the close" is not an ISO time/.test(p)));
+  }
+
+  // Crypto at 22:30 UTC: hourly bars through the 21:00 hour, daily bars through yesterday's UTC day.
+  const DAY = 86_400_000;
+  const now = new Date(`${date}T22:31:00Z`);
+  const d0 = Date.parse(`${date}T00:00:00Z`) - 399 * DAY;
+  const candle = (t: number, c: number) => [t / 1000, c - 0.5, c + 0.5, c, c, 10];
+  const dailyCandles = Array.from({ length: 400 }, (_, i) => candle(d0 + i * DAY, 100 + i * 0.1));
+  const h0 = Date.parse(`${date}T22:00:00Z`) - 299 * 3_600_000;
+  const hourlyCandles = Array.from({ length: 300 }, (_, i) => candle(h0 + i * 3_600_000, 1000 + i));
+  const deps: Partial<DataDeps> = {
+    fetch: async (url) => (url.includes("api.exchange.coinbase.com") ? { ok: true, status: 200, text: async () => JSON.stringify(url.includes("granularity=3600") ? hourlyCandles : dailyCandles) } : { ok: false, status: 404, text: async () => "" }),
+    env: {},
+    now: () => now,
+    sleep: async () => {},
+  };
+  const btc = await gatherAsset("mcbBTC", date, deps, { market: EMPTY_MARKET(date), cutAt: `${date}T22:30:00Z` });
+  assert.equal(btc.series["1h"]!.bars.at(-1)!.t, `${date}T21:00:00.000Z`);
+  assert.equal(btc.series["1d"]!.bars.at(-1)!.t, "2026-11-23T00:00:00.000Z");
+  assert.equal(checkFacts(btc.facts).get("px.last")!.value, 1000 + 298, "last price is the 21:00 hourly close");
+  const btcNoon = await gatherAsset("mcbBTC", date, deps, { market: EMPTY_MARKET(date) });
+  assert.equal(btcNoon.series["1h"]!.bars.at(-1)!.t, `${date}T11:00:00.000Z`);
+});
+
+test("deSPXA: a partial pool read that also loses the block time keeps the backfill's coverage instead of dropping the series", async () => {
+  // Fixture: the recorded mSPX answers (fixtures/onchain.json) with the first batch of 10
+  // eth_getLogs ranges answered with no swaps and every later range unrecorded (an error answer),
+  // so the tail read stops after the first batch. The block lookup for its last block is not
+  // recorded either, so the block time fails too.
+  const fx = load("onchain");
+  const bf = fx.backfill!;
+  const answers = fx.rpcByAsset!.mSPX;
+  const logKeys = Object.keys(answers).filter((k) => k.startsWith("eth_getLogs"));
+  const partial = (keepSwaps: boolean): Fixture => {
+    const rpc: NonNullable<Fixture["rpc"]> = {};
+    for (const [k, v] of Object.entries(answers)) {
+      if (!k.startsWith("eth_getLogs")) rpc[k] = v;
+      else if (logKeys.indexOf(k) < 10) rpc[k] = keepSwaps ? v : [{ result: [] }];
+    }
+    return { ...fx, rpcByAsset: { mSPX: rpc } };
+  };
+  const deps = (f: Fixture) => ({ ...replayDeps(f, {}, "mSPX"), now: () => new Date(fx.recordedAt) }) as DataDeps;
+  const bfEnd = bf.assets.mSPX.pool!.toTime * 1000;
+
+  const none = await fetchOnchainHistory("mSPX", deps(partial(false)), bf);
+  const why = none.problems.join(" | ");
+  assert.ok(none.daily && none.daily.length >= 20, `series kept: ${why}`);
+  assert.ok(none.problems.some((p) => /pool swaps after block \d+ not read/.test(p)), why);
+  assert.ok(none.problems.some((p) => /time of block \d+ not read; pool coverage ends at the backfill's end/.test(p)), why);
+  assert.ok(!none.problems.some((p) => /no on-chain daily bars/.test(p)), why);
+  assert.ok(none.daily!.every((b) => barPeriodEnd(b.t, "1d", false) <= bfEnd), "no bar after the backfill's coverage");
+
+  // With swaps in the batch that was read, coverage reaches the newest swap read, never less than the backfill.
+  const some = await fetchOnchainHistory("mSPX", deps(partial(true)), bf);
+  assert.ok(some.problems.some((p) => /time of block \d+ not read; pool coverage ends at the last swap read/.test(p)), some.problems.join(" | "));
+  assert.ok(some.daily!.length >= none.daily!.length);
+  assert.ok(some.daily!.at(-1)!.t >= none.daily!.at(-1)!.t);
+});
