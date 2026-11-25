@@ -4,7 +4,13 @@
  * wallet, no transactions, no keys.
  *
  *   cd web
- *   node lib/research/data/build-onchain-backfill.ts            # all three assets
+ *   node lib/research/data/build-onchain-backfill.ts            # all three assets, from scratch
+ *   node lib/research/data/build-onchain-backfill.ts --extend   # keep the file, add what came after it
+ *
+ * Prefer --extend: it keeps every round and hour already in the file and reads only from each
+ * pool's toBlock + 1 and each feed's next round to now (`extendBackfillAsset`), so coverage never
+ * shrinks. A run from scratch starts at the oldest block the RPC serves (about 25 days on
+ * PublicNode), which would cut the deSPXA pool history short.
  *
  * RESEARCH_BASE_RPC_URL picks the RPC (default: PublicNode, see onchain.ts). PublicNode keeps about
  * 11 million blocks of logs and state (archive reads need a token), so pool history older than that
@@ -19,7 +25,7 @@
  * It also prints the measurements the design rests on: rounds per phase and per NYSE session,
  * swaps per day, response sizes and times.
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultDeps } from "./deps.ts";
@@ -35,6 +41,7 @@ import {
   decodeRound,
   decodeSwap,
   ethCall,
+  extendBackfillAsset,
   feedBars,
   hexBlock,
   hexResult,
@@ -95,16 +102,18 @@ async function oldestReadable(head: number): Promise<number> {
   return ok + 200_000; // the window moves while we scan
 }
 
-async function readRounds(feed: string, decimals: number, head: number): Promise<{ rounds: Round[]; lastRound: Record<string, number>; perPhase: string[] }> {
+/** Every round of every phase, or with `after` only the rounds after the last one already held per phase. */
+async function readRounds(feed: string, decimals: number, head: number, after: Record<string, number> = {}): Promise<{ rounds: Round[]; lastRound: Record<string, number>; perPhase: string[] }> {
   const B = hexBlock(head);
   const phase = Number(word(hexResult((await rpc.batch([ethCall(feed, SELECTORS.phaseId, B)]))[0], "phaseId"), 0));
   const rounds: Round[] = [];
   const lastRound: Record<string, number> = {};
   const perPhase: string[] = [];
-  for (let p = 1; p <= phase; p++) {
+  const firstPhase = Math.max(1, ...Object.keys(after).map(Number));
+  for (let p = firstPhase; p <= phase; p++) {
     const agg = wordAddress(String(await rpc.call("eth_call", [{ to: feed, data: SELECTORS.phaseAggregators + u256(p) }, B])));
     const last = Number(word(String(await rpc.call("eth_call", [{ to: agg, data: SELECTORS.latestRound }, B])), 0));
-    for (let r = 1; r <= last; r += 200) {
+    for (let r = (after[String(p)] ?? 0) + 1; r <= last; r += 200) {
       const ids = Array.from({ length: Math.min(200, last - r + 1) }, (_, k) => r + k);
       const ans = await withRetry(() => rpc.batch(ids.map((id) => ethCall(feed, SELECTORS.getRoundData + u256(proxyRoundId(p, id)), B))), "rounds");
       ans.forEach((a, k) => {
@@ -118,7 +127,7 @@ async function readRounds(feed: string, decimals: number, head: number): Promise
     }
     lastRound[String(p)] = last;
     const mine = rounds.filter((x) => x.phase === p);
-    perPhase.push(`phase ${p}: aggregator ${agg}, rounds 1 to ${last}, ${new Date(mine[0].updatedAt * 1000).toISOString()} to ${new Date(mine[mine.length - 1].updatedAt * 1000).toISOString()}`);
+    perPhase.push(`phase ${p}: aggregator ${agg}, rounds ${(after[String(p)] ?? 0) + 1} to ${last}${mine.length ? `, ${new Date(mine[0].updatedAt * 1000).toISOString()} to ${new Date(mine[mine.length - 1].updatedAt * 1000).toISOString()}` : ", nothing new"}`);
   }
   return { rounds, lastRound, perPhase };
 }
@@ -155,6 +164,43 @@ async function readSwaps(pool: string, decimals: number, from: number, to: numbe
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
   return { swaps, requests, bytes };
+}
+
+const backfillPath = () => join(dirname(fileURLToPath(import.meta.url)), "onchain-backfill.json");
+
+/** --extend: keep the checked-in file and add the rounds and swaps that came after it. */
+async function extend(): Promise<void> {
+  const chain = Number(BigInt(String(await rpc.call("eth_chainId", []))));
+  if (chain !== BASE_CHAIN_ID) throw new Error(`not Base: chain ${chain}`);
+  const file = JSON.parse(readFileSync(backfillPath(), "utf8")) as Backfill;
+  const head = Number(BigInt(String(await rpc.call("eth_blockNumber", []))));
+  const headTime = await blockTime(head);
+  const t0 = Date.now();
+  const before = JSON.stringify(file).length;
+  for (const cfg of Object.values(ONCHAIN_ASSETS)) {
+    const old = file.assets[cfg.assetId] ?? {};
+    const add: Parameters<typeof extendBackfillAsset>[1] = {};
+    if (cfg.feed) {
+      const { rounds, lastRound, perPhase } = await readRounds(cfg.feed.address, cfg.feed.decimals, head, old.feed?.lastRound ?? {});
+      add.rounds = rounds;
+      add.lastRound = lastRound;
+      console.log(`${cfg.assetId} feed: ${rounds.length} new rounds`);
+      for (const p of perPhase) console.log(`  ${p}`);
+    }
+    if (old.pool && head > old.pool.toBlock) {
+      const t = Date.now();
+      const { swaps, requests, bytes } = await readSwaps(cfg.pool.address, cfg.token.decimals, old.pool.toBlock + 1, head);
+      add.pool = { toBlock: head, toTime: headTime, swaps };
+      console.log(`${cfg.assetId} pool: ${swaps.length} new swaps in blocks ${old.pool.toBlock + 1} to ${head}, ${requests} requests, ${(bytes / 1e6).toFixed(1)} MB, ${((Date.now() - t) / 1000).toFixed(0)} s`);
+    }
+    const next = extendBackfillAsset(old, add);
+    if ((next.pool?.toBlock ?? 0) < (old.pool?.toBlock ?? 0) || (next.pool?.hours.length ?? 0) < (old.pool?.hours.length ?? 0)) throw new Error(`${cfg.assetId}: extending would shrink coverage`);
+    file.assets[cfg.assetId] = next;
+  }
+  file.generatedAt = new Date(headTime * 1000).toISOString();
+  file.note = file.note.replace(/ Extended by --extend .*$/, "") + ` Extended by --extend on ${new Date().toISOString().slice(0, 10)} to block ${head}.`;
+  writeFileSync(backfillPath(), `${JSON.stringify(file)}\n`);
+  console.log(`extended ${backfillPath()}: ${(before / 1024).toFixed(0)} KB -> ${(JSON.stringify(file).length / 1024).toFixed(0)} KB, ${rpc.requests} requests, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 }
 
 async function main(): Promise<void> {
@@ -208,9 +254,9 @@ async function main(): Promise<void> {
     generatedAt: new Date(headTime * 1000).toISOString(),
     assets,
   };
-  const out = join(dirname(fileURLToPath(import.meta.url)), "onchain-backfill.json");
+  const out = backfillPath();
   writeFileSync(out, `${JSON.stringify(file)}\n`);
   console.log(`wrote ${out}: ${(JSON.stringify(file).length / 1024).toFixed(0)} KB, ${rpc.requests} requests, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) await main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) await (process.argv.includes("--extend") ? extend() : main());

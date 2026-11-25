@@ -6,6 +6,9 @@
  * touches the network.
  */
 
+import type { OnchainTailState, OnchainTailStore } from "./onchain.ts";
+export type { OnchainTailState, OnchainTailStore };
+
 /**
  * GET by default. `method: "POST"` with a `body` is used for JSON-RPC (onchain.ts). `timeoutMs`
  * overrides the default timeout for one request.
@@ -31,6 +34,12 @@ export type DataDeps = {
    * fetched again for every asset. `gatherAll` creates one per run.
    */
   cache?: Map<string, Promise<string>>;
+  /**
+   * Optional store for the on-chain tail (onchain.ts): what the run read after the checked-in
+   * backfill is loaded before and saved after each read, so the next run reads only what is new.
+   * Without it the read starts from the backfill every time.
+   */
+  onchainTail?: OnchainTailStore;
 };
 
 export function assertServer(): void {

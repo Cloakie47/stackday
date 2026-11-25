@@ -26,6 +26,11 @@ import {
   type Round,
   type Swap,
 } from "./onchain.ts";
+import { applyTailState, extendBackfillAsset, isTailState, tailRegresses, type BackfillAsset, type OnchainTailState, type OnchainTailStore } from "./onchain.ts";
+import { rpcKey, type Fixture } from "./record-fixtures.ts";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { DataDeps } from "./deps.ts";
 
 const w = (x: bigint | number) => BigInt(x).toString(16).padStart(64, "0");
@@ -209,4 +214,181 @@ test("contract checks: a wrong chain or a feed that says something else stops th
   assert.match(wrongFeed.problems.join(" | "), /says "Coinbase TSLA"/);
   assert.equal(wrongFeed.current, undefined);
   assert.equal(wrongFeed.daily, undefined);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Builder --extend and the persisted tail
+// ---------------------------------------------------------------------------------------------
+
+const sw2 = (iso: string, price: number, usdc: number, block: number): Swap => ({ block, logIndex: 0, time: at(iso), price, usdc });
+
+test("builder --extend keeps every round and hour, merges the partial last hour, never shrinks", () => {
+  const first = bucketSwaps([sw2("2026-11-24T14:10:00Z", 700, 100, 10), sw2("2026-11-24T15:20:00Z", 702, 100, 20)]).hours;
+  const existing: BackfillAsset = {
+    feed: { address: "0xfeed", rounds: [[2, 1, at("2026-11-24T14:00:00Z"), 100], [2, 2, at("2026-11-24T15:00:00Z"), 101]], lastRound: { "2": 2 } },
+    pool: { address: "0xpool", fromBlock: 1, toBlock: 20, fromTime: at("2026-11-24T14:00:00Z"), toTime: at("2026-11-24T15:30:00Z"), swaps: 2, spikes: 0, hours: first.map((h) => hourToRow(h)) },
+  };
+  const next = extendBackfillAsset(existing, {
+    rounds: [{ phase: 2, round: 2, updatedAt: at("2026-11-24T15:00:00Z"), answer: 101 }, { phase: 2, round: 3, updatedAt: at("2026-11-24T16:00:00Z"), answer: 103 }],
+    lastRound: { "2": 3 },
+    pool: { toBlock: 40, toTime: at("2026-11-24T16:40:00Z"), swaps: [sw2("2026-11-24T15:50:00Z", 704, 300, 30), sw2("2026-11-24T16:30:00Z", 706, 100, 40)] },
+  });
+  assert.deepEqual(next.feed!.rounds.map((r) => r[1]), [1, 2, 3], "round 2 is not added twice");
+  assert.equal(next.feed!.lastRound["2"], 3);
+  assert.equal(next.pool!.toBlock, 40);
+  assert.equal(next.pool!.fromBlock, 1, "the start is kept");
+  assert.equal(next.pool!.swaps, 4);
+  const h15 = rowToHour(next.pool!.hours.find((r) => r[0] === at("2026-11-24T15:00:00Z"))!);
+  assert.equal(h15.n, 2, "the partial 15:00 hour in the file and the new swap in it are one hour");
+  assert.equal(h15.o, 702);
+  assert.equal(h15.c, 704);
+  assert.equal(next.pool!.hours.length, 3);
+  // An addition that ends before the file does nothing to the pool.
+  const same = extendBackfillAsset(existing, { pool: { toBlock: 15, toTime: at("2026-11-24T15:00:00Z"), swaps: [sw2("2026-11-24T14:50:00Z", 1, 1, 15)] } });
+  assert.deepEqual(same.pool, existing.pool);
+});
+
+test("tail state: joins the backfill at the hour of its last block, ignores an older state, uses a gapped one alone", () => {
+  const row = (iso: string, n: number) => hourToRow({ t: at(iso), n, vol: n, pn: n, pvw: n, vwap: 1, o: 1, h: 1, l: 1, c: 1 });
+  const base: BackfillAsset = { pool: { address: "0xpool", fromBlock: 1, toBlock: 100, fromTime: at("2026-11-24T10:00:00Z"), toTime: at("2026-11-24T12:30:00Z"), swaps: 6, spikes: 0, hours: [row("2026-11-24T11:00:00Z", 2), row("2026-11-24T12:00:00Z", 1)] } };
+  const state: OnchainTailState = { version: 1, assetId: "mSPX", updatedAt: "2026-11-25T00:00:00.000Z", pool: { fromBlock: 101, fromTime: at("2026-11-24T12:00:00Z"), toBlock: 300, toTime: at("2026-11-24T15:10:00Z"), hours: [row("2026-11-24T12:00:00Z", 3), row("2026-11-24T14:00:00Z", 4)] } };
+  const joined = applyTailState(base, state, "0xpool");
+  assert.equal(joined.note, undefined);
+  assert.deepEqual(joined.asset.pool!.hours.map((r) => [r[0], r[1]]), [[at("2026-11-24T11:00:00Z"), 2], [at("2026-11-24T12:00:00Z"), 3], [at("2026-11-24T14:00:00Z"), 4]], "the complete 12:00 hour of the state replaces the partial one of the backfill");
+  assert.equal(joined.asset.pool!.toBlock, 300);
+  assert.equal(joined.asset.pool!.fromTime, base.pool!.fromTime, "history from the backfill is kept");
+  // The checked-in file was regenerated past the state: the file wins.
+  assert.equal(applyTailState({ pool: { ...base.pool!, toBlock: 400 } }, state, "0xpool").asset.pool!.toBlock, 400);
+  // A state that starts after the last hour of the backfill (a gap) is used alone, with a note.
+  const gapped = applyTailState(base, { ...state, pool: { ...state.pool!, fromTime: at("2026-11-24T14:00:00Z") } }, "0xpool");
+  assert.match(gapped.note!, /after the checked-in backfill ends/);
+  assert.equal(gapped.asset.pool!.fromTime, at("2026-11-24T14:00:00Z"));
+  // Shape check and the coverage rule.
+  assert.equal(isTailState(state, "mSPX"), true);
+  assert.equal(isTailState({ ...state, version: 2 }, "mSPX"), false);
+  assert.equal(isTailState(state, "mAAPL"), false, "the state of another asset is not used");
+  assert.equal(tailRegresses(state, { ...state, pool: { ...state.pool!, toBlock: 250 } }, base), true);
+  assert.equal(tailRegresses({ ...state, lastRound: { "2": 9 } }, { ...state, lastRound: { "2": 8 } }, base), true);
+  assert.equal(tailRegresses(state, { ...state, pool: undefined }, { pool: { ...base.pool!, toBlock: 400 } }), false, "the file now covers further: dropping the state is not a step back");
+});
+
+const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const onchainFx = JSON.parse(readFileSync(join(fixtureDir, "onchain.json"), "utf8")) as Fixture;
+
+/** Replays the recorded Base answers of one asset. `refuse` turns a call into an error answer; every call is logged. */
+function replay(asset: string, opts: { refuse?: (method: string, params: unknown[]) => boolean; log?: { method: string; params: unknown[] }[]; store?: OnchainTailStore } = {}): DataDeps {
+  const rpc = onchainFx.rpcByAsset![asset];
+  const used = new Map<string, number>();
+  return {
+    fetch: async (_url, init) => {
+      const reqs = JSON.parse(init?.body ?? "[]") as { id: number; method: string; params: unknown[] }[];
+      const body = reqs.map((q) => {
+        opts.log?.push({ method: q.method, params: q.params });
+        const key = rpcKey(q.method, q.params);
+        const list = rpc[key];
+        if (opts.refuse?.(q.method, q.params) || !list?.length) return { jsonrpc: "2.0", id: q.id, error: { code: -32000, message: "not recorded" } };
+        const i = used.get(key) ?? 0;
+        used.set(key, i + 1);
+        return { jsonrpc: "2.0", id: q.id, ...list[Math.min(i, list.length - 1)] };
+      });
+      return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+    },
+    env: {},
+    now: () => new Date(onchainFx.recordedAt),
+    sleep: async () => {},
+    ...(opts.store ? { onchainTail: opts.store } : {}),
+  };
+}
+
+function memoryStore(): OnchainTailStore & { data: Map<string, OnchainTailState> } {
+  const data = new Map<string, OnchainTailState>();
+  return {
+    data,
+    async load(id: string) {
+      const v = data.get(id);
+      return v ? (JSON.parse(JSON.stringify(v)) as OnchainTailState) : null;
+    },
+    async save(id: string, state: OnchainTailState) {
+      data.set(id, JSON.parse(JSON.stringify(state)) as OnchainTailState);
+    },
+  };
+}
+
+const barKey = (bars: { t: string; o: number; c: number; v?: number }[] | undefined) => (bars ?? []).map((b) => `${b.t} ${b.o.toFixed(4)} ${b.c.toFixed(4)} ${b.v?.toFixed(0) ?? "-"}`);
+const priceKey = (bars: { t: string; o: number; c: number }[] | undefined) => (bars ?? []).map((b) => `${b.t} ${b.o.toFixed(4)} ${b.c.toFixed(4)}`);
+
+test("tail store: a run saves what it read, the next run reads nothing older and builds the same bars", async () => {
+  const bf = onchainFx.backfill!;
+  const store = memoryStore();
+  for (const id of ["mAAPL", "mNVDA", "mSPX"]) {
+    const alone = await fetchOnchainHistory(id, replay(id), bf);
+    const first = await fetchOnchainHistory(id, replay(id, { store }), bf);
+    assert.ok(first.daily?.length, `${id}: ${first.problems.join(" | ")}`);
+    const saved = store.data.get(id)!;
+    assert.ok(isTailState(saved, id), `${id} saved a valid state`);
+    assert.ok(JSON.stringify(saved).length < 200_000, "the state stays small");
+    assert.deepEqual(priceKey(first.daily), priceKey(alone.daily), `${id}: same prices as without a store`);
+    if (id === "mSPX") {
+      assert.deepEqual(barKey(first.daily), barKey(alone.daily), "same volume too");
+      assert.ok(saved.pool!.toBlock > bf.assets.mSPX.pool!.toBlock && saved.pool!.hours.length > 0);
+      assert.equal(saved.pool!.fromTime, Math.floor(bf.assets.mSPX.pool!.toTime / 3600) * 3600);
+    } else {
+      assert.ok(saved.rounds!.length > 0 && saved.lastRound!["2"] > bf.assets[id].feed!.lastRound["2"], `${id}: new rounds saved`);
+    }
+    // Second run with the state: no round or log range older than the state is asked for again.
+    const log: { method: string; params: unknown[] }[] = [];
+    const second = await fetchOnchainHistory(id, replay(id, { store, log }), bf);
+    assert.deepEqual(barKey(second.daily), barKey(first.daily), `${id}: same bars from the stored tail`);
+    const starts = log.filter((q) => q.method === "eth_getLogs").map((q) => Number(BigInt((q.params[0] as { fromBlock: string }).fromBlock)));
+    if (saved.pool) for (const b of starts) assert.ok(b > saved.pool.toBlock, `${id}: log read starts after the stored tail (${b})`);
+    const roundCalls = log.filter((q) => q.method === "eth_call" && String((q.params[0] as { data: string }).data).startsWith("0x9a6fc8f5"));
+    assert.equal(roundCalls.length, 0, `${id}: no round is read twice`);
+  }
+});
+
+test("tail store: a stale backfill plus a stored state reads only the gap after the state", async () => {
+  const bf = onchainFx.backfill!;
+  const store = memoryStore();
+  // Run 1 is cut after the first batch of log ranges: the state ends part of the way.
+  let ranges = 0;
+  const cut = replay("mSPX", { store, refuse: (m) => m === "eth_getLogs" && ++ranges > 10 });
+  const part = await fetchOnchainHistory("mSPX", cut, bf);
+  assert.ok(part.problems.some((p) => /the next run continues from there/.test(p)), part.problems.join(" | "));
+  const mid = store.data.get("mSPX")!.pool!.toBlock;
+  assert.ok(mid > bf.assets.mSPX.pool!.toBlock, "progress was saved");
+  // Run 2 reads only from the stored end and ends with the same bars as one full read.
+  const log: { method: string; params: unknown[] }[] = [];
+  const rest = await fetchOnchainHistory("mSPX", replay("mSPX", { store, log }), bf);
+  const full = await fetchOnchainHistory("mSPX", replay("mSPX"), bf);
+  const starts = log.filter((q) => q.method === "eth_getLogs").map((q) => Number(BigInt((q.params[0] as { fromBlock: string }).fromBlock)));
+  assert.equal(Math.min(...starts), mid + 1, "the read starts right after the stored tail");
+  assert.deepEqual(barKey(rest.daily), barKey(full.daily));
+  assert.ok(store.data.get("mSPX")!.pool!.toBlock >= mid, "coverage never moves backwards");
+});
+
+test("tail store failures never break the read: a failing load or save is a problem line and bars still come", async () => {
+  const bf = onchainFx.backfill!;
+  const broken: OnchainTailStore = {
+    load: async () => {
+      throw new Error("database down");
+    },
+    save: async () => {
+      throw new Error("database down");
+    },
+  };
+  const h = await fetchOnchainHistory("mSPX", replay("mSPX", { store: broken }), bf);
+  assert.ok(h.daily?.length);
+  assert.ok(h.problems.some((p) => /stored on-chain tail could not be loaded \(database down\)/.test(p)));
+  assert.ok(h.problems.some((p) => /on-chain tail could not be saved \(database down\)/.test(p)));
+  // A stored value of the wrong shape is ignored, not trusted.
+  const odd: OnchainTailStore = { load: async () => ({ version: 7 }) as unknown as OnchainTailState, save: async () => {} };
+  const h2 = await fetchOnchainHistory("mSPX", replay("mSPX", { store: odd }), bf);
+  assert.ok(h2.daily?.length && h2.problems.some((p) => /unexpected shape, ignored/.test(p)));
+  // A stored state ahead of this read (another run got further) is never overwritten by a smaller one.
+  const ahead = memoryStore();
+  await fetchOnchainHistory("mSPX", replay("mSPX", { store: ahead }), bf);
+  const far = { ...ahead.data.get("mSPX")!, pool: { ...ahead.data.get("mSPX")!.pool!, toBlock: 99_999_999 } };
+  ahead.data.set("mSPX", far);
+  await fetchOnchainHistory("mSPX", replay("mSPX", { store: ahead }), bf);
+  assert.equal(ahead.data.get("mSPX")!.pool!.toBlock, 99_999_999);
 });
