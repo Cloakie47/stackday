@@ -20,7 +20,7 @@ import type {
 import { CHART_INTERVALS, RESEARCH_DISCLAIMER } from "../types.ts";
 import type { UniverseAsset } from "../universe.ts";
 import { defaultAlert, type AlertFn } from "./alert.ts";
-import { costBudget, CostAbort, guardedCall, settleAll, type Budget } from "./budget.ts";
+import { callErrors, costBudget, CostAbort, guardedCall, settleAll, type Budget } from "./budget.ts";
 import { assetNumbers, defaultAssets, MAX_NO_READINGS, newRunId, readSpend, RUN_TIME_LIMIT_MS, type GatherFn, type RunOutcome } from "./daily.ts";
 import {
   calendarFacts,
@@ -603,6 +603,7 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
     const where = next ? `${phase} ${next.assetId}` : phase;
     if (status === "aborted-cost") await alert(`weekly run ${runId} (${where}) stopped by the cost guard: ${problems[0] ?? ""}`);
     const counts = { ...o.counts, calls: budget?.calls.length ?? 0 };
+    problems = [...problems, ...callErrors(budget?.calls ?? [])];
     const dataHash = o.inputs ? hashInputs(o.inputs) : null;
     const detail = [`${status}: ${where}, ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ")}`, ...problems].join("\n");
     // A skip that spent (another run wrote the report first) is logged as failed, one that spent
