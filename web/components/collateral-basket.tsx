@@ -25,8 +25,8 @@ import {
   splitColor,
 } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
-import { factoryAbi, vaultAbi } from "@/lib/abis";
-import { apyPpm, splitBorrow, splitRepay, summarize, yearly, type Leg } from "@/lib/basket";
+import { HIGH_CAP_BPS, LEVELS, borrowCalls, createVaultCall, legOf, lockCalls, repayApprovalAmount, repayCalls, type Level } from "@/lib/actions";
+import { apyPpm, splitBorrow, splitRepay, summarize, yearly } from "@/lib/basket";
 import { MAX_UINT, ADDR, BORROW_FEE_BPS, feeLabel } from "@/lib/contracts";
 import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtUsdc, parseUsdc, usdcInput } from "@/lib/format";
 import type { Portfolio, Position } from "@/lib/usePortfolio";
@@ -72,24 +72,15 @@ export type Tab = "lock" | "borrow" | "repay";
  * at 65%, below the broker line. The vault default cap is 50% (Mid); High raises it to 65% only when
  * the amount needs it. The contract allows up to 85% for someone who types their own setting.
  */
-const LEVELS = [
-  { key: "low", label: "Low risk", pct: 30n, tone: "text-grow" },
-  { key: "mid", label: "Mid risk", pct: 50n, tone: "text-warn" },
-  { key: "high", label: "High risk", pct: 65n, tone: "text-danger" },
-] as const;
-type Level = (typeof LEVELS)[number]["key"];
-const HIGH_CAP_BPS = 6500n;
+// LEVELS and HIGH_CAP_BPS live in lib/actions.ts, shared with the chat assistant.
 const WAD = 10n ** 18n;
 /** Price fall a loan survives, in whole percent, from its health (WAD). */
 const dropOf = (health: bigint | undefined) => (health === undefined || health === 0n ? 100 : Math.max(0, 100 - Number((100n * WAD) / health)));
 
 const toNum = (v: bigint | undefined) => (v === undefined ? undefined : Number(v / 10n ** 14n) / 10_000);
 
-/** One market of the basket, as the basket maths sees it. Exported so Portfolio shows the same numbers. */
-export function legOf(pos: Position, extraValue = 0n, extraDebt = 0n): Leg {
-  const value = pos.price ? assetValue(pos.collateral, pos.price, pos.asset.decimals) : 0n;
-  return { value: value + extraValue, lltv: pos.asset.lltv, debt: pos.debt + extraDebt, liquidity: pos.liquidity };
-}
+/** One market of the basket, as the basket maths sees it (lib/actions.ts). Re-exported so Portfolio shows the same numbers. */
+export { legOf };
 
 /** What a collateral row offers: its status, or a way to lock more. Says where the tokens come from. */
 function UseAction({ x, free, onAdd }: { x: Position; free: bigint; onAdd: () => void }) {
@@ -226,19 +217,15 @@ export function CollateralBasket({
     const vault = p.vault ?? p.predictedVault;
     if (!vault || !me) return;
     const calls: Call[] = [];
-    if (!p.vault) calls.push({ label: "Create your vault", address: ADDR.factory, abi: factoryAbi, functionName: "createVault", args: [me] });
+    if (!p.vault) calls.push(createVaultCall(me));
     for (const l of lockPlan) {
       if (l.amount === 0n) continue;
       const a = l.pos.asset;
       const fromIdle = l.amount < l.pos.idle ? l.amount : l.pos.idle;
       const fromWallet = l.amount - fromIdle;
-      if (fromWallet > 0n) {
-        calls.push(...(await tx.withApproval(a.token, vault, fromWallet, `Allow your vault to take your ${a.name}`)));
-        calls.push({ label: `Move ${a.name} from your wallet into your vault`, address: vault, abi: vaultAbi, functionName: "depositStock", args: [a.token, fromWallet] });
-      }
+      const approval = fromWallet > 0n ? await tx.withApproval(a.token, vault, fromWallet, `Allow your vault to take your ${a.name}`) : [];
       // Deposits never lock themselves (issue #29), so lock everything chosen here.
-      const toLock = fromIdle + fromWallet;
-      if (toLock > 0n) calls.push({ label: `Lock ${a.name} as collateral`, address: vault, abi: vaultAbi, functionName: "addCollateral", args: [a.token, toLock] });
+      calls.push(...lockCalls(vault, a, fromIdle, fromWallet, approval));
     }
     const lockLabel = `Lock $${fmtUsdc(lockTotal)} as collateral`;
     if (await tx.run(vaultBatch(vault, calls, lockLabel), `Locked $${fmtUsdc(lockTotal)} as collateral.`)) setLockUsd({});
@@ -246,12 +233,7 @@ export function CollateralBasket({
 
   async function doBorrow() {
     if (!vault || !me || !borrowSplit) return;
-    const calls: Call[] = positions
-      .map((x, i) => ({ x, amt: borrowSplit[i] }))
-      .filter(({ amt }) => amt > 0n)
-      .map(({ x, amt }) => ({ label: `Borrow $${fmtUsdc(amt)} against your ${x.asset.name}`, address: vault, abi: vaultAbi, functionName: "borrow", args: [x.asset.token, 0n, amt, me] }));
-    // Owner-only setting of the person's own vault, within the contract's 85% maximum.
-    if (raiseCap) calls.unshift({ label: "Raise your vault's safety cap to 65%", address: vault, abi: vaultAbi, functionName: "setBorrowCapBps", args: [Number(HIGH_CAP_BPS)] });
+    const calls: Call[] = borrowCalls(vault, positions.map((x, i) => ({ asset: x.asset, usdc: borrowSplit[i] })), me, raiseCap);
     if (await tx.run(vaultBatch(vault, calls, "Borrow across your locked assets"), "Borrowed. The USDC is in your wallet.")) {
       setBorrowAmt("");
       setLevel(null);
@@ -264,13 +246,10 @@ export function CollateralBasket({
     // builds up until the transaction lands.
     const amounts = all ? positions.map((x) => x.debt + x.fee) : repaySplit;
     const total = amounts.reduce((a, b) => a + b, 0n);
-    const approve = all ? total + total / 100n + 1000n : total;
+    const approve = repayApprovalAmount(total, all);
     const calls: Call[] = [
       ...(await tx.withApproval(ADDR.usdc, vault, approve, "Allow your vault to take the USDC")),
-      ...positions
-        .map((x, i) => ({ x, amt: amounts[i] }))
-        .filter(({ amt }) => amt > 0n)
-        .map(({ x, amt }) => ({ label: `Repay the ${x.asset.name} part`, address: vault, abi: vaultAbi, functionName: "repay", args: [x.asset.token, all ? MAX_UINT : amt] })),
+      ...repayCalls(vault, positions.map((x, i) => ({ asset: x.asset, usdc: amounts[i] })), all),
     ];
     if (await tx.run(vaultBatch(vault, calls, all ? "Repay every loan" : "Repay your loans"), all ? "Loan fully repaid." : "Repayment made.")) setRepayAmt("");
   }

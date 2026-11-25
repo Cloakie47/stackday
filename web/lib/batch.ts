@@ -1,7 +1,7 @@
 import { encodeFunctionData, type Abi } from "viem";
-import { vaultAbi } from "./abis";
-import type { Address } from "./contracts";
-import type { Call } from "./useTx";
+import { vaultAbi } from "./abis.ts";
+import type { Address } from "./contracts.ts";
+import type { Call } from "./useTx.ts";
 
 /**
  * Folds every call to the vault into one `multicall` transaction, so locking four assets or
