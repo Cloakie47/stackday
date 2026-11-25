@@ -34,6 +34,7 @@ test("received and sent are split by wallet, case-insensitively, newest first", 
 
 test("expiry reads in days, hours or minutes", () => {
   assert.equal(expiresIn(0 + 7 * 86_400, 0), "in 7 days");
+  assert.equal(expiresIn(7 * 86_400 - 60, 0), "in 7 days", "a box sent a minute ago still reads 7 days");
   assert.equal(expiresIn(5 * 3_600, 0), "in 5 hours");
   assert.equal(expiresIn(90, 0), "in 1 minute");
   assert.equal(expiresIn(600, 0), "in 10 minutes");

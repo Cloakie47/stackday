@@ -152,8 +152,10 @@ export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; fr
     if (await tx.run([buildDeclineCall(GIFT_BOX, gift.id)], "Declined. The USDC went back to the sender.")) setDeclined(true);
   }
 
+  // Close the dialog and tell the page at once, so the next gift always gets a fresh sheet.
   function close() {
     ref.current?.close();
+    onClose();
   }
 
   const reason = error ?? tx.state.error;
@@ -173,10 +175,10 @@ export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; fr
       ref={ref}
       className="gift-sheet"
       aria-labelledby="gift-sheet-title"
-      onClose={onClose}
       onCancel={(e) => {
         // Escape never closes the sheet while the wallet or the transaction is still running.
-        if (busy) e.preventDefault();
+        e.preventDefault();
+        if (!busy) close();
       }}
     >
       <div className="flex min-h-full flex-col sm:min-h-0">
@@ -189,7 +191,7 @@ export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; fr
           </Button>
         </div>
 
-        <div className="gift-stage flex-1 overflow-y-auto px-5 pb-4 pt-2" data-phase={phase}>
+        <div className="gift-stage flex-1 overflow-y-auto overflow-x-hidden px-5 pb-4 pt-2" data-phase={phase}>
           <div className="pt-6">
             <GiftBoxArt />
           </div>
@@ -217,7 +219,10 @@ export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; fr
                     </p>
                   </>
                 ) : (
-                  <Notice tone="warn">{pick.reason ?? "There is no approved research to pick from yet."} You can open it once there is, or decline it.</Notice>
+                  <Notice tone="warn">
+                    {pick.reason ?? "There is no approved research to pick from yet."} This box opens once an approved weekly report is available. You can
+                    also decline it.
+                  </Notice>
                 )
               ) : peek ? (
                 <>

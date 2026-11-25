@@ -72,8 +72,8 @@ export const openable = (received: ChainGift[], nowSeconds: number) => received.
 export function expiresIn(expiresAt: number, nowSeconds: number): string {
   const s = expiresAt - nowSeconds;
   if (s <= 0) return "expired";
-  if (s >= 2 * 86_400) return `in ${Math.floor(s / 86_400)} days`;
-  if (s >= 2 * 3_600) return `in ${Math.floor(s / 3_600)} hours`;
+  if (s >= 2 * 86_400) return `in ${Math.round(s / 86_400)} days`;
+  if (s >= 2 * 3_600) return `in ${Math.round(s / 3_600)} hours`;
   const m = Math.max(1, Math.floor(s / 60));
   return `in ${m} minute${m === 1 ? "" : "s"}`;
 }

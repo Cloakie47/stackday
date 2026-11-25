@@ -217,6 +217,7 @@ export default function GiftsPage() {
 
       {opening && (
         <OpenGiftSheet
+          key={opening.id.toString()}
           gift={opening}
           from={names.display(opening.sender)}
           message={gifts.messages[opening.id.toString()]}

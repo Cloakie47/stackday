@@ -721,8 +721,7 @@ dialog.sheet::backdrop {
   bottom: 0;
   width: 16px;
   transform: translateX(-50%);
-  background: var(--surface);
-  opacity: 0.9;
+  background: var(--warn-dot);
 }
 .gift-bow {
   position: absolute;
@@ -739,9 +738,8 @@ dialog.sheet::backdrop {
   top: 2px;
   width: 20px;
   height: 18px;
-  border: 4px solid var(--surface);
+  border: 4px solid var(--warn-dot);
   border-radius: 50% 50% 0 50%;
-  opacity: 0.95;
 }
 .gift-bow::before {
   left: 0;
@@ -922,7 +920,8 @@ dialog.gift-sheet::backdrop {
   dialog.gift-sheet {
     margin: auto;
     width: 28rem;
-    height: auto;
+    /* fit-content, not auto: a modal dialog is fixed with both insets set, so auto would stretch it. */
+    height: fit-content;
     max-height: 90dvh;
     border-radius: 20px;
     box-shadow: var(--shadow-lg);

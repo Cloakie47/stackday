@@ -369,12 +369,17 @@ export function SendGift({ me, walletUsdc, onSent }: { me?: Address; walletUsdc:
         />
 
         <div>
-          <Segmented<BoxType>
-            label="Box"
-            value={type}
-            onChange={pickType}
-            options={(["one", "mix", "surprise", "research"] as BoxType[]).map((t) => ({ value: t, label: BOX_LABEL[t] }))}
-          />
+          {/* Chips in a 2 by 2 grid on phones, so the four labels never get cut off. */}
+          <span className="text-[13px] text-ink-soft" id="gift-box-type">
+            Box
+          </span>
+          <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-labelledby="gift-box-type">
+            {(["one", "mix", "surprise", "research"] as BoxType[]).map((t) => (
+              <Chip key={t} active={type === t} onClick={() => pickType(t)}>
+                <span className="w-full text-center">{BOX_LABEL[t]}</span>
+              </Chip>
+            ))}
+          </div>
           <div className="mt-3">
             {type === "one" && <AssetSelect label="Stock" assets={ASSETS} value={single} onChange={setSingle} />}
             {type === "mix" && <MixPicker ratios={ratios} onChange={setRatios} />}
@@ -427,7 +432,7 @@ export function SendGift({ me, walletUsdc, onSent }: { me?: Address; walletUsdc:
             value={message}
             disabled={!session.configured}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={session.configured ? "Happy birthday!" : "Messages need the account database, which is not connected here."}
+            placeholder={session.configured ? "Happy birthday!" : "Needs the account database (not connected here)"}
             className={cx("mt-1.5 w-full resize-none rounded-xl border border-line bg-popover px-3.5 py-2.5 text-ink outline-none placeholder:text-faint disabled:opacity-60", INPUT_TEXT)}
           />
           <div className="mt-1 flex justify-between text-xs text-muted">
