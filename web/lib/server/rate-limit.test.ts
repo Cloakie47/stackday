@@ -97,3 +97,29 @@ test("if the counter is down, requests go through and the error is reported", as
   assert.equal(d.limited, false);
   assert.match(reported, /db down/);
 });
+
+test("chat is limited per wallet, and the wallet is only stored as a keyed hash", async () => {
+  const { limitWallet } = await import("./rate-limit.ts");
+  const store = memoryRateLimitStore();
+  const seen: string[] = [];
+  const spy = { hit: (k: string, w: number, n: Date) => (seen.push(k), store.hit(k, w, n)) };
+  const now = new Date("2026-11-25T10:00:00Z");
+  const rules = [{ name: "chat-wallet-minute", limit: 2, windowSeconds: 60 }];
+  const wallet = "0xAbCdEf0000000000000000000000000000000001";
+  assert.equal((await limitWallet({ wallet, secret: "s", store: spy, now, rules })).limited, false);
+  assert.equal((await limitWallet({ wallet: wallet.toLowerCase(), secret: "s", store: spy, now, rules })).limited, false);
+  assert.equal((await limitWallet({ wallet, secret: "s", store: spy, now, rules })).limited, true);
+  assert.equal((await limitWallet({ wallet: "0x0000000000000000000000000000000000000002", secret: "s", store: spy, now, rules })).limited, false);
+  assert.ok(seen.every((k) => !k.toLowerCase().includes("abcdef")));
+});
+
+test("the chat wallet limit fails closed when the counter is down", async () => {
+  const { limitWallet } = await import("./rate-limit.ts");
+  const broken = { hit: async () => Promise.reject(new Error("db down")) };
+  const d = await limitWallet({ wallet: "0x0000000000000000000000000000000000000003", secret: "s", store: broken, now: new Date() });
+  assert.equal(d.limited, true);
+});
+
+test("POST /api/chat has its own per-address rule", () => {
+  assert.equal(ruleFor("POST", "/api/chat")?.name, "chat");
+});

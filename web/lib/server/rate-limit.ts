@@ -20,6 +20,7 @@ const RULES: { method: string; path: string; rule: Rule }[] = [
   { method: "POST", path: "/api/employees", rule: { name: "team-write", limit: 30, windowSeconds: 60 } },
   { method: "DELETE", path: "/api/employees", rule: { name: "team-write", limit: 30, windowSeconds: 60 } },
   { method: "POST", path: "/api/attendance", rule: { name: "check-in", limit: 10, windowSeconds: 60 } },
+  { method: "POST", path: "/api/chat", rule: { name: "chat", limit: 20, windowSeconds: 60 } },
 ];
 const READS: Rule = { name: "read", limit: 120, windowSeconds: 60 };
 const OTHER_WRITES: Rule = { name: "write", limit: 30, windowSeconds: 60 };
@@ -104,4 +105,36 @@ export function memoryRateLimitStore(): RateLimitStore {
       return n;
     },
   };
+}
+
+/**
+ * The chat assistant costs model money per message, so on top of the per-address limit above it is
+ * limited per signed-in wallet (docs/features/CHAT-AND-GIFTS.md, guardrail 8). The wallet is stored
+ * only as a keyed hash, like an address.
+ */
+export const CHAT_WALLET_RULES: Rule[] = [
+  { name: "chat-wallet-minute", limit: 10, windowSeconds: 60 },
+  { name: "chat-wallet-day", limit: 150, windowSeconds: 86_400 },
+];
+
+/**
+ * Counts one chat message for `wallet` against every rule. Unlike `limit`, it fails closed: if the
+ * counter cannot be reached, the message is refused, because each message spends model credit.
+ */
+export async function limitWallet(p: { wallet: string; secret: string; store: RateLimitStore; now: Date; rules?: Rule[]; onError?: (e: unknown) => void }): Promise<Decision> {
+  const rules = p.rules ?? CHAT_WALLET_RULES;
+  for (const rule of rules) {
+    let count: number;
+    try {
+      count = await p.store.hit(bucketKey(rule, p.wallet.toLowerCase(), p.secret), rule.windowSeconds, p.now);
+    } catch (e) {
+      p.onError?.(e);
+      return { limited: true, rule, retryAfter: 60 };
+    }
+    if (count > rule.limit) {
+      const elapsed = Math.floor(p.now.getTime() / 1000) % rule.windowSeconds;
+      return { limited: true, rule, retryAfter: rule.windowSeconds - elapsed };
+    }
+  }
+  return { limited: false, rule: rules[0] ?? null };
 }
