@@ -49,6 +49,8 @@ function GiftRow({
 }) {
   const state = giftState(g, now);
   const assets = legAssets(g);
+  const [peek, setPeek] = useState(false);
+  const showMix = !hideMix || peek;
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3.5">
       <div className="flex min-w-0 items-center gap-3">
@@ -63,7 +65,12 @@ function GiftRow({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
             <span>{boxTypeOf(g)}</span>
-            {!hideMix && assets.length > 0 && (
+            {hideMix && !peek && assets.length > 0 && (
+              <button type="button" className="hit font-semibold text-ink underline" onClick={() => setPeek(true)}>
+                Peek inside
+              </button>
+            )}
+            {showMix && assets.length > 0 && (
               <>
                 <AssetStack assets={assets} size={16} />
                 <span className="truncate">{g.legs.map((l) => `${assetByToken(l.token)?.name ?? "?"} ${l.weightBps / 100}%`).join(", ")}</span>
@@ -183,7 +190,7 @@ export default function GiftsPage() {
                     who={`to ${names.display(g.recipient)}`}
                     now={now}
                     message={gifts.messages[g.id.toString()]}
-                    hideMix={false}
+                    hideMix={state === "pending"}
                     actions={
                       (state === "pending" || state === "expired") && canAct ? (
                         <Button size="sm" variant="secondary" disabled={tx.state.busy} onClick={() => tx.run([buildRevokeCall(GIFT_BOX!, g.id)], "Taken back. The USDC is in your wallet again.")}>

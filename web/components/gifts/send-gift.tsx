@@ -336,7 +336,14 @@ export function SendGift({ me, walletUsdc, onSent }: { me?: Address; walletUsdc:
     let note: string | undefined;
     const text = message.trim();
     if (text && id !== null) {
-      const res = await fetch("/api/gifts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id.toString(), message: text }) }).catch(() => null);
+      // The server reads the gift from the chain first. A node a block behind answers "does not exist",
+      // so a 404 is tried again a few times before giving up.
+      let res: Response | null = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+        res = await fetch("/api/gifts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id.toString(), message: text }) }).catch(() => null);
+        if (res && res.status !== 404) break;
+      }
       if (!res || !res.ok) {
         const body = res ? ((await res.json().catch(() => ({}))) as { error?: string }) : {};
         note = `The gift is sent, but the message was not saved: ${body.error ?? "network error"}`;
