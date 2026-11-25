@@ -306,3 +306,83 @@ test("restricted facts never reach the daily model input or the daily note", asy
   const snap = await store.latestSnapshot();
   for (const s of SECRET) assert.ok(!JSON.stringify(snap).includes(s), `note contains ${s}`);
 });
+
+test("Monday: the budget trips after some spend (at the bull and bear cases): saved as budget, nothing in flight, the next slot writes the report", async () => {
+  const { store, writes, sections, runs } = memoryStore();
+  // $0.35 a call against a $1.70 cap: the analysts fit ($1.40 spent), the two cases do not.
+  const model = fakeModel(weeklyAnswers(), 0.35);
+  const deps = { gather, gatherMarket, model: model.fn, store, maxRunCostUsd: 1.7, maxDayCostUsd: 100, ...quiet };
+  const first = await runWeekly({ ...deps, now: at(1), slot: 1 });
+  assert.equal(first.step, "asset");
+  assert.equal(first.status, "aborted-cost");
+  assert.equal(model.calls.length, 4);
+  const saved = sections.get(`${WEEK}|${ids[0]}`)!;
+  assert.equal(saved.failed, true);
+  assert.equal(saved.result.cause, "budget");
+  assert.ok(Math.abs(runs.get(first.runId)!.costUsd - 1.4) < 1e-9);
+  assert.equal(runs.get(first.runId)!.status, "aborted-cost"); // finished, nothing left running
+  const second = await runWeekly({ ...deps, now: at(2), slot: 2 });
+  assert.equal(second.step, "final");
+  assert.equal(second.status, "ok", second.problems.join("\n"));
+  assert.equal(writes.weekly, 1);
+  assert.equal(model.calls.length, 4);
+  assert.ok(second.report!.assets.every((a) => a.status === "no-reading"));
+  for (const id of ids) assert.ok(second.report!.review.notes.some((n) => n.startsWith(`${id}: no reading (budget`)), id);
+  assert.ok([...runs.values()].every((r) => r.status !== "running"));
+});
+
+/** Like the Twelve Data free plan: every price, indicator, chart read and pattern is not for display. */
+function pricesRestricted(assetId: string, date: string): AssetResearchInput {
+  const base = makeInput(assetId, date);
+  const licensed = { name: "Licensed bars", display: false };
+  const series = Object.fromEntries((["1d", "1w", "1mo"] as const).map((i) => [i, { assetId, interval: i, bars: [{ t: asOf, o: 1, h: 1, l: 1, c: 1 }], source: licensed, fetchedAt: asOf }]));
+  return { ...base, series, facts: base.facts.map((f) => (f.kind === "price" || f.kind === "indicator" ? { ...f, display: false } : f)) };
+}
+
+test("with every price restricted (daily bars too), the weekly section is built from the other facts and shows no price data", async () => {
+  const { store } = memoryStore();
+  // A model that cites only what it was given (no price facts are sent).
+  const draft = goodDraftWithout();
+  const model = fakeModel(weeklyAnswers({ "weekly.editor": () => draft, "weekly.revise": () => draft, "weekly.analyst.technical": () => ({ stance: "neutral", points: [], chart: { "1d": [], "1w": [], "1mo": [] }, injectionFactIds: [] }) }));
+  const deps = { gather: async (id: string, d: string) => pricesRestricted(id, d), gatherMarket, model: model.fn, store, maxRunCostUsd: 100, maxDayCostUsd: 100, assets: [UNIVERSE[0]], ...quiet };
+  await runWeekly({ ...deps, now: at(1), slot: 1 });
+  const final = await runWeekly({ ...deps, now: at(2), slot: 2 });
+  assert.equal(final.status, "ok", final.problems.join("\n"));
+  // Fact lines are "[id] kind | ..."; the system prompt only uses an id as an example.
+  const given = JSON.stringify(model.calls.map((c) => [c.context, c.user]));
+  for (const s of ["[px.1d.last]", "[ind.1d.rsi14]", "58.2", "support 97"]) assert.ok(!given.includes(s), `model input contains ${s}`);
+  const a = final.report!.assets[0];
+  assert.equal(a.status, "ok");
+  assert.deepEqual(a.chart, {});
+  assert.equal(a.view.levels, null);
+  assert.ok(a.facts.every((f) => f.kind !== "price" && f.kind !== "indicator"));
+});
+
+test("with every price restricted, the daily note carries no price data and the snapshot still passes its check", async () => {
+  const { store, scores } = memoryStore();
+  const model = fakeModel(() => goodDaily({ reasons: [{ text: "Results news was firm.", factIds: ["news.1"] }], summaryLines: ["Results news was firm this week.", "View: hold with low conviction."], view: "hold", conviction: "low" }));
+  const out = await runDaily({ gather: async (id, d) => pricesRestricted(id, d), model: model.fn, store, maxRunCostUsd: 2, maxDayCostUsd: 6, now: () => new Date("2026-11-19T22:30:00Z") });
+  assert.equal(out.status, "ok", out.problems.join("\n"));
+  const given = JSON.stringify(model.calls.map((c) => [c.context, c.user]));
+  for (const s of ["[px.1d.last]", "[ind.1d.rsi14]", "58.2"]) assert.ok(!given.includes(s), `model input contains ${s}`);
+  const snap = (await store.latestSnapshot())!;
+  assert.ok(snap.notes.every((n) => n.facts.every((f) => f.kind !== "price" && f.kind !== "indicator") && n.levels === null && Object.keys(n.chart).length === 0));
+  // No price, so no score can be started for these notes.
+  assert.equal(scores.size, 0);
+});
+
+function goodDraftWithout() {
+  const r = (text: string, ...factIds: string[]) => ({ text, factIds });
+  return {
+    recap: [r("Results news was firm over the week.", "news.1")],
+    chart: { "1d": [], "1w": [], "1mo": [] },
+    market: [r("Yields held steady near 4.1%.", "macro.dgs10")],
+    news: [r("Export rules were discussed during the week.", "news.geo")],
+    scenarios: {
+      bull: { text: "Firm results lift demand.", factIds: ["news.1"], probability: 35, levels: [], trigger: "Another firm report" },
+      base: { text: "Little changes while yields hold.", factIds: ["macro.dgs10"], probability: 45, levels: [], trigger: "No surprise in the data" },
+      bear: { text: "Export rules weigh on the outlook.", factIds: ["news.geo"], probability: 20, levels: [], trigger: "New rules announced" },
+    },
+    view: { view: "hold", conviction: "low", reasons: [r("Results were firm but yields cap the upside.", "news.1", "macro.dgs10")] },
+  };
+}

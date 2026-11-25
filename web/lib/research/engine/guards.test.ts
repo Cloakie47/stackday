@@ -232,3 +232,10 @@ test("a call's limit never passes the time left in the run, and no call starts w
   assert.equal(await guardedCall(model.fn, { model: "claude-opus-5-5", step: "weekly.revise", system: "s", user: "u", schema: {}, maxTokens: 16000, effort: "medium", timeoutMs: LONG_CALL_TIMEOUT_MS }, budget), null);
   assert.equal(model.calls.length, 1);
 });
+
+test("numbers: the verb may never makes a number a date", () => {
+  const ctx = new Ctx([fact("ind.x", "indicator", "Reading", 58.2, { asOf: "2026-11-20T21:00:00Z" })]);
+  assert.equal(ctx.backed("RSI near 20 may turn"), false);
+  assert.equal(ctx.backed("buyers may 20"), false);
+  assert.equal(ctx.backed("on Nov 20"), true);
+});

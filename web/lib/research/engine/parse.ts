@@ -75,7 +75,8 @@ const emptyDates = (): DateParts => ({ years: new Set(), months: new Set(), days
 
 const ISO_DATE_RE = /\b(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?/g;
 const TIME_RE = /\b(\d{1,2}):(\d{2})\b/g;
-const MONTHS = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+// Capitalised month names only (case-sensitive), so the verb "may" never makes a number a date.
+const MONTHS = "Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?";
 const hhmm = (h: string | number, m: string | number) => `${String(Number(h)).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
 /** Takes the dates and times out of a fact string: their parts go to `dates`, the rest is returned. */
@@ -126,9 +127,9 @@ function dateSpans(text: string, dates: DateParts): Span[] {
   // A number right after or before a month name ("November 26", "26 Nov", "Nov. 26, 2026",
   // "November 2026"). Unit marks ($ before, % or x after) make it a value, not a date.
   const roles: [RegExp, ("day" | "year")[]][] = [
-    [new RegExp(`\\b(?:${MONTHS})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b(?:,?\\s+(\\d{4})\\b)?`, "gi"), ["day", "year"]],
-    [new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${MONTHS})\\b\\.?(?:,?\\s+(\\d{4})\\b)?`, "gi"), ["day", "year"]],
-    [new RegExp(`\\b(?:${MONTHS})\\.?\\s+(\\d{4})\\b`, "gi"), ["year"]],
+    [new RegExp(`\\b(?:${MONTHS})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b(?:,?\\s+(\\d{4})\\b)?`, "g"), ["day", "year"]],
+    [new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${MONTHS})\\b\\.?(?:,?\\s+(\\d{4})\\b)?`, "g"), ["day", "year"]],
+    [new RegExp(`\\b(?:${MONTHS})\\.?\\s+(\\d{4})\\b`, "g"), ["year"]],
   ];
   for (const [re, kinds] of roles) {
     for (const m of text.matchAll(re)) {

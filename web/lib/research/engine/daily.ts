@@ -299,6 +299,7 @@ export async function runDaily(deps: DailyDeps): Promise<RunOutcome> {
     maxDayUsd: deps.maxDayCostUsd,
     spentTodayUsd: spentToday ?? Infinity,
     record: (usd) => deps.store.recordSpend(runId, usd),
+    recordOutputs: (calls) => deps.store.recordOutputs(runId, calls),
     timeLimitMs: deps.timeLimitMs ?? RUN_TIME_LIMIT_MS,
   });
   const escalations = { left: deps.maxEscalations ?? 3 };
@@ -319,6 +320,7 @@ export async function runDaily(deps: DailyDeps): Promise<RunOutcome> {
     const inputs = results.map((r) => r.input ?? null);
     const dataHash = results.some((r) => r.input) ? hashInputs(inputs) : null;
     const detail = [`${status}: ${counts.ok} ok, ${counts.carried} carried, ${counts.noReading} no reading, ${counts.escalated} escalated, ${counts.calls} model calls`, ...problems].join("\n");
+    await budget.drain();
     await deps.store.finishRun(runId, { status, costUsd: budget.spent, detail, dataHash, inputs: dataHash ? inputs : null, outputs: budget.calls });
     return { runId, kind: "daily", date, status, written, costUsd: budget.spent, counts, problems };
   };
