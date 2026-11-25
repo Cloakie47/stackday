@@ -107,9 +107,13 @@ import { citableIds, ideaProblems, sectionProblems, weeklyProblems } from "./val
  * together must fit in the budget before any of them starts. When the budget is out, the asset
  * becomes "no reading" (budget), the remaining assets too, and the final step still writes the
  * report (summary built in code when there is no budget for the model).
- * Failure policy: more than MAX_NO_READINGS assets that were researched and failed their checks
- * ("error"), or a failed whole-report check, writes nothing. No-readings caused by the budget or by
- * calls that did not finish never block the report; the report names each one and why.
+ * Failure policy: before the last slot, more than MAX_NO_READINGS assets that were researched and
+ * failed their checks ("error") write nothing. The last slot always writes the report (it stays
+ * unapproved until a reviewer approves it): failed sections are "no reading" with the reason and
+ * the notes say the week is below the quality bar. No-readings caused by the budget or by calls
+ * that did not finish never block the report; the report names each one and why. If the spend
+ * cannot be read, asset steps stop, and the final step writes the report with the summary built
+ * in code (no model call). Only a failed whole-report check writes nothing.
  */
 
 export type GatherMarketFn = (date: IsoDate) => Promise<MarketResearchInput>;
@@ -659,8 +663,14 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
     budget = b;
     const s: StepCtx = { deps, budget: b, model };
 
-    if (spentToday === null || spentWeek === null) return finish("aborted-cost", ["cost guard: today's or this week's spend could not be read, so the run is blocked"]);
-    const capMessage = `cost guard: no budget left (day cap $${deps.maxDayCostUsd}, spent today $${spentToday.toFixed(2)}; weekly cap $${deps.maxRunCostUsd}, spent this week $${spentWeek.toFixed(2)})`;
+    // Unreadable spend blocks every model call (the budget's cap is then not above zero). An asset
+    // step stops here; the final step still writes the report with the summary built in code.
+    const spendUnknown = spentToday === null || spentWeek === null;
+    const spendUnknownMessage = "cost guard: today's or this week's spend could not be read, so no model call was made";
+    if (spendUnknown && next) return finish("aborted-cost", [`${spendUnknownMessage}: the run is blocked`]);
+    const capMessage = spendUnknown
+      ? spendUnknownMessage
+      : `cost guard: no budget left (day cap $${deps.maxDayCostUsd}, spent today $${(spentToday ?? 0).toFixed(2)}; weekly cap $${deps.maxRunCostUsd}, spent this week $${(spentWeek ?? 0).toFixed(2)})`;
 
     const problems: string[] = [];
     let market: MarketResearchInput | null = null;
@@ -783,7 +793,12 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
     // Only sections that were researched and failed their checks count toward the limit: the budget
     // or calls that did not finish never block the report.
     const failures = results.filter((r) => r.failed && (r.cause ?? "error") === "error").length;
-    if (failures > MAX_NO_READINGS) return finish("failed", [`${failures} assets failed their checks (limit ${MAX_NO_READINGS}): nothing written`, ...problems, ...sectionNotes], { counts });
+    // Before the last slot, too many failed sections write nothing (a later slot may still do
+    // better). The last slot always writes: the report stays unapproved until a reviewer approves
+    // it, and the notes say it is below the quality bar so the reviewer can decide not to.
+    const belowBar = failures > MAX_NO_READINGS;
+    if (belowBar && !lastSlot) return finish("failed", [`${failures} assets failed their checks (limit ${MAX_NO_READINGS}): nothing written`, ...problems, ...sectionNotes], { counts });
+    if (belowBar) problems.unshift(`below the quality bar: ${failures} assets failed their checks (limit ${MAX_NO_READINGS}); written because this is the last slot, a reviewer may choose not to approve it`);
 
     await loadMarket();
     const okSections = results.filter((r) => r.section.status === "ok").map((r) => r.section);
@@ -829,7 +844,7 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
       ideas: { ranked, exampleSplits },
       scorecard: weeklyScorecard(lastWeek, later, scores),
       review: {
-        approved: results.every((r) => r.section.status !== "ok" || r.approved),
+        approved: !belowBar && results.every((r) => r.section.status !== "ok" || r.approved),
         sentBack: counts.sentBack,
         removedClaims: counts.removedClaims,
         notes: [...noReadingLines, ...problems, ...(summary.ok ? [] : ["summary step failed: ideas built in code from the approved sections"]), ...results.flatMap((r) => r.notes)].slice(0, 60),
@@ -837,7 +852,7 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
       model: { analysts: model, editor: model },
       // All spend of the week: every weekly run row (overwritten and killed attempts included, at
       // their recorded figure) plus this call.
-      costUsd: Math.round((spentWeek + b.spent) * 10_000) / 10_000,
+      ...(spentWeek === null ? {} : { costUsd: Math.round((spentWeek + b.spent) * 10_000) / 10_000 }),
       disclaimer: RESEARCH_DISCLAIMER,
     };
     const inputs = { market, sections: [...byAsset.values()].map((x) => ({ assetId: x.assetId, runId: x.runId })) };

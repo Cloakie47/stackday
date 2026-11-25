@@ -386,3 +386,48 @@ function goodDraftWithout() {
     view: { view: "hold", conviction: "low", reasons: [r("Results were firm but yields cap the upside.", "news.1", "macro.dgs10")] },
   };
 }
+
+test("Monday: the last slot writes the report even when more than MAX_NO_READINGS assets failed their checks, marked below the quality bar", async () => {
+  const { store, writes } = memoryStore();
+  const model = fakeModel(weeklyAnswers({ "weekly.editor": (req) => (/Asset: (mAAPL|mNVDA|mSPX)/.test(req.context ?? "") ? "not json" : weeklyAnswers()(req)) }));
+  const out = await monday({ gather, gatherMarket, model: model.fn, store, maxRunCostUsd: 100, maxDayCostUsd: 100, ...quiet });
+  // Slots 1 to 8 research and retry; no earlier final writes (the limit still applies before slot 9).
+  assert.ok(out.slice(0, 8).every((o) => o.step === "asset"));
+  const last = out[8];
+  assert.equal(last.step, "final");
+  assert.equal(last.status, "ok", last.problems.join("\n"));
+  assert.equal(writes.weekly, 1);
+  const report = last.report!;
+  assert.equal(report.review.approved, false);
+  assert.match(report.review.notes.join("\n"), /below the quality bar: 3 assets failed their checks/);
+  for (const id of ["mAAPL", "mNVDA", "mSPX"]) {
+    const a = report.assets.find((x) => x.assetId === id)!;
+    assert.equal(a.status, "no-reading");
+    assert.match(a.scenarios.base.text, /did not pass our checks/);
+    assert.ok(report.review.notes.some((n) => n.startsWith(`${id}: no reading (error`)), id);
+  }
+});
+
+test("the final step writes the report with the code-built summary when the spend cannot be read", async () => {
+  const { store, writes } = memoryStore();
+  const model = fakeModel(weeklyAnswers());
+  const deps = { gather, gatherMarket, model: model.fn, store, maxRunCostUsd: 100, maxDayCostUsd: 100, ...quiet };
+  await runWeekly({ ...deps, now: at(1), slot: 1 });
+  const before = model.calls.length;
+  store.weeklySpend = async () => {
+    throw new Error("database down");
+  };
+  // An asset step is blocked...
+  const blocked = await runWeekly({ ...deps, now: at(2), slot: 2 });
+  assert.equal(blocked.status, "aborted-cost");
+  assert.equal(writes.weekly, 0);
+  // ...the last slot still writes, with no model call.
+  const last = await runWeekly({ ...deps, now: at(9), slot: 9 });
+  assert.equal(last.step, "final");
+  assert.equal(last.status, "ok", last.problems.join("\n"));
+  assert.equal(writes.weekly, 1);
+  assert.equal(model.calls.length, before);
+  assert.equal(last.report!.costUsd, undefined);
+  assert.match(last.report!.review.notes.join("\n"), /spend could not be read[\s\S]*summary built in code|summary built in code/);
+  assert.equal(last.report!.assets.filter((a) => a.status === "ok").length, 1);
+});
