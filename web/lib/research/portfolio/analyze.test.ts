@@ -184,7 +184,16 @@ test("helpers: merge, diversification, limit use", () => {
       { assetId: "mAAPL", amount: 1, origin: "manual", loanUsd: 5 },
       { assetId: "mAAPL", amount: 2, origin: "vault", loanUsd: 5 },
     ]),
-    [{ assetId: "mAAPL", amount: 3, origin: "vault", loanUsd: 10 }],
+    // The vault loan is the real debt; the hand-typed loan on the same asset is not added to it.
+    [{ assetId: "mAAPL", amount: 3, origin: "vault", loanUsd: 5, collateralAmount: 2 }],
+  );
+  assert.deepEqual(
+    mergeHoldings([
+      { assetId: "mAAPL", amount: 1, origin: "manual", loanUsd: 5 },
+      { assetId: "mAAPL", amount: 4, origin: "manual", loanUsd: 3 },
+    ]),
+    [{ assetId: "mAAPL", amount: 5, origin: "manual", loanUsd: 8, collateralAmount: 5 }],
+    "loans typed by hand on separate entries still add up",
   );
   assert.equal(diversificationScore([{ assetId: "mAAPL", share: 1 }]), 0);
   assert.equal(diversificationScore([{ assetId: "mSPX", share: 1 }]), 1);
@@ -217,4 +226,30 @@ test("a loan with no feed price is not measured at a research price", () => {
   assert.equal(a.loans.worstLimitUse, null);
   assert.equal(a.holdings[0].limitUse, undefined);
   assert.match(a.loans.facts[0].text, /could not be read, so the loan's limit use is not measured/);
+});
+
+test("loan health counts only locked collateral, never idle tokens in the vault", () => {
+  // 10 units in the vault, only 1 locked. Morpho measures the loan against the 1 locked unit.
+  const lltv = FIXTURE_CATALOG.get("mAAPL")!.lltv;
+  const a = analyzePortfolio(
+    { holdings: [{ assetId: "mAAPL", amount: 10, collateralAmount: 1, origin: "vault", loanUsd: 60 }] },
+    ctx({ loanPrices: { mAAPL: quote(100) } }),
+  );
+  assert.equal(a.totalUsd, 1000, "the allocation still values every unit held");
+  assert.ok(Math.abs(a.loans.worstLimitUse! - 60 / (100 * lltv)) < 1e-9, "limit use on the locked unit only");
+  assert.ok(a.facts.some((f) => f.id === "mAAPL:collateral" && f.value === 1));
+  assert.ok(a.loans.facts[0].factIds.includes("mAAPL:collateral"));
+});
+
+test("a manual loan on the same asset as a vault loan is not counted twice", () => {
+  const a = analyzePortfolio(
+    {
+      holdings: [
+        { assetId: "mAAPL", amount: 2, collateralAmount: 2, origin: "vault", loanUsd: 50 },
+        { assetId: "mAAPL", amount: 0.5, origin: "manual", loanUsd: 50 },
+      ],
+    },
+    ctx(),
+  );
+  assert.equal(a.facts.find((f) => f.id === "mAAPL:loan")?.value, 50);
 });

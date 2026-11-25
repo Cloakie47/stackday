@@ -1,5 +1,5 @@
 import type { Fact, ResearchSnapshot, View, WeeklyReport } from "../types.ts";
-import { VIEWS } from "../types.ts";
+import { VIEWS, isDisplayable } from "../types.ts";
 import type { PriceQuote, ViewSource } from "./analyze.ts";
 
 /**
@@ -52,7 +52,8 @@ export function asWeeklyReport(x: unknown): WeeklyReport | null {
 
 /** The last daily close from a list of facts: "px.1d.last" first, then any other "px.*.last" price fact. */
 export function lastPriceFact(facts: Fact[]): Fact | null {
-  const good = (f: Fact) => f.kind === "price" && typeof f.value === "number" && Number.isFinite(f.value) && f.value > 0;
+  // A fact marked not for display (licence) never values a holding on the page.
+  const good = (f: Fact) => isDisplayable(f) && f.kind === "price" && typeof f.value === "number" && Number.isFinite(f.value) && f.value > 0;
   return facts.find((f) => f.id === "px.1d.last" && good(f)) ?? facts.find((f) => /^px\.[^.]+\.last$/.test(f.id) && good(f)) ?? null;
 }
 

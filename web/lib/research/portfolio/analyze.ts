@@ -118,20 +118,50 @@ type Priced = {
   loanFactIds: string[];
 };
 
-/** Holdings of the same asset added together (amounts, cost and loans), in order of first appearance. */
+/** Units of one holding that are locked as loan collateral (see `Holding.collateralAmount`). */
+function collateralOf(h: Holding): number {
+  if (h.collateralAmount !== undefined && Number.isFinite(h.collateralAmount)) return Math.max(0, Math.min(h.collateralAmount, h.amount));
+  // A vault reading without the split (older client) or a manual entry with a loan: the whole amount.
+  return h.origin === "vault" || (h.loanUsd ?? 0) > 0 ? h.amount : 0;
+}
+
+/**
+ * Holdings of the same asset added together (amounts and cost), in order of first appearance.
+ * Loans are not simply added: a loan read from the vault is the real on-chain debt, so a loan typed
+ * by hand for the same asset is taken to be the same loan and ignored (it would count it twice).
+ * Collateral follows the loan it backs: the vault's locked units when the vault has a loan,
+ * otherwise the units of hand-typed entries that carry a loan.
+ */
 export function mergeHoldings(holdings: Holding[]): Holding[] {
-  const map = new Map<string, Holding>();
+  type Acc = { h: Holding; vaultLoan?: number; manualLoan?: number; vaultCollateral: number; manualCollateral: number };
+  const map = new Map<string, Acc>();
   for (const h of holdings) {
-    const prev = map.get(h.assetId);
-    if (!prev) map.set(h.assetId, { ...h });
-    else {
-      prev.amount += h.amount;
-      if (prev.origin !== h.origin) prev.origin = "vault";
-      if (h.costUsd !== undefined) prev.costUsd = (prev.costUsd ?? 0) + h.costUsd;
-      if (h.loanUsd !== undefined) prev.loanUsd = (prev.loanUsd ?? 0) + h.loanUsd;
+    let acc = map.get(h.assetId);
+    if (!acc) {
+      acc = { h: { assetId: h.assetId, amount: 0, origin: h.origin }, vaultCollateral: 0, manualCollateral: 0 };
+      map.set(h.assetId, acc);
+    }
+    acc.h.amount += h.amount;
+    if (acc.h.origin !== h.origin) acc.h.origin = "vault";
+    if (h.costUsd !== undefined) acc.h.costUsd = (acc.h.costUsd ?? 0) + h.costUsd;
+    if (h.origin === "vault") {
+      if (h.loanUsd !== undefined) acc.vaultLoan = (acc.vaultLoan ?? 0) + h.loanUsd;
+      acc.vaultCollateral += collateralOf(h);
+    } else {
+      if (h.loanUsd !== undefined) acc.manualLoan = (acc.manualLoan ?? 0) + h.loanUsd;
+      if ((h.loanUsd ?? 0) > 0) acc.manualCollateral += collateralOf(h);
     }
   }
-  return [...map.values()].filter((h) => h.amount > 0);
+  return [...map.values()]
+    .map(({ h, vaultLoan, manualLoan, vaultCollateral, manualCollateral }) => {
+      const useVault = vaultLoan !== undefined && vaultLoan > 0;
+      const loanUsd = useVault ? vaultLoan : (manualLoan ?? vaultLoan);
+      const out: Holding = { ...h };
+      if (loanUsd !== undefined) out.loanUsd = loanUsd;
+      out.collateralAmount = useVault ? vaultCollateral : manualLoan !== undefined && manualLoan > 0 ? manualCollateral : vaultCollateral;
+      return out;
+    })
+    .filter((h) => h.amount > 0);
 }
 
 function slices(rows: Priced[], keyOf: (p: Priced) => string, labelOf: (key: string) => string, total: number): AllocationSlice[] {
@@ -197,6 +227,19 @@ export function analyzePortfolio(input: PortfolioInput, ctx: PortfolioContext): 
       source: { name: holding.origin === "vault" ? "Your Stackday vault on Base Sepolia" : "Typed in by you" },
       asOf,
     });
+    const collateral = collateralOf(holding);
+    const collateralFactId =
+      holding.loanUsd && holding.loanUsd > 0 && collateral !== holding.amount
+        ? addFact({
+            id: `${asset.assetId}:collateral`,
+            kind: "fundamental",
+            label: `${asset.name} units locked as loan collateral`,
+            value: collateral,
+            unit: asset.assetId,
+            source: { name: holding.origin === "vault" ? "Your Stackday vault on Base Sepolia" : "Typed in by you" },
+            asOf,
+          })
+        : null;
     const loanFactId =
       holding.loanUsd && holding.loanUsd > 0
         ? addFact({
@@ -249,8 +292,9 @@ export function analyzePortfolio(input: PortfolioInput, ctx: PortfolioContext): 
       covered,
       valueUsd: holding.amount * quote.price,
       factIds: ids,
-      loanValueUsd: hasLoanQuote ? holding.amount * loanQuote.price : null,
-      loanFactIds: [amountFactId, ...(loanFactId ? [loanFactId] : []), ...(loanPriceFactId ? [loanPriceFactId] : [])],
+      // Only locked collateral counts for the loan, as on the lending market (never idle tokens).
+      loanValueUsd: hasLoanQuote ? collateral * loanQuote.price : null,
+      loanFactIds: [collateralFactId ?? amountFactId, ...(loanFactId ? [loanFactId] : []), ...(loanPriceFactId ? [loanPriceFactId] : [])],
     });
   }
 

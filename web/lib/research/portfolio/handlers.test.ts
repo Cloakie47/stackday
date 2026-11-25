@@ -163,6 +163,9 @@ test("research source: shape checks, price facts and reading", async () => {
   assert.equal(asWeeklyReport({ report: WEEKLY }), WEEKLY);
   assert.equal(asWeeklyReport({ report: { ...WEEKLY, assets: [{ assetId: "mAAPL" }] } }), null);
   assert.equal(lastPriceFact([]), null);
+  const restricted = { id: "px.1d.last", kind: "price", label: "Close", value: 90, unit: "USD", source: { name: "Internal feed" }, asOf: "2026-11-20T21:00:00Z", display: false } as const;
+  assert.equal(lastPriceFact([restricted]), null, "a fact not for display never values a holding");
+  assert.equal(lastPriceFact([{ ...restricted, display: undefined, source: { name: "Internal feed", display: false } }]), null);
   const read = readResearch(WEEKLY, null);
   assert.deepEqual(read.views, { mAAPL: "accumulate", mSPX: "hold" }, "no view for a section with no reading");
   assert.equal(read.prices.mAAPL!.price, 90);
