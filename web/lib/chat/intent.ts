@@ -43,6 +43,9 @@ const assetAmount = { asset: assetSchema, amount: decimal, unit: z.enum(["percen
 export const sellSchema = z.strictObject(assetAmount);
 export const withdrawSchema = z.strictObject(assetAmount);
 export const borrowSchema = z.strictObject({ asset: assetSchema, usdc: usdcSchema, risk: z.enum(["low", "mid", "high"]) });
+/** Lock free assets in the vault as collateral, or unlock locked ones (same amount forms as sell). */
+export const lockSchema = z.strictObject(assetAmount);
+export const unlockSchema = z.strictObject(assetAmount);
 export const repaySchema = z.strictObject({
   /** One loan, or every loan split the way the Borrow page splits it. */
   asset: z.union([assetSchema, z.literal("every_loan")]),
@@ -69,6 +72,8 @@ export const ACTION_SCHEMAS = {
   withdraw: withdrawSchema,
   borrow: borrowSchema,
   repay: repaySchema,
+  lock: lockSchema,
+  unlock: unlockSchema,
   gift: giftSchema,
 } as const;
 export type ActionName = keyof typeof ACTION_SCHEMAS;

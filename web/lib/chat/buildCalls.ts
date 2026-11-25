@@ -1,4 +1,4 @@
-import { mockSellDeskAbi } from "../abis.ts";
+import { mockSellDeskAbi, vaultAbi } from "../abis.ts";
 import {
   HIGH_CAP_BPS,
   LEVELS,
@@ -496,6 +496,73 @@ function gift(params: { recipient_id: string; usdc: string; box: string }, ctx: 
   );
 }
 
+/**
+ * Lock free assets in the vault as collateral, or unlock locked ones back to free. One vault call,
+ * one signature. Only borrowable assets. An unlock that would leave a loan above the vault's own
+ * safety cap is refused (the vault would refuse it too).
+ */
+function lockOrUnlock(kind: "lock" | "unlock", params: { asset: string; amount: string; unit: "percent" | "tokens" | "usdc" }, ctx: BuildContext): BuildResult {
+  const a = assetBySymbol(params.asset);
+  if (!a) return refuse("That asset is not available.");
+  if (!a.borrowable) return refuse(`${a.name} is invest only: it cannot be locked as collateral.`);
+  if (!ctx.vault) return refuse("You have no vault yet. Buy something first, then lock it.");
+  const pos = ctx.positions.find((p) => p.asset.symbol === a.symbol);
+  if (!pos?.price) return refuse(`There is no price for ${a.name} right now.`);
+  const base = kind === "lock" ? pos.idle : pos.collateral;
+  if (base <= 0n) return refuse(kind === "lock" ? `You have no free ${a.name} in your vault to lock.` : `You have no ${a.name} locked.`);
+  let amount: bigint;
+  if (params.unit === "percent") {
+    const bps = parseAmount(params.amount, 2);
+    if (bps <= 0n || bps > 10_000n) return refuse("The percent must be between 0 and 100.");
+    amount = (base * bps) / 10_000n;
+  } else if (params.unit === "tokens") {
+    amount = parseAmount(params.amount, a.decimals);
+  } else {
+    const want = parseUsdc(params.amount);
+    amount = assetForUsdc(want, pos.price, a.decimals);
+    if (assetValue(amount, pos.price, a.decimals) < want) amount += 1n;
+  }
+  if (amount <= 0n) return refuse("Enter an amount above zero.");
+  if (amount > base) return refuse(`You have ${amt(base, a)} ${kind === "lock" ? "free" : "locked"}.`);
+  const value = assetValue(amount, pos.price, a.decimals);
+  const collateralAfter = kind === "lock" ? pos.collateral + amount : pos.collateral - amount;
+  const rows: Row[] = [
+    { label: kind === "lock" ? "You lock" : "You unlock", value: `${amt(amount, a)} (${a.name}), worth about ${dollars(value)}` },
+    { label: "Locked after", value: amt(collateralAfter, a) },
+  ];
+  if (pos.debt > 0n) {
+    const maxDebtAfter = (assetValue(collateralAfter, pos.price, a.decimals) * a.lltv) / WAD;
+    if (kind === "unlock" && pos.debt + pos.fee > (maxDebtAfter * ctx.borrowCapBps) / 10_000n)
+      return refuse(`Unlocking that much would leave your ${a.name} loan above your vault's safety cap. Repay first, or unlock less.`);
+    rows.push({ label: "Health after", value: fmtHealth((maxDebtAfter * WAD) / pos.debt) });
+  }
+  const call: Call = {
+    label: kind === "lock" ? `Lock ${a.name} as collateral` : `Unlock ${a.name}`,
+    address: ctx.vault,
+    abi: vaultAbi,
+    functionName: kind === "lock" ? "addCollateral" : "removeCollateral",
+    args: [a.token, amount],
+  };
+  return finish(
+    {
+      action: kind,
+      title: kind === "lock" ? `Lock ${a.name} as collateral` : `Unlock ${a.name}`,
+      rows,
+      fee: "None.",
+      receiverLabel: "Stays in your own vault, controlled only by your wallet",
+      notes: [
+        kind === "lock"
+          ? "Locked assets can back a loan. They stay yours and in your vault; unlock them any time the loan allows."
+          : "Unlocked assets are free again: you can sell, withdraw or gift them.",
+      ],
+      calls: [call],
+      usdcValue: value,
+      doneMessage: kind === "lock" ? `Locked. Your ${a.name} can now back a loan.` : `Unlocked. Your ${a.name} is free again.`,
+    },
+    ctx,
+  );
+}
+
 /** Intent to card and calls. Refuses instead of guessing. */
 export function buildPlan(intent: Intent, ctx: BuildContext): BuildResult {
   switch (intent.action) {
@@ -513,6 +580,10 @@ export function buildPlan(intent: Intent, ctx: BuildContext): BuildResult {
       return borrow(intent.params, ctx);
     case "repay":
       return repay(intent.params, ctx);
+    case "lock":
+      return lockOrUnlock("lock", intent.params, ctx);
+    case "unlock":
+      return lockOrUnlock("unlock", intent.params, ctx);
     case "gift":
       return gift(intent.params, ctx);
   }

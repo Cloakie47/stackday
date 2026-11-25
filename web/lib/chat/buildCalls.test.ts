@@ -229,3 +229,23 @@ test("gift hand-off links to the Gifts page without the recipient in the address
   const plan = ok(buildPlan({ action: "gift", params: { recipient_id: "maya_k", usdc: "5", box: "surprise" } }, ctx()));
   assert.equal(plan.link!.href, "/gifts?usdc=5&box=surprise");
 });
+
+test("lock: one vault call from free assets; unlock: refused when the loan would pass the safety cap", () => {
+  const nv = asset("mNVDA");
+  const c = ctx({ positions: positions({ mNVDA: { idle: tokens(0.034, 8), price: 19_000_000_000n } }) });
+  const lock = ok(buildPlan({ action: "lock", params: { asset: "mNVDA", amount: "1", unit: "usdc" } }, c));
+  assert.deepEqual(lock.calls.map((x) => x.functionName), ["addCollateral"]);
+  assert.equal(lock.calls[0].address, VAULT);
+  assert.equal((lock.calls[0].args as unknown[])[0], nv.token);
+  assert.match(lock.rows[0].value, /^0\.00526\d* mNVDA \(NVIDIA\), worth about \$1\.00$/);
+  assertOnlyMine(lock.calls);
+  refused(buildPlan({ action: "lock", params: { asset: "mTSLA", amount: "10", unit: "percent" } }, c), /invest only/);
+  refused(buildPlan({ action: "lock", params: { asset: "mNVDA", amount: "1", unit: "tokens" } }, c), /free/);
+
+  const locked = ctx({ positions: positions({ mNVDA: { collateral: tokens(0.02, 8), debt: usd(1), price: 19_000_000_000n } }) });
+  const small = ok(buildPlan({ action: "unlock", params: { asset: "mNVDA", amount: "10", unit: "percent" } }, locked));
+  assert.deepEqual(small.calls.map((x) => x.functionName), ["removeCollateral"]);
+  assert.ok(small.rows.some((r) => r.label === "Health after"));
+  refused(buildPlan({ action: "unlock", params: { asset: "mNVDA", amount: "100", unit: "percent" } }, locked), /safety cap/);
+  refused(buildPlan({ action: "unlock", params: { asset: "mAAPL", amount: "10", unit: "percent" } }, locked), /no Apple locked/);
+});
