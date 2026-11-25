@@ -133,16 +133,24 @@ export type ReportForMix = {
     ranked: { rank: number; assetId: string; view: string }[];
     exampleSplits: { profile: string; slices: { assetId: string; share: number }[] }[];
   };
+  /** Each researched asset's view this week (the third fallback). */
+  assets?: { assetId: string; view?: { view: string } | null }[];
 };
 
 /** A research pick by asset id; the app maps ids to token addresses with its asset list. */
-export type ResearchPick = { weekOf: string; source: "cautious-split" | "top-idea"; legs: { assetId: string; weightBps: number }[] };
+export type ResearchPick = {
+  weekOf: string;
+  source: "cautious-split" | "top-idea" | "asset-views";
+  legs: { assetId: string; weightBps: number }[];
+};
 
 /**
  * The research pick from an approved weekly report, only ever from the researched assets:
  * - the report's general "cautious" example split (computed in code from the views and risk), as
  *   whole percents adding up to 100%;
- * - if that is empty, the single top ranked idea whose view is accumulate or hold, at 100%.
+ * - if that is empty, the single top ranked idea whose view is accumulate or hold, at 100%;
+ * - if the report has no ranked ideas either, the assets whose own view this week is accumulate
+ *   (or, when none is, hold), in equal parts.
  * Sample reports never count. Returns null when the report gives nothing usable.
  */
 export function researchPick(report: ReportForMix | null | undefined, researched: string[]): ResearchPick | null {
@@ -162,6 +170,13 @@ export function researchPick(report: ReportForMix | null | undefined, researched
     .sort((a, b) => a.rank - b.rank)
     .find((i) => allowed.has(i.assetId) && (i.view === "accumulate" || i.view === "hold"));
   if (top) return { weekOf: report.weekOf, source: "top-idea", legs: [{ assetId: top.assetId, weightBps: TOTAL_BPS }] };
+  const withView = (v: string) =>
+    [...new Set((report.assets ?? []).filter((a) => allowed.has(a.assetId) && a.view?.view === v).map((a) => a.assetId))].slice(0, MAX_LEGS);
+  const chosen = withView("accumulate").length > 0 ? withView("accumulate") : withView("hold");
+  if (chosen.length > 0) {
+    const r = ratiosToBps(chosen.map((assetId) => ({ token: assetId as Hex, ratio: 1 })));
+    if (r.ok) return { weekOf: report.weekOf, source: "asset-views", legs: r.value.map((l) => ({ assetId: l.token, weightBps: l.weightBps })) };
+  }
   return null;
 }
 

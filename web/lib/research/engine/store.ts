@@ -232,7 +232,9 @@ export function supabaseStore(db: SupabaseClient): ResearchStore {
     if (e) throw new Error(`${what}: ${e.message}`);
   };
   const weeklyRow = (r: { body: unknown; approved: boolean } | null | undefined): StoredWeekly | null =>
-    r && isWeeklyReport(r.body) ? { report: r.body, approved: r.approved } : null;
+    // The approval lives in the row's `approved` column; the stored body keeps the state it was written
+    // with, so the report's own review flag is taken from the column.
+    r && isWeeklyReport(r.body) ? { report: { ...r.body, review: { ...r.body.review, approved: r.approved } }, approved: r.approved } : null;
   const store: ResearchStore = {
     async startRun(run) {
       const { error } = await db
