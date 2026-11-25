@@ -137,11 +137,11 @@ function WeeklyApproval() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  async function approve(week: string) {
+  async function approve(week: string, runId: string) {
     setBusy(true);
     setMsg(null);
     try {
-      await approveWeekly(week);
+      await approveWeekly(week, runId);
       setDone(week);
       setMsg({ ok: true, text: `The report for the week of ${fmtDate(week)} is approved and published.` });
     } catch (e) {
@@ -163,6 +163,11 @@ function WeeklyApproval() {
           <LoadError error={w.error} />
         ) : w.from === "sample" ? (
           <Notice tone="warn">No live report could be loaded ({w.why ?? "service not live"}). The sample report cannot be approved.</Notice>
+        ) : w.data.report.kind === "sample" ? (
+          <Notice tone="warn">
+            Only the sample report is showing. Connect and sign in with a reviewer wallet (listed in RESEARCH_REVIEWERS) to see reports waiting for
+            approval. If you are already signed in as a reviewer, there is no report for this week yet.
+          </Notice>
         ) : w.data.report.weekOf !== weekOf ? (
           <Notice>No report for the week of {fmtDate(weekOf)} yet. The latest one is for the week of {fmtDate(w.data.report.weekOf)}.</Notice>
         ) : (
@@ -177,7 +182,7 @@ function WeeklyApproval() {
             </p>
             {!w.data.report.review.approved && done !== weekOf && (
               <div>
-                <Button disabled={busy} onClick={() => approve(weekOf)}>
+                <Button disabled={busy} onClick={() => approve(weekOf, w.data.report.runId)}>
                   {busy ? "Publishing" : "Approve and publish"}
                 </Button>
               </div>
@@ -197,7 +202,9 @@ function WeeklyApproval() {
 export function ReviewPage() {
   const snap = useLoad(getSnapshot, "snapshot");
   const ready = snap.status === "ready";
-  const internal = ready && snap.data.internal && snap.data.snapshot.kind === "live";
+  // The server sends live notes only to a signed-in reviewer (everyone else gets the labelled sample),
+  // so a live snapshot is what turns grading on. Its `internal` flag marks the sample, not the reviewer.
+  const internal = ready && snap.data.snapshot.kind === "live";
   return (
     <>
       <PageHeader title="Review" lead="Internal while testing: daily notes, grades and approving the Monday report." />

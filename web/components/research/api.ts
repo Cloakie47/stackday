@@ -76,8 +76,9 @@ export const getWeekly = (weekOf?: string) =>
     () => ({ report: SAMPLE_WEEKLY, access: { allowed: true, consumesCredit: false } }),
   );
 
-export async function approveWeekly(weekOf: string) {
-  await call("/api/research/weekly/approve", { method: "POST", body: JSON.stringify({ weekOf }) });
+/** Approve the exact report the reviewer read: the server matches both the week and the run id. */
+export async function approveWeekly(weekOf: string, runId: string) {
+  await call("/api/research/weekly/approve", { method: "POST", body: JSON.stringify({ weekOf, runId }) });
 }
 
 /* Daily notes (internal while testing) ------------------------------------------------------ */
