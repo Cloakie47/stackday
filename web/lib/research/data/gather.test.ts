@@ -367,7 +367,7 @@ test("cutAt: a 22:30 UTC run includes the day's closed NYSE bar and crypto hours
   assert.equal(cutSeries(friday, "2026-11-27", false, late)["1d"]!.bars.at(-1)!.c, 1);
 });
 
-test("cutAt end to end: the daily note's entry price is today's close for on-chain stocks and the 21:00 hourly close for crypto", async () => {
+test("cutAt end to end: on-chain stocks end on today's close; crypto gets hours to 22:00 but its daily close is still yesterday's UTC close", async () => {
   const fx = load("onchain");
   const date = "2026-11-24";
   for (const id of ["mAAPL", "mNVDA"]) {
@@ -403,6 +403,9 @@ test("cutAt end to end: the daily note's entry price is today's close for on-cha
   assert.equal(btc.series["1h"]!.bars.at(-1)!.t, `${date}T21:00:00.000Z`);
   assert.equal(btc.series["1d"]!.bars.at(-1)!.t, "2026-11-23T00:00:00.000Z");
   assert.equal(checkFacts(btc.facts).get("px.last")!.value, 1000 + 298, "last price is the 21:00 hourly close");
+  // The UTC day is still open at 22:30: the last daily close (what px.1d.last is built from) is
+  // 00:00 UTC today, so a score from it would still include most of today's move.
+  assert.equal(btc.indicators["1d"]!.last, dailyCandles[398][4]);
   const btcNoon = await gatherAsset("mcbBTC", date, deps, { market: EMPTY_MARKET(date) });
   assert.equal(btcNoon.series["1h"]!.bars.at(-1)!.t, `${date}T11:00:00.000Z`);
 });
