@@ -52,6 +52,7 @@ const P = {
   invest: { href: "/invest", label: "Invest" },
   borrow: { href: "/borrow", label: "Borrow", short: "Loan" },
   themes: { href: "/themes", label: "Themes" },
+  research: { href: "/research", label: "Research" },
   risk: { href: "/risk", label: "Risk" },
   payroll: { href: "/employer", label: "Payroll" },
 } satisfies Record<string, NavItem>;
@@ -62,11 +63,11 @@ const P = {
  * Before a choice every page is listed. Risk lives under Borrow (its tab bar and the menu).
  */
 const NAVS: Record<Role | "all", NavItem[]> = {
-  individual: [P.portfolio, P.invest, P.borrow, P.themes],
+  individual: [P.portfolio, P.invest, P.borrow, P.themes, P.research],
   owner: [P.payroll, P.risk],
   // In the order of the journey: overview, get paid, invest, borrow.
-  employee: [P.portfolio, P.pay, P.invest, P.borrow, P.themes],
-  all: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.payroll],
+  employee: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research],
+  all: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research, P.payroll],
 };
 /** The phone's section switch: the mode's two or three main pages. Everything else is in the menu. */
 const SEGMENTS: Record<Role | "all", NavItem[]> = {
