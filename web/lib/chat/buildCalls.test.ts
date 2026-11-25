@@ -48,6 +48,8 @@ test("buy: approval then SipRouter.invest, minOut is the oracle quote less 1%, n
   assert.deepEqual(plan.calls[1].args, [asset("mAAPL").token, usd(20), (quote * 9900n) / 10_000n]);
   assert.equal(plan.receiver, ME);
   assert.match(plan.fee, /free/);
+  // Plain words with the price: 20 USDC buys 0.056 AAPL, so about 357.14 per token.
+  assert.match(plan.rows.find((r) => r.label === "You buy")!.value, /^\$20\.00 of .+ at \$357\.14 each$/);
   assert.equal(plan.expiresAt, 1_800_000_000 + CARD_TTL_SEC);
   assertOnlyMine(plan.calls);
 });
@@ -97,6 +99,8 @@ test("sell half: withdraw to my wallet, approve the desk, swap with the USDC to 
   const value = assetValue(half, gold.startPrice, 18);
   assert.deepEqual(plan.calls[2].args, [gold.token, half, (value * (10_000n - 150n)) / 10_000n, ME]);
   assert.ok(plan.notes.some((n) => n.startsWith("You could borrow against it instead")));
+  assert.match(plan.rows.find((r) => r.label === "You sell")!.value, /^0\.05 mPAXG \(Gold\) at \$4,060\.00 each$/);
+  assert.match(plan.rows.find((r) => r.label === "You get about")!.value, /^\$[\d,]+\.\d\d \(.+ USDC to your wallet\)$/);
   assertOnlyMine(plan.calls);
 });
 

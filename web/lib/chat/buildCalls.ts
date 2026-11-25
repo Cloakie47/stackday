@@ -96,6 +96,10 @@ export type BuildResult = Plan | Refusal;
 const refuse = (reason: string): Refusal => ({ ok: false, reason });
 const usd = (v: bigint) => `${fmtUsdc(v)} USDC`;
 const amt = (v: bigint, a: Asset) => `${fmtAsset(v, a.decimals)} ${a.symbol}`;
+/** Dollars for a USDC amount (6 decimals), for plain-language card lines, for example "$5.00". */
+const dollars = (v: bigint) => "$" + fmtUsdc(v);
+/** Price of one whole token in USDC units, from a USDC amount and the tokens it buys or sells for. */
+const perToken = (usdcUnits: bigint, tokenUnits: bigint, a: Asset) => (tokenUnits > 0n ? (usdcUnits * 10n ** BigInt(a.decimals)) / tokenUnits : 0n);
 const RISK_LABEL = { low: "Low", mid: "Mid", high: "High" } as const;
 
 export const assetBySymbol = (symbol: string) => ASSETS.find((a) => a.symbol === symbol);
@@ -188,9 +192,10 @@ function buy(params: { asset: string; usdc: string }, ctx: BuildContext): BuildR
       action: "buy",
       title: `Buy ${a.name}`,
       rows: [
-        { label: "You pay", value: `${usd(usdc)} from your wallet` },
-        { label: "You get about", value: `${amt(quote, a)} at the oracle price` },
+        { label: "You buy", value: `${dollars(usdc)} of ${a.name} at ${dollars(perToken(usdc, quote, a))} each` },
+        { label: "You get about", value: amt(quote, a) },
         { label: "At least", value: `${amt(minOut, a)} (${fmtPct(MAX_BUY_SLIPPAGE_BPS)} slippage floor)` },
+        { label: "Paid from", value: `${usd(usdc)} in your wallet` },
       ],
       fee: "None: one-time buys are free.",
       receiverLabel: "Goes into your own vault, controlled only by your wallet",
@@ -327,8 +332,8 @@ function withdrawOrSell(kind: "sell" | "withdraw", params: { asset: string; amou
       action: "sell",
       title: `Sell ${a.name}`,
       rows: [
-        { label: "Sell", value: amt(amount, a) },
-        { label: "You get about", value: usd(expected) },
+        { label: "You sell", value: `${amt(amount, a)} (${a.name}) at ${dollars(perToken(value, amount, a))} each` },
+        { label: "You get about", value: `${dollars(expected)} (${usd(expected)} to your wallet)` },
         { label: "At least", value: `${usd(minUsdcOut)} (${fmtPct(MAX_BUY_SLIPPAGE_BPS)} slippage floor)` },
       ],
       fee: `No ${BRAND.name} fee. The mock sell desk pays the test price less ${fmtPct(spread)}.`,
@@ -336,7 +341,6 @@ function withdrawOrSell(kind: "sell" | "withdraw", params: { asset: string; amou
       notes: [
         ...(instead > 0n ? [`You could borrow against it instead: up to ${usd(instead)} against your ${a.name} at your vault's safety cap, and keep the position.`] : []),
         "Testnet: a MOCK sell desk stands in for a real exchange route.",
-        `${calls.length} steps: take it out of your vault, then sell. A wallet that cannot batch asks you to sign each one.`,
       ],
       calls,
       usdcValue: value,
