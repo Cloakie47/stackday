@@ -55,7 +55,6 @@ export const MIN_POOL_TRADES = 3;
 /** A swap more than this far from both neighbours, while they agree, is a single-swap spike. */
 export const SPIKE_THRESHOLD = 0.02;
 const ROUNDS_PER_BATCH = 200;
-const LOGS_PER_BATCH = 10;
 
 export const USDC = { symbol: "USDC", address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", decimals: 6 } as const;
 const SWAP_TOPIC = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
@@ -83,8 +82,10 @@ export type OnchainAsset = {
   pool: PoolRef;
   /** Where daily bars come from. */
   bars: "feed" | "pool";
-  /** Read the pool's Swap logs after the backfill at run time (only where the pool is quiet). */
+  /** Read the pool's Swap logs after the backfill at run time even without a tail store (only where the pool is quiet). */
   poolTail: boolean;
+  /** eth_getLogs ranges per JSON-RPC batch: busy pools answer megabytes per range. */
+  logsPerBatch: number;
 };
 
 const MORPHO_BLUE = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
@@ -98,6 +99,7 @@ export const ONCHAIN_ASSETS: Record<string, OnchainAsset> = {
     pool: { address: "0xf5fcb9cdafce67d50afef298f88e709d2b946ba6", venue: "concentrated-liquidity pool", factory: "0x9cb220581b91b0c83223012fe69688b92ad07a76" },
     bars: "feed",
     poolTail: false,
+    logsPerBatch: 2,
   },
   mNVDA: {
     assetId: "mNVDA",
@@ -107,6 +109,7 @@ export const ONCHAIN_ASSETS: Record<string, OnchainAsset> = {
     pool: { address: "0xf668e21993f0acd7ab00bb1cfbaed0df28a3c8ec", venue: "concentrated-liquidity pool", factory: "0x9cb220581b91b0c83223012fe69688b92ad07a76" },
     bars: "feed",
     poolTail: false,
+    logsPerBatch: 1,
   },
   mSPX: {
     assetId: "mSPX",
@@ -122,6 +125,7 @@ export const ONCHAIN_ASSETS: Record<string, OnchainAsset> = {
     pool: { address: "0xd08f1fb797bfacded23323178672557034c64cfa", venue: "Uniswap v3 pool", factory: "0x33128a8fc17869897dce68ed026d694621f6fdfd" },
     bars: "pool",
     poolTail: true,
+    logsPerBatch: 10,
   },
 };
 
@@ -505,6 +509,165 @@ export function rowToHour(r: HourRow): HourBucket {
   return { t: t!, n: n!, vol: vol!, pn: pn!, pvw: pvw!, ...opt("vwap", vwap), ...opt("o", o), ...opt("h", h), ...opt("l", l), ...opt("c", c) };
 }
 const cents = (x: number) => Math.round(x * 100) / 100;
+const hourStart = (sec: number) => Math.floor(sec / 3600) * 3600;
+type RoundRow = [number, number, number, number];
+const roundRow = (r: Round): RoundRow => [r.phase, r.round, r.updatedAt, Number(r.answer.toPrecision(12))];
+const fromRoundRow = ([phase, round, updatedAt, answer]: RoundRow): Round => ({ phase, round, updatedAt, answer });
+
+/**
+ * What the builder adds when it extends the file (`build-onchain-backfill.ts --extend`): rounds
+ * read after the file's last round per phase and pool swaps from block `toBlock + 1` on.
+ */
+export type BackfillAddition = {
+  rounds?: Round[];
+  lastRound?: Record<string, number>;
+  pool?: { toBlock: number; toTime: number; swaps: Swap[] };
+};
+
+/**
+ * Extends a backfill asset without shrinking it: every existing round and hour is kept, new rounds
+ * are added once (by phase and round), new swaps are bucketed and merged into the hours with
+ * `mergeHours` (the file's last, partial hour plus the swaps after its last block), and coverage
+ * only moves forward. Pure, so the builder's merge is tested without the network.
+ */
+export function extendBackfillAsset(existing: BackfillAsset, add: BackfillAddition): BackfillAsset {
+  const out: BackfillAsset = { ...existing };
+  if (existing.feed || add.rounds?.length) {
+    const seen = new Set((existing.feed?.rounds ?? []).map(([p, r]) => `${p}.${r}`));
+    const fresh = (add.rounds ?? []).filter((r) => !seen.has(`${r.phase}.${r.round}`)).map(roundRow);
+    const lastRound = { ...(existing.feed?.lastRound ?? {}) };
+    for (const [p, r] of Object.entries(add.lastRound ?? {})) lastRound[p] = Math.max(lastRound[p] ?? 0, r);
+    const rounds = [...(existing.feed?.rounds ?? []), ...fresh].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    out.feed = { address: existing.feed?.address ?? "", rounds, lastRound };
+  }
+  const p = existing.pool;
+  if (p && add.pool && add.pool.toBlock > p.toBlock) {
+    const tail = bucketSwaps(add.pool.swaps);
+    const hours = mergeHours(p.hours.map(rowToHour), tail.hours).map(hourToRow);
+    out.pool = { ...p, toBlock: add.pool.toBlock, toTime: Math.max(p.toTime, add.pool.toTime), swaps: p.swaps + add.pool.swaps.length, spikes: p.spikes + tail.spikes, hours };
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Persisted tail (DataDeps.onchainTail)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * What the run-time tail adds beyond the checked-in backfill for one asset, saved after every read
+ * so the next run only reads what came after it (each daily run then reads about a day). JSON only.
+ */
+export type OnchainTailState = {
+  version: 1;
+  assetId: string;
+  /** When this state was saved. */
+  updatedAt: IsoDateTime;
+  /** Chainlink rounds newer than the backfill's last round per phase: [phase, round, updatedAt (unix s), answer USD]. */
+  rounds?: [number, number, number, number][];
+  /** Last Chainlink round known per phase, backfill and tail together. */
+  lastRound?: Record<string, number>;
+  /**
+   * Pool hours from `fromTime` (an hour boundary, unix s) on, with every swap through block
+   * `toBlock` (time `toTime`) counted; rows as in the backfill file. `fromBlock` is informational.
+   */
+  pool?: { fromBlock: number; fromTime: number; toBlock: number; toTime: number; hours: HourRow[] };
+};
+
+/** Where the run keeps `OnchainTailState` between runs (the engine wires a Supabase table). */
+export type OnchainTailStore = {
+  load(assetId: string): Promise<OnchainTailState | null>;
+  save(assetId: string, state: OnchainTailState): Promise<void>;
+};
+
+/** The state keeps at most this many days of rounds and hours (the backfill holds the rest). */
+export const TAIL_STATE_MAX_DAYS = 400;
+
+/** True when a loaded value has the shape this code writes (anything else is ignored). */
+export function isTailState(x: unknown, assetId: string): x is OnchainTailState {
+  const s = x as OnchainTailState | null;
+  if (!s || typeof s !== "object" || s.version !== 1 || s.assetId !== assetId) return false;
+  if (s.rounds !== undefined && !(Array.isArray(s.rounds) && s.rounds.every((r) => Array.isArray(r) && r.length === 4 && r.every((v) => typeof v === "number")))) return false;
+  if (s.pool !== undefined) {
+    const p = s.pool;
+    if (!p || ![p.fromBlock, p.fromTime, p.toBlock, p.toTime].every((v) => typeof v === "number" && Number.isFinite(v)) || !Array.isArray(p.hours)) return false;
+    if (!p.hours.every((r) => Array.isArray(r) && r.length === 10 && typeof r[0] === "number")) return false;
+  }
+  return true;
+}
+
+/**
+ * The backfill with a stored tail on top, whichever covers further. Rounds join by phase and
+ * round. Pool hours: the backfill's hours before the hour its last block falls in, then the
+ * state's hours from that hour on (the state is complete from its `fromTime`, an hour boundary at
+ * or before that hour). A state that ends at or before the backfill is ignored (the file was
+ * regenerated past it); one that starts after the backfill's last hour (a gap) is used alone and
+ * the history before it is dropped, with a note.
+ */
+export function applyTailState(base: BackfillAsset, state: OnchainTailState | null, poolAddress: string): { asset: BackfillAsset; note?: string } {
+  if (!state) return { asset: base };
+  const out: BackfillAsset = { ...base };
+  let note: string | undefined;
+  if (state.rounds?.length || state.lastRound) {
+    out.feed = extendBackfillAsset({ feed: base.feed ?? { address: "", rounds: [], lastRound: {} } }, { rounds: (state.rounds ?? []).map(fromRoundRow), lastRound: state.lastRound }).feed;
+  }
+  const sp = state.pool;
+  const bp = base.pool;
+  if (sp && (!bp || sp.toBlock > bp.toBlock)) {
+    const pool = { address: poolAddress, fromBlock: sp.fromBlock, fromTime: sp.fromTime, toBlock: sp.toBlock, toTime: sp.toTime, swaps: 0, spikes: 0, hours: sp.hours };
+    if (!bp) out.pool = pool;
+    else {
+      const h0 = hourStart(bp.toTime);
+      if (sp.fromTime <= h0) {
+        const hours = [...bp.hours.filter((r) => (r[0] as number) < h0), ...sp.hours.filter((r) => (r[0] as number) >= h0)];
+        out.pool = { ...bp, toBlock: sp.toBlock, toTime: Math.max(bp.toTime, sp.toTime), hours };
+      } else {
+        out.pool = pool;
+        note = `stored pool tail starts ${iso(sp.fromTime).slice(0, 16)} UTC, after the checked-in backfill ends (${iso(bp.toTime).slice(0, 16)} UTC); pool history before it is not used, regenerate onchain-backfill.json`;
+      }
+    }
+  }
+  return { asset: out, ...(note ? { note } : {}) };
+}
+
+/**
+ * The state to save after a read: rounds newer than the backfill, and pool hours from the hour the
+ * backfill's last block falls in (or from the start of what was read when the file has no pool),
+ * capped to the last `TAIL_STATE_MAX_DAYS` days.
+ */
+export function tailStateFrom(
+  assetId: string,
+  base: BackfillAsset,
+  rounds: Round[],
+  pool: { fromBlock: number; fromTime: number; toBlock: number; toTime: number; hours: HourBucket[] } | undefined,
+  now: Date,
+): OnchainTailState {
+  const minT = Math.floor(now.getTime() / 1000) - TAIL_STATE_MAX_DAYS * 86_400;
+  const baseLast = base.feed?.lastRound ?? {};
+  const lastRound: Record<string, number> = { ...baseLast };
+  for (const r of rounds) lastRound[String(r.phase)] = Math.max(lastRound[String(r.phase)] ?? 0, r.round);
+  const newer = rounds.filter((r) => r.round > (baseLast[String(r.phase)] ?? 0) && r.updatedAt >= minT).sort((a, b) => a.phase - b.phase || a.round - b.round);
+  const state: OnchainTailState = { version: 1, assetId, updatedAt: now.toISOString() };
+  if (rounds.length || Object.keys(lastRound).length) {
+    state.rounds = newer.map(roundRow);
+    state.lastRound = lastRound;
+  }
+  if (pool && (!base.pool || pool.toBlock > base.pool.toBlock)) {
+    // Complete from the hour the backfill's last block falls in, or from where the read began when that is later (a gap).
+    let fromTime = base.pool ? Math.max(hourStart(base.pool.toTime), pool.fromTime) : pool.fromTime;
+    if (fromTime < hourStart(minT)) fromTime = hourStart(minT);
+    state.pool = { fromBlock: pool.fromBlock, fromTime, toBlock: pool.toBlock, toTime: pool.toTime, hours: pool.hours.filter((h) => h.t >= fromTime).map(hourToRow) };
+  }
+  return state;
+}
+
+/** True when saving `next` would cover less than `prev` (with the backfill's end as the floor). */
+export function tailRegresses(prev: OnchainTailState | null, next: OnchainTailState, base: BackfillAsset): boolean {
+  if (!prev) return false;
+  const floor = base.pool?.toBlock ?? 0;
+  if (Math.max(prev.pool?.toBlock ?? 0, floor) > Math.max(next.pool?.toBlock ?? 0, floor)) return true;
+  for (const [p, r] of Object.entries(prev.lastRound ?? {})) if ((next.lastRound?.[p] ?? 0) < r) return true;
+  return false;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Run-time read
@@ -540,8 +703,24 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
   const deadline = deps.now().getTime() + ONCHAIN_BUDGET_MS;
   rpc.deadline = deadline;
   const sym = cfg.token.symbol;
-  const bf = backfill.assets[assetId] ?? {};
+  const base = backfill.assets[assetId] ?? {};
   const out = (x: Partial<OnchainHistory>): OnchainHistory => ({ facts, problems, requests: rpc.requests, ...x });
+
+  // 0. Stored tail from earlier runs (optional): start from whichever of it and the backfill covers further.
+  const store = deps.onchainTail;
+  let loaded: OnchainTailState | null = null;
+  if (store) {
+    try {
+      const raw = await store.load(assetId);
+      if (raw !== null && raw !== undefined && !isTailState(raw, assetId)) problems.push(`${assetId}: stored on-chain tail has an unexpected shape, ignored; reading from the checked-in backfill`);
+      else loaded = raw ?? null;
+    } catch (e) {
+      problems.push(`${assetId}: stored on-chain tail could not be loaded (${(e instanceof Error ? e.message : "unknown").slice(0, 100)}); reading from the checked-in backfill`);
+    }
+  }
+  const applied = applyTailState(base, loaded, cfg.pool.address);
+  if (applied.note) problems.push(`${assetId}: ${applied.note}`);
+  const bf = applied.asset;
 
   // 1. Head block and chain.
   let head: number;
@@ -622,8 +801,9 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
     }
   }
 
-  // 3. Chainlink rounds after the backfill.
+  // 3. Chainlink rounds after the backfill (and the stored tail).
   let rounds: Round[] = (bf.feed?.rounds ?? []).map(([p, r, u, a]) => ({ phase: p, round: r, updatedAt: u, answer: a }));
+  let rawRounds: Round[] = rounds;
   if (cfg.feed && latest) {
     try {
       const want: { phase: number; round: number }[] = [];
@@ -659,29 +839,38 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
     } catch (e) {
       problems.push(`${assetId}: Chainlink rounds after the backfill not read (${e instanceof Error ? e.message : "unknown"}); daily bars end where the backfill ends`);
     }
+    rawRounds = rounds;
     rounds = stitchRounds(rounds);
   }
 
-  // 4. Pool swaps after the backfill (only for quiet pools).
+  // 4. Pool swaps after the backfill (and the stored tail). Quiet pools always; the busy AAPLc and
+  // NVDAc pools only with a tail store, oldest first within the time budget, so each run's
+  // progress is saved and the next run continues from it.
   let hours = (bf.pool?.hours ?? []).map(rowToHour);
   const cov: Coverage = bf.pool ? [{ from: bf.pool.fromTime * 1000, to: bf.pool.toTime * 1000 }] : [];
   let poolFrom = bf.pool?.fromBlock;
   let poolTo = bf.pool?.toBlock;
-  if (cfg.poolTail) {
+  const readPool = cfg.poolTail || Boolean(store);
+  let poolReadFrom: number | undefined;
+  if (readPool) {
     let from = (bf.pool?.toBlock ?? head - MAX_TAIL_LOG_REQUESTS * GETLOGS_MAX_BLOCKS) + 1;
-    if (head - from + 1 > MAX_TAIL_LOG_REQUESTS * GETLOGS_MAX_BLOCKS) {
+    poolReadFrom = from;
+    if (store && bf.pool) {
+      // With a store, read forward from the end of what is known; the rest waits for the next run.
+    } else if (head - from + 1 > MAX_TAIL_LOG_REQUESTS * GETLOGS_MAX_BLOCKS) {
       const newFrom = head - MAX_TAIL_LOG_REQUESTS * GETLOGS_MAX_BLOCKS + 1;
       problems.push(`${assetId}: pool swaps in blocks ${from} to ${newFrom - 1} not read (more than ${MAX_TAIL_LOG_REQUESTS} log requests after the backfill); sessions in that gap have no bar, regenerate onchain-backfill.json`);
       from = newFrom;
     }
     const ranges: [number, number][] = [];
-    for (let b = from; b <= head; b += GETLOGS_MAX_BLOCKS) ranges.push([b, Math.min(head, b + GETLOGS_MAX_BLOCKS - 1)]);
+    for (let b = from; b <= head && ranges.length < MAX_TAIL_LOG_REQUESTS; b += GETLOGS_MAX_BLOCKS) ranges.push([b, Math.min(head, b + GETLOGS_MAX_BLOCKS - 1)]);
+    const perBatch = cfg.logsPerBatch;
     const swaps: Swap[] = [];
     let readTo = from - 1;
     try {
-      for (let k = 0; k < ranges.length; k += LOGS_PER_BATCH) {
+      for (let k = 0; k < ranges.length; k += perBatch) {
         if (deps.now().getTime() > deadline) throw new Error(`time budget of ${ONCHAIN_BUDGET_MS / 1000} s used up at block ${ranges[k][0]}`);
-        const part = ranges.slice(k, k + LOGS_PER_BATCH);
+        const part = ranges.slice(k, k + perBatch);
         const ans = await rpc.batch(part.map(([a, b]) => ({ method: "eth_getLogs", params: [{ address: cfg.pool.address, topics: [SWAP_TOPIC], fromBlock: hexBlock(a), toBlock: hexBlock(b) }] })));
         for (let j = 0; j < ans.length; j++) {
           const x = ans[j];
@@ -695,8 +884,9 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
         }
       }
     } catch (e) {
-      problems.push(`${assetId}: pool swaps after block ${readTo} not read (${e instanceof Error ? e.message : "unknown"}); sessions after that have no bar`);
+      problems.push(`${assetId}: pool swaps after block ${readTo} not read (${e instanceof Error ? e.message : "unknown"}); ${store ? "the next run continues from there" : "sessions after that have no bar"}`);
     }
+    if (readTo < head && ranges.length && readTo === ranges[ranges.length - 1][1]) problems.push(`${assetId}: pool swaps after block ${readTo} not read (more than ${MAX_TAIL_LOG_REQUESTS} log requests); the next run continues from there`);
     if (readTo >= from) {
       // How far the swaps are known to be complete: the time of block readTo. When a partial read
       // also loses that block's time (lookup failed, refused by the time budget, or no timestamp),
@@ -743,7 +933,9 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
       display: true,
     };
     const covEnd = Math.max(0, ...cov.map((c) => c.to));
-    if (!cfg.poolTail) {
+    if (readPool && covEnd && covEnd < (headTime - 3600) * 1000) {
+      problems.push(`${assetId}: ${sym} pool volume known through ${iso(covEnd / 1000).slice(0, 16)} UTC; later sessions have no volume until later runs read them`);
+    } else if (!readPool) {
       problems.push(
         covEnd
           ? `${assetId}: ${sym} pool volume after ${iso(covEnd / 1000).slice(0, 16)} UTC is not read at run time (thousands of swaps a day); later sessions have no volume, regenerate onchain-backfill.json for current volume`
@@ -764,5 +956,23 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
     };
   }
   if (!daily.length) problems.push(`${assetId}: no on-chain daily bars could be built, no reading`);
+
+  // 6. Save the tail for the next run: never moving coverage backwards, never breaking the read.
+  if (store) {
+    const covSeg = cov.length ? cov[cov.length - 1] : undefined;
+    const poolPart =
+      poolTo !== undefined && covSeg && (!base.pool || poolTo > base.pool.toBlock)
+        ? { fromBlock: poolReadFrom ?? poolFrom ?? poolTo, fromTime: Math.floor(covSeg.from / 1000), toBlock: poolTo, toTime: Math.floor(covSeg.to / 1000), hours }
+        : undefined;
+    const next = tailStateFrom(assetId, base, rawRounds, poolPart, deps.now());
+    if (tailRegresses(loaded, next, base)) problems.push(`${assetId}: on-chain tail not saved, it would cover less than the stored one`);
+    else {
+      try {
+        await store.save(assetId, next);
+      } catch (e) {
+        problems.push(`${assetId}: on-chain tail could not be saved (${(e instanceof Error ? e.message : "unknown").slice(0, 100)}); the next run reads this gap again`);
+      }
+    }
+  }
   return out({ ...(daily.length ? { daily } : {}), source, ...(current ? { current } : {}) });
 }

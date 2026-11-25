@@ -13,6 +13,6 @@ export { fetchWeekAhead, eventsForAsset, FOMC_FALLBACK, BLS_FALLBACK, BEA_FALLBA
 export { fetchMacro, FRED_SERIES, MACRO_FOR_ASSET, FRED_KEY_ENV } from "./macro.ts";
 export { fetchFlows, ETF_FLOWS_PROBLEM } from "./flows.ts";
 export { fetchPriceHistory, aggregateBars, PRICE_SOURCES, COINBASE_SOURCE } from "./prices.ts";
-export { fetchOnchainHistory, ONCHAIN_ASSETS, ONCHAIN_BACKFILL, BASE_RPC_ENV, DEFAULT_BASE_RPC_URL } from "./onchain.ts";
+export { fetchOnchainHistory, ONCHAIN_ASSETS, ONCHAIN_BACKFILL, BASE_RPC_ENV, DEFAULT_BASE_RPC_URL, TAIL_STATE_MAX_DAYS, isTailState, type OnchainTailState, type OnchainTailStore } from "./onchain.ts";
 export { fetchFilings, SEC_USER_AGENT_ENV } from "./news.ts";
 export { fetchPressNews, fetchWireNews, fetchOfficialNews, PRESS_FEEDS, REPUTABLE_DOMAINS, OFFICIAL_FEEDS, tagTopics } from "./headlines.ts";

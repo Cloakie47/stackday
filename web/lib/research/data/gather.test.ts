@@ -251,6 +251,11 @@ test("on-chain run-time tail: rounds and pool swaps after a days-old backfill, w
   const lf = checkFacts(late.facts);
   assert.match(lf.get("px.last")!.label, /Morpho market oracle/);
   assert.ok(lf.has("px.pool.premium"));
+  // The tail store passed in the deps reaches the on-chain read through gatherAsset.
+  const saved: string[] = [];
+  const store = { load: async () => null, save: async (id: string) => void saved.push(id) };
+  await gatherAsset("mSPX", date, { ...replayDeps(fx, {}, "mSPX"), onchainTail: store }, { market: EMPTY_MARKET(date), onchainBackfill: bf });
+  assert.deepEqual(saved, ["mSPX"]);
 });
 
 test("assets that are not researchable are refused", async () => {
