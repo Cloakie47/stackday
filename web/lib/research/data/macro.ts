@@ -1,5 +1,5 @@
 import type { Fact, IsoDate } from "../types.ts";
-import { addDays } from "./calendar.ts";
+import { addDays, newYorkTimeToUtc } from "./calendar.ts";
 import { GENERIC_USER_AGENT, RateLimiter, getJson, getText, type DataDeps } from "./deps.ts";
 import { BLS_RELEASED_FOR } from "./events.ts";
 import { sma } from "./indicators.ts";
@@ -20,7 +20,10 @@ import { sma } from "./indicators.ts";
  * it was published, so each series has a release-lag rule and an observation is used only once it
  * was out on the run date.
  * The weekly run is Monday 12:00 UTC (7:00 or 8:00 a.m. New York), so a value published later on
- * the run date is never visible to it.
+ * the run date is never visible to it. A run that passes its real time (`cutAt`, the daily note at
+ * 22:30 UTC) also sees a release that came out earlier that day (`releaseInstant`): an H.15 or
+ * H.10 release at 4:15 p.m. New York and a BLS release at 8:30 a.m. New York. For the other daily
+ * series the time FRED posts them is not documented, so they keep the day-after rule.
  * - H.15 series (Treasury yields DGS2, DGS10, real yield DFII10, effective fed funds DFF): "The
  *   release is posted daily Monday through Friday at 4:15pm" and not on holidays
  *   (https://www.federalreserve.gov/releases/h15/, read 2026-11-25); the release dated November
@@ -163,7 +166,8 @@ export function h10Release(obsDate: IsoDate): IsoDate {
 /**
  * The first run date on which an observation may be used (see the release-lag rules above).
  * A run dated on a release day does not see that release: BLS publishes at 8:30 a.m. and the
- * Federal Reserve at 4:15 p.m. New York time, both after the 12:00 UTC weekly run.
+ * Federal Reserve at 4:15 p.m. New York time, both after the 12:00 UTC weekly run. A run with a
+ * later cut time (`cutAt`) may see it: see `releaseInstant` and `releasedBy`.
  */
 export function releasedFrom(def: FredSeriesDef, obsDate: IsoDate): IsoDate {
   if (def.freq === "daily") {
@@ -182,9 +186,32 @@ export function releasedFrom(def: FredSeriesDef, obsDate: IsoDate): IsoDate {
   return `${next.slice(0, 8)}${String(def.release.fallbackDay).padStart(2, "0")}`;
 }
 
-/** Observations that were published by the run date. */
-export function releasedBy(def: FredSeriesDef, obs: Observation[], date: IsoDate): Observation[] {
-  return obs.filter((o) => releasedFrom(def, o.date) <= date);
+/**
+ * When an observation was published (ms), where the publisher states a time of day: H.15 and H.10
+ * at 4:15 p.m. New York on their release day, BLS at 8:30 a.m. New York. Undefined where no time
+ * is known (VIX, S&P 500, target range, months outside the BLS table): those keep the date rule.
+ */
+export function releaseInstant(def: FredSeriesDef, obsDate: IsoDate): number | undefined {
+  if (def.freq === "daily") {
+    if (def.publisher === "h15") return newYorkTimeToUtc(h15Release(obsDate), 16, 15).getTime();
+    if (def.publisher === "h10") return newYorkTimeToUtc(h10Release(obsDate), 16, 15).getTime();
+    return undefined;
+  }
+  const day = def.release ? BLS_RELEASED_FOR[def.release.schedule][obsDate.slice(0, 7)] : undefined;
+  return day ? newYorkTimeToUtc(day, 8, 30).getTime() : undefined;
+}
+
+/**
+ * Observations that were published by the run date (12:00 UTC run). With `cutAt` (ms, the run's
+ * real time) an observation released earlier on the same day at a known time is visible too.
+ */
+export function releasedBy(def: FredSeriesDef, obs: Observation[], date: IsoDate, cutAt?: number): Observation[] {
+  return obs.filter((o) => {
+    if (releasedFrom(def, o.date) <= date) return true;
+    if (cutAt === undefined) return false;
+    const t = releaseInstant(def, o.date);
+    return t !== undefined && t <= cutAt;
+  });
 }
 
 /** Macro fact ids that matter for each asset, so the asset input can carry them too. */
@@ -353,10 +380,19 @@ export function restrictFacts(facts: Fact[], env: Record<string, string | undefi
   return facts.map((f) => (prefixes.some((p) => f.id === p || f.id.startsWith(`${p}.`)) ? { ...f, display: false, source: { ...f.source, display: false } } : f));
 }
 
-/** Fetches every FRED series for the run date. Never throws: failures and stale series go to problems. */
-export async function fetchMacro(date: IsoDate, deps: DataDeps): Promise<{ facts: Fact[]; problems: string[] }> {
+/**
+ * Fetches every FRED series for the run date. Never throws: failures and stale series go to
+ * problems. `cutAt` (ISO): the run's real time, capped at the end of the run date and at `now`.
+ */
+export async function fetchMacro(date: IsoDate, deps: DataDeps, cutAt?: string): Promise<{ facts: Fact[]; problems: string[] }> {
   const facts: Fact[] = [];
   const problems: string[] = [];
+  let cut: number | undefined;
+  if (cutAt !== undefined) {
+    const t = Date.parse(cutAt);
+    if (Number.isFinite(t)) cut = Math.min(t, Date.parse(`${date}T23:59:59.999Z`), deps.now().getTime());
+    else problems.push(`FRED: cut time "${String(cutAt).slice(0, 40)}" is not an ISO time, release rules for 12:00 UTC used`);
+  }
   const series: Record<string, Observation[]> = {};
   // A run date before today is a backfill: ask ALFRED for that date's vintage when a key is set.
   const backfill = date < deps.now().toISOString().slice(0, 10);
@@ -367,7 +403,7 @@ export async function fetchMacro(date: IsoDate, deps: DataDeps): Promise<{ facts
     try {
       const fetched = await fetchFredSeries(def.id, start, deps, vintage);
       if (fetched.apiError && vintage) problems.push(`FRED ${def.id}: ALFRED vintage for ${date} failed (${fetched.apiError}), used today's revised values from the public CSV`);
-      const obs = releasedBy(def, fetched.obs, date);
+      const obs = releasedBy(def, fetched.obs, date, cut);
       if (!obs.length) {
         problems.push(`FRED ${def.id}: no observations released by ${date}, no reading`);
         continue;

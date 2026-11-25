@@ -35,6 +35,7 @@ import {
   isUntrusted,
   patternFacts,
   prepareFacts,
+  priceProblem,
   sentFacts,
   untrustedNotes,
 } from "./facts.ts";
@@ -274,6 +275,9 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const withheld = [...new Set([...shown.withheld, ...restricted.map((id) => `fact ${id}`)])];
   if (withheld.length) notes.push(`${asset.assetId}: ${withheld.length} items not for display (source terms) were kept from the model and the report`);
   const fail = (why: string): SectionResult => ({ section: noReadingSection(asset, weekAhead, "error"), failed: true, approved: false, sentBack: 0, removed: 0, notes: [...notes, `${asset.assetId}: ${why}`], input, cause: "error" });
+  // No section rests on news alone: without a fresh price there is no reading, and nothing is spent.
+  const noPrice = priceProblem(own, view.date, asset.assetClass === "crypto");
+  if (noPrice) return fail(noPrice);
 
   // 2. Four analysts, each with only its own facts. They run together, so the budget must hold all
   // four before any starts (otherwise three could be paid for and the fourth refused).

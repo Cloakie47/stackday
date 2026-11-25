@@ -698,20 +698,28 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
       problems.push(`${assetId}: pool swaps after block ${readTo} not read (${e instanceof Error ? e.message : "unknown"}); sessions after that have no bar`);
     }
     if (readTo >= from) {
+      // How far the swaps are known to be complete: the time of block readTo. When a partial read
+      // also loses that block's time (lookup failed, refused by the time budget, or no timestamp),
+      // the newest swap read is a safe lower bound; coverage never moves back before the
+      // backfill's end, and with nothing known it stays where it was (no bar is dropped).
+      const lastSwap = swaps.length ? Math.max(...swaps.map((s) => s.time)) : 0;
       let toTime = headTime;
       if (readTo !== head) {
+        let t = 0;
         try {
           const b = (await rpc.call("eth_getBlockByNumber", [hexBlock(readTo), false])) as { timestamp?: string };
-          toTime = Number(BigInt(b.timestamp ?? "0x0"));
+          t = b?.timestamp ? Number(BigInt(b.timestamp)) : 0;
         } catch {
-          toTime = swaps.length ? swaps[swaps.length - 1].time : 0;
+          t = 0;
         }
+        if (!(t > 0)) problems.push(`${assetId}: time of block ${readTo} not read; pool coverage ends at ${lastSwap ? `the last swap read (${iso(lastSwap).slice(0, 16)} UTC)` : "the backfill's end"}`);
+        toTime = t > 0 ? t : lastSwap;
       }
-      const fromTime = bf.pool && from === bf.pool.toBlock + 1 ? bf.pool.toTime : Math.min(...swaps.map((s) => s.time), toTime);
+      const contiguous = Boolean(bf.pool && from === bf.pool.toBlock + 1);
       const tail = bucketSwaps(swaps);
       hours = mergeHours(hours, tail.hours);
-      if (bf.pool && from === bf.pool.toBlock + 1) cov[0] = { from: cov[0].from, to: toTime * 1000 };
-      else cov.push({ from: fromTime * 1000, to: toTime * 1000 });
+      if (contiguous) cov[0] = { from: cov[0].from, to: Math.max(cov[0].to, toTime * 1000) };
+      else if (toTime > 0 && swaps.length) cov.push({ from: Math.min(...swaps.map((s) => s.time), toTime) * 1000, to: toTime * 1000 });
       poolFrom ??= from;
       poolTo = readTo;
     }

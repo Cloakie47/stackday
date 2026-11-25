@@ -38,9 +38,10 @@ export function chartRead(interval: "1d" | "1w" | "1mo", last = 100, over: Parti
   };
 }
 
-export function makeFacts(last = 100): Fact[] {
+/** Fixture facts; the price is dated `priceAsOf` (default the fixed fixture time). */
+export function makeFacts(last = 100, priceAsOf = asOf): Fact[] {
   return [
-    { id: "px.1d.last", kind: "price", label: "Last daily close", value: last, unit: "USD", source: src, asOf },
+    { id: "px.1d.last", kind: "price", label: "Last daily close", value: last, unit: "USD", source: src, asOf: priceAsOf },
     { id: "ind.1d.atr14", kind: "indicator", label: "ATR 14", value: last * 0.02, unit: "USD", source: src, asOf },
     { id: "ind.1d.rsi14", kind: "indicator", label: "RSI 14", value: 58.2, source: src, asOf },
     { id: "news.1", kind: "news", label: "Company reports quarterly results", value: "headline", source: { name: "Reuters" }, asOf, quote: "Revenue rose from a year earlier." },
@@ -60,7 +61,8 @@ export function makeInput(assetId: string, date: string, opts: { last?: number; 
     series: {},
     indicators: { "1d": { last, changePct: { bar1: opts.bar1 ?? 0.005 }, atr14: last * 0.02, rsi14: 58.2 } },
     chart: opts.chart ?? { "1d": chartRead("1d", last), "1w": chartRead("1w", last), "1mo": chartRead("1mo", last) },
-    facts: opts.facts ?? makeFacts(last),
+    // The last close is the evening before the run date, so it counts as a fresh price.
+    facts: opts.facts ?? makeFacts(last, new Date(Date.parse(`${date}T21:00:00Z`) - 86_400_000).toISOString()),
     calendar: [{ id: "cal.2026-11-26.pce", date: "2026-11-26", kind: "pce", name: "PCE inflation", assetIds: [], source: src }],
     problems: [],
   };

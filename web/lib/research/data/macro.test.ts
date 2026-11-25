@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FRED_SERIES, NEVER, derivedFacts, fetchMacro, fredApiUrl, fredCsvUrl, h10Release, h15Release, isFedHoliday, parseFredApi, parseFredCsv, releasedBy, releasedFrom, restrictFacts, seriesFacts, type Observation } from "./macro.ts";
+import { FRED_SERIES, NEVER, derivedFacts, fetchMacro, fredApiUrl, fredCsvUrl, h10Release, h15Release, isFedHoliday, parseFredApi, parseFredCsv, releaseInstant, releasedBy, releasedFrom, restrictFacts, seriesFacts, type Observation } from "./macro.ts";
 import { redactUrl, type DataDeps } from "./deps.ts";
 
 const def = (id: string) => FRED_SERIES.find((s) => s.id === id)!;
@@ -154,6 +154,59 @@ test("H.15 and H.10 publish in the afternoon: their same-day values are not visi
   assert.equal(h10Release("2026-10-09"), "2026-10-13", "Columbus Day Monday 2026-10-12");
   const usd = ["2026-11-12", "2026-11-13", "2026-11-16", "2026-11-20"].map((date) => ({ date, value: 120 }));
   assert.deepEqual(releasedBy(def("DTWEXBGS"), usd, "2026-11-23").map((o) => o.date), ["2026-11-12", "2026-11-13"], "Monday run sees the week before last only");
+});
+
+test("a run with its real time (cutAt, the 22:30 UTC daily note) sees same-day releases only once they are out", () => {
+  const cut = (iso: string) => Date.parse(iso);
+  // Monday 2026-11-23's yields are posted on Tuesday 2026-11-24 at 4:15 p.m. New York (21:15 UTC in winter).
+  const ylds = ["2026-11-20", "2026-11-23"].map((date, i) => ({ date, value: 4 + i / 100 }));
+  assert.equal(releaseInstant(def("DGS10"), "2026-11-23"), cut("2026-11-24T21:15:00Z"));
+  assert.deepEqual(releasedBy(def("DGS10"), ylds, "2026-11-24").map((o) => o.date), ["2026-11-20"], "default (12:00 UTC) unchanged");
+  assert.deepEqual(releasedBy(def("DGS10"), ylds, "2026-11-24", cut("2026-11-24T12:00:00Z")).map((o) => o.date), ["2026-11-20"]);
+  assert.deepEqual(releasedBy(def("DGS10"), ylds, "2026-11-24", cut("2026-11-24T21:14:59Z")).map((o) => o.date), ["2026-11-20"], "a minute before the release");
+  assert.deepEqual(releasedBy(def("DGS10"), ylds, "2026-11-24", cut("2026-11-24T21:15:00Z")).map((o) => o.date), ["2026-11-20", "2026-11-23"]);
+  assert.deepEqual(releasedBy(def("DGS10"), ylds, "2026-11-24", cut("2026-11-24T22:30:00Z")).map((o) => o.date), ["2026-11-20", "2026-11-23"]);
+  // Summer time: 4:15 p.m. New York is 20:15 UTC.
+  assert.equal(releaseInstant(def("DGS2"), "2026-07-13"), cut("2026-07-14T20:15:00Z"));
+  // H.10 on Monday afternoon for the week before.
+  assert.equal(releaseInstant(def("DTWEXBGS"), "2026-11-20"), cut("2026-11-23T21:15:00Z"));
+  // BLS at 8:30 a.m. New York: September 2026 CPI on 2026-10-14 at 12:30 UTC (summer time).
+  const cpi = def("CPIAUCSL");
+  const months = [{ date: "2026-08-01", value: 1 }, { date: "2026-09-01", value: 2 }];
+  assert.equal(releaseInstant(cpi, "2026-09-01"), cut("2026-10-14T12:30:00Z"));
+  assert.deepEqual(releasedBy(cpi, months, "2026-10-14", cut("2026-10-14T12:29:00Z")).map((o) => o.date), ["2026-08-01"]);
+  assert.deepEqual(releasedBy(cpi, months, "2026-10-14", cut("2026-10-14T22:30:00Z")).map((o) => o.date), ["2026-08-01", "2026-09-01"]);
+  // No documented posting time: VIX, the S&P 500 and the target range keep the day-after rule;
+  // so does a month that was never published.
+  for (const id of ["VIXCLS", "SP500", "DFEDTARU"]) {
+    assert.equal(releaseInstant(def(id), "2026-11-24"), undefined, id);
+    assert.deepEqual(releasedBy(def(id), [{ date: "2026-11-24", value: 1 }], "2026-11-24", cut("2026-11-24T23:00:00Z")), [], id);
+  }
+  assert.equal(releaseInstant(cpi, "2025-10-01"), undefined, "October 2025 CPI was cancelled");
+});
+
+test("fetchMacro with cutAt: the 22:30 UTC daily run sees the yields posted at 4:15 p.m.; a bad cut time falls back to 12:00", async () => {
+  const csv = (rows: string[]) => `observation_date,X\n${rows.join("\n")}\n`;
+  const deps: DataDeps = {
+    fetch: async (url) => (url.includes("id=DGS10") ? { ok: true, status: 200, text: async () => csv(["2026-11-20,4.10", "2026-11-23,4.20"]) } : { ok: false, status: 500, text: async () => "" }),
+    env: {},
+    now: () => new Date("2026-11-24T22:31:00Z"),
+    sleep: async () => {},
+  };
+  const value = async (cutAt?: string) => {
+    const r = await fetchMacro("2026-11-24", deps, cutAt);
+    return { v: r.facts.find((x) => x.id === "macro.dgs10")?.value, problems: r.problems };
+  };
+  assert.equal((await value()).v, 4.1, "no cutAt: 12:00 UTC rules");
+  assert.equal((await value("2026-11-24T22:30:00Z")).v, 4.2);
+  assert.equal((await value("2026-11-24T21:00:00Z")).v, 4.1, "before the release");
+  assert.equal((await value("2026-11-25T03:00:00Z")).v, 4.2, "capped at the end of the run date, still after the release");
+  const bad = await value("tonight");
+  assert.equal(bad.v, 4.1);
+  assert.ok(bad.problems.some((p) => /cut time "tonight" is not an ISO time/.test(p)));
+  // Capped at now: a cut time in the future of the clock does not see a release that has not happened.
+  const early = await fetchMacro("2026-11-24", { ...deps, now: () => new Date("2026-11-24T20:00:00Z") }, "2026-11-24T22:30:00Z");
+  assert.equal(early.facts.find((x) => x.id === "macro.dgs10")?.value, 4.1);
 });
 
 test("fetchMacro: October CPI dated 2026-10-01 is not used in an October 20 run (backfill)", async () => {

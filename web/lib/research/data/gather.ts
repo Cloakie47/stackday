@@ -39,7 +39,10 @@ import type { Backfill } from "./onchain.ts";
  *   news.0 .., filing.0 ..
  *
  * No look-ahead: bars, observations and headlines after the run date are dropped, and so is any
- * bar whose period has not ended at the run time (see `cutSeries`).
+ * bar whose period has not ended at the run time (see `cutSeries`). The run time is 12:00 UTC on
+ * the run date (the weekly run, and every backfill) unless the caller passes `cutAt`: the daily
+ * note passes its real time (22:30 UTC, after the US close), so its prices include the day's
+ * closed NYSE session and crypto hours up to the last closed hour.
  *
  * Licences: every price series carries `source.display` (Coinbase and the on-chain sources: true),
  * and every fact, level and pattern built from it copies that source, so it inherits the flag
@@ -66,6 +69,13 @@ export type GatherOptions = {
   market?: MarketResearchInput;
   /** On-chain backfill to use instead of the checked-in onchain-backfill.json (tests). */
   onchainBackfill?: Backfill;
+  /**
+   * The run's cut time (ISO, UTC), used instead of 12:00 UTC on the run date. A live run after the
+   * US close passes its real time so the day's closed bars are included; leave it out for the
+   * weekly run and for backfills. Capped at the end of the run date and at `now`; a value that is
+   * not a time falls back to 12:00 UTC with a problem line.
+   */
+  cutAt?: IsoDateTime;
 };
 
 /** When the newest bar of a series closed (or `fetchedAt` if it is still open). */
@@ -133,20 +143,32 @@ export function eventFacts(events: CalendarEvent[], at: IsoDateTime): Fact[] {
 /** The weekly report runs on Monday at 12:00 UTC; a backfill for an earlier date sees only what that run would have seen. */
 export const RUN_TIME_UTC = "12:00:00";
 
-/** The run time for a run date: 12:00 UTC on that date, or `now` when that is earlier. */
-export function runCutoff(date: IsoDate, now?: Date): number {
-  return Math.min(Date.parse(`${date}T${RUN_TIME_UTC}Z`), now ? now.getTime() : Infinity);
+/** A `cutAt` that is not an ISO time: the run falls back to 12:00 UTC. */
+export const badCutAtProblem = (cutAt: string) => `cut time "${String(cutAt).slice(0, 40)}" is not an ISO time, cut at 12:00 UTC on the run date instead`;
+
+/**
+ * The run time for a run date, in ms: 12:00 UTC on that date, or `cutAt` when given (capped at the
+ * end of the run date), and never later than `now`. An unparseable `cutAt` is ignored (12:00 UTC;
+ * `gatherAsset` reports it), so a bad value never drops every bar.
+ */
+export function runCutoff(date: IsoDate, now?: Date, cutAt?: IsoDateTime): number {
+  const noon = Date.parse(`${date}T${RUN_TIME_UTC}Z`);
+  const given = cutAt === undefined ? NaN : Date.parse(cutAt);
+  const at = Number.isFinite(given) ? Math.min(given, Date.parse(`${date}T23:59:59.999Z`)) : noon;
+  return Math.min(at, now ? now.getTime() : Infinity);
 }
 
 /**
  * Keeps only closed bars and rebuilds weekly and monthly bars from the closed daily bars. The run
- * time is 12:00 UTC on the run date (the live run's time, also used by macro.ts), or `now` when
- * earlier: a bar is kept only when its period (hour, NYSE session or UTC day, week, month; see
- * `barPeriodEnd`) has ended by then, so a backfill never sees the afternoon of its own run date and
- * changes such as chg.1w.bar1 and chart patterns never read a bar that is still forming.
+ * time is 12:00 UTC on the run date (the weekly run's time, also used by macro.ts), or `cutAt`
+ * when given (the daily note's real time), or `now` when earlier: a bar is kept only when its
+ * period (hour, NYSE session or UTC day, week, month; see `barPeriodEnd`) has ended by then, so a
+ * backfill never sees the afternoon of its own run date and changes such as chg.1w.bar1 and chart
+ * patterns never read a bar that is still forming. At 22:30 UTC on a trading day the day's NYSE
+ * bar (closed at 21:00, or 18:00 on an early close, in winter) is in; the crypto UTC day is not.
  */
-export function cutSeries(series: Partial<Record<BarInterval, PriceSeries>>, date: IsoDate, crypto: boolean, now?: Date): Partial<Record<BarInterval, PriceSeries>> {
-  const at = runCutoff(date, now);
+export function cutSeries(series: Partial<Record<BarInterval, PriceSeries>>, date: IsoDate, crypto: boolean, now?: Date, cutAt?: IsoDateTime): Partial<Record<BarInterval, PriceSeries>> {
+  const at = runCutoff(date, now, cutAt);
   const out: Partial<Record<BarInterval, PriceSeries>> = {};
   for (const iv of ["1h", "1d"] as const) {
     const s = series[iv];
@@ -218,6 +240,7 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
   const out: AssetResearchInput = { assetId, date, marketOpenToday: false, series: {}, indicators: {}, chart: {}, facts: [], calendar: [], problems: [] };
   const crypto = asset.calendar === "CRYPTO";
   const nowIso = d.now().toISOString();
+  if (opts.cutAt !== undefined && !Number.isFinite(Date.parse(opts.cutAt))) out.problems.push(`${assetId}: ${badCutAtProblem(opts.cutAt)}`);
 
   if (!calendarCovers(asset.calendar, date)) out.problems.push(`${assetId}: NYSE holiday list not loaded for ${date.slice(0, 4)}, only weekends are known`);
   out.marketOpenToday = isTradingDay(asset.calendar, date);
@@ -225,13 +248,14 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
 
   // Prices and indicators
   const history = await fetchPriceHistory(asset, d, { onchainBackfill: opts.onchainBackfill });
-  out.series = cutSeries(history.series, date, crypto, d.now());
+  out.series = cutSeries(history.series, date, crypto, d.now(), opts.cutAt);
   out.problems.push(...history.problems);
   const proxy = PRICE_SOURCES[assetId]?.proxyNote;
-  const cutoff = runCutoff(date, d.now());
+  const cutoff = runCutoff(date, d.now(), opts.cutAt);
   // A live run (run date is today, as in macro.ts) uses the current price and pool facts as read,
   // even when the cron fires a little after 12:00 UTC. A backfill (run date before today) uses a
-  // value read from chain only if it was published by 12:00 UTC on the run date, so never today's.
+  // value read from chain only if it was published by the run time (12:00 UTC on the run date, or
+  // `cutAt`), so never today's.
   const live = date >= d.now().toISOString().slice(0, 10);
   const usable = (asOf: IsoDateTime) => live || Date.parse(asOf) <= cutoff;
 
@@ -331,12 +355,15 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
   return out;
 }
 
-/** Market-wide input, gathered once per run. Never throws. */
-export async function gatherMarket(date: IsoDate, deps?: Partial<DataDeps>): Promise<MarketResearchInput> {
+/**
+ * Market-wide input, gathered once per run. Never throws. `cutAt` (see `GatherOptions`) lets a
+ * live run after the US close see same-day releases that were out by then (macro.ts, `releasedBy`).
+ */
+export async function gatherMarket(date: IsoDate, deps?: Partial<DataDeps>, opts: { cutAt?: IsoDateTime } = {}): Promise<MarketResearchInput> {
   assertServer();
   const d: DataDeps = { ...defaultDeps(), ...deps };
   const nowIso = d.now().toISOString();
-  const macro = await fetchMacro(date, d);
+  const macro = await fetchMacro(date, d, opts.cutAt);
   const week = await fetchWeekAhead(date, d);
   const wire = await fetchWireNews("market", date, d);
   const official = await fetchOfficialNews("market", date, d);
@@ -351,7 +378,7 @@ export async function gatherMarket(date: IsoDate, deps?: Partial<DataDeps>): Pro
 /** Gathers several assets one after another, sharing one market input and one response cache. */
 export async function gatherAll(assetIds: string[], date: IsoDate, deps?: Partial<DataDeps>, opts: GatherOptions = {}): Promise<AssetResearchInput[]> {
   const d: Partial<DataDeps> = { ...deps, cache: deps?.cache ?? new Map() };
-  const market = opts.market ?? (await gatherMarket(date, d));
+  const market = opts.market ?? (await gatherMarket(date, d, { cutAt: opts.cutAt }));
   const out: AssetResearchInput[] = [];
   for (const id of assetIds) out.push(await gatherAsset(id, date, d, { ...opts, market }));
   return out;
@@ -361,6 +388,6 @@ export async function gatherAll(assetIds: string[], date: IsoDate, deps?: Partia
 export async function gatherRun(date: IsoDate, deps?: Partial<DataDeps>, opts: Omit<GatherOptions, "market"> = {}): Promise<{ market: MarketResearchInput; assets: AssetResearchInput[]; refused: string[] }> {
   const { assets, refused } = researchableUniverse(opts.deployment ?? (deployment as DeploymentLike));
   const d: Partial<DataDeps> = { ...deps, cache: deps?.cache ?? new Map() };
-  const market = await gatherMarket(date, d);
+  const market = await gatherMarket(date, d, { cutAt: opts.cutAt });
   return { market, assets: await gatherAll(assets.map((a) => a.assetId), date, d, { ...opts, market }), refused };
 }
