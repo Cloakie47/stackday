@@ -8,7 +8,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ISwapAdapter, IPriceAdapter} from "../interfaces/IAdapters.sol";
+import {ISwapAdapter, ISellAdapter, IPriceAdapter} from "../interfaces/IAdapters.sol";
 
 // =============================================================================
 //  MOCKS. TESTNET AND TESTS ONLY. These are NOT real stocks, prices or trades.
@@ -156,6 +156,63 @@ contract MockSwapAdapter is ISwapAdapter, Ownable {
     /// @notice Demo operator recycles the test USDC collected by the mock exchange.
     function withdrawUsdc(address to, uint256 amount) external onlyOwner {
         usdc.safeTransfer(to, amount);
+    }
+}
+
+/// @notice MOCK sell desk (issue #77). Buys mock assets for test USDC at the mock feed price minus a fixed
+/// spread, paid from a test USDC reserve the demo operator tops up. This is NOT a real market: on mainnet,
+/// selling goes through a real DEX route instead. Lets the chat assistant demo "sell" on testnet.
+contract MockSellDesk is ISellAdapter, Ownable {
+    using SafeERC20 for IERC20;
+
+    uint16 public constant MAX_SPREAD_BPS = 500;
+
+    IERC20 public immutable usdc;
+    IPriceAdapter public immutable priceAdapter;
+    /// @notice How far below the feed price the desk pays, in basis points (50 = 0.5%). Fixed at deployment.
+    uint16 public immutable spreadBps;
+
+    error SlippageExceeded(uint256 out, uint256 minOut);
+    error ReserveTooLow(uint256 needed, uint256 reserve);
+    error BadSpread();
+    error ZeroAmount();
+
+    event Sold(address indexed seller, address indexed stock, uint256 stockIn, uint256 usdcOut, address to);
+
+    constructor(IERC20 usdc_, IPriceAdapter priceAdapter_, uint16 spreadBps_, address owner_) Ownable(owner_) {
+        if (spreadBps_ > MAX_SPREAD_BPS) revert BadSpread();
+        usdc = usdc_;
+        priceAdapter = priceAdapter_;
+        spreadBps = spreadBps_;
+    }
+
+    /// @notice USDC that `stockIn` of `stock` sells for right now (feed price minus the spread).
+    function quote(address stock, uint256 stockIn) public view returns (uint256 usdcOut) {
+        (uint256 price, uint8 priceDecimals,) = priceAdapter.getPrice(stock);
+        uint256 usdcUnit = 10 ** IERC20Metadata(address(usdc)).decimals();
+        uint256 stockUnit = 10 ** IERC20Metadata(stock).decimals();
+        uint256 atPrice = Math.mulDiv(stockIn, price * usdcUnit, stockUnit * 10 ** priceDecimals);
+        usdcOut = (atPrice * (10_000 - spreadBps)) / 10_000;
+    }
+
+    function swapExactStockForUsdc(address stock, uint256 stockIn, uint256 minUsdcOut, address to)
+        external
+        returns (uint256 usdcOut)
+    {
+        if (stockIn == 0) revert ZeroAmount();
+        usdcOut = quote(stock, stockIn);
+        if (usdcOut == 0) revert ZeroAmount();
+        if (usdcOut < minUsdcOut) revert SlippageExceeded(usdcOut, minUsdcOut);
+        uint256 reserve = usdc.balanceOf(address(this));
+        if (usdcOut > reserve) revert ReserveTooLow(usdcOut, reserve);
+        IERC20(stock).safeTransferFrom(msg.sender, address(this), stockIn);
+        usdc.safeTransfer(to, usdcOut);
+        emit Sold(msg.sender, stock, stockIn, usdcOut, to);
+    }
+
+    /// @notice Demo operator takes back test USDC or the mock assets the desk bought.
+    function withdraw(IERC20 token, address to, uint256 amount) external onlyOwner {
+        token.safeTransfer(to, amount);
     }
 }
 
