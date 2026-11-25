@@ -114,7 +114,8 @@ export const analystAnswer = (role: string) => {
 export function goodDraft(over: Record<string, unknown> = {}, probs: [number, number, number] = [35, 45, 20]) {
   return {
     recap: [r("Price rose over the week on results news.", "px.1d.last", "news.1")],
-    chart: { "1d": [r("Daily bars show a range between support and resistance.", "px.1d.last")], "1w": [], "1mo": [] },
+    // The editor answers in its schema's flat chart list (see EDITOR_SCHEMA).
+    chart: [{ interval: "1d", ...r("Daily bars show a range between support and resistance.", "px.1d.last") }],
     market: [r("Yields held steady near 4.1%.", "macro.dgs10")],
     news: [r("Export rules were discussed during the week.", "news.geo")],
     scenarios: {

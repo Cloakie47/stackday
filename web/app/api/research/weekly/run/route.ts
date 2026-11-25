@@ -43,6 +43,8 @@ export async function GET(request: Request) {
       store: supabaseStore(db()),
       maxRunCostUsd: flags.maxWeeklyRunCostUsd,
       maxDayCostUsd: flags.maxDayCostUsd,
+      // A few seconds between the analysts of an asset: no burst of four large requests at once.
+      analystStaggerMs: 3000,
       slot: parseSlot(new URL(request.url).searchParams.get("slot")),
     });
     // The report itself is read through GET /api/research/weekly; the cron only gets the summary.

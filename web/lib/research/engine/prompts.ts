@@ -133,9 +133,20 @@ const scenario = obj({
 export const SECTION_KEYS = ["recap", "chart", "market", "news", "scenarios", "view"] as const;
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
+/**
+ * The editor's chart text as one flat list of { interval, text, factIds }. An object with one list
+ * per timeframe made the editor schema too large for the API to compile ("The compiled grammar is
+ * too large", found in a real run on 2026-11-25); the flat list compiles. Code groups it back by
+ * timeframe (review.ts parseDraft).
+ */
+const editorChart = {
+  type: "array",
+  items: obj({ interval: { type: "string", enum: [...CHART_INTERVALS] }, text: { type: "string" }, factIds: { type: "array", items: { type: "string" } } }),
+};
+
 export const EDITOR_SCHEMA = obj({
   recap: reasonedList,
-  chart: chartTexts,
+  chart: editorChart,
   market: reasonedList,
   news: reasonedList,
   scenarios: obj({ bull: scenario, base: scenario, bear: scenario }),
@@ -144,7 +155,7 @@ export const EDITOR_SCHEMA = obj({
 
 export const EDITOR_ROLE = `STEP: editor. Write this asset's section of the weekly report from the analyst notes and the debate, in plain language:
 - "recap": 1 to 4 sentences on last week: price move, volume and what drove it.
-- "chart": for each timeframe 1 to 3 sentences on trend, support and resistance, patterns and volatility (empty list when there is no reading).
+- "chart": a list of items, each with "interval" (1d, 1w or 1mo), one sentence on trend, support and resistance, patterns or volatility for that timeframe, and its fact ids. Give 1 to 3 items per timeframe, and none for a timeframe with no reading.
 - "market": 1 to 4 sentences on the market conditions that matter for this asset.
 - "news": 1 to 4 sentences on geopolitics and news, each citing a dated news or filing fact.
 - "scenarios": bull, base and bear for the week. Each has one sentence, a probability picked from multiples of 5 so the three add up to exactly 100, the price levels involved chosen only from the ALLOWED LEVELS list, and a short trigger.

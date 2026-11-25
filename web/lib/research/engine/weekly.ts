@@ -60,7 +60,7 @@ import {
   WEEKLY_SYSTEM,
   type SectionKey,
 } from "./prompts.ts";
-import { blocking, codeIssues, finalizeDraft, parseDraft, parseReview, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
+import { blocking, codeIssues, editorJson, finalizeDraft, parseDraft, parseReview, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
 import { qualityBar, weeklyScorecard } from "./scores.ts";
 import { LEASE_TTL_MS, type LeaseResult, type NoReadingCause, type ResearchStore, type StoredSection } from "./store.ts";
 import { citableIds, ideaProblems, sectionProblems, weeklyProblems } from "./validate.ts";
@@ -136,6 +136,11 @@ export type WeeklyDeps = {
   slot?: number;
   /** Waits between lease checks in the last slot (tests pass a fake). */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Gap between the starts of the four analysts of an asset (default 0). The live route sets a few
+   * seconds, so a new API account is not hit with a burst of four large requests at once.
+   */
+  analystStaggerMs?: number;
 };
 
 /** From this slot on every call runs the final step. */
@@ -279,7 +284,14 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
     return { role, roleFacts, req };
   });
   s.budget.ensure(groupCost(s, analystReqs.map((a) => a.req)), `the four analysts of ${asset.assetId}`);
-  const analysts = await settleAll(analystReqs.map(({ role, roleFacts, req }) => step(s, req, (t) => parseAnalyst(role, t, roleFacts, extra))));
+  const gap = s.deps.analystStaggerMs ?? 0;
+  const pause = s.deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const analysts = await settleAll(
+    analystReqs.map(async ({ role, roleFacts, req }, i) => {
+      if (gap > 0 && i > 0) await pause(gap * i);
+      return step(s, req, (t) => parseAnalyst(role, t, roleFacts, extra));
+    }),
+  );
   const okAnalysts = analysts.filter((a): a is NonNullable<typeof a> => a !== null);
   if (okAnalysts.length < 3) return fail(`${4 - okAnalysts.length} analyst steps failed`);
   const flagged = new Set(okAnalysts.flatMap((a) => a.flagged));
@@ -328,7 +340,7 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const hasNews = citable.some(isUntrusted);
   const issues = codeIssues(draft, hasNews);
   const reviewCtx = new Ctx(citable);
-  const draftJson = JSON.stringify(stripEvidence(draft.draft));
+  const draftJson = editorJson(stripEvidence(draft.draft));
   // Code check lines quote removed model text, so they travel with the draft as untrusted notes.
   const checkLines = issues.map((i) => `- ${i.section}: ${i.issue}`).join("\n") || "- none";
   const review: Review | null = await step(
@@ -602,6 +614,9 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
     const spent = budget?.spent ?? 0;
     const where = next ? `${phase} ${next.assetId}` : phase;
     if (status === "aborted-cost") await alert(`weekly run ${runId} (${where}) stopped by the cost guard: ${problems[0] ?? ""}`);
+    else if (status === "failed") await alert(`weekly run ${runId} (${where}) failed: ${[...problems, ...callErrors(budget?.calls ?? [])].slice(0, 3).join(" | ")}`);
+    // A written report with no researched section is useless to readers: say so loudly.
+    if (o.report && !o.report.assets.some((a) => a.status === "ok")) await alert(`weekly run ${runId}: the report for ${weekOf} was written with no section researched; do not approve it`);
     const counts = { ...o.counts, calls: budget?.calls.length ?? 0 };
     problems = [...problems, ...callErrors(budget?.calls ?? [])];
     const dataHash = o.inputs ? hashInputs(o.inputs) : null;
@@ -824,7 +839,8 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
     if (ranked.length < summary.ranked.length) problems.push(`${summary.ranked.length - ranked.length} ideas dropped: they did not cite facts of the report`);
 
     const [previous, scores] = await Promise.all([deps.store.weekliesBefore(weekOf, 4).catch(() => []), deps.store.scores(null, addDays(weekOf, -120)).catch(() => [])]);
-    const lastWeek = previous[0]?.report ?? null;
+    // Only a report readers saw (approved) is graded: an unapproved draft or test run never is.
+    const lastWeek = previous.find((w) => w.approved)?.report ?? null;
     const later = lastWeek ? await deps.store.notes(null, lastWeek.weekOf, date).catch(() => []) : [];
     const bar = qualityBar(previous, scores);
     const okItems = results.filter((r) => r.section.status === "ok").map((r) => ({ asset: assets.find((a) => a.assetId === r.section.assetId)!, view: r.section.view.view }));
