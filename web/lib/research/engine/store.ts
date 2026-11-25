@@ -29,6 +29,20 @@ export type RunFinish = {
 
 export type StoredWeekly = { report: WeeklyReport; approved: boolean };
 
+/** Why a weekly section has no reading. Budget and unfinished never count toward MAX_NO_READINGS. */
+export type NoReadingCause = "budget" | "unfinished" | "error";
+
+/**
+ * Lease between weekly invocations, kept as one reserved row of research_weekly_sections (no new
+ * table or column): asset_id LEASE_ASSET_ID (matches the asset_id check but is no universe asset),
+ * run_id the holder (a research_runs row, so the run is started before the lease is taken),
+ * updated_at the time it was taken, result { lease: true, holder, expiresAt }.
+ */
+export const LEASE_ASSET_ID = "mLease";
+/** Longer than one invocation (300 s on Vercel Hobby), so a live holder never loses the lease. */
+export const LEASE_TTL_MS = 6 * 60_000;
+export type LeaseResult = { taken: true } | { taken: false; holder: string; expiresAt: string };
+
 /** One asset's part of a weekly report, kept between invocations. */
 export type StoredSection = {
   assetId: string;
@@ -36,7 +50,7 @@ export type StoredSection = {
   failed: boolean;
   attempts: number;
   costUsd: number;
-  result: { section: WeeklyAssetSection; approved: boolean; sentBack: number; removed: number; notes: string[] };
+  result: { section: WeeklyAssetSection; approved: boolean; sentBack: number; removed: number; notes: string[]; cause?: NoReadingCause };
 };
 
 export interface ResearchStore {
@@ -44,6 +58,8 @@ export interface ResearchStore {
   finishRun(runId: string, f: RunFinish): Promise<void>;
   /** Sets a running run's spend so far (settled plus reserved), written before every model call. */
   recordSpend(runId: string, costUsd: number): Promise<void>;
+  /** Replaces a running run's raw model outputs (the whole list so far), written after every call. */
+  recordOutputs(runId: string, outputs: unknown[]): Promise<void>;
   /** Sum of the cost of every run started on this UTC date (for the per-day cap). */
   daySpend(date: IsoDate): Promise<number>;
   /** Sum of the cost of the weekly runs from `weekOf` to six days later (for the weekly cap). */
@@ -60,8 +76,18 @@ export interface ResearchStore {
   weekly(weekOf: IsoDate): Promise<StoredWeekly | null>;
   /** Run id of the report written for this week, or null when there is none. */
   weeklyRunId(weekOf: IsoDate): Promise<string | null>;
+  /** The week's asset sections (never the lease row). */
   weeklySections(weekOf: IsoDate): Promise<StoredSection[]>;
+  /** Saves a section. A failed section never replaces an ok one (the ok one is kept). */
   saveWeeklySection(weekOf: IsoDate, s: StoredSection): Promise<void>;
+  /**
+   * Takes the week's lease for `runId` until `now + ttlMs`: inserted when there is none (insert on
+   * conflict do nothing), or taken over only when the current one has expired (conditional update
+   * on the holder that was read). The run row must exist first.
+   */
+  takeWeeklyLease(weekOf: IsoDate, runId: string, now: Date, ttlMs: number): Promise<LeaseResult>;
+  /** Ends the lease early when `runId` still holds it (best effort; it expires anyway). */
+  releaseWeeklyLease(weekOf: IsoDate, runId: string, now: Date): Promise<void>;
   /** Newest report; only approved ones when `approvedOnly`. */
   latestWeekly(approvedOnly: boolean): Promise<StoredWeekly | null>;
   /** Up to `n` reports before `weekOf`, newest first. */
@@ -83,6 +109,7 @@ export function memoryStore() {
   const market = new Map<IsoDate, { runId: string; overview: MarketOverview }>();
   const weeklies = new Map<IsoDate, StoredWeekly & { runId: string; reviewer?: string }>();
   const sections = new Map<string, StoredSection>(); // week|asset
+  const leases = new Map<IsoDate, { holder: string; expiresAt: string }>();
   const scores = new Map<string, DailyScore>(); // date|asset
   const writes = { daily: 0, weekly: 0 };
   const key = (d: string, a: string) => `${d}|${a}`;
@@ -97,6 +124,10 @@ export function memoryStore() {
     async recordSpend(runId, costUsd) {
       const r = runs.get(runId);
       if (r) runs.set(runId, { ...r, costUsd });
+    },
+    async recordOutputs(runId, outputs) {
+      const r = runs.get(runId);
+      if (r) runs.set(runId, { ...r, outputs: structuredClone(outputs) });
     },
     async daySpend(date) {
       return [...runs.values()].filter((r) => r.date === date).reduce((s, r) => s + r.costUsd, 0);
@@ -141,7 +172,20 @@ export function memoryStore() {
       return [...sections.entries()].filter(([k]) => k.startsWith(`${weekOf}|`)).map(([, s]) => s);
     },
     async saveWeeklySection(weekOf, s) {
-      sections.set(key(weekOf, s.assetId), s);
+      const old = sections.get(key(weekOf, s.assetId));
+      if (s.failed && old && !old.failed) return;
+      sections.set(key(weekOf, s.assetId), structuredClone(s));
+    },
+    async takeWeeklyLease(weekOf, runId, now, ttlMs) {
+      if (!runs.has(runId)) throw new Error("take lease: the run row must exist first");
+      const old = leases.get(weekOf);
+      if (old && Date.parse(old.expiresAt) > now.getTime()) return { taken: false, holder: old.holder, expiresAt: old.expiresAt };
+      leases.set(weekOf, { holder: runId, expiresAt: new Date(now.getTime() + ttlMs).toISOString() });
+      return { taken: true };
+    },
+    async releaseWeeklyLease(weekOf, runId, now) {
+      const old = leases.get(weekOf);
+      if (old?.holder === runId) leases.set(weekOf, { holder: runId, expiresAt: now.toISOString() });
     },
     async latestWeekly(approvedOnly) {
       const list = [...weeklies.values()].filter((w) => !approvedOnly || w.approved).sort((a, b) => b.report.weekOf.localeCompare(a.report.weekOf));
@@ -176,7 +220,7 @@ export function memoryStore() {
       return true;
     },
   };
-  return { store, runs, notes, market, weeklies, sections, scores, writes };
+  return { store, runs, notes, market, weeklies, sections, scores, writes, leases };
 }
 
 const isScore = (x: unknown): x is DailyScore =>
@@ -214,6 +258,11 @@ export function supabaseStore(db: SupabaseClient): ResearchStore {
     async recordSpend(runId, costUsd) {
       const { error } = await db.from("research_runs").update({ cost_usd: Number(costUsd.toFixed(4)) }).eq("run_id", runId);
       fail("record spend", error);
+    },
+    async recordOutputs(runId, outputs) {
+      // PostgREST cannot append to jsonb, so the whole list so far is written each time.
+      const { error } = await db.from("research_runs").update({ outputs }).eq("run_id", runId);
+      fail("record outputs", error);
     },
     async daySpend(date) {
       const { data, error } = await db.from("research_runs").select("cost_usd").eq("run_date", date);
@@ -281,16 +330,57 @@ export function supabaseStore(db: SupabaseClient): ResearchStore {
       return typeof data?.run_id === "string" ? data.run_id : null;
     },
     async weeklySections(weekOf) {
-      const { data, error } = await db.from("research_weekly_sections").select("asset_id, run_id, failed, attempts, cost_usd, result").eq("week_of", weekOf);
+      const { data, error } = await db.from("research_weekly_sections").select("asset_id, run_id, failed, attempts, cost_usd, result").eq("week_of", weekOf).neq("asset_id", LEASE_ASSET_ID);
       fail("read weekly sections", error);
       return (data ?? []).map((r) => ({ assetId: r.asset_id, runId: r.run_id, failed: r.failed, attempts: r.attempts, costUsd: Number(r.cost_usd ?? 0), result: r.result as StoredSection["result"] }));
     },
     async saveWeeklySection(weekOf, s) {
-      const { error } = await db.from("research_weekly_sections").upsert(
-        { week_of: weekOf, asset_id: s.assetId, run_id: s.runId, failed: s.failed, attempts: s.attempts, cost_usd: Number(s.costUsd.toFixed(4)), result: s.result, updated_at: new Date().toISOString() },
-        { onConflict: "week_of,asset_id" },
-      );
+      if (s.assetId === LEASE_ASSET_ID) throw new Error("write weekly section: reserved asset id");
+      const row = { week_of: weekOf, asset_id: s.assetId, run_id: s.runId, failed: s.failed, attempts: s.attempts, cost_usd: Number(s.costUsd.toFixed(4)), result: s.result, updated_at: new Date().toISOString() };
+      if (!s.failed) {
+        const { error } = await db.from("research_weekly_sections").upsert(row, { onConflict: "week_of,asset_id" });
+        fail("write weekly section", error);
+        return;
+      }
+      // A failed section: insert when there is none, else replace only a failed one (an ok section stays).
+      const { data, error } = await db.from("research_weekly_sections").upsert(row, { onConflict: "week_of,asset_id", ignoreDuplicates: true }).select("asset_id");
       fail("write weekly section", error);
+      if ((data ?? []).length > 0) return;
+      const { error: e2 } = await db.from("research_weekly_sections").update(row).eq("week_of", weekOf).eq("asset_id", s.assetId).eq("failed", true);
+      fail("write weekly section", e2);
+    },
+    async takeWeeklyLease(weekOf, runId, now, ttlMs) {
+      const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+      const row = { week_of: weekOf, asset_id: LEASE_ASSET_ID, run_id: runId, failed: true, attempts: 1, cost_usd: 0, result: { lease: true, holder: runId, expiresAt }, updated_at: now.toISOString() };
+      const { data, error } = await db.from("research_weekly_sections").upsert(row, { onConflict: "week_of,asset_id", ignoreDuplicates: true }).select("asset_id");
+      fail("take lease", error);
+      if ((data ?? []).length > 0) return { taken: true };
+      const { data: cur, error: e2 } = await db.from("research_weekly_sections").select("run_id, result").eq("week_of", weekOf).eq("asset_id", LEASE_ASSET_ID).maybeSingle();
+      fail("read lease", e2);
+      if (!cur) return { taken: false, holder: "unknown", expiresAt };
+      const held = (cur.result ?? {}) as { expiresAt?: unknown };
+      const curExpiry = typeof held.expiresAt === "string" ? held.expiresAt : "";
+      if (Number.isFinite(Date.parse(curExpiry)) && Date.parse(curExpiry) > now.getTime()) return { taken: false, holder: String(cur.run_id), expiresAt: curExpiry };
+      // Expired: take it over only while the holder is still the one read. Two callers that both
+      // saw it expired race on this update; the first changes run_id, so the second matches no row.
+      const { data: took, error: e3 } = await db
+        .from("research_weekly_sections")
+        .update(row)
+        .eq("week_of", weekOf)
+        .eq("asset_id", LEASE_ASSET_ID)
+        .eq("run_id", cur.run_id)
+        .select("asset_id");
+      fail("take over lease", e3);
+      return (took ?? []).length > 0 ? { taken: true } : { taken: false, holder: "another run", expiresAt };
+    },
+    async releaseWeeklyLease(weekOf, runId, now) {
+      const { error } = await db
+        .from("research_weekly_sections")
+        .update({ result: { lease: true, holder: runId, expiresAt: now.toISOString(), released: true }, updated_at: now.toISOString() })
+        .eq("week_of", weekOf)
+        .eq("asset_id", LEASE_ASSET_ID)
+        .eq("run_id", runId);
+      fail("release lease", error);
     },
     async weekly(weekOf) {
       const { data, error } = await db.from("research_weekly").select("body, approved").eq("week_of", weekOf).maybeSingle();

@@ -9,12 +9,16 @@ import { runWeekly } from "@/lib/research/engine/weekly";
 /**
  * Monday weekly report, ONE STEP PER CALL, called by Vercel's cron with
  * `Authorization: Bearer ${CRON_SECRET}`. web/vercel.json calls it once an hour on Monday from
- * 12:00 to 20:00 UTC (`?slot=1` to `?slot=9`, the slot only keeps the cron entries apart):
+ * 12:00 to 21:00 UTC (`?slot=1` to `?slot=10`; Vercel Hobby fires each entry at some time within
+ * its hour and may deliver it twice):
+ * - each call first takes the week's lease (a reserved row in research_weekly_sections); a call that
+ *   does not get it exits without spending anything;
  * - each call researches the next asset that has no section yet (or a failed one, at most twice);
  * - when every asset has a section, the next call writes the report (summary, ideas, scorecard);
+ * - slot 9 and later, and any call on Monday from 19:30 UTC, always write the report: assets not
+ *   finished by then are shown as "no reading";
  * - once the week has a report, every later call does nothing (a re-run never replaces it or
  *   un-approves it).
- * Six assets plus the final step take seven calls; the last two slots are spare for retries.
  * Each call stays under 300 seconds (Vercel Hobby): the engine stops model calls at 270 seconds.
  *
  * The report is written unapproved: nobody but the reviewers sees it until one of them approves it
@@ -39,6 +43,7 @@ export async function GET(request: Request) {
       store: supabaseStore(db()),
       maxRunCostUsd: flags.maxWeeklyRunCostUsd,
       maxDayCostUsd: flags.maxDayCostUsd,
+      slot: parseSlot(new URL(request.url).searchParams.get("slot")),
     });
     // The report itself is read through GET /api/research/weekly; the cron only gets the summary.
     const outcome = { ...result, report: undefined };
@@ -46,4 +51,10 @@ export async function GET(request: Request) {
   } catch (e) {
     return json({ error: "Weekly research run failed.", detail: e instanceof Error ? e.message.slice(0, 200) : "unknown" }, 500);
   }
+}
+
+/** `?slot=` as a whole number from 1 to 10, or undefined (the engine then goes by the time). */
+function parseSlot(v: string | null): number | undefined {
+  const n = Number(v);
+  return v !== null && Number.isInteger(n) && n >= 1 && n <= 10 ? n : undefined;
 }

@@ -700,7 +700,7 @@
         },
         "reasons": [
           {
-            "text": "Sample: the chart and weaker momentum support a avoid new buys view this week.",
+            "text": "Sample: the chart and weaker momentum support an avoid new buys view this week.",
             "factIds": [
               "px.1d.last",
               "px.1w.change"
@@ -1112,7 +1112,7 @@
         },
         "reasons": [
           {
-            "text": "Sample: the chart and lower real yields support a accumulate view this week.",
+            "text": "Sample: the chart and lower real yields support an accumulate view this week.",
             "factIds": [
               "px.1d.last",
               "px.1w.change"
@@ -2313,7 +2313,7 @@
         },
         "reasons": [
           {
-            "text": "Sample: the chart and broad market trend support a accumulate view this week.",
+            "text": "Sample: the chart and broad market trend support an accumulate view this week.",
             "factIds": [
               "px.1d.last",
               "px.1w.change"

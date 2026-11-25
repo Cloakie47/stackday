@@ -146,3 +146,55 @@ test("scores are public; grading is reviewer-only and the score cron fills resul
   await store.upsertScores([{ ...scores.get("2026-11-02|mAAPL")!, humanGrade: undefined }]);
   assert.equal(scores.get("2026-11-02|mAAPL")!.humanGrade, 4);
 });
+
+test("a reviewer never spends a credit and is never asked to pay, readers do", async () => {
+  const { store } = memoryStore();
+  const model = fakeModel(weeklyAnswers({ "weekly.review": () => ({ approve: true, sendBack: "none", notes: ["Internal: check the yield wording."] }) }));
+  const { last } = await runWeekFully({ gather: async (a, d) => makeInput(a, d), gatherMarket: async (d) => makeMarket(d), model: model.fn, store, maxRunCostUsd: 4, maxDayCostUsd: 6, now: () => new Date("2026-11-23T12:00:00Z"), alert: async () => {} });
+  assert.equal(last.status, "ok");
+  let spent = 0;
+  const consume = async () => void spent++;
+  const paid = async () => ({ allowed: true as const, consumesCredit: true });
+  const denied = async () => ({ allowed: false as const, reason: "payment-required" as const });
+  const asReviewer = await weeklyReply(store, { weekOf: "2026-11-23", reviewer: true, access: paid, consume, paidCheck: true });
+  assert.equal(asReviewer.status, 200);
+  assert.equal(spent, 0);
+  // A reviewer without a plan still reads the unapproved report to approve it.
+  const noPlan = await weeklyReply(store, { weekOf: "2026-11-23", reviewer: true, access: denied, consume, paidCheck: true });
+  assert.equal(noPlan.status, 200);
+  assert.equal((noPlan.body as { report: { kind: string } }).report.kind, "live");
+  assert.equal(spent, 0);
+  // Reviewers keep the review notes; once approved, readers get the report without them and pay.
+  assert.ok(((asReviewer.body as { report: { review: { notes: string[] } } }).report.review.notes.length ?? 0) > 0);
+  await store.approveWeekly("2026-11-23", last.runId, ME);
+  const reader = await weeklyReply(store, { weekOf: "2026-11-23", reviewer: false, access: paid, consume, paidCheck: true });
+  assert.equal(reader.status, 200);
+  assert.equal(spent, 1);
+  assert.deepEqual((reader.body as { report: { review: { notes: string[] } } }).report.review.notes, []);
+});
+
+test("every fact id cited in the sample weekly report exists in its section facts, the market facts, or (ideas) the report", () => {
+  const w = sampleWeekly();
+  const market = new Set(w.market.facts.map((f) => f.id));
+  const missing: string[] = [];
+  const walk = (x: unknown, path: string, ok: (id: string) => boolean) => {
+    if (Array.isArray(x)) return x.forEach((v, i) => walk(v, `${path}[${i}]`, ok));
+    if (x && typeof x === "object") {
+      const o = x as Record<string, unknown>;
+      if (Array.isArray(o.factIds)) for (const id of o.factIds as string[]) if (!ok(id)) missing.push(`${path}: ${id}`);
+      for (const [k, v] of Object.entries(o)) if (k !== "facts") walk(v, `${path}.${k}`, ok);
+    }
+  };
+  for (const a of w.assets) {
+    const own = new Set(a.facts.map((f) => f.id));
+    walk(a, a.assetId, (id) => own.has(id) || market.has(id));
+  }
+  walk(w.market, "market", (id) => market.has(id));
+  // Ideas cite "assetId:factId" (or a market fact id).
+  const all = new Set([...market, ...w.assets.flatMap((a) => a.facts.map((f) => `${a.assetId}:${f.id}`))]);
+  walk(w.ideas, "ideas", (id) => all.has(id));
+  walk(w.scorecard, "scorecard", (id) => all.has(id));
+  assert.deepEqual(missing, []);
+  // Wording: "an" before a vowel sound in the sample text.
+  assert.doesNotMatch(JSON.stringify(w), /\b[Aa] (accumulate|avoid|hold-and|equal|extra|open|over|upside|uptrend|index|inflow|outflow|eight|eleven)\b/);
+});

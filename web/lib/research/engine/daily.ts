@@ -5,7 +5,7 @@ import { VIEWS } from "../types.ts";
 import { researchableUniverse, type UniverseAsset } from "../universe.ts";
 import { defaultAlert, type AlertFn } from "./alert.ts";
 import { costBudget, CostAbort, guardedCall, pool, type Budget } from "./budget.ts";
-import { chartBlock, chartLevels, ensurePriceFacts, factBlock, hashInputs, isUntrusted, patternFacts, prepareFacts, sentFacts } from "./facts.ts";
+import { chartBlock, chartLevels, displayableInput, ensurePriceFacts, factBlock, hashInputs, isUntrusted, patternFacts, prepareFacts, sentFacts } from "./facts.ts";
 import { computeLevels } from "./levels.ts";
 import { buildMarketOverview } from "./market.ts";
 import type { ModelFn } from "./model.ts";
@@ -193,9 +193,11 @@ async function researchAsset(asset: UniverseAsset, date: IsoDate, now: string, p
   }
   if (!marketOpen(asset, date, input)) return { ...carry(), input };
 
-  const chart = input.chart ?? {};
-  const withCode = ensurePriceFacts(input);
-  const { facts: prepared, screened } = prepareFacts([...withCode, ...patternFacts(chart, withCode)]);
+  // Only what may be shown reaches the model and the note (display flag on facts and series).
+  const view = displayableInput(input).input;
+  const chart = view.chart ?? {};
+  const withCode = ensurePriceFacts(view);
+  const { facts: prepared, screened } = prepareFacts([...withCode, ...patternFacts(chart, withCode, view.series)]);
   const facts = sentFacts(prepared.filter((f) => DAILY_KINDS.has(f.kind)));
   const extra = [...chartLevels(chart), ...assetNumbers(asset)];
   const prevView = previous && previous.status !== "no-reading" ? previous.view : undefined;
@@ -245,19 +247,19 @@ async function researchAsset(asset: UniverseAsset, date: IsoDate, now: string, p
     };
   }
   const { reading, ctx } = parsed;
-  const check = dailyRiskCheck(reading, input, facts);
+  const check = dailyRiskCheck(reading, view, facts);
   const flagged = new Set(reading.injectionFactIds);
   const kept = facts.filter((f) => !flagged.has(f.id));
   const note: ResearchNote = {
     assetId: asset.assetId,
     date,
     generatedAt: now,
-    dataAsOf: newest(kept, input, now),
+    dataAsOf: newest(kept, view, now),
     status: "ok",
     summary: reading.summary,
     view: reading.view,
     conviction: check.conviction,
-    levels: computeLevels(reading.view, input.indicators?.["1d"], chart["1d"]),
+    levels: computeLevels(reading.view, view.indicators?.["1d"], chart["1d"]),
     reasons: reading.reasons,
     risks: reading.risks,
     facts: kept,

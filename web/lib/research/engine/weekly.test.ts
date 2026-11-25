@@ -164,19 +164,25 @@ test("the risk reviewer removes uncited claims, banned phrases, unbacked numbers
   for (const r of [...a.recap, ...a.market, ...a.news, ...a.view.reasons]) assert.ok(r.factIds.every((id) => ids.has(id)));
 });
 
-test("a weekly run that would pass its cap aborts and writes nothing", async () => {
-  const { store, writes, runs } = memoryStore();
+// Changed with the founder's review (item A): a cap too small for any asset used to retry every
+// asset and then write nothing. Now nothing is spent, every asset is "no reading (budget)" and the
+// report is still written in the same call, with the summary built in code.
+test("a weekly cap too small for any asset spends nothing and still writes the report, every asset no reading (budget)", async () => {
+  const { store, writes, sections } = memoryStore();
   const alerts: string[] = [];
-  const { outcomes, last } = await runWeekFully({ gather, gatherMarket, model: fakeModel(weeklyAnswers()).fn, store, maxRunCostUsd: 0.1, maxDayCostUsd: 6, now: MONDAY, alert: async (m) => void alerts.push(m) });
-  assert.equal(outcomes[0].status, "aborted-cost");
-  assert.equal([...runs.values()][0].status, "aborted-cost");
-  assert.match(alerts[0], /cost guard/);
-  // Each asset is tried at most twice, then the final step finds too many no-readings.
-  assert.equal(outcomes.length, 13);
+  const model = fakeModel(weeklyAnswers());
+  const { outcomes, last } = await runWeekFully({ gather, gatherMarket, model: model.fn, store, maxRunCostUsd: 0.1, maxDayCostUsd: 6, now: MONDAY, alert: async (m) => void alerts.push(m) });
+  assert.equal(model.calls.length, 0);
+  assert.equal(outcomes.length, 1);
   assert.equal(last.step, "final");
-  assert.equal(last.status, "failed");
-  assert.equal(writes.weekly, 0);
-  assert.equal(await store.latestWeekly(false), null);
+  assert.equal(last.status, "ok", last.problems.join("\n"));
+  assert.equal(last.costUsd, 0);
+  assert.match(alerts[0], /cost guard/);
+  assert.equal(writes.weekly, 1);
+  const report = last.report!;
+  assert.ok(report.assets.every((a) => a.status === "no-reading" && /budget ran out/.test(a.scenarios.base.text)));
+  for (const a of defaultAssets()) assert.ok(report.review.notes.some((n) => n.startsWith(`${a.assetId}: no reading (budget`)), a.assetId);
+  assert.ok([...sections.values()].every((x) => x.failed && x.result.cause === "budget"));
 });
 
 test("one section that cannot be fixed becomes no-reading; the rest of the report is written", async () => {

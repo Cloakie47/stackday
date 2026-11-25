@@ -30,8 +30,9 @@ export type ModelRequest = {
   maxTokens: number;
   effort: Effort;
   /**
-   * Wall-clock limit for this call including the one retry, in ms. Set by `guardedCall` from the
-   * run's time limit so a slow model can never push a route past its Vercel limit.
+   * Wall-clock limit for this call, in ms: one attempt may use all of it, and a retry after a
+   * transient error only gets what is left. `guardedCall` caps it at the run's time left so a slow
+   * model can never push a route past its Vercel limit.
    */
   timeoutMs?: number;
 };
@@ -90,25 +91,66 @@ export const DEFAULT_CALL_TIMEOUT_MS = 120_000;
  */
 export const MIN_MAX_TOKENS = 8000;
 
-let client: Anthropic | undefined;
+/**
+ * Limit for the long weekly steps (editor, revise, summary: 16k max tokens on the strongest model).
+ * Always capped by the time left in the run (`guardedCall`), and no call starts with under
+ * MIN_CALL_MS left.
+ */
+export const LONG_CALL_TIMEOUT_MS = 200_000;
+/** A retry after a transient error starts only when at least this much of the call's limit is left. */
+export const MIN_RETRY_MS = 20_000;
 
-/** Real implementation on the Anthropic API. Never called by tests. */
-export const callModel: ModelFn = async (req) => {
-  client ??= new Anthropic();
-  // One retry at most, each attempt half the limit, so the call never runs past `timeoutMs`
-  // (plus the SDK's short retry back-off).
-  const limit = req.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
-  const maxRetries = limit >= 60_000 ? 1 : 0;
-  const content: Anthropic.TextBlockParam[] = [];
-  if (req.context) content.push({ type: "text", text: req.context, cache_control: { type: "ephemeral" } });
-  content.push({ type: "text", text: req.user });
-  const res = await client.messages.create({
-    model: req.model,
-    max_tokens: req.maxTokens,
-    system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
-    messages: [{ role: "user", content }],
-    output_config: { effort: req.effort, format: { type: "json_schema", schema: req.schema } },
-  }, { timeout: Math.floor(limit / (maxRetries + 1)), maxRetries });
+type CreateParams = Parameters<Anthropic["messages"]["create"]>[0];
+/** The one API call, injectable so the timeout and retry rules are tested without the network. */
+export type CreateFn = (params: CreateParams, opts: { timeout: number; maxRetries: number }) => Promise<Anthropic.Message>;
+
+/**
+ * Only errors where the request was surely not billed are retried: rate limits, overload and
+ * server errors, and connection failures. Timeouts (client, 408, 504) are never retried: the model
+ * may have run and billed, and a second attempt would pay twice.
+ */
+export function retryable(e: unknown): boolean {
+  if (e instanceof Anthropic.APIConnectionTimeoutError) return false;
+  if (e instanceof Anthropic.APIConnectionError) return true;
+  if (e instanceof Anthropic.APIError) {
+    const s = e.status;
+    return typeof s === "number" && (s === 429 || (s >= 500 && s !== 504));
+  }
+  return false;
+}
+
+/**
+ * One attempt that may use the whole limit (`timeoutMs`), so a long answer is not cut at half
+ * time and paid twice. The SDK's own retries are off (they also fire on timeouts); one manual retry
+ * follows a `retryable` error when at least MIN_RETRY_MS of the limit is left, with what is left.
+ */
+export function modelCaller(create: CreateFn, clock: () => number = Date.now, wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))): ModelFn {
+  return async (req) => {
+    const limit = req.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
+    const deadline = clock() + limit;
+    const content: Anthropic.TextBlockParam[] = [];
+    if (req.context) content.push({ type: "text", text: req.context, cache_control: { type: "ephemeral" } });
+    content.push({ type: "text", text: req.user });
+    const params = {
+      model: req.model,
+      max_tokens: req.maxTokens,
+      system: [{ type: "text" as const, text: req.system, cache_control: { type: "ephemeral" as const } }],
+      messages: [{ role: "user" as const, content }],
+      output_config: { effort: req.effort, format: { type: "json_schema" as const, schema: req.schema } },
+    } as CreateParams;
+    let res: Anthropic.Message;
+    try {
+      res = await create(params, { timeout: limit, maxRetries: 0 });
+    } catch (e) {
+      if (!retryable(e) || deadline - clock() < MIN_RETRY_MS + 1000) throw e;
+      await wait(1000);
+      res = await create(params, { timeout: Math.max(1, deadline - clock()), maxRetries: 0 });
+    }
+    return toResult(req, res);
+  };
+}
+
+function toResult(req: ModelRequest, res: Anthropic.Message): ModelResult {
   const usage: ModelUsage = {
     input: res.usage.input_tokens,
     output: res.usage.output_tokens,
@@ -120,4 +162,13 @@ export const callModel: ModelFn = async (req) => {
     .map((b) => b.text)
     .join("");
   return { text: res.stop_reason === "end_turn" ? text : "", raw: text, model: req.model, stopReason: res.stop_reason, usage, costUsd: costOf(req.model, usage) };
+}
+
+let client: Anthropic | undefined;
+
+/** Real implementation on the Anthropic API. Never called by tests. */
+export const callModel: ModelFn = (req) => {
+  client ??= new Anthropic();
+  const c = client;
+  return modelCaller((params, opts) => c.messages.create(params, opts) as Promise<Anthropic.Message>)(req);
 };

@@ -3,6 +3,7 @@ import sampleWeeklyJson from "../sample-weekly.json" with { type: "json" };
 import type { AccessCheck, DailyScore, IsoDate, ResearchSnapshot, Scorecard, View, Confidence, WeeklyReport } from "../types.ts";
 import { universeAsset } from "../universe.ts";
 import { calibration, notePrice, updateScores } from "./scores.ts";
+import { displayableFacts } from "./facts.ts";
 import type { ResearchStore } from "./store.ts";
 import { snapshotProblems, weeklyProblems } from "./validate.ts";
 
@@ -17,6 +18,25 @@ import { snapshotProblems, weeklyProblems } from "./validate.ts";
  */
 
 export type Reply = { status: number; body: unknown; publicCache?: boolean };
+
+/**
+ * A weekly report as served. Facts not for display (`display: false` on the fact or its source) are
+ * never sent. Review notes are internal (reviewer comments, removed claim text, cap and run details)
+ * and go to reviewers only; readers get the counts, and each no-reading section says why itself.
+ */
+export function shownWeekly(report: WeeklyReport, reviewer: boolean): WeeklyReport {
+  return {
+    ...report,
+    market: { ...report.market, facts: displayableFacts(report.market.facts) },
+    assets: report.assets.map((a) => ({ ...a, facts: displayableFacts(a.facts) })),
+    review: { ...report.review, notes: reviewer ? report.review.notes : [] },
+  };
+}
+
+/** A daily snapshot as served: facts not for display are never sent. */
+export function shownSnapshot(s: ResearchSnapshot): ResearchSnapshot {
+  return { ...s, market: { ...s.market, facts: displayableFacts(s.market.facts) }, notes: s.notes.map((n) => ({ ...n, facts: displayableFacts(n.facts) })) };
+}
 
 export function sampleSnapshot(): ResearchSnapshot {
   const s = sample as unknown;
@@ -37,7 +57,7 @@ export async function snapshotReply(store: ResearchStore | null, reviewer: boole
   if (reviewer && store) {
     try {
       const live = await store.latestSnapshot();
-      if (live && live.notes.length > 0) return { status: 200, body: { snapshot: live, internal: false } };
+      if (live && live.notes.length > 0) return { status: 200, body: { snapshot: shownSnapshot(live), internal: false } };
     } catch {
       // fall through to the sample
     }
@@ -108,9 +128,11 @@ export async function weeklyReply(
       // keep the sample
     }
   }
-  const access = await opts.access();
+  report = shownWeekly(report, opts.reviewer);
+  // Reviewers read reports to approve them: they never pay and never spend a credit.
+  const access: AccessCheck = opts.reviewer ? { allowed: true, consumesCredit: false } : await opts.access();
   if (!access.allowed && report.kind === "live") return { status: access.reason === "sign-in" ? 401 : 402, body: { report: null, access } };
-  const spendsCredit = access.allowed && access.consumesCredit;
+  const spendsCredit = !opts.reviewer && access.allowed && access.consumesCredit;
   if (spendsCredit && report.kind === "live") {
     if (!opts.consume) return PAYMENT_REQUIRED;
     try {

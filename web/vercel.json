@@ -11,6 +11,7 @@
     { "path": "/api/research/weekly/run?slot=7", "schedule": "0 18 * * 1" },
     { "path": "/api/research/weekly/run?slot=8", "schedule": "0 19 * * 1" },
     { "path": "/api/research/weekly/run?slot=9", "schedule": "0 20 * * 1" },
+    { "path": "/api/research/weekly/run?slot=10", "schedule": "0 21 * * 1" },
     { "path": "/api/research/scores/run", "schedule": "0 23 * * 1-5" }
   ]
 }

@@ -184,7 +184,7 @@ export function summarySchema(assetIds: string[]): Record<string, unknown> {
  * schema, the text limits and the banned phrases, so any change to what the model is told or how
  * its answer is checked gives a new version. Bump the label on purpose changes.
  */
-export const PROMPT_VERSION = `research-v3-2026-11-22+${shortHash(
+export const PROMPT_VERSION = `research-v4-2026-11-25+${shortHash(
   JSON.stringify([
     DAILY_SYSTEM,
     WEEKLY_SYSTEM,

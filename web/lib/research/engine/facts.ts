@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { sanitizeText } from "../../themes/mood.ts";
 import type { AssetResearchInput, CalendarEvent, ChartInterval, ChartRead, Fact, FactKind } from "../types.ts";
-import { CHART_INTERVALS } from "../types.ts";
+import { CHART_INTERVALS, isDisplayable } from "../types.ts";
 
 /**
  * Facts as the model sees them. Facts are made by code (web/lib/research/data) with a source and a
@@ -38,14 +38,21 @@ const ID_RE = /^[A-Za-z0-9_.:-]{1,80}$/;
 
 /**
  * The facts the model may cite: valid ids, unique, cleaned text, untrusted items that look like an
- * injection removed. Returns the kept facts plus the ids that were screened out.
+ * injection removed. Returns the kept facts plus the ids that were screened out. Facts whose source
+ * terms do not allow showing them (`display: false` on the fact or its source) are dropped here, so
+ * they never reach a model or anything built from model answers.
  */
-export function prepareFacts(facts: Fact[]): { facts: Fact[]; screened: string[] } {
+export function prepareFacts(facts: Fact[]): { facts: Fact[]; screened: string[]; restricted: string[] } {
   const seen = new Set<string>();
   const kept: Fact[] = [];
   const screened: string[] = [];
+  const restricted: string[] = [];
   for (const f of facts) {
     if (!f || typeof f.id !== "string" || !ID_RE.test(f.id) || seen.has(f.id)) continue;
+    if (!isDisplayable(f)) {
+      restricted.push(f.id);
+      continue;
+    }
     if (!f.source || typeof f.source.name !== "string" || !Number.isFinite(Date.parse(f.asOf))) continue;
     seen.add(f.id);
     const label = sanitizeText(String(f.label ?? ""), FACT_LIMITS.label);
@@ -58,7 +65,42 @@ export function prepareFacts(facts: Fact[]): { facts: Fact[]; screened: string[]
     }
     kept.push({ ...f, label, value, ...(quote === undefined ? {} : { quote }) });
   }
-  return { facts: kept, screened };
+  return { facts: kept, screened, restricted };
+}
+
+/** Facts that may be shown (published reports and public API answers). */
+export const displayableFacts = (facts: Fact[] | undefined): Fact[] => (facts ?? []).filter((f) => f && isDisplayable(f));
+
+/**
+ * The part of a gathered input that may reach a model and the published report. A price series
+ * whose source has `display: false` takes with it everything built from it: its indicators, the
+ * chart read of that interval (levels and patterns), and the facts built from them. Restricted facts
+ * are removed too. The original input is still logged with the run (internal only).
+ */
+export function displayableInput(input: AssetResearchInput): { input: AssetResearchInput; withheld: string[] } {
+  const withheld: string[] = [];
+  const series: AssetResearchInput["series"] = {};
+  const indicators: AssetResearchInput["indicators"] = {};
+  const chart: AssetResearchInput["chart"] = {};
+  for (const [k, s] of Object.entries(input.series ?? {}) as [keyof AssetResearchInput["series"], NonNullable<AssetResearchInput["series"]["1d"]>][]) {
+    if (s && s.source?.display === false) withheld.push(`${k} series`);
+    else series[k] = s;
+  }
+  const restrictedInterval = (k: string) => input.series?.[k as keyof AssetResearchInput["series"]]?.source?.display === false;
+  for (const [k, v] of Object.entries(input.indicators ?? {}) as [keyof AssetResearchInput["indicators"], NonNullable<AssetResearchInput["indicators"]["1d"]>][]) if (!restrictedInterval(k)) indicators[k] = v;
+  for (const i of CHART_INTERVALS) {
+    const c = input.chart?.[i];
+    if (!c) continue;
+    if (restrictedInterval(i)) withheld.push(`${i} chart read`);
+    else chart[i] = c;
+  }
+  const facts = (input.facts ?? []).filter((f) => {
+    if (isDisplayable(f)) return true;
+    withheld.push(`fact ${f.id}`);
+    return false;
+  });
+  const calendar = (input.calendar ?? []).filter((e) => e.source?.display !== false);
+  return { input: { ...input, series, indicators, chart, facts, calendar }, withheld };
 }
 
 /** Calendar events as facts, so they can be cited (macro analyst, week ahead). */
@@ -82,10 +124,12 @@ export function ensurePriceFacts(input: AssetResearchInput): Fact[] {
   const asOf = lastBar?.t ?? series?.fetchedAt;
   if (!daily || !series || !asOf) return facts;
   const has = (id: string) => facts.some((f) => f.id === id);
+  // Built from the series, so they inherit its display flag.
+  const display = series.source?.display === false ? { display: false } : {};
   if (!has("px.1d.last") && Number.isFinite(daily.last) && daily.last > 0)
-    facts.push({ id: "px.1d.last", kind: "price", label: "Last daily close", value: daily.last, unit: "USD", source: series.source, asOf });
+    facts.push({ id: "px.1d.last", kind: "price", label: "Last daily close", value: daily.last, unit: "USD", source: series.source, asOf, ...display });
   if (!has("ind.1d.atr14") && typeof daily.atr14 === "number" && Number.isFinite(daily.atr14) && daily.atr14 > 0)
-    facts.push({ id: "ind.1d.atr14", kind: "indicator", label: "Average true range, 14 daily bars", value: daily.atr14, unit: "USD", source: series.source, asOf });
+    facts.push({ id: "ind.1d.atr14", kind: "indicator", label: "Average true range, 14 daily bars", value: daily.atr14, unit: "USD", source: series.source, asOf, ...display });
   return facts;
 }
 
@@ -174,14 +218,16 @@ export function chartLevels(chart: Partial<Record<ChartInterval, ChartRead>>): n
 }
 
 /** Pattern ids from the chart read are citable facts too. */
-export function patternFacts(chart: Partial<Record<ChartInterval, ChartRead>>, existing: Fact[]): Fact[] {
+export function patternFacts(chart: Partial<Record<ChartInterval, ChartRead>>, existing: Fact[], series: AssetResearchInput["series"] = {}): Fact[] {
   const have = new Set(existing.map((f) => f.id));
   const out: Fact[] = [];
   for (const c of Object.values(chart)) {
     for (const p of c?.patterns ?? []) {
       if (have.has(p.id)) continue;
       have.add(p.id);
-      out.push({ id: p.id, kind: "pattern", label: `${p.kind} on ${p.interval} bars (${p.direction}, ${p.confidence} confidence)`, value: p.detail, source: { name: "Stackday pattern detection (code)" }, asOf: p.asOf });
+      // Built from that interval's price series, so it inherits the series' display flag.
+      const display = series?.[p.interval]?.source?.display === false ? { display: false } : {};
+      out.push({ id: p.id, kind: "pattern", label: `${p.kind} on ${p.interval} bars (${p.direction}, ${p.confidence} confidence)`, value: p.detail, source: { name: "Stackday pattern detection (code)", ...display }, asOf: p.asOf, ...display });
     }
   }
   return out;

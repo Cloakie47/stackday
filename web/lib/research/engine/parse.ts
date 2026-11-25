@@ -42,8 +42,9 @@ const LINK_RE = /https?:|www\.|\.(com|io|org|net|xyz)\b/i;
 const MOVES = "reach|hit|go to|rise|surge|soar|rally|climb|jump|rebound|recover|skyrocket|explode|fall|drop|crash|plunge|tank|double|moon";
 
 export const BANNED_PHRASES: RegExp[] = [
-  new RegExp(`\\bwill (definitely |certainly |surely )?(${MOVES})\\b`, "i"),
+  new RegExp(`\\bwill (definitely |certainly |surely |almost certainly |likely |most likely |very likely |probably |most probably )?(${MOVES})\\b`, "i"),
   new RegExp(`\\b(is|are) (going|set|bound|sure|certain) to (${MOVES})\\b`, "i"),
+  new RegExp(`\\b(likely|probably) to (${MOVES})\\b`, "i"),
   /\b(buy|sell) (it |them |this |more )?(right )?(now|today|immediately)\b/i,
   /\b(we|i) (strongly |would )?(recommend|advise|suggest)\b/i,
   /\b(our|my) (recommendation|advice)\b/i,
@@ -68,29 +69,110 @@ export function bannedPhrase(text: string): string | null {
   return null;
 }
 
-/**
- * Every number a trusted fact contains, plus the percent form of fractions (0.25 volatility may read
- * as 25%) and the year, month and day of its date (so "on November 26" can be written when a fact
- * is dated then). News and filing facts add nothing: a number that appears only in untrusted text
- * is not backed.
- */
-export function factNumbers(facts: Fact[]): number[] {
-  const out: number[] = [];
-  for (const f of facts) {
-    if (isUntrusted(f)) continue;
-    const strings = [f.label, typeof f.value === "string" ? f.value : "", f.unit ?? "", f.quote ?? "", typeof f.asOf === "string" ? f.asOf.slice(0, 10) : ""];
-    if (typeof f.value === "number") out.push(f.value, ...(Math.abs(f.value) <= 1 ? [f.value * 100] : []));
-    for (const s of strings) for (const m of s.match(NUMBER_RE) ?? []) out.push(Number(m.replace(/,/g, "")));
-  }
-  return out.filter(Number.isFinite).map(Math.abs);
+/** Dates and times found in trusted facts. They back a number only where the text uses it as a date. */
+export type DateParts = { years: Set<number>; months: Set<number>; days: Set<number>; times: Set<string> };
+const emptyDates = (): DateParts => ({ years: new Set(), months: new Set(), days: new Set(), times: new Set() });
+
+const ISO_DATE_RE = /\b(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?/g;
+const TIME_RE = /\b(\d{1,2}):(\d{2})\b/g;
+const MONTHS = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+const hhmm = (h: string | number, m: string | number) => `${String(Number(h)).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+/** Takes the dates and times out of a fact string: their parts go to `dates`, the rest is returned. */
+function stripDates(s: string, dates: DateParts): string {
+  return s
+    .replace(ISO_DATE_RE, (_m, y: string, mo: string, d: string) => {
+      dates.years.add(Number(y));
+      dates.months.add(Number(mo));
+      dates.days.add(Number(d));
+      return " ";
+    })
+    .replace(TIME_RE, (_m, h: string, mi: string) => {
+      dates.times.add(hhmm(h, mi));
+      return " ";
+    });
 }
 
-/** True when every number in `text` matches an allowed number after rounding. No free numbers: small counts and years must come from the facts too. */
-export function numbersBacked(text: string, allowed: number[]): boolean {
-  for (const m of text.match(NUMBER_RE) ?? []) {
-    const n = Number(m.replace(/,/g, ""));
+/**
+ * Every number a trusted fact contains, plus the percent form of fractions (0.25 volatility may read
+ * as 25%). Dates and times (in `asOf` and inside labels, for example calendar events) are kept apart
+ * in `dates`: they never back a bare number like "a 20% drop", only a number written as a date.
+ * News and filing facts add nothing: a number that appears only in untrusted text is not backed.
+ */
+export function factNumbers(facts: Fact[]): { numbers: number[]; dates: DateParts } {
+  const out: number[] = [];
+  const dates = emptyDates();
+  for (const f of facts) {
+    if (isUntrusted(f)) continue;
+    const strings = [f.label, typeof f.value === "string" ? f.value : "", f.unit ?? "", f.quote ?? ""];
+    if (typeof f.asOf === "string") stripDates(f.asOf.slice(0, 10), dates);
+    if (typeof f.value === "number") out.push(f.value, ...(Math.abs(f.value) <= 1 ? [f.value * 100] : []));
+    for (const s of strings) for (const m of stripDates(s, dates).match(NUMBER_RE) ?? []) out.push(Number(m.replace(/,/g, "")));
+  }
+  return { numbers: out.filter(Number.isFinite).map(Math.abs), dates };
+}
+
+type Span = { start: number; end: number; ok?: boolean; role?: "day" | "year" };
+
+/** Where `text` writes a date: whole tokens (full dates, times) and numbers next to a month name. */
+function dateSpans(text: string, dates: DateParts): Span[] {
+  const spans: Span[] = [];
+  for (const m of text.matchAll(ISO_DATE_RE)) {
+    const ok = dates.years.has(Number(m[1])) && dates.months.has(Number(m[2])) && dates.days.has(Number(m[3])) && (m[4] === undefined || dates.times.has(hhmm(m[4], m[5])));
+    spans.push({ start: m.index, end: m.index + m[0].length, ok });
+  }
+  const inside = (i: number) => spans.some((s) => i >= s.start && i < s.end);
+  for (const m of text.matchAll(TIME_RE)) if (!inside(m.index)) spans.push({ start: m.index, end: m.index + m[0].length, ok: dates.times.has(hhmm(m[1], m[2])) });
+  // A number right after or before a month name ("November 26", "26 Nov", "Nov. 26, 2026",
+  // "November 2026"). Unit marks ($ before, % or x after) make it a value, not a date.
+  const roles: [RegExp, ("day" | "year")[]][] = [
+    [new RegExp(`\\b(?:${MONTHS})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b(?:,?\\s+(\\d{4})\\b)?`, "gi"), ["day", "year"]],
+    [new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${MONTHS})\\b\\.?(?:,?\\s+(\\d{4})\\b)?`, "gi"), ["day", "year"]],
+    [new RegExp(`\\b(?:${MONTHS})\\.?\\s+(\\d{4})\\b`, "gi"), ["year"]],
+  ];
+  for (const [re, kinds] of roles) {
+    for (const m of text.matchAll(re)) {
+      let from = m.index;
+      kinds.forEach((role, k) => {
+        const g = m[k + 1];
+        if (g === undefined) return;
+        const start = text.indexOf(g, from);
+        from = start + g.length;
+        const before = text.slice(Math.max(0, start - 1), start);
+        const after = text.slice(start + g.length, start + g.length + 2);
+        if (before === "$" || /^(%|x\b|X\b)/.test(after) || /^x$/i.test(after.trim())) return;
+        if (!inside(start)) spans.push({ start, end: start + g.length, role });
+      });
+    }
+  }
+  return spans;
+}
+
+/**
+ * True when every number in `text` is backed. No free numbers: small counts and years must come from
+ * the facts too.
+ * - A plain number matches an allowed number within rounding (1.1% or 0.05). An integer that looks
+ *   like a year (1900 to 2100) gets no relative tolerance: only a value that rounds to it (an Ether or
+ *   gold price near 2,026) backs it.
+ * - Date parts back a number only where the text writes a date: a whole date or time that matches a
+ *   fact's, or a day or year next to a month name. Years match exactly.
+ */
+export function numbersBacked(text: string, allowed: number[], dates: DateParts = emptyDates()): boolean {
+  const spans = dateSpans(text, dates);
+  for (const m of text.matchAll(NUMBER_RE)) {
+    const raw = m[0];
+    const n = Number(raw.replace(/,/g, ""));
     if (!Number.isFinite(n)) return false;
-    if (!allowed.some((v) => Math.abs(n - v) <= Math.max(0.011 * v, 0.051))) return false;
+    const span = spans.find((s) => m.index >= s.start && m.index < s.end);
+    if (span?.ok !== undefined) {
+      if (!span.ok) return false;
+      continue;
+    }
+    if (span?.role === "day" && n >= 1 && n <= 31 && dates.days.has(n)) continue;
+    if (span?.role === "year" && dates.years.has(n)) continue;
+    const yearLike = /^\d{4}$/.test(raw) && n >= 1900 && n <= 2100;
+    const ok = yearLike ? allowed.some((v) => Math.round(v) === n) : allowed.some((v) => Math.abs(n - v) <= Math.max(0.011 * v, 0.051));
+    if (!ok) return false;
   }
   return true;
 }
@@ -99,6 +181,7 @@ export function numbersBacked(text: string, allowed: number[]): boolean {
 export class Ctx {
   readonly ids: Set<string>;
   readonly numbers: number[];
+  readonly dates: DateParts;
   removed: { text: string; why: string }[] = [];
   kept = 0;
 
@@ -106,7 +189,14 @@ export class Ctx {
     const skip = new Set(flagged);
     const ok = facts.filter((f) => !skip.has(f.id));
     this.ids = new Set(ok.map((f) => f.id));
-    this.numbers = [...factNumbers(ok), ...extraNumbers.map(Math.abs)];
+    const found = factNumbers(ok);
+    this.numbers = [...found.numbers, ...extraNumbers.map(Math.abs)];
+    this.dates = found.dates;
+  }
+
+  /** True when every number in `text` is backed by these facts (see numbersBacked). */
+  backed(text: string): boolean {
+    return numbersBacked(text, this.numbers, this.dates);
   }
 
   /** Cleans one text; null (and counted as removed) when it must go. */
@@ -119,7 +209,7 @@ export class Ctx {
     else if (LINK_RE.test(text)) why = "contains a link";
     else if (looksLikeInjection(text)) why = "looks like an injection";
     else if (bannedPhrase(text)) why = `banned phrase "${bannedPhrase(text)}"`;
-    else if (!numbersBacked(text, this.numbers)) why = "number not in the facts";
+    else if (!this.backed(text)) why = "number not in the facts";
     if (why) {
       if (text) this.removed.push({ text: text.slice(0, 120), why });
       return null;

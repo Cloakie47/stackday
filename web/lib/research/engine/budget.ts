@@ -42,6 +42,8 @@ export function costBudget(opts: {
   runCapLabel?: string;
   /** Writes the run's spend so far (settled plus reserved). Awaited before every call. */
   record?: (usd: number) => Promise<void>;
+  /** Writes the raw outputs so far after every call (best effort), so a killed run keeps them. */
+  recordOutputs?: (calls: CallLog[]) => Promise<void>;
   /** Time limit of the whole run in ms, counted from when the budget is made. */
   timeLimitMs?: number;
   clock?: () => number;
@@ -54,6 +56,9 @@ export function costBudget(opts: {
   let spent = 0;
   let reserved = 0;
   const calls: CallLog[] = [];
+  let inFlight = 0;
+  let idleWaiters: (() => void)[] = [];
+  let outChain: Promise<void> = Promise.resolve();
   // Writes run one after another, each with the value at the time it runs, so the row never goes
   // back to an older, lower figure.
   let chain: Promise<void> = Promise.resolve();
@@ -74,6 +79,18 @@ export function costBudget(opts: {
     timeLeft(): number | null {
       return deadline === null ? null : deadline - END_MARGIN_MS - clock();
     },
+    /** What may still be reserved: the cap minus settled and reserved spend. */
+    headroom(): number {
+      return cap - spent - reserved;
+    },
+    /**
+     * Throws CostAbort, before any call, when a group of calls that run together (for example the
+     * four analysts) would not fit in what is left, so no part of the group is paid for nothing.
+     */
+    ensure(worst: number, what: string) {
+      if (!(cap > 0) || spent + reserved + worst > cap)
+        throw new CostAbort(`cost guard: ${what} needs up to $${worst.toFixed(2)} and the ${which} leaves $${Math.max(0, cap - spent - reserved).toFixed(2)}`);
+    },
     reserve(worst: number) {
       if (!(cap > 0) || spent + reserved + worst > cap) throw new CostAbort(`cost guard: the run would pass the ${which}`);
       reserved += worst;
@@ -91,6 +108,33 @@ export function costBudget(opts: {
     settle(worst: number, actual: number) {
       reserved -= worst;
       spent += actual;
+    },
+    begin() {
+      inFlight++;
+    },
+    end() {
+      inFlight--;
+      if (inFlight === 0) {
+        const w = idleWaiters;
+        idleWaiters = [];
+        w.forEach((f) => f());
+      }
+    },
+    /** Resolves when no call is in flight, so a run never finishes while it is still paying for one. */
+    idle(): Promise<void> {
+      return inFlight === 0 ? Promise.resolve() : new Promise((r) => idleWaiters.push(r));
+    },
+    /** Writes the outputs so far (best effort, one write after another so the row never goes back). */
+    logOutputs(): Promise<void> {
+      if (!opts.recordOutputs) return Promise.resolve();
+      const record = opts.recordOutputs;
+      const snapshot = calls.slice();
+      outChain = outChain.then(() => record(snapshot)).catch(() => {});
+      return outChain;
+    },
+    /** Waits for pending output writes (before the run writes its final outputs). */
+    drain(): Promise<void> {
+      return outChain;
     },
     /** Records the settled spend (best effort: finishing the run writes the final figure). */
     async flush() {
@@ -114,6 +158,7 @@ export async function guardedCall(model: ModelFn, req: ModelRequest, budget: Bud
   const timed: ModelRequest = { ...req, timeoutMs: Math.min(req.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS, left ?? Infinity) };
   const worst = worstCaseCost(timed);
   await budget.hold(worst);
+  budget.begin();
   let actual = worst;
   try {
     const res = await model(timed);
@@ -126,8 +171,21 @@ export async function guardedCall(model: ModelFn, req: ModelRequest, budget: Bud
     return null;
   } finally {
     budget.settle(worst, actual);
+    void budget.logOutputs();
     await budget.flush();
+    budget.end();
   }
+}
+
+/**
+ * Like Promise.all, but waits for every promise to settle before rethrowing the first error, so a
+ * cost abort in one call of a parallel group never leaves the others running unaccounted.
+ */
+export async function settleAll<T>(ps: Promise<T>[]): Promise<T[]> {
+  const res = await Promise.allSettled(ps);
+  const bad = res.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (bad) throw bad.reason;
+  return res.map((r) => (r as PromiseFulfilledResult<T>).value);
 }
 
 /** Runs `fn` over items, `size` at a time. After the first error no new item starts; the error is rethrown. */
