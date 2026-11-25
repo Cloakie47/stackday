@@ -118,7 +118,7 @@ Keep from growth's PRs:
 | Need | Source (proposal) | Note |
 |---|---|---|
 | Crypto and gold prices | Coinbase candles (as in #71) | display allowed, check terms |
-| Stock and S&P 500 prices | a provider whose plan allows showing data to users | the Twelve Data free plan forbids display; needs a paid plan or another provider before anything goes public |
+| Stock and S&P 500 prices | on-chain prices on Base (founder decision, November 25, 2026): Chainlink "Coinbase AAPL" and "Coinbase NVDA" feeds and their round history, the deSPXA Morpho oracle, and the main AAPLc, NVDAc and deSPXA pools | public on-chain data, free to show. Label them as the token's on-chain price, not the exchange price. Twelve Data is no longer used |
 | Rates, yields, inflation, jobs | FRED (St. Louis Fed) | free, public data |
 | Fed and economic calendar | Federal Reserve and BLS official calendars | official sources |
 | Company filings | SEC EDGAR (as in #71) | official |
