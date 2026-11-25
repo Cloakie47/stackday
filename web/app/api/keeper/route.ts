@@ -63,18 +63,19 @@ export async function GET(request: Request) {
   // 2. Gift boxes: every box is numbered 1..nextId-1 on the contract (no database needed). A pending box
   // past its expiry is refunded; the contract only ever pays the sender. Runs before the database step,
   // which can stop the run early.
-  if (GIFT_BOX) {
+  const giftBox = GIFT_BOX;
+  if (giftBox) {
     try {
       await refundExpiredGifts(
         {
-          nextId: async () => (await pub.readContract({ address: GIFT_BOX, abi: giftBoxAbi, functionName: "nextId" })) as bigint,
+          nextId: async () => (await pub.readContract({ address: giftBox, abi: giftBoxAbi, functionName: "nextId" })) as bigint,
           giftsOf: async (ids) =>
             (await pub.multicall({
               allowFailure: false,
-              contracts: ids.map((id) => ({ address: GIFT_BOX, abi: giftBoxAbi, functionName: "giftOf", args: [id] }) as const),
+              contracts: ids.map((id) => ({ address: giftBox, abi: giftBoxAbi, functionName: "giftOf", args: [id] }) as const),
             })) as { status: number; expiresAt: number }[],
           refund: async (id) => {
-            await send("gift-refund", String(id), { address: GIFT_BOX, abi: giftBoxAbi, functionName: "refundExpired", args: [id] });
+            await send("gift-refund", String(id), { address: giftBox, abi: giftBoxAbi, functionName: "refundExpired", args: [id] });
           },
           skip,
         },
