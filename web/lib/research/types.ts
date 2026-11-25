@@ -69,7 +69,17 @@ export type Source = {
   name: string;
   /** http(s) link to the page or API documentation. */
   url?: string;
+  /**
+   * False when the source's terms do not allow showing its values to users (internal use only).
+   * Set on a price series' source so every fact, level and pattern built from it inherits it.
+   */
+  display?: boolean;
 };
+
+/** True when a fact or source may be shown to users and sent to the model (no `display: false`). */
+export function isDisplayable(x: { display?: boolean; source?: { display?: boolean } }): boolean {
+  return x.display !== false && x.source?.display !== false;
+}
 
 /** One OHLCV bar in USD. `t` is the bar's opening time. */
 export type PriceBar = { t: IsoDateTime; o: number; h: number; l: number; c: number; v?: number };
@@ -486,6 +496,12 @@ export type Holding = {
   costUsd?: number;
   /** USD borrowed against this holding, if any. */
   loanUsd?: number;
+  /**
+   * Units locked as loan collateral (vault holdings), already divided by decimals. Loan health uses
+   * only this, because the lending market counts only locked collateral, never idle tokens. When
+   * missing, the whole `amount` is treated as collateral (manual entries).
+   */
+  collateralAmount?: number;
 };
 
 export type PortfolioInput = {
