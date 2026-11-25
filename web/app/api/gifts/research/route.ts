@@ -16,8 +16,13 @@ export async function GET() {
   if (!configured()) return json({ pick: null, reason: "The research database is not connected here." });
   try {
     const latest = await supabaseStore(db()).latestWeekly(true);
-    const pick = latest?.approved ? researchPick(latest.report, UNIVERSE.map((a) => a.assetId)) : null;
-    return json(pick ? { pick } : { pick: null, reason: "There is no approved weekly research report yet." });
+    if (!latest?.approved) return json({ pick: null, reason: "There is no approved weekly research report yet." });
+    const pick = researchPick(latest.report, UNIVERSE.map((a) => a.assetId));
+    return json(
+      pick
+        ? { pick }
+        : { pick: null, reason: `The approved report for the week of ${latest.report.weekOf} rates no asset Accumulate or Hold, so there is no research pick this week.` },
+    );
   } catch {
     return json({ pick: null, reason: "Could not read the research right now." }, 502);
   }

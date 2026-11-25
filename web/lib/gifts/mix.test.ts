@@ -231,3 +231,24 @@ test("giftLinkPrefill reads the chat's gift link and drops anything it does not 
   assert.equal(giftLinkPrefill("5", "gold").box, undefined);
   assert.deepEqual(giftLinkPrefill(undefined, undefined), {});
 });
+
+test("with no split and no ranked ideas the pick uses the asset views: accumulate first, else hold, equal parts", () => {
+  const assets = [
+    { assetId: "mcbBTC", view: { view: "hold" } },
+    { assetId: "mWETH", view: { view: "hold" } },
+    { assetId: "mPAXG", view: { view: "accumulate" } },
+    { assetId: "mSPX", view: { view: "accumulate" } },
+    { assetId: "mTSLA", view: { view: "accumulate" } },
+  ];
+  const acc = researchPick({ ...report({ exampleSplits: [], ranked: [] }), assets }, RESEARCHED);
+  assert.deepEqual(acc, { weekOf: "2026-11-23", source: "asset-views", legs: [{ assetId: "mPAXG", weightBps: 5000 }, { assetId: "mSPX", weightBps: 5000 }] });
+
+  const holds = assets.map((a) => ({ ...a, view: { view: "hold" } }));
+  const h = researchPick({ ...report({ exampleSplits: [], ranked: [] }), assets: holds }, RESEARCHED)!;
+  assert.equal(h.source, "asset-views");
+  assert.equal(h.legs.reduce((s, l) => s + l.weightBps, 0), 10_000);
+  assert.ok(h.legs.every((l) => RESEARCHED.includes(l.assetId)), "only researched assets");
+
+  const none = assets.map((a) => ({ ...a, view: { view: "reduce" } }));
+  assert.equal(researchPick({ ...report({ exampleSplits: [], ranked: [] }), assets: none }, RESEARCHED), null);
+});
