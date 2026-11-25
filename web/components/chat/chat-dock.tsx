@@ -8,7 +8,7 @@ import { parseIntent, type Intent } from "@/lib/chat/intent";
 import { usePlan } from "@/lib/chat/usePlan";
 import { useSession } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
-import { ActionCard } from "./action-card";
+import { ActionCard, TxLinks, type ChatReceipt } from "./action-card";
 
 /**
  * The chat assistant dock on every app page: a floating button that opens a panel (a bottom sheet on
@@ -16,17 +16,26 @@ import { ActionCard } from "./action-card";
  * prepares one card at a time; nothing is signed or sent without the person confirming in their wallet.
  */
 
-type Msg = ChatTurn & { research?: ResearchNote[] };
+/** A chat message. A `receipt` is a finished action kept on this device only, never sent to the model. */
+type Msg = ChatTurn & { research?: ResearchNote[]; receipt?: ChatReceipt };
 type Pending = { intent: Intent; id: number };
 
 const storeKey = (address: string) => `stackday-chat:${address.toLowerCase()}`;
 const MAX_KEPT = 40;
+const MAX_RECEIPTS = 100;
+
+/** The last messages, plus every older receipt (up to 100), so the Activity list outlives the chat. */
+function trimmed(msgs: Msg[]): Msg[] {
+  const recent = msgs.slice(-MAX_KEPT);
+  const older = msgs.slice(0, -MAX_KEPT).filter((m) => m.receipt);
+  return [...older.slice(-MAX_RECEIPTS), ...recent];
+}
 
 function loadHistory(address: string): Msg[] {
   try {
     const raw = localStorage.getItem(storeKey(address));
     const parsed = raw ? (JSON.parse(raw) as Msg[]) : [];
-    return Array.isArray(parsed) ? parsed.filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.text === "string").slice(-MAX_KEPT) : [];
+    return Array.isArray(parsed) ? trimmed(parsed.filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.text === "string")) : [];
   } catch {
     return [];
   }
@@ -34,7 +43,7 @@ function loadHistory(address: string): Msg[] {
 
 function saveHistory(address: string, msgs: Msg[]) {
   try {
-    localStorage.setItem(storeKey(address), JSON.stringify(msgs.slice(-MAX_KEPT)));
+    localStorage.setItem(storeKey(address), JSON.stringify(trimmed(msgs)));
   } catch {
     // private window or storage blocked: the chat still works, it just is not kept
   }
@@ -77,6 +86,10 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   const [pending, setPending] = useState<Pending | null>(null);
   // While a card's wallet steps run, the panel stays open and no new card can replace it.
   const [signing, setSigning] = useState(false);
+  const [view, setView] = useState<"chat" | "activity">("chat");
+  const addReceipt = useCallback((r: ChatReceipt) => {
+    setMsgs((m) => [...m, { role: "assistant", text: `Done: ${r.title}`, receipt: r }]);
+  }, []);
   const close = useCallback(() => {
     if (!signing) onClose();
   }, [signing, onClose]);
@@ -120,7 +133,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ messages: next.slice(-20).map(({ role, text, untrusted }) => ({ role, text: text.slice(0, 4000), ...(untrusted ? { untrusted } : {}) })) }),
+          body: JSON.stringify({ messages: next.filter((m) => !m.receipt).slice(-20).map(({ role, text, untrusted }) => ({ role, text: text.slice(0, 4000), ...(untrusted ? { untrusted } : {}) })) }),
         });
         const body = (await res.json().catch(() => ({}))) as { text?: string; intent?: unknown; untrusted?: boolean; research?: ResearchNote[]; wallet?: string; error?: string };
         if (!res.ok) throw new Error(body.error ?? "The assistant could not answer.");
@@ -150,7 +163,8 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
 
   function clear() {
     if (signing) return;
-    setMsgs([]);
+    // Clearing the conversation keeps the receipts: they are the record of what was signed.
+    setMsgs((m) => m.filter((x) => x.receipt));
     setPending(null);
     setError(undefined);
   }
@@ -167,7 +181,17 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
           <div className="text-[11.5px] text-warn">Base Sepolia testnet, test tokens</div>
         </div>
         <div className="flex items-center gap-1">
-          {msgs.length > 0 && (
+          {me && session.signedIn && (
+            <button
+              type="button"
+              onClick={() => setView((v) => (v === "chat" ? "activity" : "chat"))}
+              aria-pressed={view === "activity"}
+              className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink"
+            >
+              {view === "chat" ? "Activity" : "Chat"}
+            </button>
+          )}
+          {msgs.some((m) => !m.receipt) && view === "chat" && (
             <button type="button" onClick={clear} disabled={signing} className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink">
               Clear
             </button>
@@ -191,6 +215,8 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
             </Button>
             {session.error && <p className="text-xs text-danger">{session.error}</p>}
           </div>
+        ) : view === "activity" ? (
+          <ActivityList receipts={msgs.filter((m) => m.receipt).map((m) => m.receipt!)} />
         ) : (
           <>
             {msgs.length === 0 && (
@@ -216,7 +242,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
                       : "max-w-[95%] whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink"
                   }
                 >
-                  {m.text}
+                  {m.receipt ? <ReceiptCard r={m.receipt} /> : m.text}
                   {m.research && (
                     <div className="mt-2 rounded-xl border border-line-soft bg-sunken px-3 py-2 text-xs text-ink-soft">
                       {m.research.map((r) => (
@@ -232,7 +258,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
               </div>
             ))}
             {pending && me && (plan ? (
-              <ActionCard key={pending.id} result={plan} me={me} onBusyChange={setSigning} onClose={() => setPending(null)} />
+              <ActionCard key={pending.id} result={plan} me={me} onBusyChange={setSigning} onReceipt={addReceipt} onClose={() => setPending(null)} />
             ) : (
               <p className="flex items-center gap-2 text-xs text-muted">
                 <Spinner /> Preparing the card with live prices...
@@ -248,7 +274,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      {me && session.signedIn && (
+      {me && session.signedIn && view === "chat" && (
         <form onSubmit={onSubmit} className="flex items-end gap-2 border-t border-line-soft px-3 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
           <label htmlFor="chat-input" className="sr-only">
             Message the assistant
@@ -274,6 +300,42 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
           </Button>
         </form>
       )}
+    </div>
+  );
+}
+
+const when = (at: number) =>
+  new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** A finished action in the chat: what was done, when, and its transactions on BaseScan. */
+function ReceiptCard({ r }: { r: ChatReceipt }) {
+  return (
+    <div className="rounded-xl border border-line-soft bg-sunken px-3 py-2 text-xs">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-semibold text-grow">Done: {r.title}</span>
+        <span className="shrink-0 text-muted">{when(r.at)}</span>
+      </div>
+      {r.rows.slice(0, 2).map((row) => (
+        <div key={row.label} className="mt-0.5 text-ink-soft">
+          {row.label}: {row.value}
+        </div>
+      ))}
+      <TxLinks hashes={r.hashes} />
+    </div>
+  );
+}
+
+/** Every action this wallet finished through the chat on this device, newest first. */
+function ActivityList({ receipts }: { receipts: ChatReceipt[] }) {
+  if (receipts.length === 0) {
+    return <p className="text-[13px] text-muted">No buys, sells or loans from the chat yet. When you confirm one, it shows here with its transaction links.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted">Actions you confirmed through the chat, kept on this device. Every transaction links to BaseScan.</p>
+      {[...receipts].reverse().map((r) => (
+        <ReceiptCard key={`${r.at}-${r.title}`} r={r} />
+      ))}
     </div>
   );
 }
