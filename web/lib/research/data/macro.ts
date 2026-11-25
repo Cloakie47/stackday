@@ -1,7 +1,7 @@
 import type { Fact, IsoDate } from "../types.ts";
 import { addDays } from "./calendar.ts";
 import { GENERIC_USER_AGENT, RateLimiter, getJson, getText, type DataDeps } from "./deps.ts";
-import { BLS_FALLBACK } from "./events.ts";
+import { BLS_RELEASED_FOR } from "./events.ts";
 import { sma } from "./indicators.ts";
 
 /**
@@ -19,14 +19,21 @@ import { sma } from "./indicators.ts";
  * No look-ahead (`releasedBy`): FRED dates an observation by the period it measures, not by when
  * it was published, so each series has a release-lag rule and an observation is used only once it
  * was out on the run date.
- * - Daily series: the day after the observation date (the close is public that evening; a run on
- *   day D, Monday 12:00 UTC for the weekly report, never sees day D's value).
- * - CPI (CPIAUCSL, CPILFESL): the day after the BLS CPI release for that month, from the
- *   checked-in BLS schedule in events.ts when the month is listed there; otherwise the 16th of the
- *   next month, a conservative bound (BLS has released CPI between the 10th and the 15th).
- * - Payrolls and unemployment (PAYEMS, UNRATE): the day after the Employment Situation release
- *   for that month, from the same schedule; otherwise the 11th of the next month (the jobs report
- *   comes out on the first or second Friday, by the 10th).
+ * The weekly run is Monday 12:00 UTC (7:00 or 8:00 a.m. New York), so a value published later on
+ * the run date is never visible to it.
+ * - H.15 series (Treasury yields DGS2, DGS10, real yield DFII10, effective fed funds DFF): the
+ *   Federal Reserve posts day D's rates on the next business day at 4:15 p.m. New York time, so
+ *   they are used from the day after that release (`h15Release`). Friday's yields are not visible
+ *   on Monday, Thursday's are.
+ * - H.10 (broad dollar index DTWEXBGS): posted weekly on Monday at 4:15 p.m. for the week before
+ *   (Tuesday when Monday is a Federal Reserve holiday), so used from the day after (`h10Release`).
+ *   A Monday run sees the dollar through the Friday before last.
+ * - Other daily series (VIX and S&P 500 closes, the target range): the day after the observation.
+ * - CPI (CPIAUCSL, CPILFESL) and payrolls and unemployment (PAYEMS, UNRATE): the day after BLS
+ *   published that reference month (`BLS_RELEASED_FOR` in events.ts: actual dates from January
+ *   2025, including the 2025 shutdown delays and the cancelled October 2025 CPI, then the published
+ *   schedule through 2027). For a month outside that table: the 16th (CPI) or the 11th (jobs) of
+ *   the next month, the usual latest release day.
  * With FRED_API_KEY set and a run date in the past, the API is asked for the ALFRED vintage as of
  * the run date (realtime_start = realtime_end = run date), so a backfill also sees the values as
  * first published rather than later revisions. The public CSV has no vintages: a backfill without
@@ -65,6 +72,8 @@ export type FredSeriesDef = {
   restricted?: string;
   /** Monthly series: which BLS release publishes it, and the fallback release day of the next month. */
   release?: { schedule: "cpi" | "jobs"; fallbackDay: number };
+  /** Daily series published in the afternoon by the Federal Reserve: H.15 (next business day) or H.10 (weekly, Monday). */
+  publisher?: "h15" | "h10";
 };
 
 /**
@@ -72,13 +81,13 @@ export type FredSeriesDef = {
  * S&P 500 trend, inflation and jobs. Real yields and the dollar also drive gold.
  */
 export const FRED_SERIES: FredSeriesDef[] = [
-  { id: "DGS2", label: "2-year Treasury yield", unit: "%", freq: "daily", change: "bp" },
-  { id: "DGS10", label: "10-year Treasury yield", unit: "%", freq: "daily", change: "bp" },
-  { id: "DFII10", label: "10-year real yield (TIPS)", unit: "%", freq: "daily", change: "bp" },
-  { id: "DFF", label: "Effective federal funds rate", unit: "%", freq: "daily", change: "bp" },
+  { id: "DGS2", label: "2-year Treasury yield", unit: "%", freq: "daily", change: "bp", publisher: "h15" },
+  { id: "DGS10", label: "10-year Treasury yield", unit: "%", freq: "daily", change: "bp", publisher: "h15" },
+  { id: "DFII10", label: "10-year real yield (TIPS)", unit: "%", freq: "daily", change: "bp", publisher: "h15" },
+  { id: "DFF", label: "Effective federal funds rate", unit: "%", freq: "daily", change: "bp", publisher: "h15" },
   { id: "DFEDTARL", label: "Fed funds target range, lower limit", unit: "%", freq: "daily" },
   { id: "DFEDTARU", label: "Fed funds target range, upper limit", unit: "%", freq: "daily" },
-  { id: "DTWEXBGS", label: "Broad US dollar index (Federal Reserve, nominal)", unit: "index", freq: "daily", change: "pct" },
+  { id: "DTWEXBGS", label: "Broad US dollar index (Federal Reserve, nominal)", unit: "index", freq: "daily", change: "pct", publisher: "h10" },
   { id: "VIXCLS", label: "VIX volatility index (Cboe, close)", unit: "index", freq: "daily", change: "points", restricted: "Cboe" },
   { id: "SP500", label: "S&P 500 index (close)", unit: "index", freq: "daily", change: "pct", noLevel: true, restricted: "S&P Dow Jones Indices" },
   { id: "CPIAUCSL", label: "CPI inflation, all items", unit: "%", freq: "monthly", monthly: "yoy", release: { schedule: "cpi", fallbackDay: 16 } },
@@ -97,18 +106,69 @@ const nextMonth = (date: IsoDate): IsoDate => {
   return d.toISOString().slice(0, 10);
 };
 
+/** Never: for a reference month that was not published (October 2025 CPI). */
+export const NEVER: IsoDate = "9999-12-31";
+
+const nthWeekday = (y: number, m: number, wd: number, n: number): string => {
+  const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+  return new Date(Date.UTC(y, m - 1, 1 + ((wd - first + 7) % 7) + (n - 1) * 7)).toISOString().slice(0, 10);
+};
+const lastWeekday = (y: number, m: number, wd: number): string => {
+  const lastDay = new Date(Date.UTC(y, m, 0));
+  return new Date(Date.UTC(y, m - 1, lastDay.getUTCDate() - ((lastDay.getUTCDay() - wd + 7) % 7))).toISOString().slice(0, 10);
+};
+
+/**
+ * Federal Reserve holidays: the federal holidays; one on a Sunday is observed on Monday, one on a
+ * Saturday is not moved (https://www.federalreserve.gov/aboutthefed/k8.htm).
+ */
+export function isFedHoliday(date: IsoDate): boolean {
+  const y = Number(date.slice(0, 4));
+  const fixed = [`${y}-01-01`, `${y}-06-19`, `${y}-07-04`, `${y}-11-11`, `${y}-12-25`].map((d) => (new Date(`${d}T00:00:00Z`).getUTCDay() === 0 ? addDays(d, 1) : d));
+  const moving = [nthWeekday(y, 1, 1, 3), nthWeekday(y, 2, 1, 3), lastWeekday(y, 5, 1), nthWeekday(y, 9, 1, 1), nthWeekday(y, 10, 1, 2), nthWeekday(y, 11, 4, 4)];
+  return fixed.includes(date) || moving.includes(date);
+}
+
+export function isFedBusinessDay(date: IsoDate): boolean {
+  const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return wd !== 0 && wd !== 6 && !isFedHoliday(date);
+}
+
+/** First Federal Reserve business day on or after `date`. */
+const fedBusinessOnOrAfter = (date: IsoDate): IsoDate => {
+  let d = date;
+  while (!isFedBusinessDay(d)) d = addDays(d, 1);
+  return d;
+};
+
+/** The day H.15 publishes day D's rates (4:15 p.m. New York): the next Federal Reserve business day. */
+export const h15Release = (obsDate: IsoDate): IsoDate => fedBusinessOnOrAfter(addDays(obsDate, 1));
+
+/** The day H.10 publishes a day's rate (4:15 p.m. New York): the Monday after its week, or the next business day. */
+export function h10Release(obsDate: IsoDate): IsoDate {
+  const wd = (new Date(`${obsDate}T00:00:00Z`).getUTCDay() + 6) % 7; // Monday 0
+  return fedBusinessOnOrAfter(addDays(obsDate, 7 - wd));
+}
+
 /**
  * The first run date on which an observation may be used (see the release-lag rules above).
- * A run dated on a release day does not see that release: BLS publishes at 8:30 a.m. New York
- * time, after the 12:00 UTC weekly run.
+ * A run dated on a release day does not see that release: BLS publishes at 8:30 a.m. and the
+ * Federal Reserve at 4:15 p.m. New York time, both after the 12:00 UTC weekly run.
  */
 export function releasedFrom(def: FredSeriesDef, obsDate: IsoDate): IsoDate {
-  if (def.freq === "daily") return addDays(obsDate, DAILY_RELEASE_LAG_DAYS);
+  if (def.freq === "daily") {
+    if (def.publisher === "h15") return addDays(h15Release(obsDate), 1);
+    if (def.publisher === "h10") return addDays(h10Release(obsDate), 1);
+    return addDays(obsDate, DAILY_RELEASE_LAG_DAYS);
+  }
   const next = nextMonth(obsDate);
   if (!def.release) return addDays(next, 30);
-  // Checked-in BLS releases are dated in the month after the reference month.
-  const known = BLS_FALLBACK.find((r) => r.kind === def.release!.schedule && r.date.slice(0, 7) === next.slice(0, 7));
-  if (known) return addDays(known.date, 1);
+  const table = BLS_RELEASED_FOR[def.release.schedule];
+  const ref = obsDate.slice(0, 7);
+  if (ref in table) {
+    const day = table[ref];
+    return day === null ? NEVER : addDays(day, 1);
+  }
   return `${next.slice(0, 8)}${String(def.release.fallbackDay).padStart(2, "0")}`;
 }
 
@@ -129,6 +189,8 @@ export const MACRO_FOR_ASSET: Record<string, string[]> = {
 
 /** A daily series older than this many days before the run date is stale. */
 export const STALE_DAILY_DAYS = 10;
+/** H.10 is weekly: a Monday run sees data through the Friday before last (10 days), more after a holiday. */
+export const STALE_H10_DAYS = 14;
 /**
  * A monthly series whose newest month starts more than this many days before the run is stale.
  * With the release lag the newest usable month can start up to 76 days back (July CPI before
@@ -170,19 +232,26 @@ export function parseFredApi(raw: unknown): Observation[] {
   return out;
 }
 
-export async function fetchFredSeries(id: string, start: IsoDate, deps: DataDeps, vintage?: IsoDate): Promise<Observation[]> {
+/**
+ * Observations for one series. With a key the API is tried first; when it fails the public CSV is
+ * used and `apiError` says why, so a backfill that asked for an ALFRED vintage can report that it
+ * got today's revised values instead.
+ */
+export async function fetchFredSeries(id: string, start: IsoDate, deps: DataDeps, vintage?: IsoDate): Promise<{ obs: Observation[]; apiError?: string }> {
   const headers = { "User-Agent": GENERIC_USER_AGENT, Accept: "text/csv, application/json" };
   const key = deps.env[FRED_KEY_ENV]?.trim();
+  let apiError: string | undefined;
   if (key) {
     try {
       await fredLimiter.wait(deps);
-      return parseFredApi(await getJson(deps, fredApiUrl(id, start, key, vintage), headers));
-    } catch {
-      // Fall through to the public CSV.
+      return { obs: parseFredApi(await getJson(deps, fredApiUrl(id, start, key, vintage), headers)) };
+    } catch (e) {
+      apiError = (e instanceof Error ? e.message : "unknown error").slice(0, 120);
     }
   }
   await fredLimiter.wait(deps);
-  return parseFredCsv(await getText(deps, fredCsvUrl(id, start), headers));
+  const obs = parseFredCsv(await getText(deps, fredCsvUrl(id, start), headers));
+  return apiError ? { obs, apiError } : { obs };
 }
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -271,7 +340,7 @@ export const showSpVix = (env: Record<string, string | undefined>) => /^(1|true|
 export function restrictFacts(facts: Fact[], env: Record<string, string | undefined>): Fact[] {
   if (showSpVix(env)) return facts;
   const prefixes = FRED_SERIES.filter((d) => d.restricted).map((d) => `macro.${d.id.toLowerCase()}`);
-  return facts.map((f) => (prefixes.some((p) => f.id === p || f.id.startsWith(`${p}.`)) ? { ...f, display: false } : f));
+  return facts.map((f) => (prefixes.some((p) => f.id === p || f.id.startsWith(`${p}.`)) ? { ...f, display: false, source: { ...f.source, display: false } } : f));
 }
 
 /** Fetches every FRED series for the run date. Never throws: failures and stale series go to problems. */
@@ -286,13 +355,15 @@ export async function fetchMacro(date: IsoDate, deps: DataDeps): Promise<{ facts
   for (const def of FRED_SERIES) {
     const start = addDays(date, def.freq === "daily" ? -420 : -800);
     try {
-      const obs = releasedBy(def, await fetchFredSeries(def.id, start, deps, vintage), date);
+      const fetched = await fetchFredSeries(def.id, start, deps, vintage);
+      if (fetched.apiError && vintage) problems.push(`FRED ${def.id}: ALFRED vintage for ${date} failed (${fetched.apiError}), used today's revised values from the public CSV`);
+      const obs = releasedBy(def, fetched.obs, date);
       if (!obs.length) {
         problems.push(`FRED ${def.id}: no observations released by ${date}, no reading`);
         continue;
       }
       const ageDays = (Date.parse(at(date)) - Date.parse(at(obs[obs.length - 1].date))) / 86_400_000;
-      if (ageDays > (def.freq === "daily" ? STALE_DAILY_DAYS : STALE_MONTHLY_DAYS)) {
+      if (ageDays > (def.freq === "daily" ? (def.publisher === "h10" ? STALE_H10_DAYS : STALE_DAILY_DAYS) : STALE_MONTHLY_DAYS)) {
         problems.push(`FRED ${def.id}: newest observation ${obs[obs.length - 1].date} is stale, no reading`);
         continue;
       }

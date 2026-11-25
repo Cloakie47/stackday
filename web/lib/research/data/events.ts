@@ -185,6 +185,41 @@ export const BLS_FALLBACK: Release[] = [
   ...["2026-11-06", "2026-12-04", "2027-01-08", "2027-02-05", "2027-03-05", "2027-04-02", "2027-05-07", "2027-06-04", "2027-07-02", "2027-08-06", "2027-09-03", "2027-10-08", "2027-11-05", "2027-12-03"].map(jobs),
 ];
 
+/**
+ * When the data for each reference month ("YYYY-MM") was or will be published, for the release-lag
+ * rule in macro.ts. A reference month is not always released in the next month: the 2025 lapse in
+ * appropriations moved the September 2025 jobs report to November 20, 2025, cancelled October 2025
+ * CPI (null: never published) and folded October 2025 payrolls into the November report of
+ * December 16, 2025 (no October household survey, so no October unemployment rate); the early 2026
+ * lapse moved January 2026 CPI and jobs by a few days.
+ *
+ * January 2025 to October 2026: read on 2026-11-25 from the BLS release archives
+ * (https://www.bls.gov/bls/news-release/cpi.htm, https://www.bls.gov/bls/news-release/empsit.htm),
+ * checked against the 2025 and 2026 schedules and the revised dates page
+ * (https://www.bls.gov/bls/2025-lapse-revised-release-dates.htm). From November 2026: `BLS_FALLBACK`,
+ * whose releases each cover the month before.
+ */
+export const BLS_RELEASED_FOR: Record<"cpi" | "jobs", Record<string, IsoDate | null>> = {
+  cpi: {
+    "2025-01": "2025-02-12", "2025-02": "2025-03-12", "2025-03": "2025-04-10", "2025-04": "2025-05-13", "2025-05": "2025-06-11", "2025-06": "2025-07-15",
+    "2025-07": "2025-08-12", "2025-08": "2025-09-11", "2025-09": "2025-10-24", "2025-10": null, "2025-11": "2025-12-18", "2025-12": "2026-01-13",
+    "2026-01": "2026-02-13", "2026-02": "2026-03-11", "2026-03": "2026-04-10", "2026-04": "2026-05-12", "2026-05": "2026-06-10", "2026-06": "2026-07-14",
+    "2026-07": "2026-08-12", "2026-08": "2026-09-11", "2026-09": "2026-10-14",
+  },
+  jobs: {
+    "2025-01": "2025-02-07", "2025-02": "2025-03-07", "2025-03": "2025-04-04", "2025-04": "2025-05-02", "2025-05": "2025-06-06", "2025-06": "2025-07-03",
+    "2025-07": "2025-08-01", "2025-08": "2025-09-05", "2025-09": "2025-11-20", "2025-10": "2025-12-16", "2025-11": "2025-12-16", "2025-12": "2026-01-09",
+    "2026-01": "2026-02-11", "2026-02": "2026-03-06", "2026-03": "2026-04-03", "2026-04": "2026-05-08", "2026-05": "2026-06-05", "2026-06": "2026-07-02",
+    "2026-07": "2026-08-07", "2026-08": "2026-09-04", "2026-09": "2026-10-02",
+  },
+};
+for (const r of BLS_FALLBACK) {
+  if (r.kind !== "cpi" && r.kind !== "jobs") continue;
+  const d = new Date(`${r.date.slice(0, 7)}-01T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  BLS_RELEASED_FOR[r.kind][d.toISOString().slice(0, 7)] = r.date;
+}
+
 /** BEA PCE and GDP releases listed on the BEA schedule on 2026-11-20 (8:30 a.m. New York time). */
 export const BEA_FALLBACK: Release[] = [
   { date: "2026-11-25", kind: "gdp", name: "GDP (Second Estimate) and Corporate Profits, 3rd Quarter 2026 (BEA)", source: copyOf(BEA_SRC) },
