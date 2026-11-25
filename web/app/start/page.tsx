@@ -152,9 +152,22 @@ export default function StartPage() {
           <p className="text-[13px] text-muted">
             <LabelTip label="Your wallet is your account." tip="What you buy sits in a vault only your wallet controls." />
           </p>
-          <Button className="mt-3" size="lg" disabled={isPending || !connectors[0]} onClick={() => connectors[0] && connect({ connector: connectors[0] })}>
-            {isPending ? "Connecting…" : "Connect wallet"}
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="lg" disabled={isPending || !connectors[0]} onClick={() => connectors[0] && connect({ connector: connectors[0] })}>
+              {isPending ? "Connecting…" : "Connect wallet"}
+            </Button>
+            {connectors.some((c) => c.id === "coinbaseWalletSDK") && (
+              <Button
+                size="lg"
+                variant="secondary"
+                disabled={isPending}
+                onClick={() => connect({ connector: connectors.find((c) => c.id === "coinbaseWalletSDK")! })}
+              >
+                Use a Smart wallet
+              </Button>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted">A Smart wallet (Coinbase, with a passkey) signs every step of an action at once: one popup for a sell or a borrow.</p>
           {!connectors[0] && <p className="mt-2 text-[13px] text-danger">No wallet found. Install a browser wallet such as Coinbase Wallet or MetaMask.</p>}
         </Step>
 
