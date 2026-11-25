@@ -83,6 +83,7 @@ Stackday contracts (real, no owner):
 |---|---|
 | Payroll | 0x775d1C133ef6883B36F2A33A89fa0a72f2DC097a |
 | SipRouter | 0xec1BEDf89991b53E2F08B2835CF5C14cE6335586 |
+| GiftBox (added November 25, 2026, issue #77) | 0x190A4F54AAC173F4386823AC5709b8689849C8E1 |
 | VaultFactory | 0x70dceeAe63FFae58D5BDCF8Bd8002bd3c38aa7CC |
 | EmployeeVault (code every vault uses) | 0x1f9A84A7f9B0bCb90fE9eFED36d0a29301842F35 |
 | Price adapter | 0xCfC6d5232870408F89D04a15Eb8Fa08C3f0332a9 |
@@ -163,6 +164,7 @@ MOCKS (testnet stand-ins, owned by the demo wallet so stress scenarios can be tr
 | mSGOV mock token, stands in for wtSGOV (0-3 month US Treasuries), invest only | 0x9220a5479374F66554dAda74b36c3B947A8948D1 |
 | mSGOV mock price feed | 0xF51f978F6F2a44e53196B16286b866C770FcA4FD |
 | Mock exchange | 0x1361D307e06c3bAfc800727059F8AA02a45830fC |
+| Mock sell desk (buys mock assets back for test USDC) | 0xcDa9B568358c442FBB1Acf653Db19880a300dE87 |
 | Mock interest vault | 0x0541efCf235dF6e8d501B8FeF47b30721e242adb |
 
 Fees, fixed at deployment: SIP fee 0.15 percent on recurring buys (one-time buys are free), borrow fee 0.1 percent a year on the outstanding loan, earn fee 0.1 percent a year of the amount earning, taken only from interest. Fee wallet on testnet: the demo wallet 0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df. Shortest payroll rhythm on testnet: 60 seconds (so a schedule can be shown in a demo). On mainnet it would be 1 day.
