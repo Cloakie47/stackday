@@ -60,7 +60,7 @@ import {
   WEEKLY_SYSTEM,
   type SectionKey,
 } from "./prompts.ts";
-import { blocking, codeIssues, finalizeDraft, parseDraft, parseReview, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
+import { blocking, codeIssues, editorJson, finalizeDraft, parseDraft, parseReview, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
 import { qualityBar, weeklyScorecard } from "./scores.ts";
 import { LEASE_TTL_MS, type LeaseResult, type NoReadingCause, type ResearchStore, type StoredSection } from "./store.ts";
 import { citableIds, ideaProblems, sectionProblems, weeklyProblems } from "./validate.ts";
@@ -328,7 +328,7 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const hasNews = citable.some(isUntrusted);
   const issues = codeIssues(draft, hasNews);
   const reviewCtx = new Ctx(citable);
-  const draftJson = JSON.stringify(stripEvidence(draft.draft));
+  const draftJson = editorJson(stripEvidence(draft.draft));
   // Code check lines quote removed model text, so they travel with the draft as untrusted notes.
   const checkLines = issues.map((i) => `- ${i.section}: ${i.issue}`).join("\n") || "- none";
   const review: Review | null = await step(

@@ -51,6 +51,30 @@ function scenarioDraft(raw: unknown, ctx: Ctx, allowedLevels: number[], removed:
   return { text: item?.text ?? NO_EVIDENCE, factIds: item?.factIds ?? [], probability: raw.probability, levels, trigger, evidence: item !== null };
 }
 
+/**
+ * The editor writes chart text as a flat list of { interval, text, factIds } (see EDITOR_SCHEMA);
+ * this groups it by timeframe. An object keyed by timeframe is also accepted.
+ */
+function chartByInterval(c: unknown): Record<string, unknown[]> {
+  const intervals = CHART_INTERVALS as readonly string[];
+  if (Array.isArray(c)) {
+    const out: Record<string, unknown[]> = {};
+    for (const item of c) {
+      if (!isObject(item) || typeof item.interval !== "string" || !intervals.includes(item.interval)) throw new StepRejected("bad chart item");
+      (out[item.interval] ??= []).push({ text: item.text, factIds: item.factIds });
+    }
+    return out;
+  }
+  if (!isObject(c) || Object.keys(c).some((k) => !intervals.includes(k))) throw new StepRejected("bad chart");
+  return c as Record<string, unknown[]>;
+}
+
+/** A draft in the editor's own output shape (flat chart list), for the review and revise prompts. */
+export function editorJson<D extends { chart: Draft["chart"] }>(d: D): string {
+  const chart = CHART_INTERVALS.flatMap((i) => (d.chart[i] ?? []).map((r) => ({ interval: i, text: r.text, factIds: r.factIds })));
+  return JSON.stringify({ ...d, chart });
+}
+
 /** Strict parse of the editor's JSON. Throws StepRejected when the structure is wrong. */
 export function parseDraft(text: string, ctx: Ctx, allowedLevels: number[]): DraftParse {
   const raw = parseJsonObject(text, Object.keys((EDITOR_SCHEMA as { properties: object }).properties));
@@ -64,8 +88,7 @@ export function parseDraft(text: string, ctx: Ctx, allowedLevels: number[]): Dra
   const recap = track("recap", () => ctx.list(raw.recap, LIMITS.text, LIMITS.sectionItems));
   const market = track("market", () => ctx.list(raw.market, LIMITS.text, LIMITS.sectionItems));
   const news = track("news", () => ctx.list(raw.news, LIMITS.text, LIMITS.sectionItems));
-  if (!isObject(raw.chart) || Object.keys(raw.chart).some((k) => !(CHART_INTERVALS as readonly string[]).includes(k))) throw new StepRejected("bad chart");
-  const chartRaw = raw.chart;
+  const chartRaw = chartByInterval(raw.chart);
   const chart = track("chart", () => Object.fromEntries(CHART_INTERVALS.map((i) => [i, ctx.list(chartRaw[i] ?? [], LIMITS.text, 3)]))) as Draft["chart"];
   const s = raw.scenarios;
   if (!isObject(s) || Object.keys(s).sort().join() !== "base,bear,bull") throw new StepRejected("bad scenarios");
