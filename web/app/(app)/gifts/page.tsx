@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState, type ReactNode } from "react";
 import { GiftBoxArt, OpenGiftSheet, boxTypeOf, GiftNotices } from "@/components/gifts/gift-box";
 import { SendGift } from "@/components/gifts/send-gift";
 import { useViewer } from "@/components/providers";
@@ -9,7 +10,7 @@ import { BRAND } from "@/lib/brand";
 import { GIFT_BOX, assetByToken, type Asset } from "@/lib/contracts";
 import { fmtUsdc } from "@/lib/format";
 import { buildDeclineCall, buildRevokeCall } from "@/lib/gifts/calls";
-import { KIND } from "@/lib/gifts/mix";
+import { BOX_LABEL, KIND, giftLinkPrefill, type BoxType } from "@/lib/gifts/mix";
 import { STATE_LABEL, expiresIn, giftState, type GiftState } from "@/lib/gifts/status";
 import { useGifts, useNowSeconds, type Gift } from "@/lib/gifts/useGifts";
 import { useNames, useSession } from "@/lib/useAccount";
@@ -88,7 +89,25 @@ function GiftRow({
   );
 }
 
+type Prefill = { usdc?: string; box?: BoxType };
+
+/** Reads ?usdc= and ?box= (the chat's gift card links here) and opens the Send tab with them. */
+function GiftsFromUrl() {
+  const q = useSearchParams();
+  const prefill = giftLinkPrefill(q.get("usdc"), q.get("box"));
+  return <Gifts key={`${prefill.usdc ?? ""}|${prefill.box ?? ""}`} prefill={prefill} />;
+}
+
 export default function GiftsPage() {
+  return (
+    <Suspense fallback={<Gifts prefill={{}} />}>
+      <GiftsFromUrl />
+    </Suspense>
+  );
+}
+
+function Gifts({ prefill }: { prefill: Prefill }) {
+  const fromLink = prefill.usdc !== undefined || prefill.box !== undefined;
   const viewer = useViewer();
   const me = viewer.address;
   const gifts = useGifts(me);
@@ -97,7 +116,7 @@ export default function GiftsPage() {
   const now = useNowSeconds();
   const tx = useTx();
   const names = useNames([...gifts.received.map((g) => g.sender), ...gifts.sent.map((g) => g.recipient)]);
-  const [tab, setTab] = useState<Tab>("received");
+  const [tab, setTab] = useState<Tab>(fromLink ? "send" : "received");
   // The gift being opened is kept here, outside the list, so the sheet stays while the list refreshes.
   const [opening, setOpening] = useState<Gift | null>(null);
 
@@ -209,7 +228,13 @@ export default function GiftsPage() {
 
       {tab === "send" && (
         <div className="mx-auto w-full max-w-xl">
-          <SendGift me={viewer.canAct ? me : undefined} walletUsdc={portfolio.walletUsdc} onSent={() => gifts.refetch()} />
+          {fromLink && (
+            <Notice>
+              Filled in from the chat: {[prefill.usdc && `${prefill.usdc} test USDC`, prefill.box && BOX_LABEL[prefill.box]].filter(Boolean).join(", ")}. Choose who the gift is for, then
+              check and send.
+            </Notice>
+          )}
+          <SendGift me={viewer.canAct ? me : undefined} walletUsdc={portfolio.walletUsdc} onSent={() => gifts.refetch()} initial={prefill} />
         </div>
       )}
 

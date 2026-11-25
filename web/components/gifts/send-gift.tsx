@@ -247,16 +247,27 @@ function MixPreview({ legs, amount }: { legs: MixLeg[]; amount: bigint }) {
  * Send a gift: recipient, amount (1 to 500 test USDC), box type, optional message and expiry, then
  * one signature flow (approve if needed, then GiftBox.create) through lib/useTx.ts.
  */
-export function SendGift({ me, walletUsdc, onSent }: { me?: Address; walletUsdc: bigint; onSent?: () => void }) {
+export function SendGift({
+  me,
+  walletUsdc,
+  onSent,
+  initial = {},
+}: {
+  me?: Address;
+  walletUsdc: bigint;
+  onSent?: () => void;
+  /** Amount and box type from a link (the chat's gift card), see giftLinkPrefill. */
+  initial?: { usdc?: string; box?: BoxType };
+}) {
   const tx = useTx();
   const publicClient = usePublicClient();
   const session = useSession();
   const [recipient, setRecipient] = useState<Recipient | null>(null);
-  const [amt, setAmt] = useState("5");
-  const [type, setType] = useState<BoxType>("one");
+  const [amt, setAmt] = useState(initial.usdc ?? "5");
+  const [type, setType] = useState<BoxType>(initial.box ?? "one");
   const [single, setSingle] = useState(ASSETS[0].symbol);
   const [ratios, setRatios] = useState<Record<string, string>>({});
-  const [surprise, setSurprise] = useState<MixLeg[]>([]);
+  const [surprise, setSurprise] = useState<MixLeg[]>(() => (initial.box === "surprise" ? surpriseMix(ASSETS.map((a) => a.token)) : []));
   const [hideSurprise, setHideSurprise] = useState(false);
   const [message, setMessage] = useState("");
   const [days, setDays] = useState<ExpiryDays>(30);
