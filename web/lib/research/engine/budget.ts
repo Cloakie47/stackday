@@ -27,7 +27,36 @@ export type CallLog = {
   /** Raw model output, kept with the run for reproducibility. */
   text?: string;
   skipped?: string;
+  /** Why the call failed: HTTP status, error type and a short message (never a key or header). */
+  error?: string;
 };
+
+/** A short, safe description of a failed model call, for the run row, the logs and the problems list. */
+export function describeError(e: unknown): string {
+  const o = (typeof e === "object" && e !== null ? e : {}) as { status?: unknown; name?: unknown; message?: unknown; error?: { error?: { type?: unknown } } };
+  const status = typeof o.status === "number" ? String(o.status) : "";
+  const type = typeof o.error?.error?.type === "string" ? o.error.error.type : typeof o.name === "string" ? o.name : "";
+  const msg = (typeof o.message === "string" ? o.message : String(e)).replace(/sk-ant-[\w-]+/g, "[key]").replace(/\s+/g, " ").slice(0, 200);
+  return [status, type, msg].filter(Boolean).join(" ");
+}
+
+/**
+ * True when the API refused the request before running the model (a 4xx other than 408 timeout,
+ * or a connection that never got through), so nothing was billed. Timeouts and 5xx keep the
+ * worst-case figure, because the model may have run.
+ */
+export function notBilled(e: unknown): boolean {
+  const o = (typeof e === "object" && e !== null ? e : {}) as { status?: unknown; name?: unknown };
+  if (typeof o.status === "number") return o.status >= 400 && o.status < 500 && o.status !== 408;
+  return o.name === "APIConnectionError";
+}
+
+/** The distinct errors of a run's failed calls, for the problems list (at most `max`). */
+export function callErrors(calls: CallLog[], max = 3): string[] {
+  const seen = new Map<string, string[]>();
+  for (const c of calls) if (c.error) seen.set(c.error, [...(seen.get(c.error) ?? []), c.step]);
+  return [...seen.entries()].slice(0, max).map(([err, steps]) => `model call failed (${steps.length}x, ${steps.slice(0, 3).join(", ")}): ${err}`);
+}
 
 /** No model call starts with less time than this left in the run. */
 export const MIN_CALL_MS = 20_000;
@@ -167,7 +196,10 @@ export async function guardedCall(model: ModelFn, req: ModelRequest, budget: Bud
     return res;
   } catch (e) {
     if (e instanceof CostAbort) throw e;
-    budget.calls.push({ step: req.step, model: req.model, costUsd: actual, input: 0, output: 0, cacheRead: 0, stopReason: "error" });
+    const error = describeError(e);
+    if (notBilled(e)) actual = 0;
+    console.error(`research model call failed: ${req.step} (${req.model}): ${error}`);
+    budget.calls.push({ step: req.step, model: req.model, costUsd: actual, input: 0, output: 0, cacheRead: 0, stopReason: "error", error });
     return null;
   } finally {
     budget.settle(worst, actual);

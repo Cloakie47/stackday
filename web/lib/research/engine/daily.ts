@@ -4,7 +4,7 @@ import type { AssetResearchInput, Confidence, DailyScore, Fact, IsoDate, Researc
 import { VIEWS } from "../types.ts";
 import { researchableUniverse, type UniverseAsset } from "../universe.ts";
 import { defaultAlert, type AlertFn } from "./alert.ts";
-import { costBudget, CostAbort, guardedCall, pool, type Budget } from "./budget.ts";
+import { callErrors, costBudget, CostAbort, guardedCall, pool, type Budget } from "./budget.ts";
 import { chartBlock, chartLevels, displayableInput, ensurePriceFacts, factBlock, hashInputs, isUntrusted, patternFacts, prepareFacts, sentFacts } from "./facts.ts";
 import { computeLevels } from "./levels.ts";
 import { buildMarketOverview } from "./market.ts";
@@ -316,6 +316,7 @@ export async function runDaily(deps: DailyDeps): Promise<RunOutcome> {
       escalated: results.filter((r) => r.escalated).length,
       calls: budget.calls.length,
     };
+    problems = [...problems, ...callErrors(budget.calls)];
     if (status === "aborted-cost") await (deps.alert ?? defaultAlert)(`daily run ${runId} stopped by the cost guard: ${problems[0] ?? ""}`);
     const inputs = results.map((r) => r.input ?? null);
     const dataHash = results.some((r) => r.input) ? hashInputs(inputs) : null;
