@@ -38,6 +38,8 @@ export function PortfolioPage() {
         .map((x) => ({
           assetId: x.asset.symbol,
           amount: Number(x.idle + x.collateral) / 10 ** x.asset.decimals,
+          // Loan health counts only the locked units, as the lending market does.
+          collateralAmount: Number(x.collateral) / 10 ** x.asset.decimals,
           origin: "vault" as const,
           loanUsd: x.debt > 0n ? Number(x.debt) / 1e6 : undefined,
         }))
@@ -179,7 +181,11 @@ export function PortfolioPage() {
           {result.preview ? (
             <Notice tone="warn">Preview: the portfolio service is not live, so this check was worked out in your browser with a simple sample method.</Notice>
           ) : null}
-          <SampleBanner show={result.sampleViews}>The general views linked below come from the sample weekly report, not a real one.</SampleBanner>
+          <SampleBanner show={result.sampleViews}>
+            {result.a.holdings.some((h) => h.generalView)
+              ? "The general views linked below come from the sample weekly report, not a real one."
+              : "There is no approved weekly report yet, so no general views are linked."}
+          </SampleBanner>
           {result.a.holdings.length === 0 ? <Empty>None of these holdings has a price to value them with.</Empty> : <PortfolioAnalysisView a={result.a} preview={result.preview} />}
         </>
       ) : null}

@@ -29,11 +29,21 @@ function slices(rows: { key: string; label: string; valueUsd: number }[], total:
 }
 
 export function previewAnalysis(input: PortfolioInput, priceUsd: (assetId: string) => number | undefined, views: Map<string, View>): PortfolioAnalysis {
-  const merged = new Map<string, { amount: number; loanUsd: number }>();
+  // Same rules as the server: a vault loan is the real debt (a hand-typed loan on the same asset is
+  // not added to it), and only locked collateral counts for loan health, never idle tokens.
+  const merged = new Map<string, { amount: number; vaultLoan: number; manualLoan: number; vaultCollateral: number; manualCollateral: number }>();
   for (const h of input.holdings) {
-    const m = merged.get(h.assetId) ?? { amount: 0, loanUsd: 0 };
+    const m = merged.get(h.assetId) ?? { amount: 0, vaultLoan: 0, manualLoan: 0, vaultCollateral: 0, manualCollateral: 0 };
     m.amount += h.amount;
-    m.loanUsd += h.loanUsd ?? 0;
+    const loan = h.loanUsd ?? 0;
+    const collateral = h.collateralAmount ?? (h.origin === "vault" || loan > 0 ? h.amount : 0);
+    if (h.origin === "vault") {
+      m.vaultLoan += loan;
+      m.vaultCollateral += collateral;
+    } else if (loan > 0) {
+      m.manualLoan += loan;
+      m.manualCollateral += collateral;
+    }
     merged.set(h.assetId, m);
   }
   const rows = [...merged.entries()]
@@ -41,8 +51,12 @@ export function previewAnalysis(input: PortfolioInput, priceUsd: (assetId: strin
       const covered = universeAsset(assetId);
       const a = ASSETS.find((x) => x.symbol === assetId);
       const u = covered ?? (a ? { assetId, name: a.name, assetClass: a.kind, lltv: a.borrowable ? Number(a.lltv) / 1e18 : 0 } : undefined);
-      const valueUsd = m.amount * (priceUsd(assetId) ?? 0);
-      return u && valueUsd > 0 ? { u, covered: Boolean(covered), valueUsd, loanUsd: m.loanUsd } : null;
+      const price = priceUsd(assetId) ?? 0;
+      const valueUsd = m.amount * price;
+      const useVault = m.vaultLoan > 0;
+      const loanUsd = useVault ? m.vaultLoan : m.manualLoan;
+      const collateralUsd = (useVault ? m.vaultCollateral : m.manualCollateral) * price;
+      return u && valueUsd > 0 ? { u, covered: Boolean(covered), valueUsd, loanUsd, collateralUsd } : null;
     })
     .filter((r): r is NonNullable<typeof r> => r !== null);
   const total = rows.reduce((s, r) => s + r.valueUsd, 0);
@@ -70,7 +84,7 @@ export function previewAnalysis(input: PortfolioInput, priceUsd: (assetId: strin
   const holdings: HoldingFacts[] = rows
     .sort((a, b) => b.valueUsd - a.valueUsd)
     .map((r) => {
-      const limit = r.valueUsd * r.u.lltv;
+      const limit = r.collateralUsd * r.u.lltv;
       const limitUse = r.loanUsd > 0 && limit > 0 ? r.loanUsd / limit : undefined;
       return {
         assetId: r.u.assetId,

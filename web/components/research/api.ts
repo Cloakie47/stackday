@@ -13,8 +13,6 @@ import type {
   PortfolioInput,
   ResearchSnapshot,
   Scorecard,
-  View,
-  Confidence,
   WeeklyReport,
 } from "@/lib/research/types";
 import { SAMPLE_WEEKLY } from "./fixtures/sample-weekly";

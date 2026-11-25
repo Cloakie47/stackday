@@ -16,6 +16,7 @@ import {
   BETA_LABEL,
   RESEARCH_DISCLAIMER,
   VIEW_LABEL,
+  isDisplayable,
 } from "@/lib/research/types";
 import { universeAsset } from "@/lib/research/universe";
 import { getWeekly, type Loaded } from "./api";
@@ -445,13 +446,9 @@ export function CitedFacts({ ids, facts }: { ids: string[]; facts: Fact[] }) {
   const byId = new Map(facts.map((f) => [f.id, f]));
   const cited = ids
     .map((id) => byId.get(id))
-    .filter((f): f is Fact => Boolean(f));
-  if (cited.length === 0)
-    return ids.length > 0 ? (
-      <p className="mt-1 text-xs text-faint">
-        The cited facts are missing from this report.
-      </p>
-    ) : null;
+    // Facts marked not for display (licence) are never shown.
+    .filter((f): f is Fact => Boolean(f) && isDisplayable(f as Fact));
+  if (cited.length === 0) return null;
   return (
     <details className="group mt-1.5">
       <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1.5 text-xs text-muted hover:text-ink [&::-webkit-details-marker]:hidden">

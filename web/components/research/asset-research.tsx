@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Badge, Card, Empty, PageHeader, Segmented, Skeleton, cx } from "@/components/ui";
 import type { ChartInterval, ChartReadSection, Fact, TrendStructure, WeeklyAssetSection, WeeklyReport, WeeklyScenario } from "@/lib/research/types";
-import { CHART_INTERVALS, CHART_INTERVAL_LABEL } from "@/lib/research/types";
+import { CHART_INTERVALS, CHART_INTERVAL_LABEL, isDisplayable } from "@/lib/research/types";
 import { UNIVERSE, universeAsset } from "@/lib/research/universe";
 import { getScores } from "./api";
 import {
@@ -275,7 +275,9 @@ function ScoreCell({ change, right }: { change?: number; right?: boolean }) {
 
 function Section({ s, r }: { s: WeeklyAssetSection; r: WeeklyReport }) {
   const [tf, setTf] = useState<ChartInterval>("1d");
-  const facts = [...s.facts, ...r.market.facts];
+  // Facts marked not for display (licence) are never shown or cited on the page.
+  const facts = [...s.facts, ...r.market.facts].filter(isDisplayable);
+  const shownFacts = s.facts.filter(isDisplayable);
   const c = s.chart[tf];
   const v = s.view;
   return (
@@ -405,13 +407,13 @@ function Section({ s, r }: { s: WeeklyAssetSection; r: WeeklyReport }) {
       </Card>
 
       <Card title="All facts used" badge={<DataLabel />} tip="Fetched by code, never written by the AI. Each shows its source and time.">
-        {s.facts.length === 0 ? (
+        {shownFacts.length === 0 ? (
           <p className="text-[13px] text-muted">No facts.</p>
         ) : (
           <details>
-            <summary className="cursor-pointer text-[13px] text-ink-soft">Show {s.facts.length} facts</summary>
+            <summary className="cursor-pointer text-[13px] text-ink-soft">Show {shownFacts.length} facts</summary>
             <ul className="mt-3 space-y-1.5">
-              {s.facts.map((f) => (
+              {shownFacts.map((f) => (
                 <FactLine key={f.id} fact={f} />
               ))}
             </ul>

@@ -129,6 +129,8 @@ function NoteCard({ n, enabled }: { n: ResearchNote; enabled: boolean }) {
 function WeeklyApproval() {
   // Set after mount: the current date must not be read while the page is prerendered.
   const [weekOf, setWeekOf] = useState("");
+  // Reading the date in the initial state would differ between the prerender and the browser.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setWeekOf(thisMonday()), []);
   const w = useLoad(() => getWeekly(weekOf || undefined), `weekly-${weekOf}`);
   const [busy, setBusy] = useState(false);
