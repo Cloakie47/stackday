@@ -1,17 +1,28 @@
+import type { IsoDate, MarketResearchInput } from "../types.ts";
 import type { GatherFn } from "./daily.ts";
 import type { GatherMarketFn } from "./weekly.ts";
+import { gatherAsset, gatherMarket } from "../data/index.ts";
 
 /**
- * Where the engine gets its data. The data branch (gg/research-data) provides
- * `gatherAsset(assetId, date): Promise<AssetResearchInput>` and a market-wide gatherer returning
- * `MarketResearchInput` in web/lib/research/data. Until it is merged these stay null, and the run
- * routes answer "data source not connected" instead of running (so no model money is spent on
- * empty input).
- *
- * After both branches merge, the swap is two lines, for example:
- *   import { gatherAsset, gatherMarket } from "../data/index.ts";
- *   export const defaultGather: GatherFn | null = gatherAsset;
- *   export const defaultGatherMarket: GatherMarketFn | null = gatherMarket;
+ * Where the engine gets its data: web/lib/research/data. The market-wide input (macro series,
+ * week-ahead calendar) is fetched once per date and shared by every asset in the run, so FRED,
+ * the Fed and BEA calendars and the news feeds are not asked six times.
  */
-export const defaultGather: GatherFn | null = null;
-export const defaultGatherMarket: GatherMarketFn | null = null;
+const marketByDate = new Map<IsoDate, Promise<MarketResearchInput>>();
+
+export const defaultGatherMarket: GatherMarketFn | null = (date) => {
+  let m = marketByDate.get(date);
+  if (!m) {
+    m = gatherMarket(date);
+    m.catch(() => marketByDate.delete(date));
+    marketByDate.set(date, m);
+    // Keep only the most recent few dates in memory.
+    while (marketByDate.size > 3) marketByDate.delete(marketByDate.keys().next().value as IsoDate);
+  }
+  return m;
+};
+
+export const defaultGather: GatherFn | null = async (assetId, date) => {
+  const market = await defaultGatherMarket!(date).catch(() => undefined);
+  return gatherAsset(assetId, date, undefined, { market });
+};
