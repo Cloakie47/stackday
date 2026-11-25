@@ -75,3 +75,11 @@ test("refresh keeps buildPlan's limits: the 500 USDC cap still refuses, the wall
   assert.ok(small.ok);
   if (small.ok) assert.ok(!JSON.stringify(small.calls, (_, v) => (typeof v === "bigint" ? v.toString() : v)).toLowerCase().includes(ATTACKER.slice(2).toLowerCase()));
 });
+
+test("lead-in: lock and unlock cards get their own sentence, with no amount from the intent", () => {
+  const lock = leadIn({ action: "lock", params: { asset: "mAAPL", amount: "50", unit: "percent" } } as Intent);
+  const unlock = leadIn({ action: "unlock", params: { asset: "mAAPL", amount: "50", unit: "percent" } } as Intent);
+  assert.match(lock, /lock Apple in your vault as collateral/);
+  assert.match(unlock, /unlock Apple in your vault/);
+  for (const s of [lock, unlock]) assert.doesNotMatch(s, /50/);
+});

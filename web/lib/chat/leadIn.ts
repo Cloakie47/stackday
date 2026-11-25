@@ -28,6 +28,10 @@ export function leadIn(intent: Intent): string {
       return `Here is a card to borrow against your ${nameOf(intent.params.asset)} at ${RISK[intent.params.risk]} risk. ${CHECK}`;
     case "repay":
       return `Here is a card to repay ${intent.params.asset === "every_loan" ? "your loans" : `your ${nameOf(intent.params.asset)} loan`}. ${CHECK}`;
+    case "lock":
+      return `Here is a card to lock ${nameOf(intent.params.asset)} in your vault as collateral for borrowing. ${CHECK}`;
+    case "unlock":
+      return `Here is a card to unlock ${nameOf(intent.params.asset)} in your vault, so it is free again. ${CHECK}`;
     case "gift":
       return "Here is the gift box. Gifts are sent from the Gifts page, and the card links there.";
   }

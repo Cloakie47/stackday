@@ -70,6 +70,8 @@ const BY_ACTION: Record<ActionName, ChipId[]> = {
   withdraw: ["portfolio", "how_testnet"],
   borrow: ["loan", "how_borrowing", "fees"],
   repay: ["loan", "portfolio"],
+  lock: ["loan", "how_borrowing", "portfolio"],
+  unlock: ["portfolio", "loan"],
   gift: ["how_gifts", "portfolio"],
 };
 

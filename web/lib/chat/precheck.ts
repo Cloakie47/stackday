@@ -33,7 +33,7 @@ export function needsPrecheck(r: BuildResult | null | undefined): r is Plan {
 }
 
 /** Actions where the amount is what the person can change if the check fails. */
-const AMOUNT_ACTIONS: ReadonlySet<Plan["action"]> = new Set(["buy", "sell", "borrow", "withdraw", "repay", "recurring_buy"]);
+const AMOUNT_ACTIONS: ReadonlySet<Plan["action"]> = new Set(["buy", "sell", "borrow", "withdraw", "repay", "recurring_buy", "lock", "unlock"]);
 /** Contract errors that a smaller amount does not fix. */
 const NOT_ABOUT_AMOUNT = new Set(["StalePrice", "TransfersPaused", "UnsupportedStock", "UnsupportedAsset", "NoPlan", "NotDueYet"]);
 
