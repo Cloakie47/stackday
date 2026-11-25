@@ -81,7 +81,7 @@ Crons (in `web/vercel.json`, engine branch): daily run `30 22 * * 1-5`, weekly r
 ## Needs the founder
 
 1. Amounts for the single Monday report and the monthly plan (spec section 8).
-2. A stock price provider whose plan allows showing data to users (the Twelve Data free plan does not), and a licensed news feed.
+2. A licensed news feed. (Stock prices: decided on November 25, 2026, the tokens' on-chain prices on Base, see web/lib/research/data/SOURCES.md section 2.)
 3. `ANTHROPIC_API_KEY` with an account spend limit, `CRON_SECRET`, `SEC_USER_AGENT`, `RESEARCH_ENGINE_ENABLED=true`, and optionally `RESEARCH_ALERT_WEBHOOK_URL` (an https webhook that gets a message when a spend cap stops a run).
 4. Apply the `research_*` tables from `supabase/schema.sql`.
 5. The legal check before the paywall is switched on.
