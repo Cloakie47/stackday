@@ -1,0 +1,42 @@
+<article class="page" id="fees" data-title="Fees" data-section="Trust and safety" data-keywords="fee fees cost bps recurring buy borrow earn revenue subscription immutable">
+  <p class="crumb">Trust and safety</p>
+  <h1>Fees</h1>
+  <p class="lead">Three small fees, 0.2% at most, each fixed in the contracts when they were deployed. Nobody can change them later, and none is ever taken from your salary, your vault or your collateral.</p>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Buying once is free. A recurring buy costs 0.15% of what it buys: 15 cents on $100. A loan costs 0.1% a year on top of the lender's interest: about $1 on $1,000 borrowed for a year. Earning interest costs 0.1% a year, paid only out of the interest you earn.</p>
+    <p>Gifts, withdrawals and collecting your pay are free (you only pay the network's own small gas fee).</p>
+  </div>
+
+  <h2>The three fees</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Fee</th><th class="num">Rate</th><th>When it is taken</th><th>Where in the code</th></tr></thead>
+    <tbody>
+      <tr><td>Recurring buy</td><td class="num">0.15%</td><td>On the USDC a recurring plan puts into an asset: an every-payday plan or a recurring buy. One-time buys are free.</td><td>Payroll, SipRouter</td></tr>
+      <tr><td>Borrow</td><td class="num">0.1% a year</td><td>Builds up by the second on the amount owed, paid on repayment before the loan. You receive the full amount you borrow. If a loan is liquidated instead, the unpaid fee is dropped.</td><td>EmployeeVault, set in VaultFactory</td></tr>
+      <tr><td>Earn</td><td class="num">0.1% a year</td><td>On USDC earning interest, taken only out of the interest when you stop earning. If interest is lower, the fee is only the interest.</td><td>EmployeeVault, set in VaultFactory</td></tr>
+    </tbody>
+  </table></div>
+  <p>The borrow fee is shown inside one <strong>Borrow APY</strong> together with Morpho's interest, which goes to Morpho's lenders, not to Stackday. Every fee is visible on the screen (and on chat cards) before you confirm.</p>
+
+  <h2>The rules every fee follows</h2>
+  <ul>
+    <li><strong>Fixed at deployment.</strong> Fee rates are set when a contract is deployed, and no function exists to change them.</li>
+    <li><strong>Capped in code at 0.2%</strong> (20 basis points). A deployment with a higher fee would fail.</li>
+    <li><strong>Never from salary paid out</strong>, never from money in a vault, never from collateral.</li>
+    <li><strong>No fee on gifts.</strong> The GiftBox contract has no fee setting at all.</li>
+    <li><strong>The fee wallet has no powers.</strong> It only receives.</li>
+  </ul>
+
+  <h2>Values on the testnet deployment</h2>
+  <!--@fees-->
+  <p>On testnet the fee wallet is the demo wallet.</p>
+
+  <h2>Planned, not built</h2>
+  <ul>
+    <li><strong>Business subscription</strong>: a monthly price per employee for running payroll, billed off chain or in USDC. Expected to be the main income. Needs no contract change.</li>
+    <li><strong>Research plans</strong>: a small USDC price for one Monday report or a month. The paywall stays off until the quality bar and a legal check are met.</li>
+    <li><strong>Lending income</strong>: a Stackday-curated USDC vault on Morpho. A larger project with real risk duties, after the competition.</li>
+  </ul>
+</article>

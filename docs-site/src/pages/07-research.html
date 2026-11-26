@@ -1,0 +1,130 @@
+<article class="page" id="research" data-title="Research: weekly report and daily note" data-section="Features" data-keywords="research weekly report daily note scores scorecard calibration data sources view accumulate hold reduce avoid beta sample portfolio check">
+  <p class="crumb">Features</p>
+  <h1>Research: the weekly report and the daily note</h1>
+  <p class="lead">Every Monday, Stackday publishes a research report on the six assets you can also borrow against. Code gathers and computes every number with its source; AI models only interpret, and a person approves the report before anyone sees it.</p>
+  <div class="status-row"><span class="pill live">Built</span><span class="pill review">Beta: free preview</span><span class="pill plan">Paywall off</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Once a week you get a plain-language briefing on Bitcoin, Ether, gold, NVIDIA, Apple and the S&amp;P 500: what happened last week, what the charts and the economy look like, what could happen next, and a general view such as "hold" or "avoid new buys".</p>
+    <p>It is general research for everyone, never advice for you personally. Every figure points to where it came from, and last week's calls are graded in public, wrong ones included.</p>
+  </div>
+
+  <h2>Two products from one engine</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th></th><th>Daily note</th><th>Monday weekly report</th></tr></thead>
+    <tbody>
+      <tr><td>Who sees it</td><td>Internal (founder and growth reviewers) while testing</td><td>Everyone, as a free preview labelled Beta</td></tr>
+      <tr><td>When</td><td>Each trading day after the US close (22:30 UTC)</td><td>Monday, built step by step between 12:00 and 21:00 UTC</td></tr>
+      <tr><td>Depth</td><td>What changed, levels, a one-line view per asset</td><td>The full report below</td></tr>
+      <tr><td>Purpose</td><td>Build a scored track record and find weak spots</td><td>The product</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>What is in the weekly report</h2>
+  <p>For each of the six assets, its own page on Research with these parts:</p>
+  <ol>
+    <li><strong>Last week</strong>: the price move and what drove it, with sources.</li>
+    <li><strong>Chart read</strong> on daily, weekly and monthly bars: trend, support and resistance, patterns found by code, and how volatile the asset is against its own history. Each pattern has a confidence level and the price that would cancel it.</li>
+    <li><strong>Market conditions</strong>: rates and the Fed, Treasury yields, the dollar, and asset-specific signals (funding rates and stablecoin supply for crypto, real yields for gold).</li>
+    <li><strong>Geopolitics and news</strong>: dated headlines from reputable outlets and official sources. Company press releases count as one side, never the only source.</li>
+    <li><strong>Week ahead</strong>: Fed meetings, inflation and jobs releases, options expiry.</li>
+    <li><strong>Scenarios</strong>: bull, base and bear cases, with rough probabilities that add up to 100%, the price levels involved and what would trigger each.</li>
+    <li><strong>This week's view</strong>: Accumulate, Hold, Reduce or Avoid new buys, with a conviction level (low, medium or high), a buy zone if any, the price that would cancel the view, and the two or three reasons that matter most.</li>
+    <li><strong>Borrowing note</strong>: what a large drop would mean for someone borrowing against this asset, for example how a 20% fall moves a loan at half its limit, with a reminder that the emergency rule exists.</li>
+    <li><strong>All facts used</strong> and the asset's <strong>scorecard</strong>.</li>
+  </ol>
+  <p>Then one page for the whole report: <strong>this week's ideas</strong> (a short ranked list across the six, written as general example splits for a cautious and a growth-minded reader, never orders for a person) and <strong>last week's scorecard</strong>.</p>
+
+  <h2>How a report is made</h2>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 610" width="480" role="img" aria-label="The research pipeline. First a data step in code only gathers prices, indicators, chart patterns, macro data, calendars and headlines, each as a fact with a source and a time; headlines pass an injection screen. Four analyst passes each see only their own facts: technical, macro and geopolitics, news and sentiment, fundamentals. Then a bull case and a bear case with one rebuttal. A risk reviewer checks that every claim cites a fact, probabilities add up, the view matches the evidence and there is no personal advice, and can send a section back once. An editor writes strict JSON. A human reviewer approves it, and only then is it published to the Research page, the chat assistant and gift box research picks.">
+        <rect class="d-box accent" x="40" y="12" width="400" height="74" rx="10"/>
+        <text class="d-t acc" x="240" y="36" text-anchor="middle">1. Data, in code only</text>
+        <text class="d-s" x="240" y="55" text-anchor="middle">prices, indicators, patterns, levels, macro, calendar, news</text>
+        <text class="d-s" x="240" y="72" text-anchor="middle">every number is a fact with an id, a source and a time</text>
+        <rect class="d-box warn" x="300" y="96" width="170" height="34" rx="8"/>
+        <text class="d-l" x="385" y="117" text-anchor="middle">news: untrusted, screened</text>
+        <path class="d-e" d="M240 86V148" marker-end="url(#ah)"/>
+        <text class="d-cap" x="240" y="166" text-anchor="middle">2. Four analysts, each sees only its facts</text>
+        <rect class="d-box" x="16" y="176" width="104" height="46" rx="8"/>
+        <text class="d-t" x="68" y="204" text-anchor="middle">Technical</text>
+        <rect class="d-box" x="128" y="176" width="104" height="46" rx="8"/>
+        <text class="d-t" x="180" y="196" text-anchor="middle">Macro and</text>
+        <text class="d-t" x="180" y="212" text-anchor="middle">geopolitics</text>
+        <rect class="d-box" x="240" y="176" width="104" height="46" rx="8"/>
+        <text class="d-t" x="292" y="196" text-anchor="middle">News and</text>
+        <text class="d-t" x="292" y="212" text-anchor="middle">sentiment</text>
+        <rect class="d-box" x="352" y="176" width="112" height="46" rx="8"/>
+        <text class="d-t" x="408" y="204" text-anchor="middle">Fundamentals</text>
+        <path class="d-e" d="M68 222V240H408V222M180 222V240M292 222V240"/><path class="d-e" d="M240 240V262" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="60" y="266" width="170" height="46" rx="8"/>
+        <text class="d-t good" x="145" y="294" text-anchor="middle">3. Bull case</text>
+        <rect class="d-box bad" x="250" y="266" width="170" height="46" rx="8"/>
+        <text class="d-t bad" x="335" y="294" text-anchor="middle">Bear case</text>
+        <path class="d-e" d="M230 282H250M250 296H230" />
+        <text class="d-s" x="240" y="328" text-anchor="middle">one round of rebuttal, facts and analyst notes only</text>
+        <path class="d-e" d="M240 334V354" marker-end="url(#ah)"/>
+        <rect class="d-box" x="70" y="358" width="340" height="74" rx="10"/>
+        <text class="d-t" x="240" y="382" text-anchor="middle">4. Risk reviewer</text>
+        <text class="d-s" x="240" y="401" text-anchor="middle">every claim cites a fact, probabilities add to 100,</text>
+        <text class="d-s" x="240" y="418" text-anchor="middle">view matches evidence, no promises, no personal advice</text>
+        <path class="d-e dash" d="M410 395H452V286H424" marker-end="url(#ah)"/>
+        <text class="d-l" x="456" y="350" transform="rotate(90 456 350)" text-anchor="middle">sends back once</text>
+        <path class="d-e" d="M240 432V452" marker-end="url(#ah)"/>
+        <rect class="d-box" x="110" y="456" width="260" height="44" rx="10"/>
+        <text class="d-t" x="240" y="476" text-anchor="middle">5. Editor writes strict JSON</text>
+        <text class="d-s" x="240" y="492" text-anchor="middle">plain language, then rendered</text>
+        <path class="d-e" d="M240 500V520" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="110" y="524" width="260" height="38" rx="10"/>
+        <text class="d-t acc" x="240" y="548" text-anchor="middle">A person reviews and approves</text>
+        <path class="d-e acc" d="M240 562V584" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="240" y="600" text-anchor="middle">published: Research page, chat answers, gift research picks</text>
+      </svg>
+    </div>
+    <figcaption><b>The model interprets; it never calculates.</b> Prices, indicators, levels and the borrowing note come from code. A claim without a fact id is removed. Nothing reaches readers until a reviewer approves the exact version they read.</figcaption>
+  </figure>
+  <p>The structure follows the published TradingAgents research design (analyst roles, then a bull and bear debate, then a risk review). Stackday took the idea only and wrote its own code. The daily note uses a short version: one triage pass on a cheaper model, a stronger model for big movers or answers that fail checks, then the risk check.</p>
+
+  <h2>How scores work</h2>
+  <ul>
+    <li><strong>Direction</strong>: each daily note is checked after 1 and 5 trading days. Did the price move the way the view said?</li>
+    <li><strong>Levels</strong>: did support and resistance hold or break as described?</li>
+    <li><strong>Calibration</strong>: over weeks, do high-conviction calls come true more often than low-conviction ones? Shown per conviction level.</li>
+    <li><strong>Facts</strong>: the share of claims with a valid source. The target is 100%.</li>
+    <li><strong>Usefulness</strong>: the reviewers grade each note from 1 to 5.</li>
+  </ul>
+  <p>The weekly scorecard marks every view from last week as Right, Wrong, Mixed or No data. Wrong calls stay visible. The report becomes a paid product only after <strong>four Mondays in a row</strong> with every fact sourced, no corrections, an average grade of 4 or more and calibration that is not clearly off, and after a legal check. Until then it is a free preview and the paywall is off.</p>
+
+  <h2>Where the data comes from</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Data</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Bitcoin, Ether and gold prices</td><td>Coinbase Exchange public candles</td></tr>
+      <tr><td>Apple, NVIDIA and S&amp;P 500 token prices</td><td>On-chain prices on Base: Chainlink "Coinbase AAPL" and "Coinbase NVDA" feeds, the deSPXA Morpho oracle and the main token pools. Labelled as the token's on-chain price, not the exchange price</td></tr>
+      <tr><td>Rates, yields, inflation, jobs, dollar</td><td>FRED (St. Louis Fed), cited</td></tr>
+      <tr><td>Fed meetings, CPI and jobs dates, PCE and GDP</td><td>Federal Reserve, BLS and BEA calendars</td></tr>
+      <tr><td>Headlines</td><td>GDELT, filtered to a whitelist of reputable outlets (headline, outlet, date and link only); Federal Reserve and SEC feeds; Apple and NVIDIA newsrooms as one side</td></tr>
+      <tr><td>Company filings</td><td>SEC EDGAR</td></tr>
+      <tr><td>Crypto funding rates, stablecoin supply</td><td>Binance or Deribit public APIs; DefiLlama</td></tr>
+    </tbody>
+  </table></div>
+  <p>When a source fails or has no key, the item is a "no reading" line and nothing is filled in. ETF flows, Fed futures and central bank gold buying have no source yet and always show "no reading". The S&amp;P 500 index level from FRED is never published (its licence forbids it); the token's own price is shown instead.</p>
+
+  <h2>Other Research tabs</h2>
+  <ul>
+    <li><strong>My themes</strong>: the Themes tool, see <a href="#invest-themes">Invest</a>.</li>
+    <li><strong>Portfolio check</strong>: facts about your holdings (allocation, overlap, loan health and a borrowing note per holding), linked to the general report. It never gives per-person buy or sell orders.</li>
+    <li><strong>Plans</strong>: the planned pricing (one Monday report or a month, paid in test USDC). The paywall is off.</li>
+  </ul>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Sample data.</strong> When there is no approved live report (for example the engine is switched off), the pages show a hand-made sample with a clear "Sample data" banner.</li>
+    <li><strong>Short history.</strong> The on-chain stock price feeds start in August 2026, so there is no 200-day average or 52-week range yet. Those items say "no reading".</li>
+    <li><strong>Cost caps.</strong> A run stops if it would spend more than $2 on models (the weekly run $4, $6 a day in total), and a failed run writes nothing rather than a partial report.</li>
+    <li><strong>No edge claimed.</strong> The team found no credible evidence that a weekly news signal beats the market after costs. The report explains and flags risk; it does not promise returns.</li>
+    <li><strong>Not advice.</strong> Every page carries the disclaimer: research only, not financial advice, past calls can be wrong, and tokenized assets can lose value.</li>
+  </ul>
+</article>

@@ -1,0 +1,53 @@
+<article class="page" id="glossary" data-title="Glossary" data-section="Reference" data-keywords="glossary terms definitions words meaning">
+  <p class="crumb">Reference</p>
+  <h1>Glossary</h1>
+  <p class="lead">The words used in Stackday and in these docs, in plain language.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Base</td><td>A blockchain network built by Coinbase. Stackday is built on it.</td></tr>
+      <tr><td>Base Sepolia</td><td>Base's test network. Same technology, but the money has no value. Chain id 84532.</td></tr>
+      <tr><td>Wallet</td><td>An app that holds your key and signs on your behalf. Whoever has the key controls the wallet.</td></tr>
+      <tr><td>Signature</td><td>Your wallet's approval of a message or transaction. Signing in costs nothing; transactions cost a small network fee (gas).</td></tr>
+      <tr><td>Gas</td><td>The small fee the network charges to process a transaction, paid in ETH.</td></tr>
+      <tr><td>USDC</td><td>A digital dollar issued by Circle. Stackday uses Circle's test USDC on Base Sepolia.</td></tr>
+      <tr><td>Tokenized stock</td><td>A token that tracks a real share, such as Coinbase's AAPLc for Apple. For eligible people outside the US, with no voting rights.</td></tr>
+      <tr><td>Mock token</td><td>A test stand-in for a real token, with a price the demo wallet controls. Names start with "m", such as mAAPL.</td></tr>
+      <tr><td>Smart contract</td><td>A program on the blockchain that holds money and follows fixed rules.</td></tr>
+      <tr><td>Vault</td><td>Your own smart contract that holds your assets. Only your wallet can take things out.</td></tr>
+      <tr><td>Free / locked</td><td>Free assets sit in your vault. Locked assets back a loan in a Morpho market.</td></tr>
+      <tr><td>SIP</td><td>Systematic investment plan: buying a fixed amount on a schedule. In the code, a payday share is a "SIP".</td></tr>
+      <tr><td>Payday plan</td><td>A standing choice to invest a share of every payday into chosen assets.</td></tr>
+      <tr><td>Recurring buy</td><td>A plan that buys an asset from your wallet on a schedule.</td></tr>
+      <tr><td>Treasury</td><td>The employer's USDC balance inside the Payroll contract.</td></tr>
+      <tr><td>Schedule</td><td>A repeating payroll: daily, weekly, every 2 weeks or monthly.</td></tr>
+      <tr><td>Trigger bot (keeper)</td><td>A small automated job that presses due buttons on chain each weekday, paying only gas.</td></tr>
+      <tr><td>Morpho</td><td>An existing lending protocol on Base. Stackday borrows through it and runs no lending pool of its own.</td></tr>
+      <tr><td>Collateral</td><td>Assets you lock as a guarantee for a loan.</td></tr>
+      <tr><td>Liquidation limit (LLTV)</td><td>The share of the collateral's value that can be borrowed before liquidation, for example 62.5% for Apple.</td></tr>
+      <tr><td>Health</td><td>Your limit divided by what you owe. Above 1.00 is safe; at 1.00 the loan can be liquidated.</td></tr>
+      <tr><td>Liquidation</td><td>When a loan's health falls below 1.00, others may repay part of it and take collateral at a discount.</td></tr>
+      <tr><td>Safety cap</td><td>Your vault's own ceiling on borrowing, 50% of the limit by default, raised to 65% for High.</td></tr>
+      <tr><td>Emergency rule</td><td>An optional rule that, when a payday is claimed while a loan is close to its limit, puts the payday share into collateral.</td></tr>
+      <tr><td>Collateral basket</td><td>Locking several assets at once with one total and one limit, while each stays its own market.</td></tr>
+      <tr><td>Oracle, price feed</td><td>A contract that reports a price. On testnet these are mocks.</td></tr>
+      <tr><td>Slippage</td><td>How much worse a trade's price can be than expected. Stackday refuses buys more than 1% worse.</td></tr>
+      <tr><td>bps</td><td>Basis points: hundredths of a percent. 15 bps = 0.15%.</td></tr>
+      <tr><td>APY</td><td>Annual percentage yield: the yearly rate including compounding.</td></tr>
+      <tr><td>Adapter</td><td>A small contract that connects Stackday to an outside service (lending, prices, swaps, interest), so the service can be swapped.</td></tr>
+      <tr><td>Invest only</td><td>An asset you can buy and hold but not borrow against, because it has no Morpho market.</td></tr>
+      <tr><td>Theme</td><td>A topic such as AI and chips. Themes suggest a split of assets from fixed rules.</td></tr>
+      <tr><td>Weekly report, daily note</td><td>Stackday's research: the Monday report for readers and the internal daily note used to build a track record.</td></tr>
+      <tr><td>View</td><td>The report's general stance on an asset: Accumulate, Hold, Reduce or Avoid new buys.</td></tr>
+      <tr><td>Fact (research)</td><td>A number or item computed by code with a source and a time, which every claim must cite.</td></tr>
+      <tr><td>Intent</td><td>The chat model's structured request, such as "buy, Apple, 20 USDC", checked against a strict schema before code builds a card.</td></tr>
+      <tr><td>Action card</td><td>What the chat shows before you sign: the action, amounts, fee and your wallet as the receiver.</td></tr>
+      <tr><td>Pre-check</td><td>A simulation of a card's transactions on Base Sepolia before you sign.</td></tr>
+      <tr><td>Gift box</td><td>USDC held by the GiftBox contract that buys a mix of assets into the recipient's vault when opened.</td></tr>
+      <tr><td>Stackday ID</td><td>Your unique ID, such as SD-7K3F9Q2M, used to find you for teams and gifts.</td></tr>
+      <tr><td>Fork test</td><td>A test that runs the code against a private copy of the real Base mainnet, with real tokens and markets, at no cost.</td></tr>
+      <tr><td>Private pay</td><td>Salary paid with encrypted amounts through Fairblock confidential transfers.</td></tr>
+    </tbody>
+  </table></div>
+</article>

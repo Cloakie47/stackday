@@ -1,0 +1,59 @@
+<article class="page" id="faq" data-title="FAQ" data-section="Reference" data-keywords="faq questions answers help">
+  <p class="crumb">Reference</p>
+  <h1>Frequently asked questions</h1>
+  <p class="lead">Short answers, with links to the page that explains more.</p>
+
+  <h2>Is this real money?</h2>
+  <p>No. Everything runs on Base Sepolia, a test network. Test USDC is free from the Circle faucet, and the stock, Bitcoin, Ether and gold tokens are mocks. Nothing is on Base mainnet. See <a href="#security">Security, risks and mocks</a>.</p>
+
+  <h2>Can Stackday take my money?</h2>
+  <p>No contract has an admin or owner function that can move money out of your vault. Only your wallet can withdraw, borrow or unlock. The servers hold no key that can move user funds. There has been no independent audit, so this is the builders' own claim, backed by tests. See <a href="#vault">Your vault</a>.</p>
+
+  <h2>What happens if I lose my wallet?</h2>
+  <p>You lose access to your vault. There is no recovery, because nobody else holds a key to it.</p>
+
+  <h2>Do I need an employer?</h2>
+  <p>No. A Personal account uses the same vault with one-time or recurring buys from your own wallet. See <a href="#invest">Invest</a>.</p>
+
+  <h2>Is investing part of my salary required?</h2>
+  <p>No. The share is always optional: none, 10%, 20% or your own number, once or every payday. See <a href="#payday">Payday</a>.</p>
+
+  <h2>Why borrow instead of selling?</h2>
+  <p>Selling ends your investment (and may be a taxable event where you live). Borrowing gives you cash while you keep the assets. The trade-off is interest and the risk of liquidation if prices fall far. See <a href="#borrow">Borrow instead of selling</a>.</p>
+
+  <h2>Will I be forced to repay?</h2>
+  <p>No. There is no repayment schedule. The only risk is liquidation if your loan's health falls below 1.00, which the Borrow and Risk pages show before you sign.</p>
+
+  <h2>Does Stackday lock my new buys automatically?</h2>
+  <p>No. New buys always land free. You lock them yourself. The only automatic lock is the optional emergency rule, and only when a payday is claimed.</p>
+
+  <h2>What does it cost?</h2>
+  <p>One-time buys, gifts and withdrawals are free. Recurring buys cost 0.15%, loans 0.1% a year on top of Morpho's interest, and earning interest 0.1% a year taken from the interest. See <a href="#fees">Fees</a>.</p>
+
+  <h2>Is the research investment advice?</h2>
+  <p>No. It is general research for every reader, with sources for every number and a public scorecard that keeps wrong calls. It never tells a person what to buy or sell. See <a href="#research">Research</a>.</p>
+
+  <h2>Can the chat assistant spend my money?</h2>
+  <p>No. It can only prepare a card. Code builds the card, the receiver is always your own wallet, each card is capped at 500 test USDC, and nothing happens until you confirm and sign in your wallet. See <a href="#chat">Chat assistant</a>.</p>
+
+  <h2>Why can I not sell on the Invest page?</h2>
+  <p>The contracts can only buy today. On testnet the chat can sell through a mock sell desk. Selling on mainnet needs a sell adapter (issue #35), planned after the deadline.</p>
+
+  <h2>What happens to a gift nobody opens?</h2>
+  <p>After it expires (7, 30 or 90 days), anyone can trigger the refund, and the trigger bot does it on its weekday run. The USDC goes back to the sender only. See <a href="#gifts">Gift boxes</a>.</p>
+
+  <h2>Why did my recurring buy not run?</h2>
+  <p>Common reasons: it was not due yet, your wallet did not have enough USDC that day, or the approval you gave is used up (the plan finished; use Extend). The trigger bot runs on weekdays at 16:00 UTC, and you can press Run now when a buy is due.</p>
+
+  <h2>Why is my borrow refused?</h2>
+  <p>On testnet each Morpho market holds only about 4 test USDC to lend, so larger loans are refused until the founder tops them up. A borrow is also refused if it would put your loan below the risk level you chose, or above your vault's safety cap.</p>
+
+  <h2>Who can use tokenized stocks?</h2>
+  <p>Coinbase's tokenized stocks are for eligible people outside the United States and carry no voting rights.</p>
+
+  <h2>Is Stackday an official Base or Coinbase product?</h2>
+  <p>No. It is an independent hackathon project built on Base.</p>
+
+  <h2>Where is the code?</h2>
+  <p>At <a href="{{REPO}}" rel="noopener" target="_blank">github.com/Cloakie47/stackday</a>. Start with <code>docs/START-HERE.md</code>. See also <a href="#architecture">Architecture</a> and <a href="#contracts">Contracts and addresses</a>.</p>
+</article>

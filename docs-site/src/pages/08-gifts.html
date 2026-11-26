@@ -1,0 +1,100 @@
+<article class="page" id="gifts" data-title="Gift boxes" data-section="Features" data-keywords="gift box giftbox send open decline revoke expiry refund surprise mix research pick message animation">
+  <p class="crumb">Features</p>
+  <h1>Gift boxes</h1>
+  <p class="lead">Send someone a box worth a chosen amount of test USDC, holding one stock, your own mix, a surprise mix or a research pick. They open it, and the assets land in their own vault.</p>
+  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock tokens</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>It is like a gift card that turns into stocks. You put in, say, $5 and choose what is inside. Your friend gets a box to open. When they open it, the $5 buys the stocks at that day's price and puts them in their vault, with a little unboxing moment.</p>
+    <p>If they say no thanks, or nobody opens it before it expires, your money comes back to you. You can also take it back yourself while it is still unopened.</p>
+  </div>
+
+  <h2>Sending a gift</h2>
+  <p>On Gifts, choose <strong>Send a gift</strong>:</p>
+  <ul>
+    <li><strong>To</strong>: a Stackday ID, an @name or a wallet address.</li>
+    <li><strong>Amount</strong>: 1 to 500 test USDC. There is no fee on gifts.</li>
+    <li><strong>Box</strong>:
+      <ul>
+        <li><strong>One stock</strong>: 100% of one asset. Any supported asset works, invest-only ones included.</li>
+        <li><strong>My mix</strong>: 1 to 6 assets in whole percents, at least 1% each.</li>
+        <li><strong>Surprise</strong>: 2 to 4 random assets, each at least 10%, picked in your browser when you send. The contents are hidden in the app until opened. That is cosmetic: the blockchain is public.</li>
+        <li><strong>Research pick</strong>: the mix is chosen when the box is opened, from the latest approved weekly report, so it follows the newest research. It uses only the six researched assets.</li>
+      </ul>
+    </li>
+    <li><strong>Message</strong> (optional): up to 140 characters, kept off chain. Only the sender and the recipient can read it.</li>
+    <li><strong>Expiry</strong>: 7, 30 or 90 days.</li>
+  </ul>
+  <p>Sending is one flow in your wallet: approve the USDC, then create the box. The recipient sees a waiting count on the Received tab, a card on Home and a badge on the Gifts menu entry.</p>
+
+  <h2>How it works</h2>
+  <p>The <strong>GiftBox</strong> contract holds your USDC until the box is opened. It never holds stock. When the recipient opens it, the contract buys each part of the mix with the gift's USDC and sends it straight into their vault as free assets. This design means a $5 box is always $5 of stock on the day it is opened, a research pick can follow the newest report, and every refund returns exactly the USDC you sent.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 400" width="480" role="img" aria-label="Gift box states. The sender approves USDC and creates the box, which is then pending with the USDC held in GiftBox. From pending there are four endings. The recipient opens it before expiry: the USDC buys the mix into the recipient's vault. The recipient declines it, the sender revokes it, or after expiry anyone, usually the trigger bot, refunds it: in those three cases the USDC goes back to the sender, never anywhere else.">
+        <rect class="d-box" x="120" y="12" width="240" height="50" rx="10"/>
+        <text class="d-t" x="240" y="34" text-anchor="middle">Sender: approve + create</text>
+        <text class="d-s" x="240" y="52" text-anchor="middle">amount, box type, recipient, expiry</text>
+        <path class="d-e" d="M240 62V88" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="140" y="92" width="200" height="56" rx="12"/>
+        <text class="d-t acc" x="240" y="116" text-anchor="middle">Pending</text>
+        <text class="d-s" x="240" y="134" text-anchor="middle">USDC held in GiftBox</text>
+        <path class="d-e acc" d="M180 148V178H72V214" marker-end="url(#ah-acc)"/>
+        <path class="d-e" d="M220 148V214" marker-end="url(#ah)"/>
+        <path class="d-e" d="M260 148V178H296V214" marker-end="url(#ah)"/>
+        <path class="d-e" d="M300 148V166H412V214" marker-end="url(#ah)"/>
+
+        <text class="d-cap" x="372" y="160">after expiry</text>
+        <rect class="d-box good" x="12" y="218" width="120" height="60" rx="10"/>
+        <text class="d-t good" x="72" y="242" text-anchor="middle">Opened</text>
+        <text class="d-s" x="72" y="261" text-anchor="middle">recipient opens</text>
+        <rect class="d-box" x="140" y="218" width="98" height="60" rx="10"/>
+        <text class="d-t" x="189" y="242" text-anchor="middle">Declined</text>
+        <text class="d-s" x="189" y="261" text-anchor="middle">by recipient</text>
+        <rect class="d-box" x="246" y="218" width="98" height="60" rx="10"/>
+        <text class="d-t" x="295" y="242" text-anchor="middle">Revoked</text>
+        <text class="d-s" x="295" y="261" text-anchor="middle">by sender</text>
+        <rect class="d-box" x="352" y="218" width="116" height="60" rx="10"/>
+        <text class="d-t" x="410" y="242" text-anchor="middle">Refunded</text>
+        <text class="d-s" x="410" y="261" text-anchor="middle">anyone, or the bot</text>
+        <path class="d-e acc" d="M72 278V310" marker-end="url(#ah-acc)"/>
+        <rect class="d-box accent" x="12" y="314" width="176" height="74" rx="10"/>
+        <text class="d-t acc" x="100" y="338" text-anchor="middle">Buys the mix</text>
+        <text class="d-s" x="100" y="357" text-anchor="middle">into the recipient's vault,</text>
+        <text class="d-s" x="100" y="373" text-anchor="middle">free, price-protected</text>
+        <path class="d-e" d="M189 278V300H410V278" />
+        <path class="d-e" d="M300 300V310" marker-end="url(#ah)"/>
+        <rect class="d-box" x="212" y="314" width="256" height="74" rx="10"/>
+        <text class="d-t" x="340" y="342" text-anchor="middle">USDC back to the sender</text>
+        <text class="d-s" x="340" y="362" text-anchor="middle">exactly what was sent, never to</text>
+        <text class="d-s" x="340" y="378" text-anchor="middle">any other address</text>
+      </svg>
+    </div>
+    <figcaption><b>One way to stocks, three ways back.</b> Only the recipient can open, only before expiry. Declining, revoking and the expiry refund all pay the sender, and nobody can choose a different address.</figcaption>
+  </figure>
+
+  <h3>Opening a box</h3>
+  <ol class="steps">
+    <li><div><p>The recipient presses Open and signs. For a research pick, the app first builds the mix from the approved report and shows it, labelled "picked by research", before signing.</p></div></li>
+    <li><div><p>While the wallet and the transaction are pending, the box gently wiggles.</p></div></li>
+    <li><div><p><strong>Only once the transaction is confirmed</strong> does the lid pop, confetti burst out and one card per asset rise from the box, each with the amount taken from the transaction receipt.</p></div></li>
+    <li><div><p>If it fails, the box closes again with the reason and a Retry. With reduced motion switched on, there is no confetti or movement: the box fades open instead.</p></div></li>
+  </ol>
+  <p>Each part is bought at the price feed with slippage protection (the contract allows at most 3%). If any part cannot be bought, the whole opening is undone and the box stays closed, so the sender can still take it back.</p>
+
+  <h2>Gifts from the chat</h2>
+  <p>You can ask the chat assistant to "send Maya $5 of stocks". It checks the amount and box type, then opens the Gifts page on Send a gift with those filled in. The recipient is always chosen on the Gifts page, never put in a link.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>No sending to yourself</strong>, to the zero address or to the contract. Expiry must be between 1 and 365 days in the contract; the app offers 7, 30 or 90.</li>
+    <li><strong>A recipient with a loan</strong>: gifted assets arrive free, never locked, so they do not change the loan.</li>
+    <li><strong>A recipient with no vault</strong>: opening creates it.</li>
+    <li><strong>Research pick with no approved report</strong>: the box cannot be opened until a report is approved. The contract checks that the mix is valid, but it cannot check the research itself; the app shows the mix before the recipient signs.</li>
+    <li><strong>Messages</strong> need the optional account database and its <code>gifts</code> table. The founder adds that table to the live database.</li>
+    <li><strong>Who may receive.</strong> The app notes that tokenized stocks are only for people in eligible places outside the US, and that gifts may have tax rules where you live.</li>
+    <li><strong>Mainnet note.</strong> The S&amp;P 500 token's price feed is restricted on mainnet, so gifting it there needs another price adapter first.</li>
+  </ul>
+</article>

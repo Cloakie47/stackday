@@ -1,0 +1,164 @@
+<article class="page" id="borrow" data-title="Borrow instead of selling" data-section="Features" data-keywords="loan morpho collateral health liquidation emergency rule repay lock unlock risk stress">
+  <p class="crumb">Features</p>
+  <h1>Borrow instead of selling</h1>
+  <p class="lead">Need cash but want to keep your investments? Lock some of them as a guarantee and borrow test USDC against them through Morpho, an existing lending market on Base.</p>
+  <div class="status-row"><span class="pill live">Live on testnet (Morpho)</span><span class="pill mock">Mock asset prices</span><span class="pill plan">Aave not built</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Think of a pawn shop that never sells your things while you keep up. You hand over some stock as a guarantee, you get cash, and the stock is still yours. When you pay the cash back, you take the stock home.</p>
+    <p>The one rule: if the stock falls a lot, the guarantee stops covering the loan, and the lender may sell part of it to get its money back. Stackday shows you, before you sign, how far prices can fall before that happens.</p>
+  </div>
+
+  <h2>How it works</h2>
+  <p>Stackday does not lend money itself and runs no lending pool. Your vault borrows directly from a <strong>Morpho market</strong>. Each asset you can borrow against has its own market, with that asset as the guarantee (collateral) and USDC as the loan.</p>
+
+  <h3>Free and locked</h3>
+  <p>Everything you buy lands in your vault as <strong>free</strong>: it is not backing anything, and you can take it out at any time. To borrow, you first <strong>lock</strong> some of it. Locked assets are posted to the Morpho market and back your loan. New buys are never locked for you (a founder decision, issue #29). The only thing that locks by itself is the emergency rule further down, and only if you switch it on.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 640 300" width="640" role="img" aria-label="Where your money sits when you borrow. Buys go from your wallet into the free part of your vault. You lock free assets into the Morpho market as collateral. Morpho lends USDC from its lenders to your wallet. You repay from your wallet, Stackday's small fee first, then the loan. Unlock and withdraw bring assets back.">
+        <rect class="d-box" x="16" y="58" width="150" height="112" rx="10"/>
+        <text class="d-t" x="91" y="98" text-anchor="middle">Your wallet</text>
+        <text class="d-s" x="91" y="118" text-anchor="middle">holds your USDC</text>
+        <text class="d-s" x="91" y="135" text-anchor="middle">signs every step</text>
+
+        <rect class="d-zone accent" x="222" y="24" width="186" height="174" rx="14"/>
+        <text class="d-cap" x="238" y="46">Your vault</text>
+        <rect class="d-box accent" x="240" y="62" width="150" height="108" rx="10"/>
+        <text class="d-t acc" x="315" y="98" text-anchor="middle">Free assets</text>
+        <text class="d-s" x="315" y="118" text-anchor="middle">not backing a loan</text>
+        <text class="d-s" x="315" y="135" text-anchor="middle">withdraw any time</text>
+
+        <rect class="d-zone" x="462" y="24" width="162" height="262" rx="14"/>
+        <text class="d-cap" x="478" y="46">Morpho market</text>
+        <rect class="d-box" x="478" y="62" width="130" height="108" rx="10"/>
+        <text class="d-t" x="543" y="98" text-anchor="middle">Locked</text>
+        <text class="d-s" x="543" y="118" text-anchor="middle">backs your loan</text>
+        <text class="d-s bad" x="543" y="135" text-anchor="middle" style="fill:var(--danger)">sold if health &lt; 1</text>
+        <rect class="d-box soft" x="478" y="196" width="130" height="74" rx="10"/>
+        <text class="d-t" x="543" y="228" text-anchor="middle">USDC</text>
+        <text class="d-s" x="543" y="247" text-anchor="middle">from lenders</text>
+
+        <path class="d-e acc" d="M168 96H236" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="202" y="88" text-anchor="middle">buy</text>
+        <path class="d-e" d="M238 134H170" marker-end="url(#ah)"/>
+        <text class="d-l" x="204" y="152" text-anchor="middle">withdraw</text>
+
+        <path class="d-e acc" d="M392 96H474" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="433" y="88" text-anchor="middle">1 lock</text>
+        <path class="d-e" d="M476 134H394" marker-end="url(#ah)"/>
+        <text class="d-l" x="435" y="152" text-anchor="middle">4 unlock</text>
+
+        <path class="d-e acc" d="M476 222H104V174" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="300" y="215" text-anchor="middle">2 borrow: USDC to your wallet</text>
+        <path class="d-e" d="M60 172V258H474" marker-end="url(#ah)"/>
+        <text class="d-l" x="300" y="251" text-anchor="middle">3 repay: Stackday fee first, then the loan</text>
+      </svg>
+    </div>
+    <figcaption><b>Where your money sits.</b> Buys land free in your vault. You lock some into the Morpho market (1), borrow USDC to your wallet (2), repay when you like (3), then unlock (4) and withdraw. Each asset's market is separate and can be liquidated on its own.</figcaption>
+  </figure>
+
+  <h3>The collateral basket</h3>
+  <p>On the Borrow page you can lock any mix of assets first and see one total and one limit. When you borrow or repay, Stackday splits the amount across the Morpho markets so that every part has the same health. Each asset is still its own market and can be liquidated on its own, and the page says so.</p>
+
+  <h3>Your limit and the three risk levels</h3>
+  <p>Every market has a <strong>liquidation limit</strong> (Morpho calls it LLTV): the share of the collateral's value that can be borrowed before the loan can be liquidated.</p>
+  <p>On the testnet deployment the limits match the main real markets on Base for each kind of asset: <strong>62.5%</strong> for Apple, NVIDIA, Meta and SpaceX, <strong>77%</strong> for Alphabet, gold and the S&amp;P 500 fund token, and <strong>86%</strong> for Bitcoin and Ether. The full list is on <a href="#invest">Invest</a>.</p>
+  <p>Borrow asks you to pick how much of that limit to use:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Level</th><th class="num">Share of the limit</th><th class="num">Price drop it survives</th><th class="num">Example: $1,000 of Apple locked</th></tr></thead>
+    <tbody>
+      <tr><td>Low</td><td class="num">30%</td><td class="num">about 70%</td><td class="num">borrow $187.50, health 3.33</td></tr>
+      <tr><td>Mid (the default)</td><td class="num">50%</td><td class="num">about 50%</td><td class="num">borrow $312.50, health 2.00</td></tr>
+      <tr><td>High</td><td class="num">65%</td><td class="num">about 35%</td><td class="num">borrow $406.25, health 1.54</td></tr>
+    </tbody>
+  </table></div>
+  <p>The example uses Apple's 62.5% limit: $1,000 locked gives a limit of $625. The levels come from broker, bank and Coinbase practice and from the cost of a liquidation on Morpho's stock markets (about 12.7%). Each level shows the amount it really gives you and the price drop it really survives, and says when the market does not have enough cash to lend.</p>
+  <p>Your vault also has its own <strong>safety cap</strong>: by default it refuses any loan above 50% of the limit. Choosing High raises the cap to 65% in the same signature, and only when the amount needs it. The contract never allows more than 85%.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 640 170" width="640" role="img" aria-label="A scale of how much of the liquidation limit a loan uses, from 0 to 100 percent. Low is 30 percent, Mid 50 percent, where the vault's default safety cap sits, High 65 percent, and at 100 percent health is 1.00 and the loan can be liquidated.">
+        <text class="d-cap" x="40" y="24">Share of your liquidation limit you borrow</text>
+        <rect class="d-fill-good" x="40" y="58" width="168" height="16" rx="3" opacity="0.85"/>
+        <rect class="d-fill-acc" x="208" y="58" width="112" height="16" opacity="0.85"/>
+        <rect class="d-fill-warn" x="320" y="58" width="84" height="16" opacity="0.85"/>
+        <rect class="d-fill-line" x="404" y="58" width="156" height="16"/>
+        <rect class="d-fill-bad" x="560" y="50" width="4" height="32"/>
+        <path class="d-e" d="M208 46V86M320 46V86M404 46V86"/>
+        <text class="d-l" x="40" y="104">0%</text>
+        <text class="d-t" x="208" y="40" text-anchor="middle">Low 30%</text>
+        <text class="d-t acc" x="320" y="40" text-anchor="middle">Mid 50%</text>
+        <text class="d-t warn" x="404" y="40" text-anchor="middle">High 65%</text>
+        <text class="d-t bad" x="562" y="40" text-anchor="middle">100%</text>
+        <text class="d-s" x="208" y="104" text-anchor="middle">health 3.33</text>
+        <text class="d-s" x="320" y="104" text-anchor="middle">health 2.00</text>
+        <text class="d-s" x="404" y="104" text-anchor="middle">health 1.54</text>
+        <text class="d-s bad" x="562" y="104" text-anchor="middle" style="fill:var(--danger)">health 1.00</text>
+        <text class="d-l" x="320" y="128" text-anchor="middle">vault safety cap (default)</text>
+        <text class="d-l bad" x="562" y="128" text-anchor="middle">can be liquidated</text>
+        <text class="d-s" x="482" y="152" text-anchor="middle">the gap above your level is the price drop you can survive</text>
+      </svg>
+    </div>
+    <figcaption><b>Health is the room left before liquidation.</b> Health is your limit divided by what you owe. At 1.00 the loan can be liquidated. Borrowing half your limit gives health 2.00, which survives a 50% price fall.</figcaption>
+  </figure>
+
+  <h3>What it costs</h3>
+  <p>Borrowing is shown as one <strong>Borrow APY</strong>: Morpho's interest, which compounds every second, plus Stackday's fee of 0.1% a year. The fee builds up by the second on the amount you owe. You receive the full amount you borrow; the fee is paid when you repay, before the loan itself. If a loan ends in liquidation instead, the unpaid fee is dropped. See <a href="#fees">Fees</a>.</p>
+
+  <h3>Repaying and taking assets out</h3>
+  <ul>
+    <li><strong>Repay is manual.</strong> There is no forced repayment and no schedule. Repay part or all, any time. Paying more than you owe only takes what is owed.</li>
+    <li><strong>Withdraw is one control.</strong> It takes free assets first and releases locked ones automatically, but only as much as the loan allows.</li>
+    <li>Anyone can repay into a vault (for example a friend paying for you), but only you can borrow, unlock or withdraw.</li>
+  </ul>
+
+  <h3>The risk screen</h3>
+  <p>The Risk page shows your borrowing cost, limit, health, liquidation price and the price drop that triggers it, the liquidation penalty, the exact Morpho market used and how fresh the price is. It has a stress test for overnight price gaps of 10, 20 and 30% (or your own number), and shows what happens if transfers of the stock token are paused. With no loan you can type an example loan to try it.</p>
+
+  <h2>The emergency rule</h2>
+  <p>For people paid through Stackday payroll there is an optional safety net. You choose a borrowable asset, a health level (the app offers 1.25, 1.50 or 2.00) and a share of salary. On a payday, if your loan's health is at or below that level when you claim, the payday share switches to that asset and is <strong>locked straight away as collateral</strong>, so the loan gets safer.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 440 400" width="440" role="img" aria-label="The emergency rule at claim time. When you claim a payday, Payroll checks whether the rule is on and your loan health is at or below your chosen level. If not, your normal plan runs and the buys stay free. If yes, the whole share, the larger of your plan share and the rule share, buys the rule's asset and is locked as collateral, which raises your health.">
+        <rect class="d-box" x="130" y="12" width="180" height="46" rx="10"/>
+        <text class="d-t" x="220" y="40" text-anchor="middle">You claim a payday</text>
+        <path class="d-e" d="M220 58V88" marker-end="url(#ah)"/>
+        <path class="d-box warn" d="M220 92 L340 140 L220 188 L100 140 Z"/>
+        <text class="d-t" x="220" y="134" text-anchor="middle">Rule on, and health</text>
+        <text class="d-t" x="220" y="152" text-anchor="middle">at or below your level?</text>
+        <path class="d-e" d="M100 140H40V236" marker-end="url(#ah)"/>
+        <text class="d-l" x="70" y="132" text-anchor="middle">no</text>
+        <path class="d-e acc" d="M340 140H400V236" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="370" y="132" text-anchor="middle">yes</text>
+        <rect class="d-box" x="12" y="240" width="170" height="78" rx="10"/>
+        <text class="d-t" x="97" y="268" text-anchor="middle">Normal plan runs</text>
+        <text class="d-s" x="97" y="288" text-anchor="middle">your chosen assets</text>
+        <text class="d-s" x="97" y="304" text-anchor="middle">land free</text>
+        <rect class="d-box accent" x="232" y="240" width="196" height="78" rx="10"/>
+        <text class="d-t acc" x="330" y="264" text-anchor="middle">Whole share buys</text>
+        <text class="d-t acc" x="330" y="282" text-anchor="middle">the rule's asset</text>
+        <text class="d-s" x="330" y="302" text-anchor="middle">bigger of plan or rule share</text>
+        <path class="d-e acc" d="M330 318V346" marker-end="url(#ah-acc)"/>
+        <rect class="d-box good" x="232" y="350" width="196" height="40" rx="10"/>
+        <text class="d-t good" x="330" y="375" text-anchor="middle">Locked: health goes up</text>
+      </svg>
+    </div>
+    <figcaption><b>The rule only acts when a salary is claimed.</b> It is not automatic protection between paydays. The share used is the larger of your normal plan share and the rule's share, and all of it is locked.</figcaption>
+  </figure>
+  <p>It has been shown on testnet: in the judges' sequence a 30% price drop took a loan's health to 1.45, the next payday's emergency share added collateral, and health went back up to 3.53. The transactions are listed in the repository README.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Small testnet markets.</strong> Each test Morpho market was funded with about 4 test USDC, so demo loans must be small. Larger borrows are refused until the founder tops the markets up.</li>
+    <li><strong>Invest-only assets cannot be locked.</strong> Tesla, Amazon, Microsoft, Strategy, AMD and the Treasuries token have no Morpho market. You can buy, hold and withdraw them, never borrow against them.</li>
+    <li><strong>Prices can jump.</strong> Stock prices can gap after a weekend or overnight. A liquidation on Morpho's stock markets costs about 12.7% of the part sold.</li>
+    <li><strong>Paused tokens.</strong> The real stock tokens have an issuer who can pause transfers. During a pause you can still repay, but you cannot add or remove collateral. The judges' sequence tested this on testnet.</li>
+    <li><strong>Mock prices on testnet.</strong> Loan health uses the mock price feeds, which only move when the demo wallet changes them. Price charts on the Invest page show real market prices for reference only.</li>
+    <li><strong>Aave is not built.</strong> The anchor names Morpho and Aave. Only Morpho is built; Aave would plug in behind the same adapter.</li>
+    <li><strong>Dividends.</strong> The real Coinbase tokens reinvest dividends by raising an on-chain multiplier, so locked collateral grows too. The testnet mocks pay none.</li>
+  </ul>
+</article>

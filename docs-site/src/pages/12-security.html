@@ -1,0 +1,98 @@
+<article class="page" id="security" data-title="Security, risks and mocks" data-section="Trust and safety" data-keywords="security risk audit mocked real testnet limitations liquidation issuer key recovery database sign-in rate limit">
+  <p class="crumb">Trust and safety</p>
+  <h1>Security, risks and what is mocked</h1>
+  <p class="lead">What is real on the test network, what is a stand-in, how the app is protected, and what can still go wrong. Read this before trusting any of it.</p>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Stackday's own contracts are real and have no admin key that can touch your money. The stocks, Bitcoin, Ether and gold on the test network are pretend versions with prices the demo wallet can move, so the team can show what happens in a crash.</p>
+    <p>This is a hackathon demo. Nobody outside the team has audited it. Do not use it with real money.</p>
+  </div>
+
+  <h2>Real and mocked, layer by layer</h2>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 452" width="480" role="img" aria-label="Trust layers. You hold your wallet key. Stackday's contracts are real and have no owner: Payroll, SipRouter, GiftBox, VaultFactory, your vault and the adapters. Existing protocols are real: Morpho and Circle test USDC. Testnet mocks have an owner, the demo wallet: the asset tokens, their price feeds, the exchange, the sell desk and the interest vault. Off-chain services, the web app, the account database, the trigger bot, the chat and research servers, never hold your funds.">
+        <rect class="d-box accent" x="16" y="12" width="448" height="58" rx="10"/>
+        <text class="d-t acc" x="30" y="36">You</text>
+        <text class="d-s" x="30" y="55">your wallet key signs every action; no recovery if lost</text>
+        <rect class="d-box good" x="16" y="82" width="448" height="74" rx="10"/>
+        <text class="d-t good" x="30" y="106">Stackday contracts: real, no owner</text>
+        <text class="d-s" x="30" y="125">Payroll, SipRouter, GiftBox, VaultFactory, your vault,</text>
+        <text class="d-s" x="30" y="141">lending, interest and price adapters. Verified on Sourcify</text>
+        <rect class="d-box good" x="16" y="168" width="448" height="58" rx="10"/>
+        <text class="d-t good" x="30" y="192">Existing protocols: real</text>
+        <text class="d-s" x="30" y="211">Morpho and its interest rate model, Circle test USDC</text>
+        <rect class="d-box warn" x="16" y="238" width="448" height="90" rx="10"/>
+        <text class="d-t warn" x="30" y="262">Testnet mocks: owned by the demo wallet</text>
+        <text class="d-s" x="30" y="281">15 asset tokens and their price feeds, the exchange,</text>
+        <text class="d-s" x="30" y="297">the sell desk, the interest vault. The owner can move prices,</text>
+        <text class="d-s" x="30" y="313">pause transfers and mint. They pay no dividends</text>
+        <rect class="d-box soft" x="16" y="340" width="448" height="100" rx="10"/>
+        <text class="d-t" x="30" y="364">Off chain: never holds your funds</text>
+        <text class="d-s" x="30" y="383">web app, optional account database (names, teams,</text>
+        <text class="d-s" x="30" y="399">attendance, gift messages), trigger bot (pays gas only),</text>
+        <text class="d-s" x="30" y="415">chat and research servers (read and write text,</text>
+        <text class="d-s" x="30" y="431">no wallet, no keys that move money)</text>
+      </svg>
+    </div>
+    <figcaption><b>Money only moves on chain, and only by your signature or by rules you set.</b> The mocks are the one place with special powers, on purpose, so stress scenarios can be shown. They are not part of the real design.</figcaption>
+  </figure>
+
+  <h3>What stands in for what</h3>
+  <ul>
+    <li><strong>Asset tokens</strong>: mock tokens stand in for Coinbase tokenized stocks (AAPLc, NVDAc and others), cbBTC, WETH, PAXG and the deSPXA and wtSGOV fund tokens. The same code is tested with the real AAPLc token, a real Aerodrome pool and the real Morpho market on a private copy of Base mainnet. Bitcoin and Ether have no mainnet test yet.</li>
+    <li><strong>Price feeds</strong>: mock feeds, moved by the demo wallet. Price charts in the app show real market prices, for reference only.</li>
+    <li><strong>The exchange</strong>: a mock that mints the asset at exactly the feed price. On mainnet, buys go through Aerodrome Slipstream pools.</li>
+    <li><strong>The sell desk</strong>: a mock that buys assets back at the feed price minus 0.5%, from a small test USDC reserve. Used only by the chat's sell card.</li>
+    <li><strong>The interest venue</strong>: a plain mock interest vault. A real Morpho vault was tested on a copy of mainnet.</li>
+    <li><strong>Market mood</strong> in Themes: a hand-built snapshot, labelled "not live".</li>
+  </ul>
+
+  <h2>How the contracts protect you</h2>
+  <ul>
+    <li>One vault per person. No contract pools money across people.</li>
+    <li>No admin or owner function can move money out of a vault. Only the vault's owner can withdraw, borrow, unlock or earn.</li>
+    <li>The vault cannot be set up twice or taken over. Creating someone else's vault first is harmless.</li>
+    <li>Adapters act only on the caller's own position and hold nothing between calls.</li>
+    <li>Employer treasuries are separate. A paused schedule pays nothing.</li>
+    <li>A failed purchase never blocks a salary. Over-repaying only takes the debt.</li>
+    <li>Fees are fixed and capped. Reentrancy guards and checks on every external call; tests on every money path (69 local tests, plus fork tests on a copy of Base mainnet).</li>
+  </ul>
+
+  <h2>How the app protects you</h2>
+  <ul>
+    <li><strong>Sign-in</strong> is a free wallet signature (Sign-In with Ethereum) with a single-use code that expires in 10 minutes, tied to the site and the chain. It cannot be replayed.</li>
+    <li><strong>Rate limits</strong> on every API route, counted per visitor, plus per-wallet limits on the chat.</li>
+    <li><strong>Security headers and an origin check</strong> on requests that change data.</li>
+    <li><strong>The database</strong> has row level security on with no public policies: browsers cannot read or write it directly. Only the server can, after checking the signature.</li>
+    <li><strong>Consent</strong>: a business only sees a person's attendance after that person accepts the team invite.</li>
+    <li><strong>Every transaction is simulated</strong> before your wallet is asked to sign it, with extra gas margin for Morpho.</li>
+  </ul>
+
+  <h2>Risks you should know</h2>
+  <div class="note danger">
+    {{WARN}}
+    <div class="note-body">
+      <p><strong>No independent audit.</strong> The review so far is the builders' own. Do not use with real money.</p>
+    </div>
+  </div>
+  <ul>
+    <li><strong>Prices can fall a lot.</strong> Every one of the original testnet assets lost money in 2022, from about 26% (Apple) to 68% (Ether). Tokenized assets add smart-contract, issuer, custody and liquidity risk.</li>
+    <li><strong>Liquidation.</strong> A loan whose health falls below 1.00 can be liquidated. The emergency rule only acts when a salary is claimed.</li>
+    <li><strong>Issuer powers.</strong> The real stock tokens have an issuer who can pause, block or seize tokens. During a pause a loan cannot be topped up, only repaid.</li>
+    <li><strong>Key loss.</strong> A vault has one owner key and no recovery.</li>
+    <li><strong>Outside dependencies.</strong> Morpho, the interest venue, USDC and the price feeds are code Stackday depends on but does not control.</li>
+    <li><strong>Paydays wait for a button.</strong> A due payday or recurring buy waits until someone (usually the trigger bot) runs it.</li>
+    <li><strong>The database is a normal web service.</strong> Names, team lists (including salaries the employer typed in), attendance and gift messages are only as private as that database and its keys.</li>
+    <li><strong>Who may use the tokens.</strong> Tokenized stocks are for eligible people outside the United States and carry no voting rights. The app gives information, not investment advice.</li>
+  </ul>
+
+  <h2>Testnet-only behaviour</h2>
+  <ul>
+    <li>Shortest payroll rhythm: 60 seconds (one day on mainnet).</li>
+    <li>The stale price check on recurring buys is off (about 26 hours on mainnet).</li>
+    <li>Each Morpho market holds about 4 test USDC to lend; the sell desk about 5.</li>
+    <li>Selling exists only through the mock sell desk.</li>
+  </ul>
+</article>
