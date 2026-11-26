@@ -21,6 +21,7 @@ import { assetForUsdc, fmtAsset, fmtUsdc } from "@/lib/format";
 import type { Portfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
+import { recordLabel } from "@/lib/payRecord";
 import { splitAmount, type Split } from "@/lib/split";
 
 type Rest = "keep" | "withdraw";
@@ -291,7 +292,6 @@ export function PrivateRecords({ address, role }: { address: string | undefined;
     a.click();
     URL.revokeObjectURL(url);
   }
-  const label = { paid: "Paid privately", collected: "Collected", invested: "Invested" } as const;
   return (
     <Card
       title={role === "employer" ? "Private payroll record" : "Private pay record"}
@@ -312,7 +312,7 @@ export function PrivateRecords({ address, role }: { address: string | undefined;
         {records.slice(0, 12).map((r, i) => (
           <div key={`${r.at}-${i}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-[13px]">
             <span>
-              {label[r.kind]}
+              {recordLabel(r)}
               {r.name ? ` · ${r.name}` : ""}
               <span className="ml-2 text-xs text-muted">{new Date(r.at).toLocaleString()}</span>
             </span>

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
 import { buildSignInMessage } from "./signin";
 import { shortAddr } from "./format";
+import { refreshAll } from "./refresh";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
@@ -49,7 +50,7 @@ export function useSession() {
       });
       const signature = await signMessageAsync({ message });
       await api("/api/session", { method: "POST", body: JSON.stringify({ message, signature }) });
-      await queryClient.invalidateQueries();
+      await refreshAll(queryClient);
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message.split("\n")[0] : "Could not sign in.");

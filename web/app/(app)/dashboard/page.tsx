@@ -5,6 +5,7 @@ import { GiftWaitingCard } from "@/components/gifts/gift-waiting";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { refreshAll } from "@/lib/refresh";
 import { legOf } from "@/components/collateral-basket";
 import { useViewer } from "@/components/providers";
 import {
@@ -65,7 +66,7 @@ function Invitations({ canAct }: { canAct: boolean }) {
     setError(undefined);
     try {
       await answerInvite(employer, action);
-      await queryClient.invalidateQueries();
+      await refreshAll(queryClient);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your answer.");
     } finally {
