@@ -16,7 +16,7 @@
     <li><div><h4>Add the team</h4><p>Find people by Stackday ID, name or wallet address. They accept the invite. Salaries typed into the team list are stored in the optional account database, not on chain.</p></div></li>
     <li><div><h4>Pay once, or start a schedule</h4><p>Pay everyone now, or start a schedule: daily, weekly, every 2 weeks or monthly (30 days). A schedule pays from the treasury while it has money. It can be paused and resumed; resuming gives no back pay for the paused time.</p></div></li>
   </ol>
-  <p>A schedule does not pay itself. When a payday is due, someone has to press the button. Anyone may do it (the contract only lets it pay the amounts the employer set), and Stackday's <a href="#keeper-api">trigger bot</a> presses it on weekdays at 16:00 UTC. Each press pays one payday. If the treasury is short, the payday waits until it is topped up.</p>
+  <p>A schedule does not pay itself. When a payday is due, someone has to press the button. Anyone may do it (the contract only lets it pay the amounts the employer set), and Stackday's <a href="#keeper-api">trigger bot</a> presses it on weekdays at 16:00 UTC once its keys are set on the hosting side. Each press pays one payday. If the treasury is short, the payday waits until it is topped up.</p>
 
   <h2>How it works for a team member</h2>
   <p>On the Payday page you see salary waiting to be claimed. Claiming sends it to <strong>any wallet you choose</strong>. Before you claim, one split picker asks how much to invest:</p>

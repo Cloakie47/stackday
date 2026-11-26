@@ -2,7 +2,7 @@
   <p class="crumb">Features</p>
   <h1>Gift boxes</h1>
   <p class="lead">Send someone a box worth a chosen amount of test USDC, holding one stock, your own mix, a surprise mix or a research pick. They open it, and the assets land in their own vault.</p>
-  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock tokens</span></div>
+  <div class="status-row"><span class="pill live">Contract on Base Sepolia</span><span class="pill live">Pages built and merged</span><span class="pill mock">Mock tokens</span></div>
 
   <div class="plain">
     {{PLAIN}}
@@ -95,6 +95,7 @@
     <li><strong>Research pick with no approved report</strong>: the box cannot be opened until a report is approved. The contract checks that the mix is valid, but it cannot check the research itself; the app shows the mix before the recipient signs.</li>
     <li><strong>Messages</strong> need the optional account database and its <code>gifts</code> table. The founder adds that table to the live database.</li>
     <li><strong>Who may receive.</strong> The app notes that tokenized stocks are only for people in eligible places outside the US, and that gifts may have tax rules where you live.</li>
+    <li><strong>How it was checked.</strong> Create, open, decline, revoke, a research open and the expiry refund were run on a copy of Base Sepolia against the deployed GiftBox, and a real 5 USDC gift was opened through the real pools on a copy of Base mainnet.</li>
     <li><strong>Mainnet note.</strong> The S&amp;P 500 token's price feed is restricted on mainnet, so gifting it there needs another price adapter first.</li>
   </ul>
 </article>

@@ -2,7 +2,7 @@
   <p class="crumb">Features</p>
   <h1>Chat assistant</h1>
   <p class="lead">Ask about your own balances, loans, prices, fees and the weekly research in plain words. When you want to act, the assistant prepares a card with the exact amounts, Stackday checks it, and you sign it in your own wallet.</p>
-  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock sell desk for selling</span></div>
+  <div class="status-row"><span class="pill live">Built and merged</span><span class="pill mock">Mock sell desk for selling</span></div>
 
   <div class="plain">
     {{PLAIN}}
@@ -130,6 +130,7 @@
     <li><strong>Selling is testnet only.</strong> On mainnet a sell needs a sell adapter (issue #35), planned after the deadline.</li>
     <li><strong>Gift cards are not pre-checked</strong>, because they only open the Gifts page.</li>
     <li><strong>Mistakes happen.</strong> The model can misunderstand. That is why the card, not the chat text, is what you check, and why nothing happens without your signature.</li>
+    <li><strong>How it was checked.</strong> The buy, recurring buy, stop, sell, borrow, repay and withdraw cards were sent and succeeded on a copy of Base Sepolia. The live model was not called from a developer machine.</li>
     <li><strong>No model key, no chat.</strong> Without the server's model key the chat route answers that it is unavailable; the rest of the app is unaffected.</li>
   </ul>
 </article>

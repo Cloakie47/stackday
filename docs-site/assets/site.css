@@ -485,3 +485,10 @@ figure.diagram figcaption b { color: var(--ink-soft); font-weight: 600; }
   .diagram-frame svg { min-width: 420px; }
   .diagram-frame.wide svg { min-width: 600px; }
 }
+
+/* Very small phones: keep the top bar inside the screen. */
+@media (max-width: 420px) {
+  .topbar { gap: 8px; }
+  .brand-name { display: none; }
+  .app-link { padding: 9px 11px; font-size: 13.5px; }
+}

@@ -54,7 +54,7 @@
   <ul>
     <li><strong>Secrets</strong> (names only): <code>CRON_SECRET</code> (at least 16 characters, compared in constant time), <code>KEEPER_PRIVATE_KEY</code> (a gas-only wallet), optional <code>KEEPER_RPC_URL</code>. Recurring buys also need the database settings and the <code>recurring_plans</code> table.</li>
     <li><strong>Registering a plan</strong>: saving a recurring buy calls <code>POST /api/keeper/register</code> with the wallet and asset. No sign-in is needed, because the route checks that the plan really exists on chain.</li>
-    <li>Only the founder's Vercel project runs this cron.</li>
+    <li>Only the founder's Vercel project runs this cron, and only once <code>CRON_SECRET</code> and <code>KEEPER_PRIVATE_KEY</code> are set there. Without them nothing runs automatically, and due items wait until someone presses the button in the app.</li>
   </ul>
 
   <h2>All cron jobs</h2>

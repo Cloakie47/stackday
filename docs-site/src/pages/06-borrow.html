@@ -71,11 +71,11 @@
     <thead><tr><th>Level</th><th class="num">Share of the limit</th><th class="num">Price drop it survives</th><th class="num">Example: $1,000 of Apple locked</th></tr></thead>
     <tbody>
       <tr><td>Low</td><td class="num">30%</td><td class="num">about 70%</td><td class="num">borrow $187.50, health 3.33</td></tr>
-      <tr><td>Mid (the default)</td><td class="num">50%</td><td class="num">about 50%</td><td class="num">borrow $312.50, health 2.00</td></tr>
+      <tr><td>Mid</td><td class="num">50%</td><td class="num">about 50%</td><td class="num">borrow $312.50, health 2.00</td></tr>
       <tr><td>High</td><td class="num">65%</td><td class="num">about 35%</td><td class="num">borrow $406.25, health 1.54</td></tr>
     </tbody>
   </table></div>
-  <p>The example uses Apple's 62.5% limit: $1,000 locked gives a limit of $625. The levels come from broker, bank and Coinbase practice and from the cost of a liquidation on Morpho's stock markets (about 12.7%). Each level shows the amount it really gives you and the price drop it really survives, and says when the market does not have enough cash to lend.</p>
+  <p>The example uses Apple's 62.5% limit: $1,000 locked gives a limit of $625. The levels come from broker, bank and Coinbase practice and from the cost of a liquidation on Morpho's stock markets (about 12.7%). Each level shows the amount it really gives you and the price drop it really survives, and says when the market does not have enough cash to lend. The chat assistant uses Mid unless you ask for another level.</p>
   <p>Your vault also has its own <strong>safety cap</strong>: by default it refuses any loan above 50% of the limit. Choosing High raises the cap to 65% in the same signature, and only when the amount needs it. The contract never allows more than 85%.</p>
 
   <figure class="diagram">

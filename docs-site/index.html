@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Hanken+Grotesk:wght@500;600&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=56bc73dd8b">
+<link rel="stylesheet" href="assets/site.css?v=dba9bfdd3e">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -135,6 +135,7 @@
     <tbody>
       <tr><td><span class="pill live">Live on testnet</span></td><td>Built, tested and working on Base Sepolia.</td></tr>
       <tr><td><span class="pill mock">Mocked</span></td><td>A stand-in, because the real thing does not exist on the test network. Labelled in the app too.</td></tr>
+      <tr><td><span class="pill live">Built and merged</span></td><td>On main and in the app, checked on a copy of the test network; not every part confirmed on the live site yet.</td></tr>
       <tr><td><span class="pill review">In review</span></td><td>Built on a branch, waiting for the founder's review.</td></tr>
       <tr><td><span class="pill plan">Not built</span></td><td>Planned or out of scope for the hackathon.</td></tr>
     </tbody>
@@ -149,12 +150,12 @@
       <tr><td>A share of salary into assets, once or every payday</td><td><span class="pill live">Live on testnet</span></td></tr>
       <tr><td>Tokenized stocks, Bitcoin, Ether, gold</td><td><span class="pill mock">Mock tokens on testnet</span> real AAPLc tested on a copy of Base mainnet</td></tr>
       <tr><td>One vault per person</td><td><span class="pill live">Live on testnet</span></td></tr>
-      <tr><td>Recurring buys from your own wallet, run by a trigger bot</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Recurring buys from your own wallet, run by a trigger bot once its keys are set</td><td><span class="pill live">Live on testnet</span></td></tr>
       <tr><td>Interest on idle USDC</td><td><span class="pill mock">Mock venue on testnet</span> Aave not built</td></tr>
       <tr><td>Borrowing on Morpho, collateral basket, emergency rule</td><td><span class="pill live">Live on testnet</span> Aave not built</td></tr>
       <tr><td>Themes and the weekly research report</td><td><span class="pill live">Partly built</span> beta, free preview</td></tr>
-      <tr><td>Chat assistant with signed action cards</td><td><span class="pill live">Live on testnet</span></td></tr>
-      <tr><td>Gift boxes</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Chat assistant with signed action cards</td><td><span class="pill live">Built and merged</span> checked on a copy of the testnet</td></tr>
+      <tr><td>Gift boxes</td><td><span class="pill live">Built and merged</span> contract deployed on Base Sepolia</td></tr>
       <tr><td>Private (confidential) pay with Fairblock</td><td><span class="pill live">Phase 1 on testnet</span> runs beside Payroll</td></tr>
       <tr><td>Selling on mainnet, automatic rebalancing</td><td><span class="pill plan">Not built</span> after the deadline</td></tr>
     </tbody>
@@ -270,7 +271,7 @@
     <li><div><h4>Add the team</h4><p>Find people by Stackday ID, name or wallet address. They accept the invite. Salaries typed into the team list are stored in the optional account database, not on chain.</p></div></li>
     <li><div><h4>Pay once, or start a schedule</h4><p>Pay everyone now, or start a schedule: daily, weekly, every 2 weeks or monthly (30 days). A schedule pays from the treasury while it has money. It can be paused and resumed; resuming gives no back pay for the paused time.</p></div></li>
   </ol>
-  <p>A schedule does not pay itself. When a payday is due, someone has to press the button. Anyone may do it (the contract only lets it pay the amounts the employer set), and Stackday's <a href="#keeper-api">trigger bot</a> presses it on weekdays at 16:00 UTC. Each press pays one payday. If the treasury is short, the payday waits until it is topped up.</p>
+  <p>A schedule does not pay itself. When a payday is due, someone has to press the button. Anyone may do it (the contract only lets it pay the amounts the employer set), and Stackday's <a href="#keeper-api">trigger bot</a> presses it on weekdays at 16:00 UTC once its keys are set on the hosting side. Each press pays one payday. If the treasury is short, the payday waits until it is topped up.</p>
 
   <h2>How it works for a team member</h2>
   <p>On the Payday page you see salary waiting to be claimed. Claiming sends it to <strong>any wallet you choose</strong>. Before you claim, one split picker asks how much to invest:</p>
@@ -490,7 +491,7 @@
         <text class="d-l" x="12" y="300" transform="rotate(-90 12 300)" text-anchor="middle">next slot</text>
       </svg>
     </div>
-    <figcaption><b>The bot presses the button; the rules are yours.</b> Anyone may run a due buy, but it can only do what you set up: that amount, that asset, into your own vault, within your price limit and your approval. The bot's wallet only pays gas.</figcaption>
+    <figcaption><b>The bot presses the button; the rules are yours.</b> Anyone may run a due buy, but it can only do what you set up: that amount, that asset, into your own vault, within your price limit and your approval. The bot's wallet only pays gas. It runs once the founder has set its keys on the hosting side; until then, Run now on the Invest page does the same.</figcaption>
   </figure>
 
   <h2>What you can buy</h2>
@@ -603,11 +604,11 @@
     <thead><tr><th>Level</th><th class="num">Share of the limit</th><th class="num">Price drop it survives</th><th class="num">Example: $1,000 of Apple locked</th></tr></thead>
     <tbody>
       <tr><td>Low</td><td class="num">30%</td><td class="num">about 70%</td><td class="num">borrow $187.50, health 3.33</td></tr>
-      <tr><td>Mid (the default)</td><td class="num">50%</td><td class="num">about 50%</td><td class="num">borrow $312.50, health 2.00</td></tr>
+      <tr><td>Mid</td><td class="num">50%</td><td class="num">about 50%</td><td class="num">borrow $312.50, health 2.00</td></tr>
       <tr><td>High</td><td class="num">65%</td><td class="num">about 35%</td><td class="num">borrow $406.25, health 1.54</td></tr>
     </tbody>
   </table></div>
-  <p>The example uses Apple's 62.5% limit: $1,000 locked gives a limit of $625. The levels come from broker, bank and Coinbase practice and from the cost of a liquidation on Morpho's stock markets (about 12.7%). Each level shows the amount it really gives you and the price drop it really survives, and says when the market does not have enough cash to lend.</p>
+  <p>The example uses Apple's 62.5% limit: $1,000 locked gives a limit of $625. The levels come from broker, bank and Coinbase practice and from the cost of a liquidation on Morpho's stock markets (about 12.7%). Each level shows the amount it really gives you and the price drop it really survives, and says when the market does not have enough cash to lend. The chat assistant uses Mid unless you ask for another level.</p>
   <p>Your vault also has its own <strong>safety cap</strong>: by default it refuses any loan above 50% of the limit. Choosing High raises the cap to 65% in the same signature, and only when the amount needs it. The contract never allows more than 85%.</p>
 
   <figure class="diagram">
@@ -830,7 +831,7 @@
   <p class="crumb">Features</p>
   <h1>Gift boxes</h1>
   <p class="lead">Send someone a box worth a chosen amount of test USDC, holding one stock, your own mix, a surprise mix or a research pick. They open it, and the assets land in their own vault.</p>
-  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock tokens</span></div>
+  <div class="status-row"><span class="pill live">Contract on Base Sepolia</span><span class="pill live">Pages built and merged</span><span class="pill mock">Mock tokens</span></div>
 
   <div class="plain">
     <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
@@ -923,6 +924,7 @@
     <li><strong>Research pick with no approved report</strong>: the box cannot be opened until a report is approved. The contract checks that the mix is valid, but it cannot check the research itself; the app shows the mix before the recipient signs.</li>
     <li><strong>Messages</strong> need the optional account database and its <code>gifts</code> table. The founder adds that table to the live database.</li>
     <li><strong>Who may receive.</strong> The app notes that tokenized stocks are only for people in eligible places outside the US, and that gifts may have tax rules where you live.</li>
+    <li><strong>How it was checked.</strong> Create, open, decline, revoke, a research open and the expiry refund were run on a copy of Base Sepolia against the deployed GiftBox, and a real 5 USDC gift was opened through the real pools on a copy of Base mainnet.</li>
     <li><strong>Mainnet note.</strong> The S&amp;P 500 token's price feed is restricted on mainnet, so gifting it there needs another price adapter first.</li>
   </ul>
 </article>
@@ -931,7 +933,7 @@
   <p class="crumb">Features</p>
   <h1>Chat assistant</h1>
   <p class="lead">Ask about your own balances, loans, prices, fees and the weekly research in plain words. When you want to act, the assistant prepares a card with the exact amounts, Stackday checks it, and you sign it in your own wallet.</p>
-  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock sell desk for selling</span></div>
+  <div class="status-row"><span class="pill live">Built and merged</span><span class="pill mock">Mock sell desk for selling</span></div>
 
   <div class="plain">
     <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
@@ -1059,6 +1061,7 @@
     <li><strong>Selling is testnet only.</strong> On mainnet a sell needs a sell adapter (issue #35), planned after the deadline.</li>
     <li><strong>Gift cards are not pre-checked</strong>, because they only open the Gifts page.</li>
     <li><strong>Mistakes happen.</strong> The model can misunderstand. That is why the card, not the chat text, is what you check, and why nothing happens without your signature.</li>
+    <li><strong>How it was checked.</strong> The buy, recurring buy, stop, sell, borrow, repay and withdraw cards were sent and succeeded on a copy of Base Sepolia. The live model was not called from a developer machine.</li>
     <li><strong>No model key, no chat.</strong> Without the server's model key the chat route answers that it is unavailable; the rest of the app is unaffected.</li>
   </ul>
 </article>
@@ -1239,7 +1242,7 @@
     <li>Adapters act only on the caller's own position and hold nothing between calls.</li>
     <li>Employer treasuries are separate. A paused schedule pays nothing.</li>
     <li>A failed purchase never blocks a salary. Over-repaying only takes the debt.</li>
-    <li>Fees are fixed and capped. Reentrancy guards and checks on every external call; tests on every money path (69 local tests, plus fork tests on a copy of Base mainnet).</li>
+    <li>Fees are fixed and capped. Reentrancy guards and checks on every external call; tests on every money path (over 100 local contract tests, plus fork tests on a copy of Base mainnet).</li>
   </ul>
 
   <h2>How the app protects you</h2>
@@ -1394,7 +1397,7 @@
   <h2>Run it locally</h2>
   <pre><code>git clone --recurse-submodules https://github.com/Cloakie47/stackday.git
 cd stackday
-forge test                      # 69 local contract tests
+forge test                      # local contract tests
 cd web
 npm install
 npm run dev                     # http://localhost:3000, reads the testnet deployment
@@ -1533,7 +1536,7 @@ npm test                        # web unit tests (Node 22.18 or later)</code></p
   <ul>
     <li><strong>Secrets</strong> (names only): <code>CRON_SECRET</code> (at least 16 characters, compared in constant time), <code>KEEPER_PRIVATE_KEY</code> (a gas-only wallet), optional <code>KEEPER_RPC_URL</code>. Recurring buys also need the database settings and the <code>recurring_plans</code> table.</li>
     <li><strong>Registering a plan</strong>: saving a recurring buy calls <code>POST /api/keeper/register</code> with the wallet and asset. No sign-in is needed, because the route checks that the plan really exists on chain.</li>
-    <li>Only the founder's Vercel project runs this cron.</li>
+    <li>Only the founder's Vercel project runs this cron, and only once <code>CRON_SECRET</code> and <code>KEEPER_PRIVATE_KEY</code> are set there. Without them nothing runs automatically, and due items wait until someone presses the button in the app.</li>
   </ul>
 
   <h2>All cron jobs</h2>
@@ -1819,6 +1822,6 @@ npm test                        # web unit tests (Node 22.18 or later)</code></p
     <ol id="toc-list"></ol>
   </aside>
 </div>
-<script src="assets/site.js?v=56bc73dd8b"></script>
+<script src="assets/site.js?v=dba9bfdd3e"></script>
 </body>
 </html>
