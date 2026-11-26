@@ -686,9 +686,15 @@ dialog.sheet::backdrop {
 
 /* ------------------------------------------------------------------------------------------------
    Gift box (Gifts page, docs/features/CHAT-AND-GIFTS.md 2.6). Pure CSS, only transform and opacity
-   move. The page sets data-phase on .gift-stage: idle (soft bob), pending (gentle shake while the
-   wallet and the transaction run), opened (lid lifts, particles, cards rise: only after the
-   transaction is confirmed), failed (the lid closes again).
+   move. The page sets data-phase on .gift-stage: idle (soft bob), pending (a calm wiggle every
+   1.8s while the wallet and the transaction run), opened (only after the transaction is confirmed:
+   the box squashes, the lid pops off, light and confetti come out, the real cards rise one by one),
+   failed (the box and lid settle back). Small boxes in lists use "still" and get none of this.
+
+   Opened timeline: box squash 0 to 560ms, lid pop 110 to 730ms, burst from 170ms (each piece 760
+   to 900ms), cards from 700ms (550ms each, 110ms apart shrinking to 70ms, set inline as
+   --gift-delay), then the transaction link settles as the last card lands. About 1.6s for one
+   card, 2.0s for five.
 ------------------------------------------------------------------------------------------------ */
 .gift-box {
   position: relative;
@@ -712,7 +718,7 @@ dialog.sheet::backdrop {
   border-radius: 10px;
   background: var(--brand-strong);
   box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.12);
-  transform-origin: 15% 100%;
+  transform-origin: 50% 100%;
 }
 .gift-ribbon-v {
   position: absolute;
@@ -730,6 +736,7 @@ dialog.sheet::backdrop {
   width: 44px;
   height: 22px;
   transform: translateX(-50%);
+  transform-origin: 50% 100%;
 }
 .gift-bow::before,
 .gift-bow::after {
@@ -750,77 +757,167 @@ dialog.sheet::backdrop {
   border-radius: 50% 50% 50% 0;
   transform: rotate(20deg);
 }
+/* The light inside the box, seen once the lid is off. It stays on softly as the "opened" cue. */
+.gift-light {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 26px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--brand) 25%, white), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* Soft brand halo behind the box, centred on its opening. */
 .gift-glow {
   position: absolute;
   left: 50%;
-  top: 30px;
-  width: 160px;
-  height: 160px;
-  margin-left: -80px;
-  margin-top: -80px;
+  top: 64px;
+  width: 200px;
+  height: 200px;
+  margin: -100px 0 0 -100px;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 35%, transparent), transparent 65%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 30%, transparent), transparent 65%);
   opacity: 0;
+  pointer-events: none;
+}
+/* Confetti: a zero-size anchor at the box opening, each piece offset by its own --dx, --dy, --fy. */
+.gift-burst {
+  position: absolute;
+  left: 50%;
+  top: 66px;
+  width: 0;
+  height: 0;
   pointer-events: none;
 }
 .gift-particle {
+  --bit: var(--brand);
   position: absolute;
-  left: 50%;
-  top: 30px;
-  width: 7px;
-  height: 7px;
-  margin: -3.5px;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 4px;
+  margin: -2px -4px;
+  border-radius: 1px;
+  background: var(--bit);
+  opacity: 0;
+}
+.gift-particle[data-shape="chip"] {
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 1.5px;
+}
+.gift-particle[data-shape="dot"] {
+  width: 5px;
+  height: 5px;
+  margin: -2.5px;
   border-radius: 50%;
-  background: var(--brand);
-  opacity: 0;
-  pointer-events: none;
 }
-.gift-particle:nth-child(3n) {
-  background: var(--grow);
+.gift-particle[data-shape="spark"] {
+  width: 10px;
+  height: 10px;
+  margin: -5px;
+  background: none;
 }
-.gift-particle:nth-child(4n) {
-  background: var(--warn-dot, #e7a33e);
+.gift-particle[data-shape="spark"]::before,
+.gift-particle[data-shape="spark"]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--bit);
 }
-.gift-card {
-  opacity: 0;
+.gift-particle[data-shape="spark"]::after {
+  transform: rotate(90deg);
+}
+.gift-particle[data-tone="soft"] {
+  --bit: color-mix(in srgb, var(--brand) 55%, white);
+}
+.gift-particle[data-tone="warn"] {
+  --bit: var(--warn-dot);
+}
+.gift-particle[data-tone="grow"] {
+  --bit: var(--grow);
+}
+.gift-particle[data-tone="ink"] {
+  --bit: color-mix(in srgb, var(--ink-soft) 70%, transparent);
 }
 @media (prefers-reduced-motion: no-preference) {
   .gift-stage[data-phase="idle"] .gift-box {
     animation: gift-bob 2.6s ease-in-out infinite;
   }
+  /* Anticipation: squash, a small rock, the lid peeks and the bow pulls tight, then a rest. */
   .gift-stage[data-phase="pending"] .gift-box {
-    animation: gift-shake 0.9s ease-in-out infinite;
+    animation: gift-wiggle 1.8s ease-in-out infinite;
+  }
+  .gift-stage[data-phase="pending"] .gift-lid {
+    animation: gift-lid-peek 1.8s ease-in-out infinite;
+  }
+  .gift-stage[data-phase="pending"] .gift-bow {
+    animation: gift-bow-tighten 1.8s ease-in-out infinite;
+  }
+  .gift-stage[data-phase="opened"] .gift-box {
+    animation: gift-box-pop 560ms var(--ease-out) both;
   }
   .gift-stage[data-phase="opened"] .gift-lid {
-    animation: gift-lid-open 0.7s var(--ease-out) both;
+    animation: gift-lid-pop 620ms var(--ease-out) 110ms both;
+  }
+  .gift-stage[data-phase="opened"] .gift-bow {
+    animation: gift-bow-follow 520ms var(--ease-out) 150ms both;
+  }
+  .gift-stage[data-phase="opened"] .gift-light {
+    animation: gift-light 900ms var(--ease-out) 150ms both;
   }
   .gift-stage[data-phase="opened"] .gift-glow {
-    animation: gift-glow 1.2s ease-out both;
+    animation: gift-glow 1100ms var(--ease-out) 140ms both;
   }
   .gift-stage[data-phase="opened"] .gift-particle {
-    animation: gift-burst 0.9s var(--ease-out) both;
-    animation-delay: 0.15s;
+    animation: gift-burst var(--dur, 820ms) linear both;
+    animation-delay: calc(170ms + var(--delay, 0ms));
+  }
+  .gift-stage[data-phase="opened"] .gift-particle[data-shape="spark"] {
+    animation-name: gift-twinkle;
+    animation-delay: calc(220ms + var(--delay, 0ms));
   }
   .gift-stage[data-phase="opened"] .gift-card {
-    animation: gift-card-rise 0.55s var(--ease-out) both;
+    animation: gift-card-rise 550ms var(--ease-out) both;
+    animation-delay: var(--gift-delay, 0ms);
+  }
+  .gift-stage[data-phase="opened"] .gift-summary {
+    animation: gift-summary 450ms var(--ease-out) both;
+    animation-delay: var(--gift-delay, 0ms);
   }
   .gift-stage[data-phase="failed"] .gift-box {
-    animation: gift-settle 0.4s var(--ease-out) both;
+    animation: gift-settle 450ms var(--ease-out) both;
+  }
+  .gift-stage[data-phase="failed"] .gift-lid {
+    animation: gift-lid-settle 450ms var(--ease-out) both;
   }
 }
-/* Reduced motion: no bob, shake or particles, a plain crossfade, and the lid simply disappears. */
+/* Reduced motion: no bob, wiggle, travel or confetti. The box breathes while pending, the lid fades,
+   the inside light comes on and the cards fade in together. */
 @media (prefers-reduced-motion: reduce) {
-  .gift-particle,
+  .gift-burst,
   .gift-glow {
     display: none;
   }
-  .gift-stage[data-phase="opened"] .gift-lid {
-    opacity: 0;
-    transition: opacity 250ms ease-out !important;
+  .gift-stage[data-phase="pending"] .gift-box {
+    animation: gift-breathe 2.4s ease-in-out infinite;
   }
-  .gift-stage[data-phase="opened"] .gift-card {
-    animation: gift-fade 300ms ease-out both !important;
-    animation-duration: 300ms !important;
+  .gift-stage[data-phase="opened"] .gift-lid {
+    animation: gift-fade-out 250ms ease-out both;
+  }
+  .gift-stage[data-phase="opened"] .gift-light {
+    animation: gift-light-soft 400ms ease-out both;
+  }
+  .gift-stage[data-phase="opened"] .gift-card,
+  .gift-stage[data-phase="opened"] .gift-summary {
+    animation: gift-fade 300ms ease-out 150ms both;
   }
 }
 @keyframes gift-bob {
@@ -832,63 +929,217 @@ dialog.sheet::backdrop {
     transform: translateY(-6px);
   }
 }
-@keyframes gift-shake {
+@keyframes gift-wiggle {
   0%,
+  44%,
   100% {
-    transform: rotate(0deg) scale(1.04);
+    transform: rotate(0deg) scale(1, 1);
   }
-  25% {
-    transform: rotate(-3deg) scale(1.04);
+  8% {
+    transform: rotate(0deg) scale(1.03, 0.97);
   }
-  75% {
-    transform: rotate(3deg) scale(1.04);
+  17% {
+    transform: rotate(-2.5deg) scale(0.99, 1.02);
+  }
+  26% {
+    transform: rotate(2deg) scale(1, 1);
+  }
+  35% {
+    transform: rotate(-1deg) scale(1, 1);
   }
 }
-@keyframes gift-lid-open {
-  to {
-    transform: translate(-6px, -54px) rotate(-24deg);
+@keyframes gift-lid-peek {
+  0%,
+  12%,
+  44%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  20% {
+    transform: translateY(-3px) rotate(-1.5deg);
+  }
+  30% {
+    transform: translateY(-1px) rotate(1deg);
+  }
+}
+@keyframes gift-bow-tighten {
+  0%,
+  32%,
+  100% {
+    transform: translateX(-50%) scale(1, 1);
+  }
+  8% {
+    transform: translateX(-50%) scale(0.9, 0.92);
+  }
+  20% {
+    transform: translateX(-50%) scale(1.05, 1.03);
+  }
+}
+@keyframes gift-box-pop {
+  0% {
+    transform: scale(1, 1);
+  }
+  18% {
+    transform: scale(1.05, 0.93);
+  }
+  42% {
+    transform: scale(0.98, 1.03);
+  }
+  70% {
+    transform: scale(1.01, 0.995);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+/* Pop up on a mild spring, then tilt off to the side and fade. */
+@keyframes gift-lid-pop {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.34, 1.36, 0.64, 1);
+  }
+  45% {
+    transform: translate(-4px, -36px) rotate(-8deg);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-48px, -50px) rotate(-26deg);
     opacity: 0;
+  }
+}
+/* The bow lags the lid: squashed by the jump, then a small stretch. */
+@keyframes gift-bow-follow {
+  0% {
+    transform: translateX(-50%) scale(1, 1);
+  }
+  25% {
+    transform: translateX(-50%) scale(1.08, 0.86);
+  }
+  55% {
+    transform: translateX(-50%) scale(0.96, 1.06);
+  }
+  100% {
+    transform: translateX(-50%) scale(1, 1);
+  }
+}
+@keyframes gift-light {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
   }
 }
 @keyframes gift-glow {
   0% {
     opacity: 0;
-    transform: scale(0.4);
+    transform: scale(0.9);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+/* Two phases in one keyframe: up and out decelerating (ease-out), then falling under gravity
+   (ease-in quad on that segment only) while it fades. */
+@keyframes gift-burst {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(0.9);
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  12% {
+    opacity: 1;
+  }
+  45% {
+    transform: translate(calc(var(--dx, 0px) * 0.8), var(--dy, -60px)) rotate(calc(var(--rot, 0deg) * 0.55)) scale(1);
+    animation-timing-function: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0px), var(--fy, 0px)) rotate(var(--rot, 0deg)) scale(0.94);
+  }
+}
+/* Sparks travel less and mostly twinkle out. */
+@keyframes gift-twinkle {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(0.9);
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   }
   40% {
     opacity: 1;
+    transform: translate(var(--dx, 0px), var(--dy, -40px)) rotate(45deg) scale(1.1);
   }
   100% {
     opacity: 0;
-    transform: scale(1.4);
-  }
-}
-@keyframes gift-burst {
-  0% {
-    opacity: 1;
-    transform: translate(0, 0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--dx, 0px), var(--dy, -60px)) scale(0.4);
+    transform: translate(var(--dx, 0px), calc(var(--dy, -40px) - 6px)) rotate(90deg) scale(0.9);
   }
 }
 @keyframes gift-card-rise {
   from {
     opacity: 0;
-    transform: translateY(28px) scale(0.96);
+    transform: translateY(20px) scale(0.97);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
+@keyframes gift-summary {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 @keyframes gift-settle {
   0% {
-    transform: scale(1.04);
+    transform: rotate(-1deg) scale(1.02, 0.98);
   }
   100% {
-    transform: scale(1);
+    transform: rotate(0deg) scale(1, 1);
+  }
+}
+@keyframes gift-lid-settle {
+  0% {
+    transform: translateY(-3px);
+  }
+  60% {
+    transform: translateY(0.5px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes gift-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
   }
 }
 @keyframes gift-fade {
@@ -897,6 +1148,22 @@ dialog.sheet::backdrop {
   }
   to {
     opacity: 1;
+  }
+}
+@keyframes gift-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes gift-light-soft {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.5;
   }
 }
 

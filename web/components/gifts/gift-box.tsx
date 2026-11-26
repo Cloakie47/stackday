@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { usePublicClient } from "wagmi";
 import { AssetIcon, Button, Notice, Spinner, cx } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
@@ -11,6 +11,7 @@ import { boughtParts, buildDeclineCall, buildOpenCall, type BoughtPart } from "@
 import { BOX_LABEL, KIND, pickToLegs, type MixLeg, type ResearchPick } from "@/lib/gifts/mix";
 import type { Gift } from "@/lib/gifts/useGifts";
 import { useTx } from "@/lib/useTx";
+import { GiftBurst } from "./gift-burst";
 
 /** The three notices every gift screen carries. */
 export function GiftNotices({ className = "" }: { className?: string }) {
@@ -23,25 +24,23 @@ export function GiftNotices({ className = "" }: { className?: string }) {
   );
 }
 
-const PARTICLES = Array.from({ length: 14 }, (_, i) => {
-  const angle = (i / 14) * Math.PI * 2;
-  const r = 70 + (i % 3) * 18;
-  return { dx: Math.round(Math.cos(angle) * r), dy: Math.round(Math.sin(angle) * r * 0.8 - 30) };
-});
-
-/** The box itself. Its motion comes from data-phase on the surrounding .gift-stage (globals.css). */
-export function GiftBoxArt({ small = false }: { small?: boolean }) {
+/**
+ * The box itself. Its motion comes from data-phase on the surrounding .gift-stage (globals.css).
+ * Only the big box gets the confetti (seeded from the gift, so it is the same on every render); the
+ * small one is a quiet icon in list rows and cards.
+ */
+export function GiftBoxArt({ small = false, seed }: { small?: boolean; seed?: string }) {
   return (
     <div className={cx("relative mx-auto", small ? "h-[60px] w-[66px]" : "h-[150px] w-[132px]")} aria-hidden>
       <div className={cx("absolute left-0 top-0 origin-top-left", small ? "scale-50" : "pt-[30px]")}>
-        <div className="gift-glow" />
-        {PARTICLES.map((p, i) => (
-          <span key={i} className="gift-particle" style={{ ["--dx" as string]: `${p.dx}px`, ["--dy" as string]: `${p.dy}px` }} />
-        ))}
+        {!small && <div className="gift-glow" />}
+        {/* Behind the box, so the pieces come up out of it rather than across its front. */}
+        {!small && seed !== undefined && <GiftBurst seed={seed} />}
         <div className="gift-box">
           <div className="gift-body">
             <div className="gift-ribbon-v" />
           </div>
+          <div className="gift-light" />
           <div className="gift-lid">
             <div className="gift-ribbon-v" />
             <div className="gift-bow" />
@@ -51,6 +50,15 @@ export function GiftBoxArt({ small = false }: { small?: boolean }) {
     </div>
   );
 }
+
+/** When each revealed card starts: as the lid clears, 110ms apart, the gap shrinking to 70ms. The link follows 450ms after the last. */
+function cardDelay(i: number): number {
+  let t = 0.7;
+  for (let k = 0; k < i; k++) t += Math.max(0.07, 0.11 - k * 0.01);
+  return Math.round(t * 1000);
+}
+
+const delayStyle = (ms: number) => ({ "--gift-delay": `${ms}ms` }) as CSSProperties;
 
 type Phase = "idle" | "pending" | "opened" | "failed";
 
@@ -82,10 +90,10 @@ export function boxTypeOf(g: Pick<Gift, "kind" | "legs">): string {
 }
 
 /**
- * Opening a gift: a sheet (full height on phones) with the box. Tap Open, sign `open`, the box shakes
- * while the transaction runs, and only once it is confirmed the lid lifts and one card per asset
- * rises with the amount read from the confirmed receipt (GiftPartBought logs). A failure closes the
- * box with the reason and a Retry.
+ * Opening a gift: a sheet (full height on phones) with the box. Tap Open, sign `open`, the box
+ * wiggles calmly while the transaction runs, and only once it is confirmed the lid pops off, the
+ * confetti bursts and one card per asset rises with the amount read from the confirmed receipt
+ * (GiftPartBought logs). A failure settles the box with the reason and a Retry.
  */
 export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; from: string; message?: string; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -193,7 +201,7 @@ export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; fr
 
         <div className="gift-stage flex-1 overflow-y-auto overflow-x-hidden px-5 pb-4 pt-2" data-phase={phase}>
           <div className="pt-6">
-            <GiftBoxArt />
+            <GiftBoxArt seed={String(gift.id)} />
           </div>
           <p className="mt-3 text-center font-display text-[28px] font-light tracking-[-0.02em]">${fmtUsdc(gift.usdc)}</p>
           <p className="text-center text-xs text-muted">{boxTypeOf(gift)} · test USDC, bought into your own vault when opened</p>
@@ -246,7 +254,7 @@ export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; fr
                   <div
                     key={p.asset}
                     className="gift-card flex items-center justify-between gap-3 rounded-2xl border border-line bg-popover p-3.5 shadow-card"
-                    style={{ animationDelay: `${0.45 + i * 0.12}s` }}
+                    style={delayStyle(cardDelay(i))}
                   >
                     <span className="flex min-w-0 items-center gap-3">
                       <AssetIcon asset={a} size={32} />
@@ -262,7 +270,7 @@ export function OpenGiftSheet({ gift, from, message, onClose }: { gift: Gift; fr
                 );
               })}
               {tx.state.hash && (
-                <p className="pt-1 text-center text-xs">
+                <p className="gift-summary pt-1 text-center text-xs" style={delayStyle(cardDelay(Math.max(parts.length - 1, 0)) + 450)}>
                   <a className="text-brand-ink underline" href={`${EXPLORER}/tx/${tx.state.hash}`} target="_blank" rel="noreferrer">
                     View transaction
                   </a>
