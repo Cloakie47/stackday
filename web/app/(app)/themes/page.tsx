@@ -6,6 +6,7 @@ import { useViewer } from "@/components/providers";
 import { DEFAULT_SLOT, nextSlot } from "@/lib/slots";
 import { AssetIcon, Button, Card, Chip, Field, InfoTip, LabelTip, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus, cx, splitColor } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
+import { ResearchTabs } from "@/components/research/bits";
 import { payrollAbi, routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS, CHAIN_ID, SIP_FEE_BPS, type Asset } from "@/lib/contracts";
 import { assetForUsdc, fmtPct, fmtUsdc, parseUsdc } from "@/lib/format";
@@ -64,14 +65,20 @@ function MoodCard({ picked }: { picked: string[] }) {
         {picked.map((id) => {
           const t = THEMES.find((x) => x.id === id)!;
           const m = themeMood(SNAPSHOT, id);
+          // Themes added after the snapshot was built have no news in it: say so instead of a made-up "Calm".
+          const covered = t.tickers.some((x) => SNAPSHOT.assets[x]);
           const risky = t.tickers.filter((x) => SNAPSHOT.assets[x]?.materialRisk);
           return (
             <div key={id} className="rounded-xl border border-line-soft bg-popover px-3.5 py-3">
               <div className="flex items-baseline justify-between gap-2 text-[13px]">
                 <span className="font-medium">{t.name}</span>
-                <span>
-                  {moodWord(m)} <span className="tabular-nums text-muted">{m.toFixed(2)}</span>
-                </span>
+                {covered ? (
+                  <span>
+                    {moodWord(m)} <span className="tabular-nums text-muted">{m.toFixed(2)}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted">Not in this snapshot</span>
+                )}
               </div>
               {risky.length > 0 && (
                 <p className="mt-1.5 text-xs text-danger">Open event: {risky.map((x) => assetOf(x)?.name ?? x).join(", ")}</p>
@@ -517,7 +524,8 @@ export default function ThemesPage() {
 
   return (
     <>
-      <PageHeader title="Themes" lead="Pick themes and a risk level. Get a split for your next buys." aside={<LearnMore />} />
+      <PageHeader title="Research" lead="My themes: pick themes and a risk level. Get a split for your next buys." aside={<LearnMore />} />
+      <ResearchTabs />
 
       {!viewer.address && <Notice>Connect a wallet to use a plan.</Notice>}
 
