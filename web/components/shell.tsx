@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { BRAND } from "@/lib/brand";
+import { GUIDE } from "@/lib/guide";
 import { CHAIN_ID } from "@/lib/contracts";
 import { shortAddr } from "@/lib/format";
 import { homeFor, useAccountState, useNames, useSwitchMode, type Mode, type Role } from "@/lib/useAccount";
@@ -84,7 +85,6 @@ const SHARED = ["/risk", "/demo", "/docs", "/start", "/gifts", "/research", "/th
 /** Pages that only live in the menu (each is left out when the bar already shows it). */
 const EXTRA: NavItem[] = [
   { href: "/gifts", label: "Gifts" },
-  { href: "/docs", label: "Docs" },
   { href: "/demo", label: "Testnet tools" },
   { href: "/start", label: "Account" },
 ];
@@ -306,9 +306,9 @@ function MenuBody({ pages, bar = [], onNavigate }: { pages: NavItem[]; bar?: Nav
             </span>
           </Link>
         ))}
-        {/* The full guide is a static site in public/guide (built from docs-site/), so a plain link. */}
-        <a href="/guide/index.html" onClick={onNavigate} className={row}>
-          Full guide
+        {/* Docs: the guide is a static site in public/guide (built from docs-site/), so a plain link. */}
+        <a href={GUIDE} onClick={onNavigate} className={row}>
+          Docs
           <span className="text-faint" aria-hidden>
             ›
           </span>

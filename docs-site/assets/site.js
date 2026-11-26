@@ -181,8 +181,12 @@
       if (h1) { h1.setAttribute("tabindex", "-1"); h1.focus({ preventScroll: true }); }
     }
   }
+  // Section names from the old app /docs page, so old links and bookmarks still land well.
+  var ALIASES = { what: "intro", "how-it-works": "intro", who: "intro", themes: "invest-themes", borrowing: "borrow",
+    testnet: "security", notices: "security", links: "faq", demo: "getting-started-testnet-tools", employees: "payday", individuals: "invest" };
   function route(fromNav) {
     var id = decodeURIComponent((window.location.hash || "").slice(1));
+    if (!pageById[id] && !headingIndex[id] && ALIASES[id]) id = ALIASES[id];
     if (pageById[id]) show(id, null, fromNav);
     else if (headingIndex[id]) show(headingIndex[id], id, fromNav);
     else show(pages[0].id, null, false);

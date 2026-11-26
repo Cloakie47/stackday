@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useViewer } from "@/components/providers";
 import { DEFAULT_SLOT, nextSlot } from "@/lib/slots";
 import { AssetIcon, Button, Card, Chip, Field, InfoTip, LabelTip, MockBadge, Notice, PageHeader, Segmented, Select, SplitBar, TxStatus, cx, splitColor } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
+import { guideHref } from "@/lib/guide";
 import { ResearchTabs } from "@/components/research/bits";
 import { payrollAbi, routerAbi } from "@/lib/abis";
 import { ADDR, ASSETS, CHAIN_ID, SIP_FEE_BPS, type Asset } from "@/lib/contracts";
@@ -31,9 +31,9 @@ import { useTx, type Call } from "@/lib/useTx";
 /** Longer explanations live on the docs page (source text: docs/themes/for-the-docs-page.md). */
 function LearnMore() {
   return (
-    <Link href="/docs#themes" className="inline-flex min-h-11 items-center text-xs font-semibold text-ink hover:text-brand-ink sm:min-h-0">
+    <a href={guideHref("themes")} className="inline-flex min-h-11 items-center text-xs font-semibold text-ink hover:text-brand-ink sm:min-h-0">
       How themes work
-    </Link>
+    </a>
   );
 }
 

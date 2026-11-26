@@ -5,6 +5,7 @@ import { buttonClass } from "@/components/styles";
 import { ThemeToggle } from "@/components/theme";
 import { AssetIcon, Badge } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
+import { GUIDE } from "@/lib/guide";
 
 /** Public demo wallet from the README, opened read-only so anyone can look around without a wallet. */
 const DEMO_VIEW = "/dashboard?view=0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df";
@@ -156,9 +157,9 @@ export default function Home() {
               <a href="#safety" className={NAV_LINK}>
                 Safety
               </a>
-              <Link href="/docs" className={NAV_LINK}>
+              <a href={GUIDE} className={NAV_LINK}>
                 Docs
-              </Link>
+              </a>
             </nav>
           </div>
           <div className="flex items-center gap-2">
@@ -293,9 +294,9 @@ export default function Home() {
               <Link href="/start" className={buttonClass("primary", "lg")}>
                 Get started
               </Link>
-              <Link href="/docs" className={buttonClass("secondary", "lg")}>
+              <a href={GUIDE} className={buttonClass("secondary", "lg")}>
                 Read the docs
-              </Link>
+              </a>
             </div>
           </div>
         </section>

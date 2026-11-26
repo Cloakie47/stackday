@@ -1,7 +1,6 @@
 "use client";
 
 import { PrivateCollect, PrivateRecords } from "@/components/private-collect";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 import { useViewer } from "@/components/providers";
@@ -29,6 +28,7 @@ import { useNames } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
+import { guideHref } from "@/lib/guide";
 import { SplitPicker } from "@/components/split-picker";
 import { splitToBps, type Split } from "@/lib/split";
 
@@ -147,7 +147,7 @@ export default function PayPage() {
       <PageHeader
         title="Payday"
         lead="Claim your salary and choose a share to invest."
-        aside={<Link href="/docs#employees" className="text-xs font-semibold text-ink hover:text-brand-ink">How payday works</Link>}
+        aside={<a href={guideHref("employees")} className="text-xs font-semibold text-ink hover:text-brand-ink">How payday works</a>}
       />
 
       {!me && <Notice>Connect a wallet to see your salary.</Notice>}

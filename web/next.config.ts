@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
       { source: "/employee", destination: "/pay", permanent: false },
       // The full guide is a static site in public/guide (built by docs-site/build.mjs).
       { source: "/guide", destination: "/guide/index.html", permanent: false },
+      // The old docs page was replaced by the guide; old links and bookmarks land there.
+      { source: "/docs", destination: "/guide/index.html", permanent: false },
     ];
   },
 };
