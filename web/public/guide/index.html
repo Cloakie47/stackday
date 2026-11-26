@@ -1,0 +1,1827 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stackday Docs</title>
+<meta name="description" content="How Stackday works, in plain words first and then in depth: payday investing, your own vault, borrowing instead of selling, research, gift boxes and the chat assistant, on Base Sepolia.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/guide/assets/favicon.svg" type="image/svg+xml">
+
+<link rel="stylesheet" href="/guide/assets/site.css?v=494089e51d">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-head" d="M0 0L10 5L0 10z"/></marker>
+<marker id="ah-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-head acc" d="M0 0L10 5L0 10z"/></marker>
+<marker id="ah-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-head bad" d="M0 0L10 5L0 10z"/></marker>
+<marker id="ah-good" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-head good" d="M0 0L10 5L0 10z"/></marker>
+</defs></svg>
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Open the page menu" aria-expanded="false" aria-controls="sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <a class="brand" href="#intro" aria-label="Stackday docs home"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="19" fill="#0052ff"/><g transform="translate(12.16 12.16) scale(1.6533)" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"><path d="M5 17h14M7 12h10M9 7h6"/></g></svg><span class="brand-name">Stackday</span><span class="brand-tag">Docs</span></a>
+  <button class="search-trigger" id="search-btn" type="button" aria-label="Search the docs"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search the docs</span><span class="kbd">/</span></button>
+  <div class="top-actions">
+    <span class="net-badge" title="Everything here runs on the Base Sepolia test network">Base Sepolia testnet</span>
+    <a class="icon-btn gh-link" href="https://github.com/Cloakie47/stackday" rel="noopener" target="_blank" aria-label="Source code on GitHub" title="Source code on GitHub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg></a>
+    <button class="icon-btn theme-btn" id="theme-btn" type="button" aria-label="Switch theme"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg></button>
+    <a class="app-link" href="/dashboard">Open app</a>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Docs pages">
+<div class="nav-group"><p class="nav-title">Overview</p><ul class="nav-list"><li><a class="nav-link" href="#intro">What is Stackday</a></li><li><a class="nav-link" href="#getting-started">Getting started</a></li></ul></div>
+<div class="nav-group"><p class="nav-title">Features</p><ul class="nav-list"><li><a class="nav-link" href="#payday">Payday and salary investing</a></li><li><a class="nav-link" href="#vault">Your vault</a></li><li><a class="nav-link" href="#invest">Invest: one-time, recurring, themes</a></li><li><a class="nav-link" href="#borrow">Borrow instead of selling</a></li><li><a class="nav-link" href="#research">Research: weekly report and daily note</a></li><li><a class="nav-link" href="#gifts">Gift boxes</a></li><li><a class="nav-link" href="#chat">Chat assistant</a></li><li><a class="nav-link" href="#private-pay">Private pay</a></li></ul></div>
+<div class="nav-group"><p class="nav-title">Trust and safety</p><ul class="nav-list"><li><a class="nav-link" href="#fees">Fees</a></li><li><a class="nav-link" href="#security">Security, risks and mocks</a></li></ul></div>
+<div class="nav-group"><p class="nav-title">For developers</p><ul class="nav-list"><li><a class="nav-link" href="#architecture">Architecture</a></li><li><a class="nav-link" href="#contracts">Contracts and addresses</a></li><li><a class="nav-link" href="#keeper-api">Trigger bot and API routes</a></li><li><a class="nav-link" href="#research-engine">Research engine</a></li></ul></div>
+<div class="nav-group"><p class="nav-title">Reference</p><ul class="nav-list"><li><a class="nav-link" href="#glossary">Glossary</a></li><li><a class="nav-link" href="#faq">FAQ</a></li></ul></div>
+  </nav>
+  <main class="content" id="main" tabindex="-1">
+<article class="page" id="intro" data-title="What is Stackday" data-section="Overview" data-keywords="overview introduction about hackathon stocks maxxing base payroll investing testnet who">
+  <p class="crumb">Overview</p>
+  <h1>Stackday: salary maxxing on Base</h1>
+  <p class="lead">Stackday is a payroll and investing app on Base. A share of each salary can buy tokenized stocks, Bitcoin, Ether or gold into a vault that only you control, and when you need cash you can borrow against what you hold instead of selling it.</p>
+
+  <div class="note warn">
+    <svg class="note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17v.5"/></svg>
+    <div class="note-body">
+      <p><strong>This is a testnet demo.</strong> Everything runs on Base Sepolia, a test network where the money has no value. The stock, Bitcoin, Ether and gold tokens are mock stand-ins with mock prices. Nothing is on Base mainnet, and there has been no independent security audit. Nothing here is investment advice.</p>
+    </div>
+  </div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Your employer pays you in digital dollars (USDC). Before you collect your pay, you can say "put 10% of this into Apple and Bitcoin". That part is bought for you and kept in your own safe, which only your wallet can open. The rest of your pay goes wherever you want.</p>
+    <p>Later, if you need cash, you do not have to sell. You can borrow against what is in your safe and pay it back when you are ready. No employer? You can do the same thing from your own wallet, once or every week.</p>
+  </div>
+
+  <h2>Who it is for</h2>
+  <div class="duo">
+    <div>
+      <h4>Businesses</h4>
+      <p>Fund a USDC treasury once, add your team by their Stackday ID or name, and pay them once or on a rhythm (daily, weekly, every 2 weeks, monthly) that keeps going while the treasury has money.</p>
+    </div>
+    <div>
+      <h4>Team members</h4>
+      <p>Claim each payday to any wallet. Before claiming, send a share of it into assets, once or on every payday, and see holdings, plans and loans in one place.</p>
+    </div>
+    <div>
+      <h4>Anyone, without an employer</h4>
+      <p>The "Personal" account uses the same vault: buy once or set a recurring buy from your own wallet, then borrow against it the same way.</p>
+    </div>
+  </div>
+
+  <h2>How the money moves</h2>
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 640 312" width="640" role="img" aria-label="Overview. Money reaches your vault three ways: a share of salary from an employer's Payroll treasury, buys from your own wallet, and gift boxes. The rest of the salary goes to any wallet you choose. From the vault you can lock assets in a Morpho market and borrow USDC back to your wallet.">
+        <text class="d-cap" x="20" y="18">Ways in</text>
+        <rect class="d-box" x="20" y="30" width="186" height="62" rx="10"/>
+        <text class="d-t" x="113" y="56" text-anchor="middle">Employer treasury</text>
+        <text class="d-s" x="113" y="75" text-anchor="middle">Payroll contract</text>
+        <rect class="d-box" x="20" y="134" width="186" height="62" rx="10"/>
+        <text class="d-t" x="113" y="160" text-anchor="middle">Your own wallet</text>
+        <text class="d-s" x="113" y="179" text-anchor="middle">no employer needed</text>
+        <rect class="d-box" x="20" y="236" width="186" height="62" rx="10"/>
+        <text class="d-t" x="113" y="262" text-anchor="middle">A gift box</text>
+        <text class="d-s" x="113" y="281" text-anchor="middle">GiftBox contract</text>
+
+        <rect class="d-box accent" x="292" y="118" width="150" height="94" rx="12"/>
+        <text class="d-t acc" x="367" y="150" text-anchor="middle">Your vault</text>
+        <text class="d-s" x="367" y="170" text-anchor="middle">one per person</text>
+        <text class="d-s" x="367" y="187" text-anchor="middle">only you can move it</text>
+
+        <rect class="d-box" x="470" y="30" width="154" height="62" rx="10"/>
+        <text class="d-t" x="547" y="56" text-anchor="middle">Your wallet</text>
+        <text class="d-s" x="547" y="75" text-anchor="middle">any one you choose</text>
+        <rect class="d-box soft" x="494" y="134" width="130" height="62" rx="10"/>
+        <text class="d-t" x="559" y="160" text-anchor="middle">Morpho market</text>
+        <text class="d-s" x="559" y="179" text-anchor="middle">existing lender</text>
+
+        <path class="d-e" d="M208 50H466" marker-end="url(#ah)"/>
+        <text class="d-l" x="336" y="42" text-anchor="middle">rest of the salary</text>
+        <path class="d-e acc" d="M208 76H250V140H288" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="256" y="100">share buys assets</text>
+        <path class="d-e acc" d="M208 165H288" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="248" y="158" text-anchor="middle">buys</text>
+        <path class="d-e acc" d="M208 267H250V196H288" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="256" y="240">opens into</text>
+        <path class="d-e" d="M444 165H490" marker-end="url(#ah)"/>
+        <text class="d-l" x="467" y="158" text-anchor="middle">lock</text>
+        <path class="d-e" d="M559 132V96" marker-end="url(#ah)"/>
+        <text class="d-l" x="566" y="118">borrow USDC</text>
+      </svg>
+    </div>
+    <figcaption><b>Three ways in, one vault.</b> Salary shares, your own buys and gifts all land in the same personal vault. Borrowing goes out to an existing Morpho market and the loan comes back to your wallet.</figcaption>
+  </figure>
+
+  <h2>What you can do</h2>
+  <div class="cards">
+    <a class="card" href="#payday"><b>Invest from payday</b><span>Send 10%, 20% or your own share of each salary into assets.</span></a>
+    <a class="card" href="#vault"><b>Keep it in your vault</b><span>One vault per person, no admin, no pooled money.</span></a>
+    <a class="card" href="#invest"><b>Buy once or every week</b><span>From your own wallet, with themes to suggest a split.</span></a>
+    <a class="card" href="#borrow"><b>Borrow instead of selling</b><span>Lock assets and borrow USDC on Morpho.</span></a>
+    <a class="card" href="#research"><b>Read the research</b><span>A weekly report on six assets, with every number sourced.</span></a>
+    <a class="card" href="#gifts"><b>Send a gift box</b><span>A box of stocks that opens into a friend's vault.</span></a>
+    <a class="card" href="#chat"><b>Ask the assistant</b><span>Plain questions in, cards you check and sign out.</span></a>
+    <a class="card" href="#security"><b>Know the risks</b><span>What is real, what is mocked, what can go wrong.</span></a>
+  </div>
+
+  <h2>How to read these docs</h2>
+  <p>Every feature page starts with a short <strong>In plain words</strong> box with no jargon. Then <strong>How it works</strong> goes into detail, with a flow diagram, and each page ends with <strong>edge cases and limits</strong>. The status of each part uses the project's own words:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Label</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill live">Live on testnet</span></td><td>Built, tested and working on Base Sepolia.</td></tr>
+      <tr><td><span class="pill mock">Mocked</span></td><td>A stand-in, because the real thing does not exist on the test network. Labelled in the app too.</td></tr>
+      <tr><td><span class="pill live">Built and merged</span></td><td>On main and in the app, checked on a copy of the test network; not every part confirmed on the live site yet.</td></tr>
+      <tr><td><span class="pill review">In review</span></td><td>Built on a branch, waiting for the founder's review.</td></tr>
+      <tr><td><span class="pill plan">Not built</span></td><td>Planned or out of scope for the hackathon.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Status at a glance</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Part</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Accounts: Personal or Business, a profile with a unique Stackday ID</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Payroll: fund a treasury, pay once or on a schedule, claim to any wallet</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>A share of salary into assets, once or every payday</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Tokenized stocks, Bitcoin, Ether, gold</td><td><span class="pill mock">Mock tokens on testnet</span> real AAPLc tested on a copy of Base mainnet</td></tr>
+      <tr><td>One vault per person</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Recurring buys from your own wallet, run by a trigger bot once its keys are set</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Interest on idle USDC</td><td><span class="pill mock">Mock venue on testnet</span> Aave not built</td></tr>
+      <tr><td>Borrowing on Morpho, collateral basket, emergency rule</td><td><span class="pill live">Live on testnet</span> Aave not built</td></tr>
+      <tr><td>Themes and the weekly research report</td><td><span class="pill live">Partly built</span> beta, free preview</td></tr>
+      <tr><td>Chat assistant with signed action cards</td><td><span class="pill live">Built and merged</span> checked on a copy of the testnet</td></tr>
+      <tr><td>Gift boxes</td><td><span class="pill live">Built and merged</span> contract deployed on Base Sepolia</td></tr>
+      <tr><td>Private (confidential) pay with Fairblock</td><td><span class="pill live">Phase 1 on testnet</span> runs beside Payroll</td></tr>
+      <tr><td>Selling on mainnet, automatic rebalancing</td><td><span class="pill plan">Not built</span> after the deadline</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>About the project</h2>
+  <p>Stackday is an entry in the Base "Stocks Maxxing" hackathon, Track 3 (programmable stock markets), aimed at stock-backed loans. The deadline is December 5, 2026. It is built by the founder, Cloakie47, with growthmindsetgg contributing. The code is public at <a href="https://github.com/Cloakie47/stackday" rel="noopener" target="_blank">github.com/Cloakie47/stackday</a>, and the demo runs at <a href="" rel="noopener" target="_blank">stackday-rho.vercel.app</a>.</p>
+  <p>What Stackday is not: it runs no lending pool and no pooled fund, it holds nobody's money (each vault belongs to its owner), and it launches no token. Tokenized stocks are meant for eligible people outside the United States and carry no voting rights.</p>
+</article>
+
+<article class="page" id="getting-started" data-title="Getting started" data-section="Overview" data-keywords="connect wallet base sepolia faucet test usdc eth sign in start personal business stackday id demo vault view testnet tools">
+  <p class="crumb">Overview</p>
+  <h1>Getting started</h1>
+  <p class="lead">Connect a browser wallet on Base Sepolia, get free test money, prove the wallet is yours with a free signature, and pick Personal or Business. Or look around first with the demo vault, no wallet needed.</p>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>You need a crypto wallet in your browser, set to the Base Sepolia test network. Test dollars and test gas are free from public faucets.</p>
+    <p>When you sign in, your wallet asks you to sign a short message. That signature is free, sends nothing and moves no money. It just proves the wallet is yours. Then you tell Stackday whether you are using it for yourself or for a business.</p>
+  </div>
+
+  <h2>Look first, without a wallet</h2>
+  <p>Open the <a href="/dashboard?view=0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df" rel="noopener" target="_blank">demo vault</a>. It is the founder's test wallet shown in read-only mode. Adding <code>?view=0x...</code> with any address to an app page shows that address's vault, plans and loans with every action turned off.</p>
+
+  <h2>Set up in five steps</h2>
+  <ol class="steps">
+    <li><div><h4>Get a browser wallet</h4><p>Any wallet that runs in your browser works (the app connects to the wallet your browser offers). Use a wallet just for testing. Stackday never asks for a private key or recovery phrase.</p></div></li>
+    <li><div><h4>Get test money</h4><p>Get test USDC from the <a href="https://faucet.circle.com" rel="noopener" target="_blank">Circle faucet</a> (choose Base Sepolia), and a little Base Sepolia test ETH from any Base Sepolia faucet to pay network fees.</p></div></li>
+    <li><div><h4>Press Start and connect</h4><p>On the app's landing page, press Start and connect your wallet. If it is on another network, the app shows Switch to Base Sepolia.</p></div></li>
+    <li><div><h4>Prove it is yours</h4><p>Sign the message "Sign in to Stackday. This proves you own this wallet. It costs nothing and sends no transaction." This keeps you signed in for 7 days.</p></div></li>
+    <li><div><h4>Choose Personal or Business</h4><p>Personal is for investing on your own. Business asks one more thing: "I run the business" (owner) or "I get paid by a business" (team member). An owner adds a business name and an optional description.</p></div></li>
+  </ol>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 460 420" width="460" role="img" aria-label="The start flow. Landing page, then Start and connect a wallet, then a free sign-in signature that creates your profile and Stackday ID, then a choice of Personal or Business. Personal lands on Portfolio. A Business owner lands on Payroll. A team member lands on Portfolio and also gets the Payday page.">
+        <rect class="d-box" x="140" y="12" width="180" height="40" rx="10"/>
+        <text class="d-t" x="230" y="37" text-anchor="middle">Landing page</text>
+        <path class="d-e" d="M230 52V74" marker-end="url(#ah)"/>
+        <rect class="d-box" x="140" y="78" width="180" height="40" rx="10"/>
+        <text class="d-t" x="230" y="103" text-anchor="middle">Start: connect wallet</text>
+        <path class="d-e" d="M230 118V140" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="110" y="144" width="240" height="56" rx="10"/>
+        <text class="d-t acc" x="230" y="168" text-anchor="middle">Free sign-in signature</text>
+        <text class="d-s" x="230" y="187" text-anchor="middle">creates your profile and Stackday ID</text>
+        <path class="d-e" d="M230 200V222" marker-end="url(#ah)"/>
+        <path class="d-box warn" d="M230 226 L320 256 L230 286 L140 256 Z"/>
+        <text class="d-t" x="230" y="261" text-anchor="middle">Account type?</text>
+        <path class="d-e" d="M140 256H70V320" marker-end="url(#ah)"/>
+        <text class="d-l" x="98" y="248" text-anchor="middle">Personal</text>
+        <path class="d-e" d="M320 256H390V286" marker-end="url(#ah)"/>
+        <text class="d-l" x="362" y="248" text-anchor="middle">Business</text>
+        <rect class="d-box" x="300" y="290" width="150" height="34" rx="10"/>
+        <text class="d-t" x="375" y="312" text-anchor="middle">Owner or member?</text>
+        <path class="d-e" d="M340 324V352" marker-end="url(#ah)"/>
+        <path class="d-e" d="M420 324V352" marker-end="url(#ah)"/>
+        <rect class="d-box" x="10" y="324" width="122" height="84" rx="10"/>
+        <text class="d-t" x="71" y="348" text-anchor="middle">Portfolio</text>
+        <text class="d-s" x="71" y="368" text-anchor="middle">Invest, Borrow,</text>
+        <text class="d-s" x="71" y="384" text-anchor="middle">Research, Gifts</text>
+        <rect class="d-box" x="262" y="356" width="94" height="52" rx="10"/>
+        <text class="d-t" x="309" y="378" text-anchor="middle">Payroll</text>
+        <text class="d-s" x="309" y="396" text-anchor="middle">owner</text>
+        <rect class="d-box" x="364" y="356" width="90" height="52" rx="10"/>
+        <text class="d-t" x="409" y="378" text-anchor="middle">Portfolio</text>
+        <text class="d-s" x="409" y="396" text-anchor="middle">+ Payday</text>
+      </svg>
+    </div>
+    <figcaption><b>One start, three homes.</b> The account type decides which pages are in the top bar and where you land. A connected wallet that has not chosen yet is sent back to Start.</figcaption>
+  </figure>
+
+  <h2>Your profile and Stackday ID</h2>
+  <p>Your first sign-in creates a profile with a unique ID such as <code>SD-7K3F9Q2M</code> (SD, then 8 characters that leave out 0, 1, I and O so they are easy to read aloud). A name is optional. Businesses find team members by this ID, by name or by wallet address, and the person accepts the invite before the business can see their attendance. Friends can send you a gift box with it.</p>
+
+  <h2>What is in the top bar</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Account</th><th>Top bar</th></tr></thead>
+    <tbody>
+      <tr><td>Personal</td><td>Portfolio, Invest, Borrow, Research, Gifts</td></tr>
+      <tr><td>Business owner</td><td>Payroll, Portfolio, Invest, Borrow, Gifts</td></tr>
+      <tr><td>Business team member</td><td>Portfolio, Payday, Invest, Borrow, Research, Gifts</td></tr>
+    </tbody>
+  </table></div>
+  <p>The account menu adds Risk, Docs, Testnet tools and Account, plus the Personal and Business switch, copy buttons for your wallet address and Stackday ID, the theme and Disconnect. Themes lives as the "My themes" tab inside Research. A "Base Sepolia, Testnet" chip shows on every page.</p>
+
+  <h2>Testnet tools</h2>
+  <p>The Testnet tools page lets anyone pay themselves a quick payday from their own test USDC and pay interest into the mock interest venue. Its market switches (drop the price 10, 20 or 30%, close and reopen the market, pause transfers, recover the price) only work for the demo wallet that owns the mock price feeds. To use them yourself you would deploy your own copy of the contracts.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>One wallet, two hats.</strong> One wallet can be both Personal and Business. The choice sets your default pages and can be switched from the menu.</li>
+    <li><strong>No database, still works.</strong> Names, team lists, attendance and gift messages live in an optional account database. Money never depends on it. Without it, your account choice is saved on the device only and those extras switch off.</li>
+    <li><strong>No test stock faucet.</strong> You get test stock tokens by buying them with test USDC in the app, not from a faucet.</li>
+    <li><strong>Wallet support.</strong> The app connects to the wallet extension your browser offers. The earlier Smart wallet option was removed on November 26, 2026.</li>
+  </ul>
+</article>
+
+<article class="page" id="payday" data-title="Payday and salary investing" data-section="Features" data-keywords="payroll salary employer treasury schedule claim split share sip payday plan team attendance">
+  <p class="crumb">Features</p>
+  <h1>Payday and salary investing</h1>
+  <p class="lead">A business funds a USDC treasury and pays its team once or on a schedule. Each person claims to any wallet and can send a share of that payday into assets held in their own vault.</p>
+  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock asset tokens</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Your employer puts money into a payroll account on the blockchain and sets your pay. When payday comes, you collect it. Before you do, you can say "invest 10% of this", pick what it buys, and that part goes into your own vault. The rest comes to you as normal.</p>
+    <p>You can do it just for this payday, or save it as a plan for every payday. If a purchase cannot go through, you simply get that part as cash.</p>
+  </div>
+
+  <h2>How it works for a business</h2>
+  <ol class="steps">
+    <li><div><h4>Fund the treasury</h4><p>The owner deposits test USDC into the Payroll contract once. Each employer's treasury is kept separate: a payday can only spend its own employer's balance.</p></div></li>
+    <li><div><h4>Add the team</h4><p>Find people by Stackday ID, name or wallet address. They accept the invite. Salaries typed into the team list are stored in the optional account database, not on chain.</p></div></li>
+    <li><div><h4>Pay once, or start a schedule</h4><p>Pay everyone now, or start a schedule: daily, weekly, every 2 weeks or monthly (30 days). A schedule pays from the treasury while it has money. It can be paused and resumed; resuming gives no back pay for the paused time.</p></div></li>
+  </ol>
+  <p>A schedule does not pay itself. When a payday is due, someone has to press the button. Anyone may do it (the contract only lets it pay the amounts the employer set), and Stackday's <a href="#keeper-api">trigger bot</a> presses it on weekdays at 16:00 UTC once its keys are set on the hosting side. Each press pays one payday. If the treasury is short, the payday waits until it is topped up.</p>
+
+  <h2>How it works for a team member</h2>
+  <p>On the Payday page you see salary waiting to be claimed. Claiming sends it to <strong>any wallet you choose</strong>. Before you claim, one split picker asks how much to invest:</p>
+  <ul>
+    <li><strong>None, 10%, 20% or a custom share</strong> of this payday.</li>
+    <li>Spread across <strong>up to 6 assets</strong>, evenly or adjusted per asset.</li>
+    <li><strong>Just this time</strong> (free) or <strong>as a plan for every payday</strong> (the recurring fee of 0.15% applies to the invested part only; salary paid out is never charged).</li>
+  </ul>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 520" width="480" role="img" aria-label="Payday flow. The employer funds the treasury. A payday is released, once or when a schedule is due, by the employer, the trigger bot or anyone. You claim and choose a share. The rest of the salary goes to any wallet you choose. The share is split across up to six assets and each asset is bought. A bought asset lands free in your vault. If one buy fails, that part is paid to you in USDC instead.">
+        <rect class="d-box" x="130" y="12" width="220" height="44" rx="10"/>
+        <text class="d-t" x="240" y="39" text-anchor="middle">Employer funds the treasury</text>
+        <path class="d-e" d="M240 56V80" marker-end="url(#ah)"/>
+        <rect class="d-box" x="100" y="80" width="280" height="72" rx="10"/>
+        <text class="d-t" x="240" y="102" text-anchor="middle">Payday released</text>
+        <text class="d-s" x="240" y="121" text-anchor="middle">pay now, or a schedule when it is due,</text>
+        <text class="d-s" x="240" y="138" text-anchor="middle">pressed by the employer, the bot or anyone</text>
+        <path class="d-e" d="M240 152V166" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="110" y="170" width="260" height="58" rx="10"/>
+        <text class="d-t acc" x="240" y="194" text-anchor="middle">You claim</text>
+        <text class="d-s" x="240" y="213" text-anchor="middle">share: none, 10%, 20% or custom</text>
+        <path class="d-e" d="M170 228V262" marker-end="url(#ah)"/>
+        <path class="d-e acc" d="M310 228V262" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="20" y="266" width="200" height="58" rx="10"/>
+        <text class="d-t" x="120" y="290" text-anchor="middle">Rest of the salary</text>
+        <text class="d-s" x="120" y="309" text-anchor="middle">to any wallet you choose</text>
+        <rect class="d-box accent" x="260" y="266" width="200" height="58" rx="10"/>
+        <text class="d-t acc" x="360" y="290" text-anchor="middle">Your share</text>
+        <text class="d-s" x="360" y="309" text-anchor="middle">split across up to 6 assets</text>
+        <path class="d-e acc" d="M360 324V348" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="260" y="352" width="200" height="58" rx="10"/>
+        <text class="d-t" x="360" y="376" text-anchor="middle">Buy each asset</text>
+        <text class="d-s" x="360" y="395" text-anchor="middle">at the feed price, price-protected</text>
+        <path class="d-e good" d="M330 410V448" marker-end="url(#ah-good)"/>
+        <text class="d-l good" x="324" y="434" text-anchor="end">bought</text>
+        <path class="d-e bad dash" d="M420 410V448" marker-end="url(#ah-bad)"/>
+        <text class="d-l bad" x="428" y="434">fails</text>
+        <rect class="d-box good" x="150" y="452" width="200" height="56" rx="10"/>
+        <text class="d-t good" x="250" y="476" text-anchor="middle">Lands free in your vault</text>
+        <text class="d-s" x="250" y="494" text-anchor="middle">created on your first buy</text>
+        <rect class="d-box warn" x="360" y="452" width="110" height="56" rx="10"/>
+        <text class="d-t" x="415" y="476" text-anchor="middle">That part</text>
+        <text class="d-s" x="415" y="494" text-anchor="middle">paid in USDC</text>
+      </svg>
+    </div>
+    <figcaption><b>A failed purchase never blocks a salary.</b> Each asset in the split is bought on its own. If one cannot be bought, only that part is undone and paid to you in USDC, and the rest of the claim goes through.</figcaption>
+  </figure>
+
+  <h3>What the contract does when you claim</h3>
+  <ul>
+    <li>The Payroll contract creates your vault the first time you invest (the address is fixed in advance for every wallet).</li>
+    <li>For each asset it buys <em>share x salary</em> worth at the price feed, with price protection, and puts the result into your vault as <strong>free</strong> (not locked) assets.</li>
+    <li>It records Total invested on chain, which the Portfolio page shows next to what your holdings are worth now.</li>
+    <li>If your <a href="#borrow-the-emergency-rule">emergency rule</a> is on and your loan is close to its limit, the whole share goes into the rule's asset and is locked instead.</li>
+  </ul>
+
+  <h2>Other payroll features</h2>
+  <ul>
+    <li><strong>Attendance.</strong> A simple daily check-in that the owner can look at for the last 14 days. It is a record only and never changes anyone's pay.</li>
+    <li><strong>Past paydays</strong> and the treasury balance are on the Payroll page. The owner can withdraw money that is not set aside for a payday.</li>
+    <li><strong>Private pay.</strong> Team members can be paid with encrypted amounts through Fairblock. See <a href="#private-pay">Private pay</a>.</li>
+  </ul>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Unclaimed pay.</strong> An employer can take back a salary that was never claimed, but only 180 days after that payday. It returns to the treasury.</li>
+    <li><strong>Nothing is locked in advance.</strong> Future paydays are not guaranteed. If the treasury is short, a due payday waits.</li>
+    <li><strong>Testnet rhythm.</strong> On testnet the shortest schedule interval is 60 seconds, so a schedule can be shown in a demo. On mainnet it would be one day.</li>
+    <li><strong>Up to 200 people per schedule</strong>, and up to 6 assets per payday plan.</li>
+    <li><strong>Payday spam.</strong> A stranger can send tiny paydays to an address. They cannot take or block anything, but the app lists the latest 60 entries, so heavy spam could hide an older unclaimed salary from the screen (it stays claimable).</li>
+    <li><strong>No cancel button on chain.</strong> A schedule is stopped by pausing it.</li>
+  </ul>
+</article>
+
+<article class="page" id="vault" data-title="Your vault" data-section="Features" data-keywords="vault self custody owner factory free locked withdraw earn interest idle usdc dividends total invested">
+  <p class="crumb">Features</p>
+  <h1>Your vault</h1>
+  <p class="lead">Every person gets their own vault contract. Anyone can put value in; only your wallet can take value out. There is no admin, no pooled money and no upgrade switch.</p>
+  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock interest venue</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Your vault is like a personal safe-deposit box that lives on the blockchain. Your payday shares, your buys and gifts from friends all go into it. Only the wallet you signed up with has the key.</p>
+    <p>Not even the Stackday team can open it or move what is inside. The flip side: if you lose access to your wallet, nobody can recover the vault for you.</p>
+  </div>
+
+  <h2>How it works</h2>
+  <p>The <strong>VaultFactory</strong> contract makes one small vault per wallet. The address is worked out in advance from your wallet, so Payroll, SipRouter and GiftBox can all send to the same vault, and the vault is created the first time something needs it. Anyone may trigger that creation, which is harmless: the vault always belongs to the wallet it was made for, its owner is set once and can never change, and it cannot be set up again or taken over.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 420" width="480" role="img" aria-label="Who can do what with your vault. Anyone can put value in: payday shares and buys, gift boxes, and loan repayments. Only your wallet can take value out or change risk: withdraw, borrow, lock and unlock, earn interest and stop earning. No admin or Stackday team key can move funds.">
+        <text class="d-cap" x="240" y="18" text-anchor="middle">Anyone can put value in</text>
+        <rect class="d-box" x="16" y="30" width="140" height="50" rx="10"/>
+        <text class="d-t" x="86" y="52" text-anchor="middle">Payday shares</text>
+        <text class="d-s" x="86" y="69" text-anchor="middle">and your buys</text>
+        <rect class="d-box" x="170" y="30" width="140" height="50" rx="10"/>
+        <text class="d-t" x="240" y="52" text-anchor="middle">Gift boxes</text>
+        <text class="d-s" x="240" y="69" text-anchor="middle">opened by you</text>
+        <rect class="d-box" x="324" y="30" width="140" height="50" rx="10"/>
+        <text class="d-t" x="394" y="52" text-anchor="middle">Repayments</text>
+        <text class="d-s" x="394" y="69" text-anchor="middle">from any wallet</text>
+        <path class="d-e acc" d="M86 80V110H200V134" marker-end="url(#ah-acc)"/>
+        <path class="d-e acc" d="M240 80V134" marker-end="url(#ah-acc)"/>
+        <path class="d-e acc" d="M394 80V110H280V134" marker-end="url(#ah-acc)"/>
+
+        <rect class="d-box accent" x="120" y="138" width="240" height="96" rx="12"/>
+        <text class="d-t acc" x="240" y="164" text-anchor="middle">Your vault</text>
+        <rect class="d-box" x="136" y="176" width="100" height="44" rx="8"/>
+        <text class="d-t" x="186" y="196" text-anchor="middle">Free</text>
+        <text class="d-s" x="186" y="212" text-anchor="middle">in the vault</text>
+        <rect class="d-box soft" x="244" y="176" width="100" height="44" rx="8"/>
+        <text class="d-t" x="294" y="196" text-anchor="middle">Locked</text>
+        <text class="d-s" x="294" y="212" text-anchor="middle">at Morpho</text>
+
+        <path class="d-e" d="M240 234V270" marker-end="url(#ah)"/>
+        <text class="d-cap" x="240" y="290" text-anchor="middle">Only your wallet can</text>
+        <rect class="d-box" x="16" y="302" width="140" height="50" rx="10"/>
+        <text class="d-t" x="86" y="324" text-anchor="middle">Withdraw</text>
+        <text class="d-s" x="86" y="341" text-anchor="middle">to any address</text>
+        <rect class="d-box" x="170" y="302" width="140" height="50" rx="10"/>
+        <text class="d-t" x="240" y="324" text-anchor="middle">Borrow, lock</text>
+        <text class="d-s" x="240" y="341" text-anchor="middle">unlock, safety cap</text>
+        <rect class="d-box" x="324" y="302" width="140" height="50" rx="10"/>
+        <text class="d-t" x="394" y="324" text-anchor="middle">Earn interest</text>
+        <text class="d-s" x="394" y="341" text-anchor="middle">and stop earning</text>
+
+        <rect class="d-box bad" x="120" y="372" width="240" height="38" rx="10"/>
+        <text class="d-t bad" x="240" y="396" text-anchor="middle">No admin or team key can move funds</text>
+      </svg>
+    </div>
+    <figcaption><b>A one-way door for everyone but you.</b> Payroll, SipRouter, GiftBox and anyone repaying a loan can add value. Every function that takes value out, or adds risk, checks that the caller is the vault's owner.</figcaption>
+  </figure>
+
+  <h3>Free and locked</h3>
+  <p><strong>Free</strong> assets are tokens sitting in the vault. <strong>Locked</strong> assets have been posted to a Morpho market as collateral for a loan. New buys always land free; you lock them yourself on the Borrow page (or the emergency rule locks a payday share if you turned it on).</p>
+
+  <h3>Withdraw</h3>
+  <p>You can withdraw to any address at any time. If the free balance is not enough, the vault unlocks collateral automatically, as far as the loan allows. Once a loan is repaid, everything can come out.</p>
+
+  <h3>Earn interest on idle USDC</h3>
+  <p>USDC sitting in your vault can be put to work in an interest vault (a standard ERC-4626 vault, such as a Morpho vault). <em>Earn</em> uses USDC already in the vault first, then takes the rest from your wallet. <em>Stop earning</em> brings it back. Stackday's earn fee is 0.1% a year of the amount earning, taken only out of the interest, never the deposit. On testnet the interest venue is a mock and is labelled as such; a real Morpho vault was tested on a copy of Base mainnet.</p>
+
+  <h3>What the Portfolio page shows</h3>
+  <p>Holdings (free and locked, with their value), your plans, loans and their health, and <strong>Total invested</strong>: the lifetime USDC you put in through buys and payday shares, kept on chain by SipRouter and Payroll, next to what it is worth now and the change.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>No recovery.</strong> A vault has one owner key. Losing the wallet loses access to the vault.</li>
+    <li><strong>Issuer powers.</strong> The real stock tokens have an issuer who can pause, block or seize tokens. No contract can protect against that.</li>
+    <li><strong>Dividends.</strong> Real Coinbase tokens reinvest dividends by raising an on-chain multiplier, so each token is worth more over time, locked collateral included. The Borrow page estimates them after the issuer's 5% fee and up to 30% US withholding tax. The testnet mocks pay none.</li>
+    <li><strong>Invest-only assets</strong> can be held and withdrawn but not locked.</li>
+  </ul>
+</article>
+
+<article class="page" id="invest" data-title="Invest: one-time, recurring, themes" data-section="Features" data-keywords="buy invest recurring plan sip siprouter weekly schedule themes split risk level steady balanced bold market mood rebalance assets list">
+  <p class="crumb">Features</p>
+  <h1>Invest: one-time, recurring and themes</h1>
+  <p class="lead">Buy an asset once from your own wallet, or set a recurring buy that runs every week. Themes suggest a split across assets from fixed, published rules. No employer needed.</p>
+  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock tokens and prices</span><span class="pill live">Themes: partly built</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>You can buy a slice of a stock, Bitcoin, Ether or gold whenever you like, and it goes straight into your vault. Or set it and forget it: "buy $10 of NVIDIA every Monday for 12 weeks". Your wallet allows exactly that much and no more, and a bot presses the buy button on time.</p>
+    <p>Not sure what to pick? Themes let you choose topics you care about, like AI or steady big companies, and suggest how to split your money. You decide whether to use it.</p>
+  </div>
+
+  <h2>Buy once</h2>
+  <p>Pick an asset and an amount of test USDC. The buy goes through SipRouter, which buys at the price feed and sends the asset into your vault as free. One-time buys have <strong>no fee</strong>. If the exchange quote is more than 1% worse than the reference price, the app stops with "Price moved more than 1%. Try again." Manual buys work at any hour and show the exchange rate.</p>
+
+  <h2>Recurring buys</h2>
+  <ul>
+    <li><strong>Amount</strong>: any amount, with quick picks of $5, $10, $25 and $50.</li>
+    <li><strong>How often</strong>: weekly, every 2 weeks or every 4 weeks.</li>
+    <li><strong>How long</strong>: 4, 12 or 26 weeks, a year, or until you stop it. The length is set by an exact wallet approval: SipRouter can never take more than you approved.</li>
+    <li><strong>When</strong>: a weekday you pick, at 11:00 New York time while the US market is open. The plan keeps that slot.</li>
+    <li><strong>Fee</strong>: 0.15% of each recurring buy, shown before you sign.</li>
+    <li>One plan per asset. Each plan has Run now (when due), Extend (when finished) and Cancel.</li>
+  </ul>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 470" width="480" role="img" aria-label="Recurring buy flow. Once, you sign an exact USDC approval and save the plan in SipRouter. On each due weekday the trigger bot checks the plan. If it is not due, the approval is used up, or the wallet has no USDC, it skips. Otherwise it calls executePlan. SipRouter takes that buy's USDC from your wallet, checks the price, buys the asset and puts it in your vault as free. The 0.15 percent fee goes to the fee wallet. Then it waits for the next slot.">
+        <text class="d-cap" x="20" y="20">Once, you sign</text>
+        <rect class="d-box accent" x="20" y="30" width="440" height="52" rx="10"/>
+        <text class="d-t acc" x="240" y="52" text-anchor="middle">Exact USDC approval + save the plan</text>
+        <text class="d-s" x="240" y="70" text-anchor="middle">asset, amount per buy, how often, first buy slot</text>
+        <path class="d-e" d="M240 82V106" marker-end="url(#ah)"/>
+        <text class="d-cap" x="20" y="124">Every due weekday</text>
+        <rect class="d-box" x="110" y="134" width="260" height="52" rx="10"/>
+        <text class="d-t" x="240" y="156" text-anchor="middle">Trigger bot checks the plan</text>
+        <text class="d-s" x="240" y="174" text-anchor="middle">weekdays 16:00 UTC (anyone may press)</text>
+        <path class="d-e dash" d="M370 160H440V246" marker-end="url(#ah)"/>
+        <rect class="d-box soft" x="384" y="250" width="86" height="70" rx="10"/>
+        <text class="d-t" x="427" y="272" text-anchor="middle">Skip</text>
+        <text class="d-s" x="427" y="290" text-anchor="middle">not due, used up,</text>
+        <text class="d-s" x="427" y="305" text-anchor="middle">or no USDC</text>
+        <path class="d-e acc" d="M240 186V210" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="40" y="214" width="320" height="52" rx="10"/>
+        <text class="d-t" x="200" y="236" text-anchor="middle">SipRouter takes this buy's USDC</text>
+        <text class="d-s" x="200" y="254" text-anchor="middle">from your wallet, within the approval</text>
+        <path class="d-e" d="M200 266V290" marker-end="url(#ah)"/>
+        <rect class="d-box" x="40" y="294" width="320" height="52" rx="10"/>
+        <text class="d-t" x="200" y="316" text-anchor="middle">Price check, then buy</text>
+        <text class="d-s" x="200" y="334" text-anchor="middle">refuses a price worse than the plan allows</text>
+        <path class="d-e good" d="M140 346V382" marker-end="url(#ah-good)"/>
+        <path class="d-e" d="M300 346V382" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="40" y="386" width="200" height="52" rx="10"/>
+        <text class="d-t good" x="140" y="408" text-anchor="middle">Asset lands free</text>
+        <text class="d-s" x="140" y="426" text-anchor="middle">in your vault</text>
+        <rect class="d-box" x="252" y="386" width="108" height="52" rx="10"/>
+        <text class="d-t" x="306" y="408" text-anchor="middle">0.15% fee</text>
+        <text class="d-s" x="306" y="426" text-anchor="middle">to fee wallet</text>
+        <path class="d-e dash" d="M40 412H24V160H106" marker-end="url(#ah)"/>
+        <text class="d-l" x="12" y="300" transform="rotate(-90 12 300)" text-anchor="middle">next slot</text>
+      </svg>
+    </div>
+    <figcaption><b>The bot presses the button; the rules are yours.</b> Anyone may run a due buy, but it can only do what you set up: that amount, that asset, into your own vault, within your price limit and your approval. The bot's wallet only pays gas. It runs once the founder has set its keys on the hosting side; until then, Run now on the Invest page does the same.</figcaption>
+  </figure>
+
+  <h2>What you can buy</h2>
+  <p>On testnet every asset is a mock token that stands in for a real token on Base. Since November 18, 2026 an asset is either <strong>borrowable</strong> (it has a Morpho market) or <strong>invest only</strong> (no lending market: buy, hold and withdraw, never lock). The deployment has 15 assets, 9 of them can be borrowed against.</p>
+  <div class="table-wrap"><table><thead><tr><th>Test token</th><th>Stands in for</th><th>Kind</th><th>Can borrow against</th><th class="num">Liquidation limit</th></tr></thead><tbody><tr><td><code>mAAPL</code></td><td>Apple (AAPLc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mNVDA</code></td><td>NVIDIA (NVDAc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mcbBTC</code></td><td>Bitcoin (cbBTC)</td><td>Crypto</td><td><span class="pill live">Yes</span></td><td class="num">86%</td></tr><tr><td><code>mWETH</code></td><td>Ether (WETH)</td><td>Crypto</td><td><span class="pill live">Yes</span></td><td class="num">86%</td></tr><tr><td><code>mGOOGL</code></td><td>Alphabet (GOOGLc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">77%</td></tr><tr><td><code>mMETA</code></td><td>Meta (METAc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mSPCX</code></td><td>SpaceX (mock price only) (SPCXc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mPAXG</code></td><td>Gold (PAXG)</td><td>Gold</td><td><span class="pill live">Yes</span></td><td class="num">77%</td></tr><tr><td><code>mTSLA</code></td><td>Tesla (TSLAc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mAMZN</code></td><td>Amazon (AMZNc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mMSFT</code></td><td>Microsoft (MSFTc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mMSTR</code></td><td>Strategy (MSTRc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mAMD</code></td><td>AMD (AMDc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mSPX</code></td><td>S&amp;P 500 fund token (deSPXA)</td><td>Fund</td><td><span class="pill live">Yes</span></td><td class="num">77%</td></tr><tr><td><code>mSGOV</code></td><td>0 to 3 month US Treasuries (wtSGOV)</td><td>Fund</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr></tbody></table></div>
+  <p>The list holds tokens that have a real market or a usable buy route on Base. Invest-only tokens were chosen from LI.FI buy quotes on Base (under 1% at 10,000 USDC, November 18, 2026). Price charts on the Invest page show <strong>real</strong> market prices of the real assets through TradingView, for reference only: buys, loans and health on testnet use the mock price feeds, and the page says so next to every chart.</p>
+
+  <h2>Themes</h2>
+  <p>Themes are the "My themes" tab inside Research. Pick the themes you care about and a risk level, and Stackday suggests a split for your next buys. The split comes from fixed, published rules in code: the same choices always give the same split, and no AI model picks your investments. It is information, not advice, and it does not aim to beat the market.</p>
+  <p>Themes available: <strong>AI and chips, Big tech core, Future movers, Steady core</strong> (S&amp;P 500 fund and gold) and <strong>Crypto native</strong>. Clean energy, Healthcare and Global stocks are marked coming soon. Themes only use tokens that really exist on Base; on testnet only some have a mock token, and the others are shown as a preview and never bought.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Risk level</th><th class="num">Stocks</th><th class="num">Bitcoin and Ether</th><th class="num">Small risk slice</th><th class="num">Cash cushion</th></tr></thead>
+    <tbody>
+      <tr><td>Steady</td><td class="num">65%</td><td class="num">5%</td><td class="num">0%</td><td class="num">30%</td></tr>
+      <tr><td>Balanced</td><td class="num">73%</td><td class="num">12%</td><td class="num">up to 5%</td><td class="num">10%</td></tr>
+      <tr><td>Bold</td><td class="num">70%</td><td class="num">18%</td><td class="num">7%</td><td class="num">5%</td></tr>
+    </tbody>
+  </table></div>
+  <p>Every split keeps targets for new buys: no single stock above 15%, no theme above 40%, the AI and chip makers together at most 35%, each volatile name at most 2.5%. The cash cushion is not bought: on a payday plan it is paid to you, and on a wallet buy it stays in your wallet.</p>
+  <h3>Using a split</h3>
+  <ul>
+    <li><strong>From salary:</strong> save it as your every-payday plan (10, 20 or 30% of salary, at most 6 assets).</li>
+    <li><strong>From your wallet:</strong> buy it once, or set one recurring buy per asset.</li>
+    <li><strong>Rebalance with new money:</strong> new money goes to holdings below target first. Nothing is sold, because Stackday cannot sell for you; a notice says so when a holding drifts above its target.</li>
+  </ul>
+  <h3>Market mood</h3>
+  <p>Market mood summarises recent news about the stocks in your themes. It does not predict prices and does not change your amounts. <span class="pill mock">Snapshot, not live</span> On the test site it comes from a snapshot built by hand from public headlines on November 15, 2026. The live weekly news refresh for Themes is not built yet; the separate <a href="#research">weekly research report</a> does read live news.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>A plan needs USDC in your wallet</strong> on the day. If there is not enough, that buy is skipped and the plan carries on at the next slot.</li>
+    <li><strong>Missed slots are skipped, not caught up.</strong> The next buy stays on the original weekday slot.</li>
+    <li><strong>Stale prices.</strong> On mainnet, recurring buys refuse a price older than about 26 hours, because stock prices freeze when markets close. This check is switched off on testnet, where the mock feed only moves when the demo wallet changes it.</li>
+    <li><strong>Contract limits.</strong> SipRouter allows at least 1 day between buys, a first buy within 31 days and at most 10% slippage; the app uses 1%.</li>
+    <li><strong>Smallest themed trade</strong> on testnet is $0.25.</li>
+    <li><strong>Selling and true rebalancing</strong> need a sell path on mainnet (issue #35), planned after the deadline.</li>
+  </ul>
+</article>
+
+<article class="page" id="borrow" data-title="Borrow instead of selling" data-section="Features" data-keywords="loan morpho collateral health liquidation emergency rule repay lock unlock risk stress">
+  <p class="crumb">Features</p>
+  <h1>Borrow instead of selling</h1>
+  <p class="lead">Need cash but want to keep your investments? Lock some of them as a guarantee and borrow test USDC against them through Morpho, an existing lending market on Base.</p>
+  <div class="status-row"><span class="pill live">Live on testnet (Morpho)</span><span class="pill mock">Mock asset prices</span><span class="pill plan">Aave not built</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Think of a pawn shop that never sells your things while you keep up. You hand over some stock as a guarantee, you get cash, and the stock is still yours. When you pay the cash back, you take the stock home.</p>
+    <p>The one rule: if the stock falls a lot, the guarantee stops covering the loan, and the lender may sell part of it to get its money back. Stackday shows you, before you sign, how far prices can fall before that happens.</p>
+  </div>
+
+  <h2>How it works</h2>
+  <p>Stackday does not lend money itself and runs no lending pool. Your vault borrows directly from a <strong>Morpho market</strong>. Each asset you can borrow against has its own market, with that asset as the guarantee (collateral) and USDC as the loan.</p>
+
+  <h3>Free and locked</h3>
+  <p>Everything you buy lands in your vault as <strong>free</strong>: it is not backing anything, and you can take it out at any time. To borrow, you first <strong>lock</strong> some of it. Locked assets are posted to the Morpho market and back your loan. New buys are never locked for you (a founder decision, issue #29). The only thing that locks by itself is the emergency rule further down, and only if you switch it on.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 640 300" width="640" role="img" aria-label="Where your money sits when you borrow. Buys go from your wallet into the free part of your vault. You lock free assets into the Morpho market as collateral. Morpho lends USDC from its lenders to your wallet. You repay from your wallet, Stackday's small fee first, then the loan. Unlock and withdraw bring assets back.">
+        <rect class="d-box" x="16" y="58" width="150" height="112" rx="10"/>
+        <text class="d-t" x="91" y="98" text-anchor="middle">Your wallet</text>
+        <text class="d-s" x="91" y="118" text-anchor="middle">holds your USDC</text>
+        <text class="d-s" x="91" y="135" text-anchor="middle">signs every step</text>
+
+        <rect class="d-zone accent" x="222" y="24" width="186" height="174" rx="14"/>
+        <text class="d-cap" x="238" y="46">Your vault</text>
+        <rect class="d-box accent" x="240" y="62" width="150" height="108" rx="10"/>
+        <text class="d-t acc" x="315" y="98" text-anchor="middle">Free assets</text>
+        <text class="d-s" x="315" y="118" text-anchor="middle">not backing a loan</text>
+        <text class="d-s" x="315" y="135" text-anchor="middle">withdraw any time</text>
+
+        <rect class="d-zone" x="462" y="24" width="162" height="262" rx="14"/>
+        <text class="d-cap" x="478" y="46">Morpho market</text>
+        <rect class="d-box" x="478" y="62" width="130" height="108" rx="10"/>
+        <text class="d-t" x="543" y="98" text-anchor="middle">Locked</text>
+        <text class="d-s" x="543" y="118" text-anchor="middle">backs your loan</text>
+        <text class="d-s bad" x="543" y="135" text-anchor="middle" style="fill:var(--danger)">sold if health &lt; 1</text>
+        <rect class="d-box soft" x="478" y="196" width="130" height="74" rx="10"/>
+        <text class="d-t" x="543" y="228" text-anchor="middle">USDC</text>
+        <text class="d-s" x="543" y="247" text-anchor="middle">from lenders</text>
+
+        <path class="d-e acc" d="M168 96H236" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="202" y="88" text-anchor="middle">buy</text>
+        <path class="d-e" d="M238 134H170" marker-end="url(#ah)"/>
+        <text class="d-l" x="204" y="152" text-anchor="middle">withdraw</text>
+
+        <path class="d-e acc" d="M392 96H474" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="433" y="88" text-anchor="middle">1 lock</text>
+        <path class="d-e" d="M476 134H394" marker-end="url(#ah)"/>
+        <text class="d-l" x="435" y="152" text-anchor="middle">4 unlock</text>
+
+        <path class="d-e acc" d="M476 222H104V174" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="300" y="215" text-anchor="middle">2 borrow: USDC to your wallet</text>
+        <path class="d-e" d="M60 172V258H474" marker-end="url(#ah)"/>
+        <text class="d-l" x="300" y="251" text-anchor="middle">3 repay: Stackday fee first, then the loan</text>
+      </svg>
+    </div>
+    <figcaption><b>Where your money sits.</b> Buys land free in your vault. You lock some into the Morpho market (1), borrow USDC to your wallet (2), repay when you like (3), then unlock (4) and withdraw. Each asset's market is separate and can be liquidated on its own.</figcaption>
+  </figure>
+
+  <h3>The collateral basket</h3>
+  <p>On the Borrow page you can lock any mix of assets first and see one total and one limit. When you borrow or repay, Stackday splits the amount across the Morpho markets so that every part has the same health. Each asset is still its own market and can be liquidated on its own, and the page says so.</p>
+
+  <h3>Your limit and the three risk levels</h3>
+  <p>Every market has a <strong>liquidation limit</strong> (Morpho calls it LLTV): the share of the collateral's value that can be borrowed before the loan can be liquidated.</p>
+  <p>On the testnet deployment the limits match the main real markets on Base for each kind of asset: <strong>62.5%</strong> for Apple, NVIDIA, Meta and SpaceX, <strong>77%</strong> for Alphabet, gold and the S&amp;P 500 fund token, and <strong>86%</strong> for Bitcoin and Ether. The full list is on <a href="#invest">Invest</a>.</p>
+  <p>Borrow asks you to pick how much of that limit to use:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Level</th><th class="num">Share of the limit</th><th class="num">Price drop it survives</th><th class="num">Example: $1,000 of Apple locked</th></tr></thead>
+    <tbody>
+      <tr><td>Low</td><td class="num">30%</td><td class="num">about 70%</td><td class="num">borrow $187.50, health 3.33</td></tr>
+      <tr><td>Mid</td><td class="num">50%</td><td class="num">about 50%</td><td class="num">borrow $312.50, health 2.00</td></tr>
+      <tr><td>High</td><td class="num">65%</td><td class="num">about 35%</td><td class="num">borrow $406.25, health 1.54</td></tr>
+    </tbody>
+  </table></div>
+  <p>The example uses Apple's 62.5% limit: $1,000 locked gives a limit of $625. The levels come from broker, bank and Coinbase practice and from the cost of a liquidation on Morpho's stock markets (about 12.7%). Each level shows the amount it really gives you and the price drop it really survives, and says when the market does not have enough cash to lend. The chat assistant uses Mid unless you ask for another level.</p>
+  <p>Your vault also has its own <strong>safety cap</strong>: by default it refuses any loan above 50% of the limit. Choosing High raises the cap to 65% in the same signature, and only when the amount needs it. The contract never allows more than 85%.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 640 170" width="640" role="img" aria-label="A scale of how much of the liquidation limit a loan uses, from 0 to 100 percent. Low is 30 percent, Mid 50 percent, where the vault's default safety cap sits, High 65 percent, and at 100 percent health is 1.00 and the loan can be liquidated.">
+        <text class="d-cap" x="40" y="24">Share of your liquidation limit you borrow</text>
+        <rect class="d-fill-good" x="40" y="58" width="168" height="16" rx="3" opacity="0.85"/>
+        <rect class="d-fill-acc" x="208" y="58" width="112" height="16" opacity="0.85"/>
+        <rect class="d-fill-warn" x="320" y="58" width="84" height="16" opacity="0.85"/>
+        <rect class="d-fill-line" x="404" y="58" width="156" height="16"/>
+        <rect class="d-fill-bad" x="560" y="50" width="4" height="32"/>
+        <path class="d-e" d="M208 46V86M320 46V86M404 46V86"/>
+        <text class="d-l" x="40" y="104">0%</text>
+        <text class="d-t" x="208" y="40" text-anchor="middle">Low 30%</text>
+        <text class="d-t acc" x="320" y="40" text-anchor="middle">Mid 50%</text>
+        <text class="d-t warn" x="404" y="40" text-anchor="middle">High 65%</text>
+        <text class="d-t bad" x="562" y="40" text-anchor="middle">100%</text>
+        <text class="d-s" x="208" y="104" text-anchor="middle">health 3.33</text>
+        <text class="d-s" x="320" y="104" text-anchor="middle">health 2.00</text>
+        <text class="d-s" x="404" y="104" text-anchor="middle">health 1.54</text>
+        <text class="d-s bad" x="562" y="104" text-anchor="middle" style="fill:var(--danger)">health 1.00</text>
+        <text class="d-l" x="320" y="128" text-anchor="middle">vault safety cap (default)</text>
+        <text class="d-l bad" x="562" y="128" text-anchor="middle">can be liquidated</text>
+        <text class="d-s" x="482" y="152" text-anchor="middle">the gap above your level is the price drop you can survive</text>
+      </svg>
+    </div>
+    <figcaption><b>Health is the room left before liquidation.</b> Health is your limit divided by what you owe. At 1.00 the loan can be liquidated. Borrowing half your limit gives health 2.00, which survives a 50% price fall.</figcaption>
+  </figure>
+
+  <h3>What it costs</h3>
+  <p>Borrowing is shown as one <strong>Borrow APY</strong>: Morpho's interest, which compounds every second, plus Stackday's fee of 0.1% a year. The fee builds up by the second on the amount you owe. You receive the full amount you borrow; the fee is paid when you repay, before the loan itself. If a loan ends in liquidation instead, the unpaid fee is dropped. See <a href="#fees">Fees</a>.</p>
+
+  <h3>Repaying and taking assets out</h3>
+  <ul>
+    <li><strong>Repay is manual.</strong> There is no forced repayment and no schedule. Repay part or all, any time. Paying more than you owe only takes what is owed.</li>
+    <li><strong>Withdraw is one control.</strong> It takes free assets first and releases locked ones automatically, but only as much as the loan allows.</li>
+    <li>Anyone can repay into a vault (for example a friend paying for you), but only you can borrow, unlock or withdraw.</li>
+  </ul>
+
+  <h3>The risk screen</h3>
+  <p>The Risk page shows your borrowing cost, limit, health, liquidation price and the price drop that triggers it, the liquidation penalty, the exact Morpho market used and how fresh the price is. It has a stress test for overnight price gaps of 10, 20 and 30% (or your own number), and shows what happens if transfers of the stock token are paused. With no loan you can type an example loan to try it.</p>
+
+  <h2>The emergency rule</h2>
+  <p>For people paid through Stackday payroll there is an optional safety net. You choose a borrowable asset, a health level (the app offers 1.25, 1.50 or 2.00) and a share of salary. On a payday, if your loan's health is at or below that level when you claim, the payday share switches to that asset and is <strong>locked straight away as collateral</strong>, so the loan gets safer.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 440 400" width="440" role="img" aria-label="The emergency rule at claim time. When you claim a payday, Payroll checks whether the rule is on and your loan health is at or below your chosen level. If not, your normal plan runs and the buys stay free. If yes, the whole share, the larger of your plan share and the rule share, buys the rule's asset and is locked as collateral, which raises your health.">
+        <rect class="d-box" x="130" y="12" width="180" height="46" rx="10"/>
+        <text class="d-t" x="220" y="40" text-anchor="middle">You claim a payday</text>
+        <path class="d-e" d="M220 58V88" marker-end="url(#ah)"/>
+        <path class="d-box warn" d="M220 92 L340 140 L220 188 L100 140 Z"/>
+        <text class="d-t" x="220" y="134" text-anchor="middle">Rule on, and health</text>
+        <text class="d-t" x="220" y="152" text-anchor="middle">at or below your level?</text>
+        <path class="d-e" d="M100 140H40V236" marker-end="url(#ah)"/>
+        <text class="d-l" x="70" y="132" text-anchor="middle">no</text>
+        <path class="d-e acc" d="M340 140H400V236" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="370" y="132" text-anchor="middle">yes</text>
+        <rect class="d-box" x="12" y="240" width="170" height="78" rx="10"/>
+        <text class="d-t" x="97" y="268" text-anchor="middle">Normal plan runs</text>
+        <text class="d-s" x="97" y="288" text-anchor="middle">your chosen assets</text>
+        <text class="d-s" x="97" y="304" text-anchor="middle">land free</text>
+        <rect class="d-box accent" x="232" y="240" width="196" height="78" rx="10"/>
+        <text class="d-t acc" x="330" y="264" text-anchor="middle">Whole share buys</text>
+        <text class="d-t acc" x="330" y="282" text-anchor="middle">the rule's asset</text>
+        <text class="d-s" x="330" y="302" text-anchor="middle">bigger of plan or rule share</text>
+        <path class="d-e acc" d="M330 318V346" marker-end="url(#ah-acc)"/>
+        <rect class="d-box good" x="232" y="350" width="196" height="40" rx="10"/>
+        <text class="d-t good" x="330" y="375" text-anchor="middle">Locked: health goes up</text>
+      </svg>
+    </div>
+    <figcaption><b>The rule only acts when a salary is claimed.</b> It is not automatic protection between paydays. The share used is the larger of your normal plan share and the rule's share, and all of it is locked.</figcaption>
+  </figure>
+  <p>It has been shown on testnet: in the judges' sequence a 30% price drop took a loan's health to 1.45, the next payday's emergency share added collateral, and health went back up to 3.53. The transactions are listed in the repository README.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Small testnet markets.</strong> Each test Morpho market was funded with about 4 test USDC, so demo loans must be small. Larger borrows are refused until the founder tops the markets up.</li>
+    <li><strong>Invest-only assets cannot be locked.</strong> Tesla, Amazon, Microsoft, Strategy, AMD and the Treasuries token have no Morpho market. You can buy, hold and withdraw them, never borrow against them.</li>
+    <li><strong>Prices can jump.</strong> Stock prices can gap after a weekend or overnight. A liquidation on Morpho's stock markets costs about 12.7% of the part sold.</li>
+    <li><strong>Paused tokens.</strong> The real stock tokens have an issuer who can pause transfers. During a pause you can still repay, but you cannot add or remove collateral. The judges' sequence tested this on testnet.</li>
+    <li><strong>Mock prices on testnet.</strong> Loan health uses the mock price feeds, which only move when the demo wallet changes them. Price charts on the Invest page show real market prices for reference only.</li>
+    <li><strong>Aave is not built.</strong> The anchor names Morpho and Aave. Only Morpho is built; Aave would plug in behind the same adapter.</li>
+    <li><strong>Dividends.</strong> The real Coinbase tokens reinvest dividends by raising an on-chain multiplier, so locked collateral grows too. The testnet mocks pay none.</li>
+  </ul>
+</article>
+
+<article class="page" id="research" data-title="Research: weekly report and daily note" data-section="Features" data-keywords="research weekly report daily note scores scorecard calibration data sources view accumulate hold reduce avoid beta sample portfolio check">
+  <p class="crumb">Features</p>
+  <h1>Research: the weekly report and the daily note</h1>
+  <p class="lead">Every Monday, Stackday publishes a research report on the six assets you can also borrow against. Code gathers and computes every number with its source; AI models only interpret, and a person approves the report before anyone sees it.</p>
+  <div class="status-row"><span class="pill live">Built</span><span class="pill review">Beta: free preview</span><span class="pill plan">Paywall off</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Once a week you get a plain-language briefing on Bitcoin, Ether, gold, NVIDIA, Apple and the S&amp;P 500: what happened last week, what the charts and the economy look like, what could happen next, and a general view such as "hold" or "avoid new buys".</p>
+    <p>It is general research for everyone, never advice for you personally. Every figure points to where it came from, and last week's calls are graded in public, wrong ones included.</p>
+  </div>
+
+  <h2>Two products from one engine</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th></th><th>Daily note</th><th>Monday weekly report</th></tr></thead>
+    <tbody>
+      <tr><td>Who sees it</td><td>Internal (founder and growth reviewers) while testing</td><td>Everyone, as a free preview labelled Beta</td></tr>
+      <tr><td>When</td><td>Each trading day after the US close (22:30 UTC)</td><td>Monday, built step by step between 12:00 and 21:00 UTC</td></tr>
+      <tr><td>Depth</td><td>What changed, levels, a one-line view per asset</td><td>The full report below</td></tr>
+      <tr><td>Purpose</td><td>Build a scored track record and find weak spots</td><td>The product</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>What is in the weekly report</h2>
+  <p>For each of the six assets, its own page on Research with these parts:</p>
+  <ol>
+    <li><strong>Last week</strong>: the price move and what drove it, with sources.</li>
+    <li><strong>Chart read</strong> on daily, weekly and monthly bars: trend, support and resistance, patterns found by code, and how volatile the asset is against its own history. Each pattern has a confidence level and the price that would cancel it.</li>
+    <li><strong>Market conditions</strong>: rates and the Fed, Treasury yields, the dollar, and asset-specific signals (funding rates and stablecoin supply for crypto, real yields for gold).</li>
+    <li><strong>Geopolitics and news</strong>: dated headlines from reputable outlets and official sources. Company press releases count as one side, never the only source.</li>
+    <li><strong>Week ahead</strong>: Fed meetings, inflation and jobs releases, options expiry.</li>
+    <li><strong>Scenarios</strong>: bull, base and bear cases, with rough probabilities that add up to 100%, the price levels involved and what would trigger each.</li>
+    <li><strong>This week's view</strong>: Accumulate, Hold, Reduce or Avoid new buys, with a conviction level (low, medium or high), a buy zone if any, the price that would cancel the view, and the two or three reasons that matter most.</li>
+    <li><strong>Borrowing note</strong>: what a large drop would mean for someone borrowing against this asset, for example how a 20% fall moves a loan at half its limit, with a reminder that the emergency rule exists.</li>
+    <li><strong>All facts used</strong> and the asset's <strong>scorecard</strong>.</li>
+  </ol>
+  <p>Then one page for the whole report: <strong>this week's ideas</strong> (a short ranked list across the six, written as general example splits for a cautious and a growth-minded reader, never orders for a person) and <strong>last week's scorecard</strong>.</p>
+
+  <h2>How a report is made</h2>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 610" width="480" role="img" aria-label="The research pipeline. First a data step in code only gathers prices, indicators, chart patterns, macro data, calendars and headlines, each as a fact with a source and a time; headlines pass an injection screen. Four analyst passes each see only their own facts: technical, macro and geopolitics, news and sentiment, fundamentals. Then a bull case and a bear case with one rebuttal. A risk reviewer checks that every claim cites a fact, probabilities add up, the view matches the evidence and there is no personal advice, and can send a section back once. An editor writes strict JSON. A human reviewer approves it, and only then is it published to the Research page, the chat assistant and gift box research picks.">
+        <rect class="d-box accent" x="40" y="12" width="400" height="74" rx="10"/>
+        <text class="d-t acc" x="240" y="36" text-anchor="middle">1. Data, in code only</text>
+        <text class="d-s" x="240" y="55" text-anchor="middle">prices, indicators, patterns, levels, macro, calendar, news</text>
+        <text class="d-s" x="240" y="72" text-anchor="middle">every number is a fact with an id, a source and a time</text>
+        <rect class="d-box warn" x="300" y="96" width="170" height="34" rx="8"/>
+        <text class="d-l" x="385" y="117" text-anchor="middle">news: untrusted, screened</text>
+        <path class="d-e" d="M240 86V148" marker-end="url(#ah)"/>
+        <text class="d-cap" x="240" y="166" text-anchor="middle">2. Four analysts, each sees only its facts</text>
+        <rect class="d-box" x="16" y="176" width="104" height="46" rx="8"/>
+        <text class="d-t" x="68" y="204" text-anchor="middle">Technical</text>
+        <rect class="d-box" x="128" y="176" width="104" height="46" rx="8"/>
+        <text class="d-t" x="180" y="196" text-anchor="middle">Macro and</text>
+        <text class="d-t" x="180" y="212" text-anchor="middle">geopolitics</text>
+        <rect class="d-box" x="240" y="176" width="104" height="46" rx="8"/>
+        <text class="d-t" x="292" y="196" text-anchor="middle">News and</text>
+        <text class="d-t" x="292" y="212" text-anchor="middle">sentiment</text>
+        <rect class="d-box" x="352" y="176" width="112" height="46" rx="8"/>
+        <text class="d-t" x="408" y="204" text-anchor="middle">Fundamentals</text>
+        <path class="d-e" d="M68 222V240H408V222M180 222V240M292 222V240"/><path class="d-e" d="M240 240V262" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="60" y="266" width="170" height="46" rx="8"/>
+        <text class="d-t good" x="145" y="294" text-anchor="middle">3. Bull case</text>
+        <rect class="d-box bad" x="250" y="266" width="170" height="46" rx="8"/>
+        <text class="d-t bad" x="335" y="294" text-anchor="middle">Bear case</text>
+        <path class="d-e" d="M230 282H250M250 296H230" />
+        <text class="d-s" x="240" y="328" text-anchor="middle">one round of rebuttal, facts and analyst notes only</text>
+        <path class="d-e" d="M240 334V354" marker-end="url(#ah)"/>
+        <rect class="d-box" x="70" y="358" width="340" height="74" rx="10"/>
+        <text class="d-t" x="240" y="382" text-anchor="middle">4. Risk reviewer</text>
+        <text class="d-s" x="240" y="401" text-anchor="middle">every claim cites a fact, probabilities add to 100,</text>
+        <text class="d-s" x="240" y="418" text-anchor="middle">view matches evidence, no promises, no personal advice</text>
+        <path class="d-e dash" d="M410 395H452V286H424" marker-end="url(#ah)"/>
+        <text class="d-l" x="456" y="350" transform="rotate(90 456 350)" text-anchor="middle">sends back once</text>
+        <path class="d-e" d="M240 432V452" marker-end="url(#ah)"/>
+        <rect class="d-box" x="110" y="456" width="260" height="44" rx="10"/>
+        <text class="d-t" x="240" y="476" text-anchor="middle">5. Editor writes strict JSON</text>
+        <text class="d-s" x="240" y="492" text-anchor="middle">plain language, then rendered</text>
+        <path class="d-e" d="M240 500V520" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="110" y="524" width="260" height="38" rx="10"/>
+        <text class="d-t acc" x="240" y="548" text-anchor="middle">A person reviews and approves</text>
+        <path class="d-e acc" d="M240 562V584" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="240" y="600" text-anchor="middle">published: Research page, chat answers, gift research picks</text>
+      </svg>
+    </div>
+    <figcaption><b>The model interprets; it never calculates.</b> Prices, indicators, levels and the borrowing note come from code. A claim without a fact id is removed. Nothing reaches readers until a reviewer approves the exact version they read.</figcaption>
+  </figure>
+  <p>The structure follows the published TradingAgents research design (analyst roles, then a bull and bear debate, then a risk review). Stackday took the idea only and wrote its own code. The daily note uses a short version: one triage pass on a cheaper model, a stronger model for big movers or answers that fail checks, then the risk check.</p>
+
+  <h2>How scores work</h2>
+  <ul>
+    <li><strong>Direction</strong>: each daily note is checked after 1 and 5 trading days. Did the price move the way the view said?</li>
+    <li><strong>Levels</strong>: did support and resistance hold or break as described?</li>
+    <li><strong>Calibration</strong>: over weeks, do high-conviction calls come true more often than low-conviction ones? Shown per conviction level.</li>
+    <li><strong>Facts</strong>: the share of claims with a valid source. The target is 100%.</li>
+    <li><strong>Usefulness</strong>: the reviewers grade each note from 1 to 5.</li>
+  </ul>
+  <p>The weekly scorecard marks every view from last week as Right, Wrong, Mixed or No data. Wrong calls stay visible. The report becomes a paid product only after <strong>four Mondays in a row</strong> with every fact sourced, no corrections, an average grade of 4 or more and calibration that is not clearly off, and after a legal check. Until then it is a free preview and the paywall is off.</p>
+
+  <h2>Where the data comes from</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Data</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Bitcoin, Ether and gold prices</td><td>Coinbase Exchange public candles</td></tr>
+      <tr><td>Apple, NVIDIA and S&amp;P 500 token prices</td><td>On-chain prices on Base: Chainlink "Coinbase AAPL" and "Coinbase NVDA" feeds, the deSPXA Morpho oracle and the main token pools. Labelled as the token's on-chain price, not the exchange price</td></tr>
+      <tr><td>Rates, yields, inflation, jobs, dollar</td><td>FRED (St. Louis Fed), cited</td></tr>
+      <tr><td>Fed meetings, CPI and jobs dates, PCE and GDP</td><td>Federal Reserve, BLS and BEA calendars</td></tr>
+      <tr><td>Headlines</td><td>GDELT, filtered to a whitelist of reputable outlets (headline, outlet, date and link only); Federal Reserve and SEC feeds; Apple and NVIDIA newsrooms as one side</td></tr>
+      <tr><td>Company filings</td><td>SEC EDGAR</td></tr>
+      <tr><td>Crypto funding rates, stablecoin supply</td><td>Binance or Deribit public APIs; DefiLlama</td></tr>
+    </tbody>
+  </table></div>
+  <p>When a source fails or has no key, the item is a "no reading" line and nothing is filled in. ETF flows, Fed futures and central bank gold buying have no source yet and always show "no reading". The S&amp;P 500 index level from FRED is never published (its licence forbids it); the token's own price is shown instead.</p>
+
+  <h2>Other Research tabs</h2>
+  <ul>
+    <li><strong>My themes</strong>: the Themes tool, see <a href="#invest-themes">Invest</a>.</li>
+    <li><strong>Portfolio check</strong>: facts about your holdings (allocation, overlap, loan health and a borrowing note per holding), linked to the general report. It never gives per-person buy or sell orders.</li>
+    <li><strong>Plans</strong>: the planned pricing (one Monday report or a month, paid in test USDC). The paywall is off.</li>
+  </ul>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Sample data.</strong> When there is no approved live report (for example the engine is switched off), the pages show a hand-made sample with a clear "Sample data" banner.</li>
+    <li><strong>Short history.</strong> The on-chain stock price feeds start in August 2026, so there is no 200-day average or 52-week range yet. Those items say "no reading".</li>
+    <li><strong>Cost caps.</strong> A run stops if it would spend more than $2 on models (the weekly run $4, $6 a day in total), and a failed run writes nothing rather than a partial report.</li>
+    <li><strong>No edge claimed.</strong> The team found no credible evidence that a weekly news signal beats the market after costs. The report explains and flags risk; it does not promise returns.</li>
+    <li><strong>Not advice.</strong> Every page carries the disclaimer: research only, not financial advice, past calls can be wrong, and tokenized assets can lose value.</li>
+  </ul>
+</article>
+
+<article class="page" id="gifts" data-title="Gift boxes" data-section="Features" data-keywords="gift box giftbox send open decline revoke expiry refund surprise mix research pick message animation">
+  <p class="crumb">Features</p>
+  <h1>Gift boxes</h1>
+  <p class="lead">Send someone a box worth a chosen amount of test USDC, holding one stock, your own mix, a surprise mix or a research pick. They open it, and the assets land in their own vault.</p>
+  <div class="status-row"><span class="pill live">Contract on Base Sepolia</span><span class="pill live">Pages built and merged</span><span class="pill mock">Mock tokens</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>It is like a gift card that turns into stocks. You put in, say, $5 and choose what is inside. Your friend gets a box to open. When they open it, the $5 buys the stocks at that day's price and puts them in their vault, with a little unboxing moment.</p>
+    <p>If they say no thanks, or nobody opens it before it expires, your money comes back to you. You can also take it back yourself while it is still unopened.</p>
+  </div>
+
+  <h2>Sending a gift</h2>
+  <p>On Gifts, choose <strong>Send a gift</strong>:</p>
+  <ul>
+    <li><strong>To</strong>: a Stackday ID, an @name or a wallet address.</li>
+    <li><strong>Amount</strong>: 1 to 500 test USDC. There is no fee on gifts.</li>
+    <li><strong>Box</strong>:
+      <ul>
+        <li><strong>One stock</strong>: 100% of one asset. Any supported asset works, invest-only ones included.</li>
+        <li><strong>My mix</strong>: 1 to 6 assets in whole percents, at least 1% each.</li>
+        <li><strong>Surprise</strong>: 2 to 4 random assets, each at least 10%, picked in your browser when you send. The contents are hidden in the app until opened. That is cosmetic: the blockchain is public.</li>
+        <li><strong>Research pick</strong>: the mix is chosen when the box is opened, from the latest approved weekly report, so it follows the newest research. It uses only the six researched assets.</li>
+      </ul>
+    </li>
+    <li><strong>Message</strong> (optional): up to 140 characters, kept off chain. Only the sender and the recipient can read it.</li>
+    <li><strong>Expiry</strong>: 7, 30 or 90 days.</li>
+  </ul>
+  <p>Sending is one flow in your wallet: approve the USDC, then create the box. The recipient sees a waiting count on the Received tab, a card on Home and a badge on the Gifts menu entry.</p>
+
+  <h2>How it works</h2>
+  <p>The <strong>GiftBox</strong> contract holds your USDC until the box is opened. It never holds stock. When the recipient opens it, the contract buys each part of the mix with the gift's USDC and sends it straight into their vault as free assets. This design means a $5 box is always $5 of stock on the day it is opened, a research pick can follow the newest report, and every refund returns exactly the USDC you sent.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 400" width="480" role="img" aria-label="Gift box states. The sender approves USDC and creates the box, which is then pending with the USDC held in GiftBox. From pending there are four endings. The recipient opens it before expiry: the USDC buys the mix into the recipient's vault. The recipient declines it, the sender revokes it, or after expiry anyone, usually the trigger bot, refunds it: in those three cases the USDC goes back to the sender, never anywhere else.">
+        <rect class="d-box" x="120" y="12" width="240" height="50" rx="10"/>
+        <text class="d-t" x="240" y="34" text-anchor="middle">Sender: approve + create</text>
+        <text class="d-s" x="240" y="52" text-anchor="middle">amount, box type, recipient, expiry</text>
+        <path class="d-e" d="M240 62V88" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="140" y="92" width="200" height="56" rx="12"/>
+        <text class="d-t acc" x="240" y="116" text-anchor="middle">Pending</text>
+        <text class="d-s" x="240" y="134" text-anchor="middle">USDC held in GiftBox</text>
+        <path class="d-e acc" d="M180 148V178H72V214" marker-end="url(#ah-acc)"/>
+        <path class="d-e" d="M220 148V214" marker-end="url(#ah)"/>
+        <path class="d-e" d="M260 148V178H296V214" marker-end="url(#ah)"/>
+        <path class="d-e" d="M300 148V166H412V214" marker-end="url(#ah)"/>
+
+        <text class="d-cap" x="372" y="160">after expiry</text>
+        <rect class="d-box good" x="12" y="218" width="120" height="60" rx="10"/>
+        <text class="d-t good" x="72" y="242" text-anchor="middle">Opened</text>
+        <text class="d-s" x="72" y="261" text-anchor="middle">recipient opens</text>
+        <rect class="d-box" x="140" y="218" width="98" height="60" rx="10"/>
+        <text class="d-t" x="189" y="242" text-anchor="middle">Declined</text>
+        <text class="d-s" x="189" y="261" text-anchor="middle">by recipient</text>
+        <rect class="d-box" x="246" y="218" width="98" height="60" rx="10"/>
+        <text class="d-t" x="295" y="242" text-anchor="middle">Revoked</text>
+        <text class="d-s" x="295" y="261" text-anchor="middle">by sender</text>
+        <rect class="d-box" x="352" y="218" width="116" height="60" rx="10"/>
+        <text class="d-t" x="410" y="242" text-anchor="middle">Refunded</text>
+        <text class="d-s" x="410" y="261" text-anchor="middle">anyone, or the bot</text>
+        <path class="d-e acc" d="M72 278V310" marker-end="url(#ah-acc)"/>
+        <rect class="d-box accent" x="12" y="314" width="176" height="74" rx="10"/>
+        <text class="d-t acc" x="100" y="338" text-anchor="middle">Buys the mix</text>
+        <text class="d-s" x="100" y="357" text-anchor="middle">into the recipient's vault,</text>
+        <text class="d-s" x="100" y="373" text-anchor="middle">free, price-protected</text>
+        <path class="d-e" d="M189 278V300H410V278" />
+        <path class="d-e" d="M300 300V310" marker-end="url(#ah)"/>
+        <rect class="d-box" x="212" y="314" width="256" height="74" rx="10"/>
+        <text class="d-t" x="340" y="342" text-anchor="middle">USDC back to the sender</text>
+        <text class="d-s" x="340" y="362" text-anchor="middle">exactly what was sent, never to</text>
+        <text class="d-s" x="340" y="378" text-anchor="middle">any other address</text>
+      </svg>
+    </div>
+    <figcaption><b>One way to stocks, three ways back.</b> Only the recipient can open, only before expiry. Declining, revoking and the expiry refund all pay the sender, and nobody can choose a different address.</figcaption>
+  </figure>
+
+  <h3>Opening a box</h3>
+  <ol class="steps">
+    <li><div><p>The recipient presses Open and signs. For a research pick, the app first builds the mix from the approved report and shows it, labelled "picked by research", before signing.</p></div></li>
+    <li><div><p>While the wallet and the transaction are pending, the box gently wiggles.</p></div></li>
+    <li><div><p><strong>Only once the transaction is confirmed</strong> does the lid pop, confetti burst out and one card per asset rise from the box, each with the amount taken from the transaction receipt.</p></div></li>
+    <li><div><p>If it fails, the box closes again with the reason and a Retry. With reduced motion switched on, there is no confetti or movement: the box fades open instead.</p></div></li>
+  </ol>
+  <p>Each part is bought at the price feed with slippage protection (the contract allows at most 3%). If any part cannot be bought, the whole opening is undone and the box stays closed, so the sender can still take it back.</p>
+
+  <h2>Gifts from the chat</h2>
+  <p>You can ask the chat assistant to "send Maya $5 of stocks". It checks the amount and box type, then opens the Gifts page on Send a gift with those filled in. The recipient is always chosen on the Gifts page, never put in a link.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>No sending to yourself</strong>, to the zero address or to the contract. Expiry must be between 1 and 365 days in the contract; the app offers 7, 30 or 90.</li>
+    <li><strong>A recipient with a loan</strong>: gifted assets arrive free, never locked, so they do not change the loan.</li>
+    <li><strong>A recipient with no vault</strong>: opening creates it.</li>
+    <li><strong>Research pick with no approved report</strong>: the box cannot be opened until a report is approved. The contract checks that the mix is valid, but it cannot check the research itself; the app shows the mix before the recipient signs.</li>
+    <li><strong>Messages</strong> need the optional account database and its <code>gifts</code> table. The founder adds that table to the live database.</li>
+    <li><strong>Who may receive.</strong> The app notes that tokenized stocks are only for people in eligible places outside the US, and that gifts may have tax rules where you live.</li>
+    <li><strong>How it was checked.</strong> Create, open, decline, revoke, a research open and the expiry refund were run on a copy of Base Sepolia against the deployed GiftBox, and a real 5 USDC gift was opened through the real pools on a copy of Base mainnet.</li>
+    <li><strong>Mainnet note.</strong> The S&amp;P 500 token's price feed is restricted on mainnet, so gifting it there needs another price adapter first.</li>
+  </ul>
+</article>
+
+<article class="page" id="chat" data-title="Chat assistant" data-section="Features" data-keywords="chat assistant ai claude intent card pre-check simulate sign guardrails untrusted receipts activity chips refresh">
+  <p class="crumb">Features</p>
+  <h1>Chat assistant</h1>
+  <p class="lead">Ask about your own balances, loans, prices, fees and the weekly research in plain words. When you want to act, the assistant prepares a card with the exact amounts, Stackday checks it, and you sign it in your own wallet.</p>
+  <div class="status-row"><span class="pill live">Built and merged</span><span class="pill mock">Mock sell desk for selling</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>There is an Ask button on every app page. Type things like "how is my loan?" or "buy $20 of Apple". The assistant can explain and suggest, but it cannot spend anything.</p>
+    <p>For actions it shows you a card: what will happen, how much, the fee, and that it goes to your own wallet. Stackday tests the card on the network first. Nothing moves until you press Confirm and approve it in your wallet.</p>
+  </div>
+
+  <h2>What it can read</h2>
+  <ul>
+    <li><strong>Your portfolio</strong>: wallet USDC, each asset in your vault (free and locked) with its value, loans, the fee owed, health and running plans. The server reads this from the chain for your signed-in wallet.</li>
+    <li><strong>A loan</strong>: amount owed, Stackday fee, health, the price fall it survives, share of the limit used and the liquidation price.</li>
+    <li><strong>Prices</strong>: the testnet price feeds, with their update time.</li>
+    <li><strong>The weekly research</strong>: the latest approved report only, with its date and the disclaimer.</li>
+    <li><strong>Explanations</strong> of fees, borrowing, selling, recurring buys, the vault, the testnet and gifts, from fixed text.</li>
+  </ul>
+
+  <h2>What it can prepare</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Card</th><th>What you sign</th></tr></thead>
+    <tbody>
+      <tr><td>Buy</td><td>A one-time buy into your vault. No fee.</td></tr>
+      <tr><td>Recurring buy</td><td>An approval and a plan (weekly, every 2 or 4 weeks, for 4, 12, 26 or 52 weeks). The 0.15% fee is shown per buy and in total.</td></tr>
+      <tr><td>Stop a plan</td><td>Cancels that asset's recurring buy.</td></tr>
+      <tr><td>Sell</td><td>Withdraws from your vault, then sells to the testnet mock sell desk for test USDC. The card says "You could borrow against it instead".</td></tr>
+      <tr><td>Withdraw</td><td>Assets from your vault to your connected wallet.</td></tr>
+      <tr><td>Lock, unlock</td><td>Moves a borrowable asset between free and locked. An unlock that would push a loan over the safety cap is refused.</td></tr>
+      <tr><td>Borrow</td><td>Locks collateral and borrows at the risk level you choose (Mid by default), showing health after and the liquidation price. Refused, not just warned, below that level.</td></tr>
+      <tr><td>Repay</td><td>Repays one loan or every loan, fee first.</td></tr>
+      <tr><td>Gift</td><td>Not signed in chat: it opens the Gifts page with the amount and box type filled in.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>How one turn works</h2>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 730" width="480" role="img" aria-label="One chat turn. In your browser you type a message. On the Stackday server the chat route checks your wallet sign-in and the rate limit, reads your portfolio from the chain, and calls the model with a fixed list of tools for up to five steps. The model answers with text, or with one action intent, which must pass a strict schema with no address or receiver field, and is refused if the turn included untrusted text. Back in your browser, code builds the card from the intent with the same helpers as the Invest and Borrow pages: receiver is your wallet, at most 500 test USDC, allowlisted contracts only, two minute expiry. Every call on the card is simulated on Base Sepolia: it passes, is blocked with the reason, or could not be checked. You press Confirm and sign in your own wallet. A receipt with transaction links is saved to Activity on your device.">
+        <rect class="d-zone" x="8" y="8" width="464" height="84" rx="12"/>
+        <text class="d-cap" x="22" y="28">Your browser</text>
+        <rect class="d-box" x="120" y="38" width="240" height="40" rx="10"/>
+        <text class="d-t" x="240" y="63" text-anchor="middle">You type a message</text>
+        <path class="d-e" d="M240 78V116" marker-end="url(#ah)"/>
+
+        <rect class="d-zone accent" x="8" y="104" width="464" height="320" rx="12"/>
+        <text class="d-cap" x="22" y="124">Stackday server, POST /api/chat</text>
+        <rect class="d-box" x="70" y="134" width="340" height="44" rx="10"/>
+        <text class="d-t" x="240" y="154" text-anchor="middle">Signed-in wallet? Within the rate limit?</text>
+        <text class="d-s" x="240" y="170" text-anchor="middle">10 a minute, 150 a day per wallet</text>
+        <path class="d-e" d="M240 178V196" marker-end="url(#ah)"/>
+        <rect class="d-box" x="70" y="200" width="340" height="44" rx="10"/>
+        <text class="d-t" x="240" y="220" text-anchor="middle">Reads your portfolio from the chain</text>
+        <text class="d-s" x="240" y="236" text-anchor="middle">addresses and long hex removed from the text</text>
+        <path class="d-e" d="M240 244V262" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="70" y="266" width="340" height="44" rx="10"/>
+        <text class="d-t acc" x="240" y="286" text-anchor="middle">Model with a fixed list of tools</text>
+        <text class="d-s" x="240" y="302" text-anchor="middle">claude-sonnet-5-5, up to 5 steps</text>
+        <path class="d-e" d="M150 310V330H90V346" marker-end="url(#ah)"/>
+        <path class="d-e acc" d="M330 310V330H340V346" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="20" y="350" width="140" height="62" rx="10"/>
+        <text class="d-t" x="90" y="376" text-anchor="middle">Text answer</text>
+        <text class="d-s" x="90" y="394" text-anchor="middle">shown as is</text>
+        <rect class="d-box warn" x="196" y="350" width="268" height="62" rx="10"/>
+        <text class="d-t" x="330" y="372" text-anchor="middle">One action intent, checked</text>
+        <text class="d-s" x="330" y="389" text-anchor="middle">strict schema, no address field;</text>
+        <text class="d-s" x="330" y="404" text-anchor="middle">refused if the turn had untrusted text</text>
+        <path class="d-e acc" d="M330 412V452" marker-end="url(#ah-acc)"/>
+
+        <rect class="d-zone" x="8" y="440" width="464" height="216" rx="12"/>
+        <text class="d-cap" x="22" y="460">Your browser</text>
+        <rect class="d-box" x="70" y="470" width="340" height="62" rx="10"/>
+        <text class="d-t" x="240" y="492" text-anchor="middle">Code builds the card from the intent</text>
+        <text class="d-s" x="240" y="509" text-anchor="middle">same helpers as Invest and Borrow; to: your wallet;</text>
+        <text class="d-s" x="240" y="524" text-anchor="middle">max 500 test USDC; allowlist; 2 minute expiry</text>
+        <path class="d-e" d="M240 532V550" marker-end="url(#ah)"/>
+        <rect class="d-box" x="70" y="554" width="340" height="44" rx="10"/>
+        <text class="d-t" x="240" y="574" text-anchor="middle">Pre-check: every call simulated in order</text>
+        <text class="d-s" x="240" y="590" text-anchor="middle">passes / blocked with the reason / could not check</text>
+        <path class="d-e" d="M240 598V614" marker-end="url(#ah)"/>
+        <rect class="d-box" x="100" y="618" width="280" height="28" rx="8"/>
+        <text class="d-l" x="240" y="636" text-anchor="middle">You read the card and press Confirm</text>
+        <path class="d-e acc" d="M240 656V676" marker-end="url(#ah-acc)"/>
+        <rect class="d-box accent" x="40" y="680" width="190" height="40" rx="10"/>
+        <text class="d-t acc" x="135" y="705" text-anchor="middle">Your wallet signs</text>
+        <path class="d-e" d="M230 700H246" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="250" y="680" width="210" height="40" rx="10"/>
+        <text class="d-t good" x="355" y="705" text-anchor="middle">Receipt saved to Activity</text>
+      </svg>
+    </div>
+    <figcaption><b>The model proposes; code builds; you sign.</b> The model can only return a validated intent such as "buy, Apple, 20 USDC". It never writes an address, an amount on the card, or transaction data. The server holds no keys and never signs.</figcaption>
+  </figure>
+
+  <h2>The card and the pre-check</h2>
+  <p>A card shows the action, the asset, the amounts, the Stackday fee (or None), "to: your wallet" with the full address and a testnet label. Borrow cards add the health after and the liquidation price with the price fall that triggers it. The sentence above a card is written by code from the intent, never by the model.</p>
+  <p>When a card appears, every call on it is simulated in order on Base Sepolia from your connected wallet, in one request. The card then says one of three things:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Result</th><th>What you see</th><th>Confirm</th></tr></thead>
+    <tbody>
+      <tr><td>Passes</td><td>A green line: it passes, prices can still move</td><td>On</td></tr>
+      <tr><td>Blocked</td><td>The failing step and the reason in plain words, a hint and Check again</td><td>Off</td></tr>
+      <tr><td>Could not pre-check</td><td>"Could not pre-check right now"</td><td>On</td></tr>
+    </tbody>
+  </table></div>
+  <p>A card expires after 2 minutes. An expired card offers <strong>Refresh numbers</strong>: the same stored intent is rebuilt through the same builder with fresh chain reads, a fresh expiry and a new pre-check, without asking the model again. Only one card is pending at a time; a new one replaces the old.</p>
+
+  <h2>Guardrails</h2>
+  <ul>
+    <li><strong>No keys, no signing.</strong> The model only outputs intents. Your wallet shows its own prompt for every step.</li>
+    <li><strong>No receiver field.</strong> No intent has an address or "to" field, and an unknown field makes the whole intent fail. Withdrawals and borrows always go to your connected wallet.</li>
+    <li><strong>Caps.</strong> At most 500 test USDC per card. A borrow is refused if health afterwards would be below your chosen risk level.</li>
+    <li><strong>Allowlist.</strong> Cards may only call USDC, Stackday's contracts, the mock sell desk, the listed asset tokens and your own vault.</li>
+    <li><strong>Untrusted text.</strong> Research text reaches the model inside an untrusted block, and no action is accepted in a turn that included it. Later turns see only a stub of that answer.</li>
+    <li><strong>No personal advice.</strong> "What should I buy?" gets the general weekly views with the disclaimer and an explanation of the options.</li>
+    <li><strong>Sign-in and limits.</strong> The chat needs the wallet sign-in. Each wallet gets 10 messages a minute and 150 a day; if the limit store cannot be reached, the chat refuses rather than running unlimited.</li>
+    <li><strong>It never asks</strong> for a private key or recovery phrase.</li>
+  </ul>
+
+  <h2>Receipts and Activity</h2>
+  <p>A finished action leaves a receipt with every transaction link. Receipts are listed under <strong>Activity</strong>, stored on your device only, and are never sent to the model. Chat history is also kept on the device (the last 40 messages, plus up to 100 older receipts); Clear keeps the receipts.</p>
+
+  <h2>The dock</h2>
+  <p>The chat opens as a dialog: focus stays inside it and returns to the Ask button when it closes, Esc closes it (except while a wallet signature is running), and new messages are announced politely to screen readers. On phones it is a bottom sheet with a drag handle and a dimmed backdrop. Suggestion chips come from a fixed list in code: by page when the dock is empty, then by card type or by what was asked. A sell card offers "Or borrow X USDC instead" from its own numbers, worded as an option.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Small testnet pools.</strong> Each Morpho market holds about 4 test USDC to lend and the sell desk holds about 5 test USDC, so larger borrows and sells are refused until the founder tops them up.</li>
+    <li><strong>Selling is testnet only.</strong> On mainnet a sell needs a sell adapter (issue #35), planned after the deadline.</li>
+    <li><strong>Gift cards are not pre-checked</strong>, because they only open the Gifts page.</li>
+    <li><strong>Mistakes happen.</strong> The model can misunderstand. That is why the card, not the chat text, is what you check, and why nothing happens without your signature.</li>
+    <li><strong>How it was checked.</strong> The buy, recurring buy, stop, sell, borrow, repay and withdraw cards were sent and succeeded on a copy of Base Sepolia. The live model was not called from a developer machine.</li>
+    <li><strong>No model key, no chat.</strong> Without the server's model key the chat route answers that it is unavailable; the rest of the app is unaffected.</li>
+  </ul>
+</article>
+
+<article class="page" id="private-pay" data-title="Private pay" data-section="Features" data-keywords="confidential private salary fairblock stabletrust encrypted payday collect csv">
+  <p class="crumb">Features</p>
+  <h1>Private pay</h1>
+  <p class="lead">Salaries on a public blockchain are visible to anyone. Private pay uses Fairblock confidential transfers so that payday amounts are encrypted on chain, while the rest of Stackday works as before.</p>
+  <div class="status-row"><span class="pill live">Phase 1 live on testnet (real, not mocked)</span><span class="pill plan">Inside Payroll: not built</span></div>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Normally anyone can look up how much a wallet was paid. With private pay, the amount is scrambled so that only you and your employer can read it. People can still see that a payment happened, just not how much.</p>
+    <p>You collect it with the same split as normal pay: invest a share, keep the rest, and you can leave the rest private.</p>
+  </div>
+
+  <h2>How it works</h2>
+  <p>Private pay runs <strong>beside</strong> the Payroll contract, through Fairblock's StableTrust contract on Base Sepolia (<span class="addr">0xb6cdAE7ccfEE03e351694c63436D5c5c073aEF84</span>, also live on Base mainnet). Amounts are encrypted; wallet addresses stay visible. The keys come from one wallet signature per visit and stay in your browser.</p>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 400" width="480" role="img" aria-label="A private payday. The owner presses Pay all. People not set up for private pay are paid the normal way from the Payroll treasury. People who turned on private pay get an encrypted transfer from the owner's private balance through Fairblock into their own private balance. A team member collects: their browser decrypts and withdraws to USDC, then they can invest a share with one-time buys into their vault, and the rest can stay private.">
+        <rect class="d-box" x="140" y="12" width="200" height="44" rx="10"/>
+        <text class="d-t" x="240" y="32" text-anchor="middle">Owner presses Pay all</text>
+        <text class="d-s" x="240" y="48" text-anchor="middle">one list, a Private tick per person</text>
+        <path class="d-e" d="M190 56V76H100V98" marker-end="url(#ah)"/>
+        <path class="d-e acc" d="M290 56V76H370V98" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="16" y="102" width="176" height="62" rx="10"/>
+        <text class="d-t" x="104" y="126" text-anchor="middle">Normal pay</text>
+        <text class="d-s" x="104" y="145" text-anchor="middle">from the Payroll treasury</text>
+        <rect class="d-box accent" x="272" y="102" width="196" height="62" rx="10"/>
+        <text class="d-t acc" x="370" y="126" text-anchor="middle">Encrypted transfer</text>
+        <text class="d-s" x="370" y="145" text-anchor="middle">Fairblock, one signature each</text>
+        <path class="d-e" d="M104 164V190" marker-end="url(#ah)"/>
+        <rect class="d-box" x="16" y="194" width="176" height="50" rx="10"/>
+        <text class="d-t" x="104" y="216" text-anchor="middle">Claim on Payday</text>
+        <text class="d-s" x="104" y="233" text-anchor="middle">see Payday page</text>
+        <path class="d-e acc" d="M370 164V190" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="272" y="194" width="196" height="50" rx="10"/>
+        <text class="d-t" x="370" y="216" text-anchor="middle">Member's private balance</text>
+        <text class="d-s" x="370" y="233" text-anchor="middle">amount hidden on chain</text>
+        <path class="d-e" d="M370 244V270" marker-end="url(#ah)"/>
+        <rect class="d-box" x="232" y="274" width="236" height="50" rx="10"/>
+        <text class="d-t" x="350" y="296" text-anchor="middle">Collect on My pay</text>
+        <text class="d-s" x="350" y="313" text-anchor="middle">browser decrypts, withdraws to USDC</text>
+        <path class="d-e acc" d="M300 324V350" marker-end="url(#ah-acc)"/>
+        <path class="d-e" d="M420 324V350" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="200" y="354" width="160" height="38" rx="10"/>
+        <text class="d-t good" x="280" y="378" text-anchor="middle">Share into your vault</text>
+        <rect class="d-box soft" x="368" y="354" width="100" height="38" rx="10"/>
+        <text class="d-t" x="418" y="378" text-anchor="middle">Rest stays</text>
+      </svg>
+    </div>
+    <figcaption><b>Normal and private pay in one button.</b> Anyone not set up for private pay is paid the normal way. Private payments go one signed transfer at a time, so a payday needs one signature per private payee.</figcaption>
+  </figure>
+
+  <h3>For the owner</h3>
+  <ul>
+    <li>Team members turn on private pay from the team invite. On Payroll, Pay the team (Once, now) lists everyone with a <strong>Private</strong> tick box: ticked for people who are ready, locked to normal pay for anyone not set up.</li>
+    <li>A private payroll balance with Unlock, Top up and Withdraw leftover, so it can be funded before payday, and an estimate of how many signatures a payday needs.</li>
+    <li>A payday log on the device: one entry per payday that opens to show every payment, private or normal, with its transaction, and a CSV export for an accountant or auditor.</li>
+  </ul>
+  <h3>For a team member</h3>
+  <ul>
+    <li>On My pay, collect and invest 0, 10, 20% or a custom share in one flow. The invested part goes in as one-time buys.</li>
+    <li>A saved split for every private payday (percentages only, kept on the device). You still press Collect, because only your browser holds the keys.</li>
+    <li>A reminder on Home and My pay when new private pay has arrived, read from the encrypted balance with no signature and no amount shown.</li>
+  </ul>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Slow steps.</strong> Amounts move in whole cents, and Fairblock steps can take minutes. An end-to-end private payday script took 57 seconds.</li>
+    <li><strong>No one-click payday yet.</strong> That needs Fairblock's Fairycloak relay (access on request from Fairblock).</li>
+    <li><strong>Not built:</strong> confidential salaries inside the Payroll contract itself, and unlinkable withdrawals.</li>
+    <li><strong>Disclosure.</strong> Fairblock's SDK has no auditor keys; scoped disclosure is Fairblock's separate Compliance Dashboard.</li>
+    <li><strong>Device-bound.</strong> Logs and saved splits live in the browser that made them.</li>
+  </ul>
+</article>
+
+<article class="page" id="fees" data-title="Fees" data-section="Trust and safety" data-keywords="fee fees cost bps recurring buy borrow earn revenue subscription immutable">
+  <p class="crumb">Trust and safety</p>
+  <h1>Fees</h1>
+  <p class="lead">Three small fees, 0.2% at most, each fixed in the contracts when they were deployed. Nobody can change them later, and none is ever taken from your salary, your vault or your collateral.</p>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Buying once is free. A recurring buy costs 0.15% of what it buys: 15 cents on $100. A loan costs 0.1% a year on top of the lender's interest: about $1 on $1,000 borrowed for a year. Earning interest costs 0.1% a year, paid only out of the interest you earn.</p>
+    <p>Gifts, withdrawals and collecting your pay are free (you only pay the network's own small gas fee).</p>
+  </div>
+
+  <h2>The three fees</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Fee</th><th class="num">Rate</th><th>When it is taken</th><th>Where in the code</th></tr></thead>
+    <tbody>
+      <tr><td>Recurring buy</td><td class="num">0.15%</td><td>On the USDC a recurring plan puts into an asset: an every-payday plan or a recurring buy. One-time buys are free.</td><td>Payroll, SipRouter</td></tr>
+      <tr><td>Borrow</td><td class="num">0.1% a year</td><td>Builds up by the second on the amount owed, paid on repayment before the loan. You receive the full amount you borrow. If a loan is liquidated instead, the unpaid fee is dropped.</td><td>EmployeeVault, set in VaultFactory</td></tr>
+      <tr><td>Earn</td><td class="num">0.1% a year</td><td>On USDC earning interest, taken only out of the interest when you stop earning. If interest is lower, the fee is only the interest.</td><td>EmployeeVault, set in VaultFactory</td></tr>
+    </tbody>
+  </table></div>
+  <p>The borrow fee is shown inside one <strong>Borrow APY</strong> together with Morpho's interest, which goes to Morpho's lenders, not to Stackday. Every fee is visible on the screen (and on chat cards) before you confirm.</p>
+
+  <h2>The rules every fee follows</h2>
+  <ul>
+    <li><strong>Fixed at deployment.</strong> Fee rates are set when a contract is deployed, and no function exists to change them.</li>
+    <li><strong>Capped in code at 0.2%</strong> (20 basis points). A deployment with a higher fee would fail.</li>
+    <li><strong>Never from salary paid out</strong>, never from money in a vault, never from collateral.</li>
+    <li><strong>No fee on gifts.</strong> The GiftBox contract has no fee setting at all.</li>
+    <li><strong>The fee wallet has no powers.</strong> It only receives.</li>
+  </ul>
+
+  <h2>Values on the testnet deployment</h2>
+  <div class="table-wrap"><table><thead><tr><th>Setting</th><th>Value on the testnet deployment</th></tr></thead><tbody><tr><td>Recurring buy fee (sipFeeBps)</td><td>15 bps = 0.15%</td></tr><tr><td>Borrow fee (borrowFeeBps)</td><td>10 bps = 0.1% a year</td></tr><tr><td>Earn fee (earnFeeBps)</td><td>10 bps = 0.1% a year</td></tr><tr><td>Fee wallet</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df" rel="noopener" target="_blank">0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df</a></td></tr><tr><td>Shortest payroll rhythm (minScheduleInterval)</td><td>60 seconds</td></tr><tr><td>Chain id</td><td>84532 (Base Sepolia)</td></tr></tbody></table></div>
+  <p>On testnet the fee wallet is the demo wallet.</p>
+
+  <h2>Planned, not built</h2>
+  <ul>
+    <li><strong>Business subscription</strong>: a monthly price per employee for running payroll, billed off chain or in USDC. Expected to be the main income. Needs no contract change.</li>
+    <li><strong>Research plans</strong>: a small USDC price for one Monday report or a month. The paywall stays off until the quality bar and a legal check are met.</li>
+    <li><strong>Lending income</strong>: a Stackday-curated USDC vault on Morpho. A larger project with real risk duties, after the competition.</li>
+  </ul>
+</article>
+
+<article class="page" id="security" data-title="Security, risks and mocks" data-section="Trust and safety" data-keywords="security risk audit mocked real testnet limitations liquidation issuer key recovery database sign-in rate limit">
+  <p class="crumb">Trust and safety</p>
+  <h1>Security, risks and what is mocked</h1>
+  <p class="lead">What is real on the test network, what is a stand-in, how the app is protected, and what can still go wrong. Read this before trusting any of it.</p>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Stackday's own contracts are real and have no admin key that can touch your money. The stocks, Bitcoin, Ether and gold on the test network are pretend versions with prices the demo wallet can move, so the team can show what happens in a crash.</p>
+    <p>This is a hackathon demo. Nobody outside the team has audited it. Do not use it with real money.</p>
+  </div>
+
+  <h2>Real and mocked, layer by layer</h2>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 452" width="480" role="img" aria-label="Trust layers. You hold your wallet key. Stackday's contracts are real and have no owner: Payroll, SipRouter, GiftBox, VaultFactory, your vault and the adapters. Existing protocols are real: Morpho and Circle test USDC. Testnet mocks have an owner, the demo wallet: the asset tokens, their price feeds, the exchange, the sell desk and the interest vault. Off-chain services, the web app, the account database, the trigger bot, the chat and research servers, never hold your funds.">
+        <rect class="d-box accent" x="16" y="12" width="448" height="58" rx="10"/>
+        <text class="d-t acc" x="30" y="36">You</text>
+        <text class="d-s" x="30" y="55">your wallet key signs every action; no recovery if lost</text>
+        <rect class="d-box good" x="16" y="82" width="448" height="74" rx="10"/>
+        <text class="d-t good" x="30" y="106">Stackday contracts: real, no owner</text>
+        <text class="d-s" x="30" y="125">Payroll, SipRouter, GiftBox, VaultFactory, your vault,</text>
+        <text class="d-s" x="30" y="141">lending, interest and price adapters. Verified on Sourcify</text>
+        <rect class="d-box good" x="16" y="168" width="448" height="58" rx="10"/>
+        <text class="d-t good" x="30" y="192">Existing protocols: real</text>
+        <text class="d-s" x="30" y="211">Morpho and its interest rate model, Circle test USDC</text>
+        <rect class="d-box warn" x="16" y="238" width="448" height="90" rx="10"/>
+        <text class="d-t warn" x="30" y="262">Testnet mocks: owned by the demo wallet</text>
+        <text class="d-s" x="30" y="281">15 asset tokens and their price feeds, the exchange,</text>
+        <text class="d-s" x="30" y="297">the sell desk, the interest vault. The owner can move prices,</text>
+        <text class="d-s" x="30" y="313">pause transfers and mint. They pay no dividends</text>
+        <rect class="d-box soft" x="16" y="340" width="448" height="100" rx="10"/>
+        <text class="d-t" x="30" y="364">Off chain: never holds your funds</text>
+        <text class="d-s" x="30" y="383">web app, optional account database (names, teams,</text>
+        <text class="d-s" x="30" y="399">attendance, gift messages), trigger bot (pays gas only),</text>
+        <text class="d-s" x="30" y="415">chat and research servers (read and write text,</text>
+        <text class="d-s" x="30" y="431">no wallet, no keys that move money)</text>
+      </svg>
+    </div>
+    <figcaption><b>Money only moves on chain, and only by your signature or by rules you set.</b> The mocks are the one place with special powers, on purpose, so stress scenarios can be shown. They are not part of the real design.</figcaption>
+  </figure>
+
+  <h3>What stands in for what</h3>
+  <ul>
+    <li><strong>Asset tokens</strong>: mock tokens stand in for Coinbase tokenized stocks (AAPLc, NVDAc and others), cbBTC, WETH, PAXG and the deSPXA and wtSGOV fund tokens. The same code is tested with the real AAPLc token, a real Aerodrome pool and the real Morpho market on a private copy of Base mainnet. Bitcoin and Ether have no mainnet test yet.</li>
+    <li><strong>Price feeds</strong>: mock feeds, moved by the demo wallet. Price charts in the app show real market prices, for reference only.</li>
+    <li><strong>The exchange</strong>: a mock that mints the asset at exactly the feed price. On mainnet, buys go through Aerodrome Slipstream pools.</li>
+    <li><strong>The sell desk</strong>: a mock that buys assets back at the feed price minus 0.5%, from a small test USDC reserve. Used only by the chat's sell card.</li>
+    <li><strong>The interest venue</strong>: a plain mock interest vault. A real Morpho vault was tested on a copy of mainnet.</li>
+    <li><strong>Market mood</strong> in Themes: a hand-built snapshot, labelled "not live".</li>
+  </ul>
+
+  <h2>How the contracts protect you</h2>
+  <ul>
+    <li>One vault per person. No contract pools money across people.</li>
+    <li>No admin or owner function can move money out of a vault. Only the vault's owner can withdraw, borrow, unlock or earn.</li>
+    <li>The vault cannot be set up twice or taken over. Creating someone else's vault first is harmless.</li>
+    <li>Adapters act only on the caller's own position and hold nothing between calls.</li>
+    <li>Employer treasuries are separate. A paused schedule pays nothing.</li>
+    <li>A failed purchase never blocks a salary. Over-repaying only takes the debt.</li>
+    <li>Fees are fixed and capped. Reentrancy guards and checks on every external call; tests on every money path (over 100 local contract tests, plus fork tests on a copy of Base mainnet).</li>
+  </ul>
+
+  <h2>How the app protects you</h2>
+  <ul>
+    <li><strong>Sign-in</strong> is a free wallet signature (Sign-In with Ethereum) with a single-use code that expires in 10 minutes, tied to the site and the chain. It cannot be replayed.</li>
+    <li><strong>Rate limits</strong> on every API route, counted per visitor, plus per-wallet limits on the chat.</li>
+    <li><strong>Security headers and an origin check</strong> on requests that change data.</li>
+    <li><strong>The database</strong> has row level security on with no public policies: browsers cannot read or write it directly. Only the server can, after checking the signature.</li>
+    <li><strong>Consent</strong>: a business only sees a person's attendance after that person accepts the team invite.</li>
+    <li><strong>Every transaction is simulated</strong> before your wallet is asked to sign it, with extra gas margin for Morpho.</li>
+  </ul>
+
+  <h2>Risks you should know</h2>
+  <div class="note danger">
+    <svg class="note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17v.5"/></svg>
+    <div class="note-body">
+      <p><strong>No independent audit.</strong> The review so far is the builders' own. Do not use with real money.</p>
+    </div>
+  </div>
+  <ul>
+    <li><strong>Prices can fall a lot.</strong> Every one of the original testnet assets lost money in 2022, from about 26% (Apple) to 68% (Ether). Tokenized assets add smart-contract, issuer, custody and liquidity risk.</li>
+    <li><strong>Liquidation.</strong> A loan whose health falls below 1.00 can be liquidated. The emergency rule only acts when a salary is claimed.</li>
+    <li><strong>Issuer powers.</strong> The real stock tokens have an issuer who can pause, block or seize tokens. During a pause a loan cannot be topped up, only repaid.</li>
+    <li><strong>Key loss.</strong> A vault has one owner key and no recovery.</li>
+    <li><strong>Outside dependencies.</strong> Morpho, the interest venue, USDC and the price feeds are code Stackday depends on but does not control.</li>
+    <li><strong>Paydays wait for a button.</strong> A due payday or recurring buy waits until someone (usually the trigger bot) runs it.</li>
+    <li><strong>The database is a normal web service.</strong> Names, team lists (including salaries the employer typed in), attendance and gift messages are only as private as that database and its keys.</li>
+    <li><strong>Who may use the tokens.</strong> Tokenized stocks are for eligible people outside the United States and carry no voting rights. The app gives information, not investment advice.</li>
+  </ul>
+
+  <h2>Testnet-only behaviour</h2>
+  <ul>
+    <li>Shortest payroll rhythm: 60 seconds (one day on mainnet).</li>
+    <li>The stale price check on recurring buys is off (about 26 hours on mainnet).</li>
+    <li>Each Morpho market holds about 4 test USDC to lend; the sell desk about 5.</li>
+    <li>Selling exists only through the mock sell desk.</li>
+  </ul>
+</article>
+
+<article class="page" id="architecture" data-title="Architecture" data-section="For developers" data-keywords="architecture stack nextjs wagmi viem vercel supabase foundry solidity adapters overview code map repo">
+  <p class="crumb">For developers</p>
+  <h1>Architecture</h1>
+  <p class="lead">Solidity contracts on Base Sepolia hold and move all money. A Next.js app on Vercel reads the chain, asks your wallet to sign, and runs a few server routes for accounts, chat, research and the trigger bot.</p>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>There are two halves. The blockchain half is a set of small programs (smart contracts) that hold the money and follow fixed rules. The website half shows you what is going on and prepares transactions, but it can never move your money by itself: your wallet has to sign.</p>
+  </div>
+
+  <h2>The pieces and how they talk</h2>
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 680 440" width="680" role="img" aria-label="Architecture. Your browser runs the Next.js app, which talks to Vercel server routes over HTTPS and asks your wallet extension to sign. The wallet sends transactions to the Stackday contracts on Base Sepolia. Server routes use Supabase with the service role key, the Anthropic API for chat and research models, and public market data sources. The trigger bot runs on a Vercel cron and sends due paydays, recurring buys and gift refunds to the contracts, paying gas only. Contracts reach Morpho, USDC and the testnet mocks through adapters.">
+        <rect class="d-box accent" x="16" y="40" width="180" height="80" rx="10"/>
+        <text class="d-t acc" x="106" y="72" text-anchor="middle">Your browser</text>
+        <text class="d-s" x="106" y="91" text-anchor="middle">Next.js app, wagmi, viem</text>
+        <text class="d-s" x="106" y="107" text-anchor="middle">reads the chain directly</text>
+        <rect class="d-box" x="16" y="170" width="180" height="56" rx="10"/>
+        <text class="d-t" x="106" y="194" text-anchor="middle">Wallet extension</text>
+        <text class="d-s" x="106" y="212" text-anchor="middle">holds your key, signs</text>
+
+        <rect class="d-zone" x="246" y="16" width="238" height="236" rx="12"/>
+        <text class="d-cap" x="262" y="36">Vercel server</text>
+        <rect class="d-box" x="262" y="46" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="63" text-anchor="middle">API routes</text>
+        <text class="d-s" x="365" y="78" text-anchor="middle">sign-in, accounts, people, gifts</text>
+        <rect class="d-box" x="262" y="96" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="113" text-anchor="middle">Chat route</text>
+        <text class="d-s" x="365" y="128" text-anchor="middle">model, intents, no keys</text>
+        <rect class="d-box" x="262" y="146" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="163" text-anchor="middle">Research engine</text>
+        <text class="d-s" x="365" y="178" text-anchor="middle">crons: daily and Monday</text>
+        <rect class="d-box" x="262" y="196" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="213" text-anchor="middle">Trigger bot</text>
+        <text class="d-s" x="365" y="228" text-anchor="middle">cron, weekdays 16:00 UTC</text>
+
+        <rect class="d-box" x="530" y="40" width="134" height="64" rx="10"/>
+        <text class="d-t" x="597" y="66" text-anchor="middle">Supabase</text>
+        <text class="d-s" x="597" y="85" text-anchor="middle">optional database</text>
+        <rect class="d-box" x="530" y="118" width="134" height="56" rx="10"/>
+        <text class="d-t" x="597" y="142" text-anchor="middle">Anthropic API</text>
+        <text class="d-s" x="597" y="160" text-anchor="middle">Claude models</text>
+        <rect class="d-box" x="530" y="188" width="134" height="56" rx="10"/>
+        <text class="d-t" x="597" y="212" text-anchor="middle">Market data</text>
+        <text class="d-s" x="597" y="230" text-anchor="middle">Coinbase, FRED, GDELT</text>
+
+        <rect class="d-zone accent" x="16" y="290" width="648" height="140" rx="12"/>
+        <text class="d-cap" x="32" y="310">Base Sepolia, chain 84532</text>
+        <rect class="d-box good" x="32" y="320" width="200" height="94" rx="10"/>
+        <text class="d-t good" x="132" y="348" text-anchor="middle">Stackday contracts</text>
+        <text class="d-s" x="132" y="368" text-anchor="middle">Payroll, SipRouter, GiftBox,</text>
+        <text class="d-s" x="132" y="384" text-anchor="middle">VaultFactory, one vault</text>
+        <text class="d-s" x="132" y="400" text-anchor="middle">per person</text>
+        <rect class="d-box" x="256" y="320" width="150" height="94" rx="10"/>
+        <text class="d-t" x="331" y="352" text-anchor="middle">Adapters</text>
+        <text class="d-s" x="331" y="372" text-anchor="middle">lending, price,</text>
+        <text class="d-s" x="331" y="388" text-anchor="middle">interest, swap</text>
+        <rect class="d-box good" x="430" y="320" width="104" height="42" rx="8"/>
+        <text class="d-t good" x="482" y="346" text-anchor="middle">Morpho</text>
+        <rect class="d-box good" x="430" y="372" width="104" height="42" rx="8"/>
+        <text class="d-t good" x="482" y="398" text-anchor="middle">USDC</text>
+        <rect class="d-box warn" x="550" y="320" width="100" height="94" rx="10"/>
+        <text class="d-t warn" x="600" y="352" text-anchor="middle">Mocks</text>
+        <text class="d-s" x="600" y="372" text-anchor="middle">tokens, feeds,</text>
+        <text class="d-s" x="600" y="388" text-anchor="middle">exchange, desk</text>
+
+        <path class="d-e" d="M106 120V166" marker-end="url(#ah)"/>
+        <text class="d-l" x="112" y="148">asks to sign</text>
+        <path class="d-e acc" d="M106 226V316" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="112" y="272">transactions</text>
+        <path class="d-e" d="M198 66H258" marker-end="url(#ah)"/>
+        <text class="d-l" x="228" y="58" text-anchor="middle">HTTPS</text>
+        <path class="d-e" d="M470 66H526" marker-end="url(#ah)"/>
+        <text class="d-l" x="498" y="58" text-anchor="middle">server</text>
+        <path class="d-e" d="M470 116H500V146H526" marker-end="url(#ah)"/>
+        <path class="d-e" d="M470 166H500V146"/>
+        <path class="d-e" d="M470 172H512V216H526" marker-end="url(#ah)"/>
+        <path class="d-e dash" d="M365 236V270H200V316" marker-end="url(#ah)"/>
+        <text class="d-l" x="282" y="264" text-anchor="middle">runs due items, gas only</text>
+        <path class="d-e" d="M234 367H252" marker-end="url(#ah)"/>
+        <path class="d-e" d="M408 341H426" marker-end="url(#ah)"/>
+        <path class="d-e" d="M408 393H426" marker-end="url(#ah)"/>
+        <path class="d-e" d="M331 414V424H600V418" marker-end="url(#ah)"/>
+      </svg>
+    </div>
+    <figcaption><b>Only the bottom band holds money.</b> The server never has a key that can move user funds. The trigger bot's key only pays gas to press buttons the contracts already allow anyone to press. The browser reads balances straight from the chain.</figcaption>
+  </figure>
+
+  <h2>Stack</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Part</th><th>Tools</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Contracts</td><td>Solidity, OpenZeppelin v5, Foundry</td><td><code>src/</code>, tests in <code>test/</code>, scripts in <code>script/</code></td></tr>
+      <tr><td>Web app</td><td>Next.js, TypeScript, wagmi, viem, Tailwind, hosted on Vercel</td><td><code>web/</code></td></tr>
+      <tr><td>Account database (optional)</td><td>Supabase with row level security, server access only</td><td><code>supabase/schema.sql</code>, <code>web/lib/server/backend.ts</code></td></tr>
+      <tr><td>Chat</td><td>Claude via the Anthropic API, zod schemas</td><td><code>web/app/api/chat</code>, <code>web/lib/chat</code>, <code>web/components/chat</code></td></tr>
+      <tr><td>Research</td><td>Claude via the Anthropic API, public data sources</td><td><code>web/lib/research</code>, <code>web/app/api/research</code></td></tr>
+      <tr><td>Private pay</td><td>Fairblock StableTrust SDK</td><td><code>web/lib/confidential.ts</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Design principles</h2>
+  <ul>
+    <li><strong>Adapters everywhere.</strong> Swaps, lending, prices and interest go through adapter interfaces, so moving from a mock to the real thing is a configuration change. Testnet uses the mock exchange; mainnet uses <code>SlipstreamSwapAdapter</code> on Aerodrome. Lending uses <code>MorphoLendingAdapter</code>, one per market.</li>
+    <li><strong>No lending pool of our own.</strong> Loans come from existing Morpho markets.</li>
+    <li><strong>Ownerless core.</strong> Payroll, SipRouter, GiftBox, VaultFactory, the vaults and the adapters have no owner. Only the testnet mocks have one, on purpose.</li>
+    <li><strong>The site works without servers.</strong> With no database or model keys, money features keep working; names, teams, chat and live research switch off or show labelled samples.</li>
+    <li><strong>Simulate before signing.</strong> <code>web/lib/useTx.ts</code> simulates each transaction and adds a 60% gas margin, because Morpho interest accrual makes real gas use higher than estimates.</li>
+    <li><strong>Mock to real, proven by fork tests.</strong> <code>test/fork/</code> runs the same code against real AAPLc, a real Aerodrome pool, the real Morpho markets (including deSPXA) and a real Morpho interest vault on a copy of Base mainnet.</li>
+  </ul>
+
+  <h2>Run it locally</h2>
+  <pre><code>git clone --recurse-submodules https://github.com/Cloakie47/stackday.git
+cd stackday
+forge test                      # local contract tests
+cd web
+npm install
+npm run dev                     # http://localhost:3000, reads the testnet deployment
+npm test                        # web unit tests (Node 22.18 or later)</code></pre>
+  <p>Fork tests: <code>$env:FOUNDRY_PROFILE="fork"; forge test</code> (Foundry 1.8.4 or later). After a redeploy: <code>forge build</code>, then <code>python web/scripts/gen-abis.py</code>. Read <code>web/AGENTS.md</code> before changing Next.js structure: this Next.js version differs from older ones.</p>
+</article>
+
+<article class="page" id="contracts" data-title="Contracts and addresses" data-section="For developers" data-keywords="contracts addresses deployment base sepolia payroll siprouter giftbox vaultfactory employeevault morpho market id lltv mocks sourcify functions">
+  <p class="crumb">For developers</p>
+  <h1>Contracts and addresses</h1>
+  <p class="lead">The thirteenth testnet deployment (November 19, 2026), with GiftBox and the mock sell desk added on November 25. Every address below is generated from <code>deployments/base-sepolia.json</code> when this site is built.</p>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>These are the exact programs Stackday runs on the Base Sepolia test network, and where to find them. Click an address to see it on the block explorer. The source code of the Stackday contracts is verified on Sourcify, so anyone can check that what runs is what is published.</p>
+  </div>
+
+  <h2>Stackday contracts (real, no owner)</h2>
+  <div class="table-wrap"><table><thead><tr><th>Contract</th><th>What it does</th><th>Address</th></tr></thead><tbody><tr><td>Payroll</td><td>Employer treasuries, paydays, claims, payday plans, emergency rule</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x775d1C133ef6883B36F2A33A89fa0a72f2DC097a" rel="noopener" target="_blank">0x775d1C133ef6883B36F2A33A89fa0a72f2DC097a</a></td></tr><tr><td>SipRouter</td><td>One-time and recurring buys from your own wallet</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xec1BEDf89991b53E2F08B2835CF5C14cE6335586" rel="noopener" target="_blank">0xec1BEDf89991b53E2F08B2835CF5C14cE6335586</a></td></tr><tr><td>GiftBox</td><td>Gift boxes: holds USDC until opened, then buys into the recipient's vault</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x190A4F54AAC173F4386823AC5709b8689849C8E1" rel="noopener" target="_blank">0x190A4F54AAC173F4386823AC5709b8689849C8E1</a></td></tr><tr><td>VaultFactory</td><td>Creates one vault per person; holds the fixed fee settings</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x70dceeAe63FFae58D5BDCF8Bd8002bd3c38aa7CC" rel="noopener" target="_blank">0x70dceeAe63FFae58D5BDCF8Bd8002bd3c38aa7CC</a></td></tr><tr><td>EmployeeVault (implementation)</td><td>The code every personal vault runs</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x1f9A84A7f9B0bCb90fE9eFED36d0a29301842F35" rel="noopener" target="_blank">0x1f9A84A7f9B0bCb90fE9eFED36d0a29301842F35</a></td></tr><tr><td>Price adapter</td><td>Reads the price feeds for each asset</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xCfC6d5232870408F89D04a15Eb8Fa08C3f0332a9" rel="noopener" target="_blank">0xCfC6d5232870408F89D04a15Eb8Fa08C3f0332a9</a></td></tr><tr><td>Interest adapter (ERC-4626)</td><td>Puts idle vault USDC into an interest vault</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x81Aa043a62716B9F0248F02247cCB7B6307607D5" rel="noopener" target="_blank">0x81Aa043a62716B9F0248F02247cCB7B6307607D5</a></td></tr></tbody></table></div>
+  <p>Source verified on Sourcify: <code>https://repo.sourcify.dev/84532/ADDRESS</code>.</p>
+
+  <h2>Existing protocols used as they are</h2>
+  <div class="table-wrap"><table><thead><tr><th>Protocol or token</th><th>Address</th></tr></thead><tbody><tr><td>Morpho (real, the lending protocol)</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb" rel="noopener" target="_blank">0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb</a></td></tr><tr><td>Morpho interest rate model (real)</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x46415998764C29aB2a25CbeA6254146D50D22687" rel="noopener" target="_blank">0x46415998764C29aB2a25CbeA6254146D50D22687</a></td></tr><tr><td>USDC (Circle test USDC, real)</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e" rel="noopener" target="_blank">0x036CbD53842c5426634e7929541eC2318f3dCF7e</a></td></tr></tbody></table></div>
+
+  <h2>Morpho markets</h2>
+  <p>Created by the Stackday deploy script, each lending USDC against one asset. The liquidation limits match the main real markets on Base for each kind of asset.</p>
+  <div class="table-wrap"><table><thead><tr><th>Market</th><th class="num">Liquidation limit</th><th>Lending adapter</th><th>Morpho market id</th></tr></thead><tbody><tr><td>mAAPL / USDC</td><td class="num">62.5%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xF4B614bB43807C55a060Eb0Aa22b16A6946bc853" rel="noopener" target="_blank">0xF4B614bB43807C55a060Eb0Aa22b16A6946bc853</a></td><td><span class="addr">0xd8388681e7c23ca9d20308e39226dda114aeecffb926be5227d8102fa0862590</span></td></tr><tr><td>mNVDA / USDC</td><td class="num">62.5%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xAC4e19c5E67b9869c22337AeE8b03178F8D21c7c" rel="noopener" target="_blank">0xAC4e19c5E67b9869c22337AeE8b03178F8D21c7c</a></td><td><span class="addr">0x9efbf11ff71a1d8534d34b006584cc120f12df77af1029e9f4df5c927d9eb3ed</span></td></tr><tr><td>mcbBTC / USDC</td><td class="num">86%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x7Ed1237762f618290baaaa43912A920712a8b01E" rel="noopener" target="_blank">0x7Ed1237762f618290baaaa43912A920712a8b01E</a></td><td><span class="addr">0xe46c8729f8c5d99b11e77e483edb6265a08cf4706243ff98b4d8bc6b238c50b4</span></td></tr><tr><td>mWETH / USDC</td><td class="num">86%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x59E15768B832ea06F2cA49d53472adDe11433502" rel="noopener" target="_blank">0x59E15768B832ea06F2cA49d53472adDe11433502</a></td><td><span class="addr">0x539430e60b478f86bfa3cc997585ac36b8a039c11a5d6217298cab6b318b0e9a</span></td></tr><tr><td>mGOOGL / USDC</td><td class="num">77%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x8B6A4d7dA7777C3E4E4b7b22C05256A03eAd7614" rel="noopener" target="_blank">0x8B6A4d7dA7777C3E4E4b7b22C05256A03eAd7614</a></td><td><span class="addr">0x2b16dcacee5579abdfcaa7fb99624a2a90cb697e66be7a2bf37e21876f6b52ea</span></td></tr><tr><td>mMETA / USDC</td><td class="num">62.5%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x42bA2eC843415039f97aE79fECF167d3f42604E3" rel="noopener" target="_blank">0x42bA2eC843415039f97aE79fECF167d3f42604E3</a></td><td><span class="addr">0xa495c26e1e46e20bf14f1cd2ac5f37a9e95466a6105ec6930d2b70e439fa0c45</span></td></tr><tr><td>mSPCX / USDC</td><td class="num">62.5%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x7FC4a2F3F11639c6634d1D6e26F2970A04b01260" rel="noopener" target="_blank">0x7FC4a2F3F11639c6634d1D6e26F2970A04b01260</a></td><td><span class="addr">0x5cd4eba0cc50e3f97ff4d9d4e58bd0e936201042dafbdab114bf5aa2495c9d4e</span></td></tr><tr><td>mPAXG / USDC</td><td class="num">77%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x1fAF039C52e6f2C135b5fEE0dcCF154a58928269" rel="noopener" target="_blank">0x1fAF039C52e6f2C135b5fEE0dcCF154a58928269</a></td><td><span class="addr">0x88ada20402168a923e743611d7f6b4f4aa675e82f8a9db198b3e5324ee17af2a</span></td></tr><tr><td>mSPX / USDC</td><td class="num">77%</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xF4E4b19472BBA61cAee4232E7cf8cDd3447b57f1" rel="noopener" target="_blank">0xF4E4b19472BBA61cAee4232E7cf8cDd3447b57f1</a></td><td><span class="addr">0xdeda227fdcfbdb602b63f87ef60e85703b59783d370277e3655ed549170ac393</span></td></tr></tbody></table></div>
+
+  <h2>Main functions</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Contract</th><th>Function</th><th>Who may call</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="6">Payroll</td><td><code>deposit</code>, <code>withdrawUnallocated</code>, <code>createRun</code>, <code>depositAndCreateRun</code></td><td>Employer (own treasury)</td></tr>
+      <tr><td><code>createSchedule</code>, <code>setScheduleActive</code></td><td>Employer</td></tr>
+      <tr><td><code>runSchedule</code></td><td>Anyone, once a payday is due</td></tr>
+      <tr><td><code>setSipPlan</code>, <code>setSipPlanMany</code>, <code>setEmergencyRule</code></td><td>Employee</td></tr>
+      <tr><td><code>claim</code>, <code>claimMany</code> (standing plan), <code>claimWithSip</code>, <code>claimWithSipMany</code> (one time, free)</td><td>Employee, to any recipient</td></tr>
+      <tr><td><code>reclaim</code></td><td>Employer, 180 days after the run</td></tr>
+      <tr><td rowspan="3">EmployeeVault</td><td><code>depositStock</code>, <code>depositStockAsCollateral</code>, <code>repay</code></td><td>Anyone (adds value)</td></tr>
+      <tr><td><code>addCollateral</code>, <code>removeCollateral</code>, <code>borrow</code>, <code>withdraw</code>, <code>earn</code>, <code>stopEarning</code>, <code>setBorrowCapBps</code></td><td>Vault owner only</td></tr>
+      <tr><td><code>initialize</code></td><td>Factory only, once</td></tr>
+      <tr><td>VaultFactory</td><td><code>createVault</code>, <code>predictVault</code>, <code>allStocks</code></td><td>Anyone; the vault always belongs to the given wallet</td></tr>
+      <tr><td rowspan="2">SipRouter</td><td><code>invest</code> (free), <code>setPlan</code>, <code>cancelPlan</code></td><td>The user</td></tr>
+      <tr><td><code>executePlan(user, asset)</code></td><td>Anyone, once a buy is due</td></tr>
+      <tr><td rowspan="4">GiftBox</td><td><code>create</code></td><td>Sender</td></tr>
+      <tr><td><code>open</code>, <code>decline</code></td><td>Recipient only (open before expiry)</td></tr>
+      <tr><td><code>revoke</code></td><td>Sender, while pending</td></tr>
+      <tr><td><code>refundExpired</code></td><td>Anyone, after expiry; pays the sender</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Key limits in code</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Limit</th><th>Value</th><th>Contract</th></tr></thead>
+    <tbody>
+      <tr><td>Fee cap</td><td>20 bps for every fee</td><td>Payroll, SipRouter, VaultFactory</td></tr>
+      <tr><td>Assets per payday plan</td><td>6</td><td>Payroll</td></tr>
+      <tr><td>People per schedule</td><td>200</td><td>Payroll</td></tr>
+      <tr><td>Unclaimed salary take-back</td><td>after 180 days, back to the treasury</td><td>Payroll</td></tr>
+      <tr><td>Emergency rule health level</td><td>above 1.0, at most 10.0; borrowable asset only</td><td>Payroll</td></tr>
+      <tr><td>Vault safety cap</td><td>50% of the limit by default, at most 85%</td><td>EmployeeVault</td></tr>
+      <tr><td>Recurring buy interval</td><td>at least 1 day; first buy within 31 days</td><td>SipRouter</td></tr>
+      <tr><td>Recurring buy slippage</td><td>at most 10%</td><td>SipRouter</td></tr>
+      <tr><td>Gift legs, slippage, length</td><td>up to 6 legs, weights total 10,000, slippage at most 3%, 1 to 365 days, at least 1 USDC</td><td>GiftBox</td></tr>
+      <tr><td>Sell desk spread (mock)</td><td>50 bps on testnet, at most 500</td><td>MockSellDesk</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Assets</h2>
+  <div class="table-wrap"><table><thead><tr><th>Test token</th><th>Stands in for</th><th>Kind</th><th>Can borrow against</th><th class="num">Liquidation limit</th></tr></thead><tbody><tr><td><code>mAAPL</code></td><td>Apple (AAPLc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mNVDA</code></td><td>NVIDIA (NVDAc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mcbBTC</code></td><td>Bitcoin (cbBTC)</td><td>Crypto</td><td><span class="pill live">Yes</span></td><td class="num">86%</td></tr><tr><td><code>mWETH</code></td><td>Ether (WETH)</td><td>Crypto</td><td><span class="pill live">Yes</span></td><td class="num">86%</td></tr><tr><td><code>mGOOGL</code></td><td>Alphabet (GOOGLc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">77%</td></tr><tr><td><code>mMETA</code></td><td>Meta (METAc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mSPCX</code></td><td>SpaceX (mock price only) (SPCXc)</td><td>Stock</td><td><span class="pill live">Yes</span></td><td class="num">62.5%</td></tr><tr><td><code>mPAXG</code></td><td>Gold (PAXG)</td><td>Gold</td><td><span class="pill live">Yes</span></td><td class="num">77%</td></tr><tr><td><code>mTSLA</code></td><td>Tesla (TSLAc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mAMZN</code></td><td>Amazon (AMZNc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mMSFT</code></td><td>Microsoft (MSFTc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mMSTR</code></td><td>Strategy (MSTRc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mAMD</code></td><td>AMD (AMDc)</td><td>Stock</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr><tr><td><code>mSPX</code></td><td>S&amp;P 500 fund token (deSPXA)</td><td>Fund</td><td><span class="pill live">Yes</span></td><td class="num">77%</td></tr><tr><td><code>mSGOV</code></td><td>0 to 3 month US Treasuries (wtSGOV)</td><td>Fund</td><td><span class="pill plan">Invest only</span></td><td class="num">None</td></tr></tbody></table></div>
+
+  <h2>Mocks (testnet only)</h2>
+  <p>Owned by the demo wallet so stress scenarios can be shown: it can set prices, freeze and reopen the market, pause transfers and mint. Not part of the real design.</p>
+  <div class="table-wrap"><table><thead><tr><th>Mock (testnet only)</th><th>Address</th></tr></thead><tbody><tr><td>mAAPL token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x033BF490C18977bC8a36Bebc84973641888C1F7b" rel="noopener" target="_blank">0x033BF490C18977bC8a36Bebc84973641888C1F7b</a></td></tr><tr><td>mNVDA token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x6da36D1b444210439cDE57fe9a796fCd5cD311A5" rel="noopener" target="_blank">0x6da36D1b444210439cDE57fe9a796fCd5cD311A5</a></td></tr><tr><td>mcbBTC token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xB8e674589afDD5F594a2e4905d9c8eA018E901A8" rel="noopener" target="_blank">0xB8e674589afDD5F594a2e4905d9c8eA018E901A8</a></td></tr><tr><td>mWETH token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x02486aaD379C84731995cB4ccCd20F435a5c81A8" rel="noopener" target="_blank">0x02486aaD379C84731995cB4ccCd20F435a5c81A8</a></td></tr><tr><td>mGOOGL token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x67af381BB44e824adfa860896f32db8444119DfA" rel="noopener" target="_blank">0x67af381BB44e824adfa860896f32db8444119DfA</a></td></tr><tr><td>mMETA token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xEc956405f92F3FA9b186Eab152dD554cb7dC0E72" rel="noopener" target="_blank">0xEc956405f92F3FA9b186Eab152dD554cb7dC0E72</a></td></tr><tr><td>mSPCX token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xfc4c6dd6147aA9fbF3E916429dDC1A9048eb4D0a" rel="noopener" target="_blank">0xfc4c6dd6147aA9fbF3E916429dDC1A9048eb4D0a</a></td></tr><tr><td>mPAXG token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xB7E64bbB7312588f391029296d10fCA184AD2b8E" rel="noopener" target="_blank">0xB7E64bbB7312588f391029296d10fCA184AD2b8E</a></td></tr><tr><td>mTSLA token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x16098F270B5e3cD914c92b4F21F5886071ccA9E2" rel="noopener" target="_blank">0x16098F270B5e3cD914c92b4F21F5886071ccA9E2</a></td></tr><tr><td>mAMZN token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x1F60CD64539EC0565e4b5297c9ca3E885da5B8C8" rel="noopener" target="_blank">0x1F60CD64539EC0565e4b5297c9ca3E885da5B8C8</a></td></tr><tr><td>mMSFT token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x53ca113f49861749B139F12569a8a54ce670B1Fc" rel="noopener" target="_blank">0x53ca113f49861749B139F12569a8a54ce670B1Fc</a></td></tr><tr><td>mMSTR token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xa00cCC215A39b32c1Ee59Fd0A84476322e358D1f" rel="noopener" target="_blank">0xa00cCC215A39b32c1Ee59Fd0A84476322e358D1f</a></td></tr><tr><td>mAMD token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x13b4a95A9697BdD33F78ccb758C895B64B19E245" rel="noopener" target="_blank">0x13b4a95A9697BdD33F78ccb758C895B64B19E245</a></td></tr><tr><td>mSPX token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xc556dfeeE6249632899CA9d9A5E9144f48e26C76" rel="noopener" target="_blank">0xc556dfeeE6249632899CA9d9A5E9144f48e26C76</a></td></tr><tr><td>mSGOV token</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x9220a5479374F66554dAda74b36c3B947A8948D1" rel="noopener" target="_blank">0x9220a5479374F66554dAda74b36c3B947A8948D1</a></td></tr><tr><td>mAAPL price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x56A29FD3C62e60F84c3514DbC9EA4C58eD857256" rel="noopener" target="_blank">0x56A29FD3C62e60F84c3514DbC9EA4C58eD857256</a></td></tr><tr><td>mNVDA price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x6A462aec293D9E4a3021a40d5cB9399367Bc7a0a" rel="noopener" target="_blank">0x6A462aec293D9E4a3021a40d5cB9399367Bc7a0a</a></td></tr><tr><td>mcbBTC price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x64C228BA4d64F0Bb028f1e43fD19E26e52Ad8Ce6" rel="noopener" target="_blank">0x64C228BA4d64F0Bb028f1e43fD19E26e52Ad8Ce6</a></td></tr><tr><td>mWETH price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x0Aa577AEe324CdB6f6e7dAd62AffE651476D93e7" rel="noopener" target="_blank">0x0Aa577AEe324CdB6f6e7dAd62AffE651476D93e7</a></td></tr><tr><td>mGOOGL price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x86319B7a35BdA627936fc07D6e4f7AAA34060Edf" rel="noopener" target="_blank">0x86319B7a35BdA627936fc07D6e4f7AAA34060Edf</a></td></tr><tr><td>mMETA price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x4935cf833C3D29a22F00eFF411BAF014F6ACEd86" rel="noopener" target="_blank">0x4935cf833C3D29a22F00eFF411BAF014F6ACEd86</a></td></tr><tr><td>mSPCX price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x56f0dF4C5C24f7BebB1309A3b4C3171D3D718888" rel="noopener" target="_blank">0x56f0dF4C5C24f7BebB1309A3b4C3171D3D718888</a></td></tr><tr><td>mPAXG price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x5Fa15b92D2e312C8b411A7234167141e04fCc247" rel="noopener" target="_blank">0x5Fa15b92D2e312C8b411A7234167141e04fCc247</a></td></tr><tr><td>mTSLA price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xF7002A7e38F6037526f93A4ef617154BA4773C3D" rel="noopener" target="_blank">0xF7002A7e38F6037526f93A4ef617154BA4773C3D</a></td></tr><tr><td>mAMZN price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xeE68A689bfF1158d3810e0B8aA3aED8eC469038c" rel="noopener" target="_blank">0xeE68A689bfF1158d3810e0B8aA3aED8eC469038c</a></td></tr><tr><td>mMSFT price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xB4B62cB1615B667A1408F44280a438297dea3551" rel="noopener" target="_blank">0xB4B62cB1615B667A1408F44280a438297dea3551</a></td></tr><tr><td>mMSTR price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x6D228E74Bab12CB775ef7fA2932c20342eeAd3C6" rel="noopener" target="_blank">0x6D228E74Bab12CB775ef7fA2932c20342eeAd3C6</a></td></tr><tr><td>mAMD price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xEa3877a6f06E46E5b3a62521cB58f3432D7941fa" rel="noopener" target="_blank">0xEa3877a6f06E46E5b3a62521cB58f3432D7941fa</a></td></tr><tr><td>mSPX price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x3a3F65a17be17e20AaDc28a27D0f731dBa7eeedd" rel="noopener" target="_blank">0x3a3F65a17be17e20AaDc28a27D0f731dBa7eeedd</a></td></tr><tr><td>mSGOV price feed</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xF51f978F6F2a44e53196B16286b866C770FcA4FD" rel="noopener" target="_blank">0xF51f978F6F2a44e53196B16286b866C770FcA4FD</a></td></tr><tr><td>Mock exchange (swap adapter)</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x1361D307e06c3bAfc800727059F8AA02a45830fC" rel="noopener" target="_blank">0x1361D307e06c3bAfc800727059F8AA02a45830fC</a></td></tr><tr><td>Mock sell desk</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xcDa9B568358c442FBB1Acf653Db19880a300dE87" rel="noopener" target="_blank">0xcDa9B568358c442FBB1Acf653Db19880a300dE87</a></td></tr><tr><td>Mock interest vault</td><td><a class="addr" href="https://sepolia.basescan.org/address/0x0541efCf235dF6e8d501B8FeF47b30721e242adb" rel="noopener" target="_blank">0x0541efCf235dF6e8d501B8FeF47b30721e242adb</a></td></tr></tbody></table></div>
+
+  <h2>Fixed settings</h2>
+  <div class="table-wrap"><table><thead><tr><th>Setting</th><th>Value on the testnet deployment</th></tr></thead><tbody><tr><td>Recurring buy fee (sipFeeBps)</td><td>15 bps = 0.15%</td></tr><tr><td>Borrow fee (borrowFeeBps)</td><td>10 bps = 0.1% a year</td></tr><tr><td>Earn fee (earnFeeBps)</td><td>10 bps = 0.1% a year</td></tr><tr><td>Fee wallet</td><td><a class="addr" href="https://sepolia.basescan.org/address/0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df" rel="noopener" target="_blank">0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df</a></td></tr><tr><td>Shortest payroll rhythm (minScheduleInterval)</td><td>60 seconds</td></tr><tr><td>Chain id</td><td>84532 (Base Sepolia)</td></tr></tbody></table></div>
+
+  <h2>Deploying your own copy</h2>
+  <p>Never overwrite the official <code>deployments/base-sepolia.json</code>. To deploy a copy for testing, set <code>DEPLOYMENTS_FILE=deployments/local-yourname.json</code> and run <code>forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --slow --gas-estimate-multiplier 150</code> with a test-only wallet. It needs about 36 test USDC to fund the markets and a little test ETH. Scripts that touch Morpho need a gas margin, because simulations see no interest accrual.</p>
+</article>
+
+<article class="page" id="keeper-api" data-title="Trigger bot and API routes" data-section="For developers" data-keywords="keeper trigger bot cron vercel api routes endpoints session nonce sign-in siwe rate limit secrets">
+  <p class="crumb">For developers</p>
+  <h1>Trigger bot and API routes</h1>
+  <p class="lead">A small bot presses the buttons the contracts already let anyone press: due paydays, due recurring buys and expired gift refunds. The API routes handle sign-in, accounts, chat, gifts and research, and the site keeps working when they are switched off.</p>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>Blockchains do not act on their own: someone has to send a transaction to make a scheduled payday or a weekly buy happen. Stackday's trigger bot does that once each weekday. It cannot change what you set up and it holds none of your money; its wallet only pays the network fee.</p>
+  </div>
+
+  <h2>The trigger bot</h2>
+  <p><code>GET /api/keeper</code> runs on a Vercel cron at <strong>16:00 UTC, Monday to Friday</strong> (<code>0 16 * * 1-5</code>), which is 11:00 New York time in winter, matching the slot recurring buys are set to.</p>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 486" width="480" role="img" aria-label="One trigger bot run. The Vercel cron calls the keeper route with the shared secret. Step one: due payroll schedules, skipped when paused, not due or underfunded, otherwise runSchedule. Step two: gift boxes, reading up to 1000 newest boxes in chunks of 100, and refundExpired for pending boxes past expiry. Step three: recurring buys registered in the database, up to 500 rows, skipped when not due, finished or the wallet has no USDC, otherwise executePlan. Every transaction is simulated first, never retried, and a run sends at most 25 transactions.">
+        <rect class="d-box accent" x="100" y="12" width="280" height="50" rx="10"/>
+        <text class="d-t acc" x="240" y="33" text-anchor="middle">Vercel cron calls /api/keeper</text>
+        <text class="d-s" x="240" y="51" text-anchor="middle">Authorization: Bearer CRON_SECRET</text>
+        <path class="d-e" d="M240 62V84" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="88" width="300" height="76" rx="10"/>
+        <text class="d-t" x="36" y="110">1. Payroll schedules</text>
+        <text class="d-s" x="36" y="130">skip: paused, not due, underfunded</text>
+        <text class="d-m" x="36" y="150">runSchedule(id)</text>
+        <path class="d-e" d="M170 164V186" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="190" width="300" height="76" rx="10"/>
+        <text class="d-t" x="36" y="212">2. Gift boxes</text>
+        <text class="d-s" x="36" y="232">newest 1000, chunks of 100; pending and expired</text>
+        <text class="d-m" x="36" y="252">refundExpired(id)</text>
+        <path class="d-e" d="M170 266V288" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="292" width="300" height="76" rx="10"/>
+        <text class="d-t" x="36" y="314">3. Recurring buys</text>
+        <text class="d-s" x="36" y="334">from recurring_plans, up to 500 rows</text>
+        <text class="d-m" x="36" y="354">executePlan(user, asset)</text>
+        <rect class="d-box warn" x="336" y="88" width="132" height="280" rx="10"/>
+        <text class="d-t" x="402" y="114" text-anchor="middle">Every send</text>
+        <text class="d-s" x="402" y="140" text-anchor="middle">simulated first</text>
+        <text class="d-s" x="402" y="162" text-anchor="middle">never retried</text>
+        <text class="d-s" x="402" y="184" text-anchor="middle">25 per run, max</text>
+        <text class="d-s" x="402" y="206" text-anchor="middle">gas only, no</text>
+        <text class="d-s" x="402" y="222" text-anchor="middle">user funds</text>
+        <text class="d-s" x="402" y="248" text-anchor="middle">the contract</text>
+        <text class="d-s" x="402" y="264" text-anchor="middle">re-checks</text>
+        <text class="d-s" x="402" y="280" text-anchor="middle">everything</text>
+        <path class="d-e dash" d="M320 126H334M320 228H334M320 330H334"/>
+        <path class="d-e" d="M170 368V392" marker-end="url(#ah)"/>
+        <rect class="d-box soft" x="20" y="396" width="448" height="78" rx="10"/>
+        <text class="d-t" x="36" y="420">Contracts do the real checks</text>
+        <text class="d-s" x="36" y="440">only that amount, that asset, that person's own vault, within the</text>
+        <text class="d-s" x="36" y="458">price limit and approval; refunds only ever pay the gift's sender</text>
+      </svg>
+    </div>
+    <figcaption><b>The bot is a button presser.</b> Each step reads state on chain, decides with small pure functions (<code>web/lib/server/keeper.ts</code>, unit tested), simulates, then sends. A cancelled plan's row is deleted.</figcaption>
+  </figure>
+  <ul>
+    <li><strong>Secrets</strong> (names only): <code>CRON_SECRET</code> (at least 16 characters, compared in constant time), <code>KEEPER_PRIVATE_KEY</code> (a gas-only wallet), optional <code>KEEPER_RPC_URL</code>. Recurring buys also need the database settings and the <code>recurring_plans</code> table.</li>
+    <li><strong>Registering a plan</strong>: saving a recurring buy calls <code>POST /api/keeper/register</code> with the wallet and asset. No sign-in is needed, because the route checks that the plan really exists on chain.</li>
+    <li>Only the founder's Vercel project runs this cron, and only once <code>CRON_SECRET</code> and <code>KEEPER_PRIVATE_KEY</code> are set there. Without them nothing runs automatically, and due items wait until someone presses the button in the app.</li>
+  </ul>
+
+  <h2>All cron jobs</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Path</th><th>Schedule (UTC)</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/keeper</code></td><td><code>0 16 * * 1-5</code></td><td>Trigger bot</td></tr>
+      <tr><td><code>/api/research/run</code></td><td><code>30 22 * * 1-5</code></td><td>Daily research note after the US close</td></tr>
+      <tr><td><code>/api/research/weekly/run?slot=1</code> to <code>10</code></td><td>Mondays, hourly 12:00 to 21:00</td><td>Weekly report, one step per call</td></tr>
+      <tr><td><code>/api/research/scores/run</code></td><td><code>0 23 * * 1-5</code></td><td>Scores daily notes after 1 and 5 trading days</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Sign-in</h2>
+  <ol class="steps">
+    <li><div><p>The browser asks <code>POST /api/session/nonce</code> for a single-use code (16 random bytes, stored for 10 minutes).</p></div></li>
+    <li><div><p>The wallet signs a Sign-In with Ethereum (EIP-4361) message with the site domain, chain 84532, the code and a 10-minute expiry.</p></div></li>
+    <li><div><p><code>POST /api/session</code> checks the domain, chain and times, deletes the code in one statement (so it can never be used twice), then verifies the signature. Smart contract wallets work too.</p></div></li>
+    <li><div><p>The first sign-in creates the profile. The session is an HttpOnly, SameSite=Lax cookie holding the wallet and an expiry, signed with HMAC, valid for 7 days.</p></div></li>
+  </ol>
+
+  <h2>API routes</h2>
+  <p>Every route answers with <code>Cache-Control: no-store</code>. <code>web/proxy.ts</code> adds an origin check on changes and per-visitor rate limits (for example 10 sign-ins, 20 chat messages and 120 reads a minute).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Route</th><th>Methods</th><th>Purpose</th><th>Sign-in</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/session/nonce</code></td><td>POST</td><td>Single-use sign-in code</td><td>No</td></tr>
+      <tr><td><code>/api/session</code></td><td>GET, POST, DELETE</td><td>Sign in, check, sign out</td><td>No</td></tr>
+      <tr><td><code>/api/me</code></td><td>GET, POST</td><td>Own account; set account type</td><td>Yes</td></tr>
+      <tr><td><code>/api/profile</code></td><td>GET / POST</td><td>Public names / set your name</td><td>No / Yes</td></tr>
+      <tr><td><code>/api/business</code></td><td>GET / POST</td><td>Public business names / save your business</td><td>No / Yes</td></tr>
+      <tr><td><code>/api/people</code></td><td>GET</td><td>Find people by ID, name or wallet (up to 8)</td><td>Yes</td></tr>
+      <tr><td><code>/api/employees</code></td><td>GET, POST, DELETE</td><td>The employer's team list</td><td>Yes</td></tr>
+      <tr><td><code>/api/memberships</code></td><td>POST</td><td>Accept or decline a team invite</td><td>Yes</td></tr>
+      <tr><td><code>/api/attendance</code></td><td>GET, POST</td><td>Daily check-ins</td><td>Yes</td></tr>
+      <tr><td><code>/api/chat</code></td><td>POST</td><td>Chat assistant (per-wallet limits)</td><td>Yes</td></tr>
+      <tr><td><code>/api/gifts</code></td><td>GET, POST</td><td>Gift messages (sender writes once, sender and recipient read)</td><td>Yes</td></tr>
+      <tr><td><code>/api/gifts/research</code></td><td>GET</td><td>The research pick mix for opening a box</td><td>No</td></tr>
+      <tr><td><code>/api/keeper</code>, <code>/api/keeper/register</code></td><td>GET, POST</td><td>Trigger bot; register a plan</td><td>Cron secret / No</td></tr>
+      <tr><td><code>/api/themes/mood</code></td><td>GET</td><td>The market mood snapshot</td><td>No</td></tr>
+      <tr><td><code>/api/research/weekly</code></td><td>GET</td><td>Latest approved weekly report (or the labelled sample)</td><td>Optional</td></tr>
+      <tr><td><code>/api/research/weekly/approve</code></td><td>POST</td><td>Approve a report by its run id</td><td>Reviewer</td></tr>
+      <tr><td><code>/api/research/snapshot</code>, <code>/history</code></td><td>GET</td><td>Daily notes and history (live for reviewers, sample for others)</td><td>Optional</td></tr>
+      <tr><td><code>/api/research/scores</code>, <code>/scores/grade</code></td><td>GET / POST</td><td>Public scores / reviewer grade</td><td>No / Reviewer</td></tr>
+      <tr><td><code>/api/research/portfolio</code>, <code>/portfolio/preview</code></td><td>GET, PUT / POST</td><td>Saved holdings / factual portfolio check</td><td>Yes / No</td></tr>
+      <tr><td><code>/api/research/access</code>, <code>/access/pay</code></td><td>GET / POST</td><td>Paywall status (off) / record a test USDC payment</td><td>Optional / Yes</td></tr>
+      <tr><td><code>/api/research/run</code>, <code>/weekly/run</code>, <code>/scores/run</code></td><td>GET</td><td>Research crons</td><td>Cron secret</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Database tables</h2>
+  <p>From <code>supabase/schema.sql</code>, every table with row level security on and no public policies: <code>profiles</code>, <code>sign_in_nonces</code>, <code>employees</code>, <code>attendance</code>, <code>businesses</code>, <code>rate_limits</code>, <code>recurring_plans</code>, <code>gifts</code>, and the research tables <code>research_runs</code>, <code>research_notes</code>, <code>research_market</code>, <code>research_weekly</code>, <code>research_weekly_sections</code>, <code>research_scores</code>, <code>research_portfolios</code>, <code>research_entitlements</code>, <code>research_payments</code> and <code>research_onchain_tail</code>.</p>
+</article>
+
+<article class="page" id="research-engine" data-title="Research engine" data-section="For developers" data-keywords="research engine daily weekly models haiku sonnet opus cost cap reviewers approve slots facts untrusted injection reproducible flags">
+  <p class="crumb">For developers</p>
+  <h1>Research engine</h1>
+  <p class="lead">How the daily note and the Monday report are produced: which models run, how a weekly report fits into Vercel's time limits, how reviewers approve it, and what stops a bad run.</p>
+
+  <div class="plain">
+    <p class="plain-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/></svg>In plain words</p>
+    <p>A computer program collects market data and works out every number. AI models then write about those numbers, other passes check their work, and a person signs off before it is published. If anything goes wrong or gets too expensive, the run stops and publishes nothing.</p>
+  </div>
+
+  <h2>Models and switches</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Job</th><th>Model</th></tr></thead>
+    <tbody>
+      <tr><td>Daily note, first pass</td><td><code>claude-haiku-5-5</code></td></tr>
+      <tr><td>Daily note, big movers and answers that fail checks</td><td><code>claude-sonnet-5-5</code></td></tr>
+      <tr><td>Monday report, every step for every asset</td><td><code>claude-opus-5-5</code></td></tr>
+      <tr><td>Chat assistant (for comparison)</td><td><code>claude-sonnet-5-5</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>Switches in <code>web/lib/research/flags.ts</code>, all defaulting to the safe value: <code>RESEARCH_ENGINE_ENABLED</code> plus <code>ANTHROPIC_API_KEY</code> to run with real model calls (otherwise the routes serve the labelled sample), <code>RESEARCH_PAYWALL_ENABLED</code> (off), and spend caps <code>RESEARCH_MAX_RUN_COST_USD</code> ($2), <code>RESEARCH_MAX_WEEKLY_RUN_COST_USD</code> ($4) and <code>RESEARCH_MAX_DAY_COST_USD</code> ($6). Reviewers are the wallets in <code>RESEARCH_REVIEWERS</code>, signed in with the normal wallet sign-in.</p>
+
+  <h2>The Monday run, step by step</h2>
+  <p>A full weekly report is too long for one serverless call (Vercel Hobby stops a function at 300 seconds), so the cron calls the weekly route once an hour and each call does one step.</p>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 470" width="480" role="img" aria-label="The Monday weekly run. Ten cron calls, hourly from 12:00 to 21:00 UTC. Each early call researches one asset with every step on the strongest model; a failed asset is tried once more. When all six assets are done, one call writes the report, unapproved, to research_weekly. Later calls that week do nothing. A reviewer reads it on the review page and approves it with its run id. Only then does GET /api/research/weekly serve it to everyone, the chat and gift research picks.">
+        <text class="d-cap" x="20" y="20">Monday, one cron call an hour (UTC)</text>
+        <g>
+          <rect class="d-box accent" x="20" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="40" y="54" text-anchor="middle">12</text>
+          <rect class="d-box accent" x="64" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="84" y="54" text-anchor="middle">13</text>
+          <rect class="d-box accent" x="108" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="128" y="54" text-anchor="middle">14</text>
+          <rect class="d-box accent" x="152" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="172" y="54" text-anchor="middle">15</text>
+          <rect class="d-box accent" x="196" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="216" y="54" text-anchor="middle">16</text>
+          <rect class="d-box accent" x="240" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="260" y="54" text-anchor="middle">17</text>
+          <rect class="d-box soft" x="284" y="32" width="40" height="34" rx="6"/><text class="d-l" x="304" y="54" text-anchor="middle">18</text>
+          <rect class="d-box soft" x="328" y="32" width="40" height="34" rx="6"/><text class="d-l" x="348" y="54" text-anchor="middle">19</text>
+          <rect class="d-box soft" x="372" y="32" width="40" height="34" rx="6"/><text class="d-l" x="392" y="54" text-anchor="middle">20</text>
+          <rect class="d-box soft" x="416" y="32" width="44" height="34" rx="6"/><text class="d-l" x="438" y="54" text-anchor="middle">21</text>
+        </g>
+        <path class="d-e" d="M20 78H280"/>
+        <text class="d-s" x="150" y="94" text-anchor="middle">one asset per call (example: all succeed)</text>
+        <path class="d-e" d="M284 78H460"/>
+        <text class="d-s" x="372" y="94" text-anchor="middle">retries, then write, then idle</text>
+        <path class="d-e" d="M150 100V122" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="126" width="260" height="92" rx="10"/>
+        <text class="d-t" x="36" y="148">Per asset, on claude-opus-5-5</text>
+        <text class="d-s" x="36" y="168">gather facts in code, 4 analysts,</text>
+        <text class="d-s" x="36" y="184">bull and bear with a rebuttal,</text>
+        <text class="d-s" x="36" y="200">editor draft, risk reviewer</text>
+        <rect class="d-box warn" x="300" y="126" width="160" height="92" rx="10"/>
+        <text class="d-t" x="380" y="150" text-anchor="middle">A failed asset</text>
+        <text class="d-s" x="380" y="170" text-anchor="middle">is tried once more;</text>
+        <text class="d-s" x="380" y="186" text-anchor="middle">a cap hit stops the</text>
+        <text class="d-s" x="380" y="202" text-anchor="middle">run, writing nothing</text>
+        <path class="d-e" d="M150 218V242" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="246" width="440" height="50" rx="10"/>
+        <text class="d-t" x="240" y="268" text-anchor="middle">All six done: one call writes the report</text>
+        <text class="d-s" x="240" y="285" text-anchor="middle">to research_weekly, unapproved; later calls do nothing</text>
+        <path class="d-e" d="M240 296V318" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="20" y="322" width="440" height="50" rx="10"/>
+        <text class="d-t acc" x="240" y="344" text-anchor="middle">Reviewer reads it and approves it</text>
+        <text class="d-s" x="240" y="361" text-anchor="middle">POST /api/research/weekly/approve with that version's run id</text>
+        <path class="d-e acc" d="M240 372V394" marker-end="url(#ah-acc)"/>
+        <rect class="d-box good" x="20" y="398" width="440" height="60" rx="10"/>
+        <text class="d-t good" x="240" y="420" text-anchor="middle">Published</text>
+        <text class="d-s" x="240" y="440" text-anchor="middle">GET /api/research/weekly, the chat's weekly view, gift research picks</text>
+      </svg>
+    </div>
+    <figcaption><b>Approval is tied to a version.</b> The reviewer approves by run id, so only the exact report they read is published. Until a report is approved, readers see the previous approved one or the labelled sample.</figcaption>
+  </figure>
+
+  <h2>The daily run</h2>
+  <ol>
+    <li>If the market was closed, carry the last note forward.</li>
+    <li>Gather data in code, then a triage pass on the cheaper model.</li>
+    <li>Big movers and answers that fail checks get a second pass on the stronger model.</li>
+    <li>A risk check in code removes unsupported claims and caps conviction. Buy zone and invalidation levels are computed in code.</li>
+    <li>If more than two assets end with no reading, nothing is written.</li>
+  </ol>
+  <p>The score job at 23:00 UTC grades notes after 1 and 5 trading days (direction, levels, facts share) and keeps calibration per conviction level. Reviewers add a 1 to 5 grade.</p>
+
+  <h2>Safety and honesty rules in code</h2>
+  <ul>
+    <li><strong>Facts first.</strong> Every number is a fact with an id, a source, a link and a time (<code>web/lib/research/data</code>). The model never calculates a price, an indicator or a level, and a claim without a fact id is removed.</li>
+    <li><strong>Untrusted text.</strong> Headlines, filings and web text go inside an <code>&lt;untrusted_news&gt;</code> block and through an injection screen; anything that reads like instructions to an AI is dropped and logged. Headline links are checked against a whitelist of outlet host names.</li>
+    <li><strong>No money powers.</strong> The engine has no wallet, no keys and no tool that sends transactions.</li>
+    <li><strong>Strict JSON.</strong> Output is parsed and validated against a schema before rendering.</li>
+    <li><strong>No look-ahead.</strong> Bars are cut at the run time and macro series are used only from their real release day, so a report and any backtest only use data that existed then.</li>
+    <li><strong>Reproducible.</strong> Model ids, prompt version and a hash of the data are logged per run.</li>
+    <li><strong>Fail closed.</strong> A run that fails or hits a cap writes nothing, and can send an alert to <code>RESEARCH_ALERT_WEBHOOK_URL</code>.</li>
+    <li><strong>Labels.</strong> Every page and report carries the research disclaimer; the weekly report carries the Beta label until the quality bar holds.</li>
+  </ul>
+
+  <h2>Code map</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Folder</th><th>What lives there</th></tr></thead>
+    <tbody>
+      <tr><td><code>web/lib/research/universe.ts</code></td><td>The six assets; refuses any asset that is not borrowable</td></tr>
+      <tr><td><code>web/lib/research/data/</code></td><td>Prices, on-chain bars, indicators, patterns, macro, calendars, headlines, filings, flows; <code>SOURCES.md</code> lists every source and its terms</td></tr>
+      <tr><td><code>web/lib/research/engine/</code></td><td><code>daily.ts</code>, <code>weekly.ts</code>, prompts, review, validation, budget, scores, store</td></tr>
+      <tr><td><code>web/lib/research/portfolio/</code></td><td>The factual portfolio check</td></tr>
+      <tr><td><code>web/lib/research/access/</code></td><td>Paywall and payments (paywall off)</td></tr>
+      <tr><td><code>web/app/(app)/research/</code>, <code>web/components/research/</code></td><td>Weekly report, asset pages, portfolio check, plans, reviewer page</td></tr>
+    </tbody>
+  </table></div>
+</article>
+
+<article class="page" id="glossary" data-title="Glossary" data-section="Reference" data-keywords="glossary terms definitions words meaning">
+  <p class="crumb">Reference</p>
+  <h1>Glossary</h1>
+  <p class="lead">The words used in Stackday and in these docs, in plain language.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Base</td><td>A blockchain network built by Coinbase. Stackday is built on it.</td></tr>
+      <tr><td>Base Sepolia</td><td>Base's test network. Same technology, but the money has no value. Chain id 84532.</td></tr>
+      <tr><td>Wallet</td><td>An app that holds your key and signs on your behalf. Whoever has the key controls the wallet.</td></tr>
+      <tr><td>Signature</td><td>Your wallet's approval of a message or transaction. Signing in costs nothing; transactions cost a small network fee (gas).</td></tr>
+      <tr><td>Gas</td><td>The small fee the network charges to process a transaction, paid in ETH.</td></tr>
+      <tr><td>USDC</td><td>A digital dollar issued by Circle. Stackday uses Circle's test USDC on Base Sepolia.</td></tr>
+      <tr><td>Tokenized stock</td><td>A token that tracks a real share, such as Coinbase's AAPLc for Apple. For eligible people outside the US, with no voting rights.</td></tr>
+      <tr><td>Mock token</td><td>A test stand-in for a real token, with a price the demo wallet controls. Names start with "m", such as mAAPL.</td></tr>
+      <tr><td>Smart contract</td><td>A program on the blockchain that holds money and follows fixed rules.</td></tr>
+      <tr><td>Vault</td><td>Your own smart contract that holds your assets. Only your wallet can take things out.</td></tr>
+      <tr><td>Free / locked</td><td>Free assets sit in your vault. Locked assets back a loan in a Morpho market.</td></tr>
+      <tr><td>SIP</td><td>Systematic investment plan: buying a fixed amount on a schedule. In the code, a payday share is a "SIP".</td></tr>
+      <tr><td>Payday plan</td><td>A standing choice to invest a share of every payday into chosen assets.</td></tr>
+      <tr><td>Recurring buy</td><td>A plan that buys an asset from your wallet on a schedule.</td></tr>
+      <tr><td>Treasury</td><td>The employer's USDC balance inside the Payroll contract.</td></tr>
+      <tr><td>Schedule</td><td>A repeating payroll: daily, weekly, every 2 weeks or monthly.</td></tr>
+      <tr><td>Trigger bot (keeper)</td><td>A small automated job that presses due buttons on chain each weekday, paying only gas.</td></tr>
+      <tr><td>Morpho</td><td>An existing lending protocol on Base. Stackday borrows through it and runs no lending pool of its own.</td></tr>
+      <tr><td>Collateral</td><td>Assets you lock as a guarantee for a loan.</td></tr>
+      <tr><td>Liquidation limit (LLTV)</td><td>The share of the collateral's value that can be borrowed before liquidation, for example 62.5% for Apple.</td></tr>
+      <tr><td>Health</td><td>Your limit divided by what you owe. Above 1.00 is safe; at 1.00 the loan can be liquidated.</td></tr>
+      <tr><td>Liquidation</td><td>When a loan's health falls below 1.00, others may repay part of it and take collateral at a discount.</td></tr>
+      <tr><td>Safety cap</td><td>Your vault's own ceiling on borrowing, 50% of the limit by default, raised to 65% for High.</td></tr>
+      <tr><td>Emergency rule</td><td>An optional rule that, when a payday is claimed while a loan is close to its limit, puts the payday share into collateral.</td></tr>
+      <tr><td>Collateral basket</td><td>Locking several assets at once with one total and one limit, while each stays its own market.</td></tr>
+      <tr><td>Oracle, price feed</td><td>A contract that reports a price. On testnet these are mocks.</td></tr>
+      <tr><td>Slippage</td><td>How much worse a trade's price can be than expected. Stackday refuses buys more than 1% worse.</td></tr>
+      <tr><td>bps</td><td>Basis points: hundredths of a percent. 15 bps = 0.15%.</td></tr>
+      <tr><td>APY</td><td>Annual percentage yield: the yearly rate including compounding.</td></tr>
+      <tr><td>Adapter</td><td>A small contract that connects Stackday to an outside service (lending, prices, swaps, interest), so the service can be swapped.</td></tr>
+      <tr><td>Invest only</td><td>An asset you can buy and hold but not borrow against, because it has no Morpho market.</td></tr>
+      <tr><td>Theme</td><td>A topic such as AI and chips. Themes suggest a split of assets from fixed rules.</td></tr>
+      <tr><td>Weekly report, daily note</td><td>Stackday's research: the Monday report for readers and the internal daily note used to build a track record.</td></tr>
+      <tr><td>View</td><td>The report's general stance on an asset: Accumulate, Hold, Reduce or Avoid new buys.</td></tr>
+      <tr><td>Fact (research)</td><td>A number or item computed by code with a source and a time, which every claim must cite.</td></tr>
+      <tr><td>Intent</td><td>The chat model's structured request, such as "buy, Apple, 20 USDC", checked against a strict schema before code builds a card.</td></tr>
+      <tr><td>Action card</td><td>What the chat shows before you sign: the action, amounts, fee and your wallet as the receiver.</td></tr>
+      <tr><td>Pre-check</td><td>A simulation of a card's transactions on Base Sepolia before you sign.</td></tr>
+      <tr><td>Gift box</td><td>USDC held by the GiftBox contract that buys a mix of assets into the recipient's vault when opened.</td></tr>
+      <tr><td>Stackday ID</td><td>Your unique ID, such as SD-7K3F9Q2M, used to find you for teams and gifts.</td></tr>
+      <tr><td>Fork test</td><td>A test that runs the code against a private copy of the real Base mainnet, with real tokens and markets, at no cost.</td></tr>
+      <tr><td>Private pay</td><td>Salary paid with encrypted amounts through Fairblock confidential transfers.</td></tr>
+    </tbody>
+  </table></div>
+</article>
+
+<article class="page" id="faq" data-title="FAQ" data-section="Reference" data-keywords="faq questions answers help">
+  <p class="crumb">Reference</p>
+  <h1>Frequently asked questions</h1>
+  <p class="lead">Short answers, with links to the page that explains more.</p>
+
+  <h2>Is this real money?</h2>
+  <p>No. Everything runs on Base Sepolia, a test network. Test USDC is free from the Circle faucet, and the stock, Bitcoin, Ether and gold tokens are mocks. Nothing is on Base mainnet. See <a href="#security">Security, risks and mocks</a>.</p>
+
+  <h2>Can Stackday take my money?</h2>
+  <p>No contract has an admin or owner function that can move money out of your vault. Only your wallet can withdraw, borrow or unlock. The servers hold no key that can move user funds. There has been no independent audit, so this is the builders' own claim, backed by tests. See <a href="#vault">Your vault</a>.</p>
+
+  <h2>What happens if I lose my wallet?</h2>
+  <p>You lose access to your vault. There is no recovery, because nobody else holds a key to it.</p>
+
+  <h2>Do I need an employer?</h2>
+  <p>No. A Personal account uses the same vault with one-time or recurring buys from your own wallet. See <a href="#invest">Invest</a>.</p>
+
+  <h2>Is investing part of my salary required?</h2>
+  <p>No. The share is always optional: none, 10%, 20% or your own number, once or every payday. See <a href="#payday">Payday</a>.</p>
+
+  <h2>Why borrow instead of selling?</h2>
+  <p>Selling ends your investment (and may be a taxable event where you live). Borrowing gives you cash while you keep the assets. The trade-off is interest and the risk of liquidation if prices fall far. See <a href="#borrow">Borrow instead of selling</a>.</p>
+
+  <h2>Will I be forced to repay?</h2>
+  <p>No. There is no repayment schedule. The only risk is liquidation if your loan's health falls below 1.00, which the Borrow and Risk pages show before you sign.</p>
+
+  <h2>Does Stackday lock my new buys automatically?</h2>
+  <p>No. New buys always land free. You lock them yourself. The only automatic lock is the optional emergency rule, and only when a payday is claimed.</p>
+
+  <h2>What does it cost?</h2>
+  <p>One-time buys, gifts and withdrawals are free. Recurring buys cost 0.15%, loans 0.1% a year on top of Morpho's interest, and earning interest 0.1% a year taken from the interest. See <a href="#fees">Fees</a>.</p>
+
+  <h2>Is the research investment advice?</h2>
+  <p>No. It is general research for every reader, with sources for every number and a public scorecard that keeps wrong calls. It never tells a person what to buy or sell. See <a href="#research">Research</a>.</p>
+
+  <h2>Can the chat assistant spend my money?</h2>
+  <p>No. It can only prepare a card. Code builds the card, the receiver is always your own wallet, each card is capped at 500 test USDC, and nothing happens until you confirm and sign in your wallet. See <a href="#chat">Chat assistant</a>.</p>
+
+  <h2>Why can I not sell on the Invest page?</h2>
+  <p>The contracts can only buy today. On testnet the chat can sell through a mock sell desk. Selling on mainnet needs a sell adapter (issue #35), planned after the deadline.</p>
+
+  <h2>What happens to a gift nobody opens?</h2>
+  <p>After it expires (7, 30 or 90 days), anyone can trigger the refund, and the trigger bot does it on its weekday run. The USDC goes back to the sender only. See <a href="#gifts">Gift boxes</a>.</p>
+
+  <h2>Why did my recurring buy not run?</h2>
+  <p>Common reasons: it was not due yet, your wallet did not have enough USDC that day, or the approval you gave is used up (the plan finished; use Extend). The trigger bot runs on weekdays at 16:00 UTC, and you can press Run now when a buy is due.</p>
+
+  <h2>Why is my borrow refused?</h2>
+  <p>On testnet each Morpho market holds only about 4 test USDC to lend, so larger loans are refused until the founder tops them up. A borrow is also refused if it would put your loan below the risk level you chose, or above your vault's safety cap.</p>
+
+  <h2>Who can use tokenized stocks?</h2>
+  <p>Coinbase's tokenized stocks are for eligible people outside the United States and carry no voting rights.</p>
+
+  <h2>Is Stackday an official Base or Coinbase product?</h2>
+  <p>No. It is an independent hackathon project built on Base.</p>
+
+  <h2>Where is the code?</h2>
+  <p>At <a href="https://github.com/Cloakie47/stackday" rel="noopener" target="_blank">github.com/Cloakie47/stackday</a>. Start with <code>docs/START-HERE.md</code>. See also <a href="#architecture">Architecture</a> and <a href="#contracts">Contracts and addresses</a>.</p>
+</article>
+    <footer class="site-foot">
+      <p>Stackday is an independent project built on Base for the Base Stocks Maxxing hackathon. It is not an official Base or Coinbase site, and it runs on the Base Sepolia test network only.</p>
+      <p>Nothing here is investment advice. There has been no independent security audit. Tokenized stocks are meant for eligible people outside the United States.</p>
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title">On this page</p>
+    <ol id="toc-list"></ol>
+  </aside>
+</div>
+<script src="/guide/assets/site.js?v=494089e51d"></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<article class="page" id="invest" data-title="Invest: one-time, recurring, themes" data-section="Features" data-keywords="buy invest recurring plan sip siprouter weekly schedule themes split risk level steady balanced bold market mood rebalance assets list">
+  <p class="crumb">Features</p>
+  <h1>Invest: one-time, recurring and themes</h1>
+  <p class="lead">Buy an asset once from your own wallet, or set a recurring buy that runs every week. Themes suggest a split across assets from fixed, published rules. No employer needed.</p>
+  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock tokens and prices</span><span class="pill live">Themes: partly built</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>You can buy a slice of a stock, Bitcoin, Ether or gold whenever you like, and it goes straight into your vault. Or set it and forget it: "buy $10 of NVIDIA every Monday for 12 weeks". Your wallet allows exactly that much and no more, and a bot presses the buy button on time.</p>
+    <p>Not sure what to pick? Themes let you choose topics you care about, like AI or steady big companies, and suggest how to split your money. You decide whether to use it.</p>
+  </div>
+
+  <h2>Buy once</h2>
+  <p>Pick an asset and an amount of test USDC. The buy goes through SipRouter, which buys at the price feed and sends the asset into your vault as free. One-time buys have <strong>no fee</strong>. If the exchange quote is more than 1% worse than the reference price, the app stops with "Price moved more than 1%. Try again." Manual buys work at any hour and show the exchange rate.</p>
+
+  <h2>Recurring buys</h2>
+  <ul>
+    <li><strong>Amount</strong>: any amount, with quick picks of $5, $10, $25 and $50.</li>
+    <li><strong>How often</strong>: weekly, every 2 weeks or every 4 weeks.</li>
+    <li><strong>How long</strong>: 4, 12 or 26 weeks, a year, or until you stop it. The length is set by an exact wallet approval: SipRouter can never take more than you approved.</li>
+    <li><strong>When</strong>: a weekday you pick, at 11:00 New York time while the US market is open. The plan keeps that slot.</li>
+    <li><strong>Fee</strong>: 0.15% of each recurring buy, shown before you sign.</li>
+    <li>One plan per asset. Each plan has Run now (when due), Extend (when finished) and Cancel.</li>
+  </ul>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 470" width="480" role="img" aria-label="Recurring buy flow. Once, you sign an exact USDC approval and save the plan in SipRouter. On each due weekday the trigger bot checks the plan. If it is not due, the approval is used up, or the wallet has no USDC, it skips. Otherwise it calls executePlan. SipRouter takes that buy's USDC from your wallet, checks the price, buys the asset and puts it in your vault as free. The 0.15 percent fee goes to the fee wallet. Then it waits for the next slot.">
+        <text class="d-cap" x="20" y="20">Once, you sign</text>
+        <rect class="d-box accent" x="20" y="30" width="440" height="52" rx="10"/>
+        <text class="d-t acc" x="240" y="52" text-anchor="middle">Exact USDC approval + save the plan</text>
+        <text class="d-s" x="240" y="70" text-anchor="middle">asset, amount per buy, how often, first buy slot</text>
+        <path class="d-e" d="M240 82V106" marker-end="url(#ah)"/>
+        <text class="d-cap" x="20" y="124">Every due weekday</text>
+        <rect class="d-box" x="110" y="134" width="260" height="52" rx="10"/>
+        <text class="d-t" x="240" y="156" text-anchor="middle">Trigger bot checks the plan</text>
+        <text class="d-s" x="240" y="174" text-anchor="middle">weekdays 16:00 UTC (anyone may press)</text>
+        <path class="d-e dash" d="M370 160H440V246" marker-end="url(#ah)"/>
+        <rect class="d-box soft" x="384" y="250" width="86" height="70" rx="10"/>
+        <text class="d-t" x="427" y="272" text-anchor="middle">Skip</text>
+        <text class="d-s" x="427" y="290" text-anchor="middle">not due, used up,</text>
+        <text class="d-s" x="427" y="305" text-anchor="middle">or no USDC</text>
+        <path class="d-e acc" d="M240 186V210" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="40" y="214" width="320" height="52" rx="10"/>
+        <text class="d-t" x="200" y="236" text-anchor="middle">SipRouter takes this buy's USDC</text>
+        <text class="d-s" x="200" y="254" text-anchor="middle">from your wallet, within the approval</text>
+        <path class="d-e" d="M200 266V290" marker-end="url(#ah)"/>
+        <rect class="d-box" x="40" y="294" width="320" height="52" rx="10"/>
+        <text class="d-t" x="200" y="316" text-anchor="middle">Price check, then buy</text>
+        <text class="d-s" x="200" y="334" text-anchor="middle">refuses a price worse than the plan allows</text>
+        <path class="d-e good" d="M140 346V382" marker-end="url(#ah-good)"/>
+        <path class="d-e" d="M300 346V382" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="40" y="386" width="200" height="52" rx="10"/>
+        <text class="d-t good" x="140" y="408" text-anchor="middle">Asset lands free</text>
+        <text class="d-s" x="140" y="426" text-anchor="middle">in your vault</text>
+        <rect class="d-box" x="252" y="386" width="108" height="52" rx="10"/>
+        <text class="d-t" x="306" y="408" text-anchor="middle">0.15% fee</text>
+        <text class="d-s" x="306" y="426" text-anchor="middle">to fee wallet</text>
+        <path class="d-e dash" d="M40 412H24V160H106" marker-end="url(#ah)"/>
+        <text class="d-l" x="12" y="300" transform="rotate(-90 12 300)" text-anchor="middle">next slot</text>
+      </svg>
+    </div>
+    <figcaption><b>The bot presses the button; the rules are yours.</b> Anyone may run a due buy, but it can only do what you set up: that amount, that asset, into your own vault, within your price limit and your approval. The bot's wallet only pays gas. It runs once the founder has set its keys on the hosting side; until then, Run now on the Invest page does the same.</figcaption>
+  </figure>
+
+  <h2>What you can buy</h2>
+  <p>On testnet every asset is a mock token that stands in for a real token on Base. Since November 18, 2026 an asset is either <strong>borrowable</strong> (it has a Morpho market) or <strong>invest only</strong> (no lending market: buy, hold and withdraw, never lock). The deployment has <!--@counts-->.</p>
+  <!--@assets-->
+  <p>The list holds tokens that have a real market or a usable buy route on Base. Invest-only tokens were chosen from LI.FI buy quotes on Base (under 1% at 10,000 USDC, November 18, 2026). Price charts on the Invest page show <strong>real</strong> market prices of the real assets through TradingView, for reference only: buys, loans and health on testnet use the mock price feeds, and the page says so next to every chart.</p>
+
+  <h2>Themes</h2>
+  <p>Themes are the "My themes" tab inside Research. Pick the themes you care about and a risk level, and Stackday suggests a split for your next buys. The split comes from fixed, published rules in code: the same choices always give the same split, and no AI model picks your investments. It is information, not advice, and it does not aim to beat the market.</p>
+  <p>Themes available: <strong>AI and chips, Big tech core, Future movers, Steady core</strong> (S&amp;P 500 fund and gold) and <strong>Crypto native</strong>. Clean energy, Healthcare and Global stocks are marked coming soon. Themes only use tokens that really exist on Base; on testnet only some have a mock token, and the others are shown as a preview and never bought.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Risk level</th><th class="num">Stocks</th><th class="num">Bitcoin and Ether</th><th class="num">Small risk slice</th><th class="num">Cash cushion</th></tr></thead>
+    <tbody>
+      <tr><td>Steady</td><td class="num">65%</td><td class="num">5%</td><td class="num">0%</td><td class="num">30%</td></tr>
+      <tr><td>Balanced</td><td class="num">73%</td><td class="num">12%</td><td class="num">up to 5%</td><td class="num">10%</td></tr>
+      <tr><td>Bold</td><td class="num">70%</td><td class="num">18%</td><td class="num">7%</td><td class="num">5%</td></tr>
+    </tbody>
+  </table></div>
+  <p>Every split keeps targets for new buys: no single stock above 15%, no theme above 40%, the AI and chip makers together at most 35%, each volatile name at most 2.5%. The cash cushion is not bought: on a payday plan it is paid to you, and on a wallet buy it stays in your wallet.</p>
+  <h3>Using a split</h3>
+  <ul>
+    <li><strong>From salary:</strong> save it as your every-payday plan (10, 20 or 30% of salary, at most 6 assets).</li>
+    <li><strong>From your wallet:</strong> buy it once, or set one recurring buy per asset.</li>
+    <li><strong>Rebalance with new money:</strong> new money goes to holdings below target first. Nothing is sold, because Stackday cannot sell for you; a notice says so when a holding drifts above its target.</li>
+  </ul>
+  <h3>Market mood</h3>
+  <p>Market mood summarises recent news about the stocks in your themes. It does not predict prices and does not change your amounts. <span class="pill mock">Snapshot, not live</span> On the test site it comes from a snapshot built by hand from public headlines on November 15, 2026. The live weekly news refresh for Themes is not built yet; the separate <a href="#research">weekly research report</a> does read live news.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>A plan needs USDC in your wallet</strong> on the day. If there is not enough, that buy is skipped and the plan carries on at the next slot.</li>
+    <li><strong>Missed slots are skipped, not caught up.</strong> The next buy stays on the original weekday slot.</li>
+    <li><strong>Stale prices.</strong> On mainnet, recurring buys refuse a price older than about 26 hours, because stock prices freeze when markets close. This check is switched off on testnet, where the mock feed only moves when the demo wallet changes it.</li>
+    <li><strong>Contract limits.</strong> SipRouter allows at least 1 day between buys, a first buy within 31 days and at most 10% slippage; the app uses 1%.</li>
+    <li><strong>Smallest themed trade</strong> on testnet is $0.25.</li>
+    <li><strong>Selling and true rebalancing</strong> need a sell path on mainnet (issue #35), planned after the deadline.</li>
+  </ul>
+</article>

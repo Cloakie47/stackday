@@ -2,7 +2,6 @@
 
 import { PriceChart } from "@/components/price-chart";
 import { AssetSelect } from "@/components/asset-select";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
@@ -14,6 +13,7 @@ import { assetForUsdc, fmtAsset, fmtPct, fmtPrice, fmtUsdc, intervalLabel, parse
 import { usePortfolio, type Position } from "@/lib/usePortfolio";
 import { useTx, type Call } from "@/lib/useTx";
 import { BRAND } from "@/lib/brand";
+import { guideHref } from "@/lib/guide";
 import { DEFAULT_SLOT, SLOT_DAYS, nextSlot, slotLabel } from "@/lib/slots";
 
 function AssetPicker({ positions, value, onChange }: { positions: Position[]; value: string; onChange: (s: string) => void }) {
@@ -155,7 +155,7 @@ export default function InvestPage() {
       <PageHeader
         title="Invest"
         lead="Buy into your own vault, once or on a schedule."
-        aside={<Link href="/docs#individuals" className="text-xs font-semibold text-ink hover:text-brand-ink">How investing works</Link>}
+        aside={<a href={guideHref("individuals")} className="text-xs font-semibold text-ink hover:text-brand-ink">How investing works</a>}
       />
 
       {!me && <Notice>Connect a wallet to invest.</Notice>}

@@ -1,0 +1,110 @@
+<article class="page" id="keeper-api" data-title="Trigger bot and API routes" data-section="For developers" data-keywords="keeper trigger bot cron vercel api routes endpoints session nonce sign-in siwe rate limit secrets">
+  <p class="crumb">For developers</p>
+  <h1>Trigger bot and API routes</h1>
+  <p class="lead">A small bot presses the buttons the contracts already let anyone press: due paydays, due recurring buys and expired gift refunds. The API routes handle sign-in, accounts, chat, gifts and research, and the site keeps working when they are switched off.</p>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Blockchains do not act on their own: someone has to send a transaction to make a scheduled payday or a weekly buy happen. Stackday's trigger bot does that once each weekday. It cannot change what you set up and it holds none of your money; its wallet only pays the network fee.</p>
+  </div>
+
+  <h2>The trigger bot</h2>
+  <p><code>GET /api/keeper</code> runs on a Vercel cron at <strong>16:00 UTC, Monday to Friday</strong> (<code>0 16 * * 1-5</code>), which is 11:00 New York time in winter, matching the slot recurring buys are set to.</p>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 486" width="480" role="img" aria-label="One trigger bot run. The Vercel cron calls the keeper route with the shared secret. Step one: due payroll schedules, skipped when paused, not due or underfunded, otherwise runSchedule. Step two: gift boxes, reading up to 1000 newest boxes in chunks of 100, and refundExpired for pending boxes past expiry. Step three: recurring buys registered in the database, up to 500 rows, skipped when not due, finished or the wallet has no USDC, otherwise executePlan. Every transaction is simulated first, never retried, and a run sends at most 25 transactions.">
+        <rect class="d-box accent" x="100" y="12" width="280" height="50" rx="10"/>
+        <text class="d-t acc" x="240" y="33" text-anchor="middle">Vercel cron calls /api/keeper</text>
+        <text class="d-s" x="240" y="51" text-anchor="middle">Authorization: Bearer CRON_SECRET</text>
+        <path class="d-e" d="M240 62V84" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="88" width="300" height="76" rx="10"/>
+        <text class="d-t" x="36" y="110">1. Payroll schedules</text>
+        <text class="d-s" x="36" y="130">skip: paused, not due, underfunded</text>
+        <text class="d-m" x="36" y="150">runSchedule(id)</text>
+        <path class="d-e" d="M170 164V186" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="190" width="300" height="76" rx="10"/>
+        <text class="d-t" x="36" y="212">2. Gift boxes</text>
+        <text class="d-s" x="36" y="232">newest 1000, chunks of 100; pending and expired</text>
+        <text class="d-m" x="36" y="252">refundExpired(id)</text>
+        <path class="d-e" d="M170 266V288" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="292" width="300" height="76" rx="10"/>
+        <text class="d-t" x="36" y="314">3. Recurring buys</text>
+        <text class="d-s" x="36" y="334">from recurring_plans, up to 500 rows</text>
+        <text class="d-m" x="36" y="354">executePlan(user, asset)</text>
+        <rect class="d-box warn" x="336" y="88" width="132" height="280" rx="10"/>
+        <text class="d-t" x="402" y="114" text-anchor="middle">Every send</text>
+        <text class="d-s" x="402" y="140" text-anchor="middle">simulated first</text>
+        <text class="d-s" x="402" y="162" text-anchor="middle">never retried</text>
+        <text class="d-s" x="402" y="184" text-anchor="middle">25 per run, max</text>
+        <text class="d-s" x="402" y="206" text-anchor="middle">gas only, no</text>
+        <text class="d-s" x="402" y="222" text-anchor="middle">user funds</text>
+        <text class="d-s" x="402" y="248" text-anchor="middle">the contract</text>
+        <text class="d-s" x="402" y="264" text-anchor="middle">re-checks</text>
+        <text class="d-s" x="402" y="280" text-anchor="middle">everything</text>
+        <path class="d-e dash" d="M320 126H334M320 228H334M320 330H334"/>
+        <path class="d-e" d="M170 368V392" marker-end="url(#ah)"/>
+        <rect class="d-box soft" x="20" y="396" width="448" height="78" rx="10"/>
+        <text class="d-t" x="36" y="420">Contracts do the real checks</text>
+        <text class="d-s" x="36" y="440">only that amount, that asset, that person's own vault, within the</text>
+        <text class="d-s" x="36" y="458">price limit and approval; refunds only ever pay the gift's sender</text>
+      </svg>
+    </div>
+    <figcaption><b>The bot is a button presser.</b> Each step reads state on chain, decides with small pure functions (<code>web/lib/server/keeper.ts</code>, unit tested), simulates, then sends. A cancelled plan's row is deleted.</figcaption>
+  </figure>
+  <ul>
+    <li><strong>Secrets</strong> (names only): <code>CRON_SECRET</code> (at least 16 characters, compared in constant time), <code>KEEPER_PRIVATE_KEY</code> (a gas-only wallet), optional <code>KEEPER_RPC_URL</code>. Recurring buys also need the database settings and the <code>recurring_plans</code> table.</li>
+    <li><strong>Registering a plan</strong>: saving a recurring buy calls <code>POST /api/keeper/register</code> with the wallet and asset. No sign-in is needed, because the route checks that the plan really exists on chain.</li>
+    <li>Only the founder's Vercel project runs this cron, and only once <code>CRON_SECRET</code> and <code>KEEPER_PRIVATE_KEY</code> are set there. Without them nothing runs automatically, and due items wait until someone presses the button in the app.</li>
+  </ul>
+
+  <h2>All cron jobs</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Path</th><th>Schedule (UTC)</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/keeper</code></td><td><code>0 16 * * 1-5</code></td><td>Trigger bot</td></tr>
+      <tr><td><code>/api/research/run</code></td><td><code>30 22 * * 1-5</code></td><td>Daily research note after the US close</td></tr>
+      <tr><td><code>/api/research/weekly/run?slot=1</code> to <code>10</code></td><td>Mondays, hourly 12:00 to 21:00</td><td>Weekly report, one step per call</td></tr>
+      <tr><td><code>/api/research/scores/run</code></td><td><code>0 23 * * 1-5</code></td><td>Scores daily notes after 1 and 5 trading days</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Sign-in</h2>
+  <ol class="steps">
+    <li><div><p>The browser asks <code>POST /api/session/nonce</code> for a single-use code (16 random bytes, stored for 10 minutes).</p></div></li>
+    <li><div><p>The wallet signs a Sign-In with Ethereum (EIP-4361) message with the site domain, chain 84532, the code and a 10-minute expiry.</p></div></li>
+    <li><div><p><code>POST /api/session</code> checks the domain, chain and times, deletes the code in one statement (so it can never be used twice), then verifies the signature. Smart contract wallets work too.</p></div></li>
+    <li><div><p>The first sign-in creates the profile. The session is an HttpOnly, SameSite=Lax cookie holding the wallet and an expiry, signed with HMAC, valid for 7 days.</p></div></li>
+  </ol>
+
+  <h2>API routes</h2>
+  <p>Every route answers with <code>Cache-Control: no-store</code>. <code>web/proxy.ts</code> adds an origin check on changes and per-visitor rate limits (for example 10 sign-ins, 20 chat messages and 120 reads a minute).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Route</th><th>Methods</th><th>Purpose</th><th>Sign-in</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/session/nonce</code></td><td>POST</td><td>Single-use sign-in code</td><td>No</td></tr>
+      <tr><td><code>/api/session</code></td><td>GET, POST, DELETE</td><td>Sign in, check, sign out</td><td>No</td></tr>
+      <tr><td><code>/api/me</code></td><td>GET, POST</td><td>Own account; set account type</td><td>Yes</td></tr>
+      <tr><td><code>/api/profile</code></td><td>GET / POST</td><td>Public names / set your name</td><td>No / Yes</td></tr>
+      <tr><td><code>/api/business</code></td><td>GET / POST</td><td>Public business names / save your business</td><td>No / Yes</td></tr>
+      <tr><td><code>/api/people</code></td><td>GET</td><td>Find people by ID, name or wallet (up to 8)</td><td>Yes</td></tr>
+      <tr><td><code>/api/employees</code></td><td>GET, POST, DELETE</td><td>The employer's team list</td><td>Yes</td></tr>
+      <tr><td><code>/api/memberships</code></td><td>POST</td><td>Accept or decline a team invite</td><td>Yes</td></tr>
+      <tr><td><code>/api/attendance</code></td><td>GET, POST</td><td>Daily check-ins</td><td>Yes</td></tr>
+      <tr><td><code>/api/chat</code></td><td>POST</td><td>Chat assistant (per-wallet limits)</td><td>Yes</td></tr>
+      <tr><td><code>/api/gifts</code></td><td>GET, POST</td><td>Gift messages (sender writes once, sender and recipient read)</td><td>Yes</td></tr>
+      <tr><td><code>/api/gifts/research</code></td><td>GET</td><td>The research pick mix for opening a box</td><td>No</td></tr>
+      <tr><td><code>/api/keeper</code>, <code>/api/keeper/register</code></td><td>GET, POST</td><td>Trigger bot; register a plan</td><td>Cron secret / No</td></tr>
+      <tr><td><code>/api/themes/mood</code></td><td>GET</td><td>The market mood snapshot</td><td>No</td></tr>
+      <tr><td><code>/api/research/weekly</code></td><td>GET</td><td>Latest approved weekly report (or the labelled sample)</td><td>Optional</td></tr>
+      <tr><td><code>/api/research/weekly/approve</code></td><td>POST</td><td>Approve a report by its run id</td><td>Reviewer</td></tr>
+      <tr><td><code>/api/research/snapshot</code>, <code>/history</code></td><td>GET</td><td>Daily notes and history (live for reviewers, sample for others)</td><td>Optional</td></tr>
+      <tr><td><code>/api/research/scores</code>, <code>/scores/grade</code></td><td>GET / POST</td><td>Public scores / reviewer grade</td><td>No / Reviewer</td></tr>
+      <tr><td><code>/api/research/portfolio</code>, <code>/portfolio/preview</code></td><td>GET, PUT / POST</td><td>Saved holdings / factual portfolio check</td><td>Yes / No</td></tr>
+      <tr><td><code>/api/research/access</code>, <code>/access/pay</code></td><td>GET / POST</td><td>Paywall status (off) / record a test USDC payment</td><td>Optional / Yes</td></tr>
+      <tr><td><code>/api/research/run</code>, <code>/weekly/run</code>, <code>/scores/run</code></td><td>GET</td><td>Research crons</td><td>Cron secret</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Database tables</h2>
+  <p>From <code>supabase/schema.sql</code>, every table with row level security on and no public policies: <code>profiles</code>, <code>sign_in_nonces</code>, <code>employees</code>, <code>attendance</code>, <code>businesses</code>, <code>rate_limits</code>, <code>recurring_plans</code>, <code>gifts</code>, and the research tables <code>research_runs</code>, <code>research_notes</code>, <code>research_market</code>, <code>research_weekly</code>, <code>research_weekly_sections</code>, <code>research_scores</code>, <code>research_portfolios</code>, <code>research_entitlements</code>, <code>research_payments</code> and <code>research_onchain_tail</code>.</p>
+</article>

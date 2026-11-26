@@ -1,0 +1,127 @@
+<article class="page" id="intro" data-title="What is Stackday" data-section="Overview" data-keywords="overview introduction about hackathon stocks maxxing base payroll investing testnet who">
+  <p class="crumb">Overview</p>
+  <h1>Stackday: salary maxxing on Base</h1>
+  <p class="lead">Stackday is a payroll and investing app on Base. A share of each salary can buy tokenized stocks, Bitcoin, Ether or gold into a vault that only you control, and when you need cash you can borrow against what you hold instead of selling it.</p>
+
+  <div class="note warn">
+    {{WARN}}
+    <div class="note-body">
+      <p><strong>This is a testnet demo.</strong> Everything runs on Base Sepolia, a test network where the money has no value. The stock, Bitcoin, Ether and gold tokens are mock stand-ins with mock prices. Nothing is on Base mainnet, and there has been no independent security audit. Nothing here is investment advice.</p>
+    </div>
+  </div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Your employer pays you in digital dollars (USDC). Before you collect your pay, you can say "put 10% of this into Apple and Bitcoin". That part is bought for you and kept in your own safe, which only your wallet can open. The rest of your pay goes wherever you want.</p>
+    <p>Later, if you need cash, you do not have to sell. You can borrow against what is in your safe and pay it back when you are ready. No employer? You can do the same thing from your own wallet, once or every week.</p>
+  </div>
+
+  <h2>Who it is for</h2>
+  <div class="duo">
+    <div>
+      <h4>Businesses</h4>
+      <p>Fund a USDC treasury once, add your team by their Stackday ID or name, and pay them once or on a rhythm (daily, weekly, every 2 weeks, monthly) that keeps going while the treasury has money.</p>
+    </div>
+    <div>
+      <h4>Team members</h4>
+      <p>Claim each payday to any wallet. Before claiming, send a share of it into assets, once or on every payday, and see holdings, plans and loans in one place.</p>
+    </div>
+    <div>
+      <h4>Anyone, without an employer</h4>
+      <p>The "Personal" account uses the same vault: buy once or set a recurring buy from your own wallet, then borrow against it the same way.</p>
+    </div>
+  </div>
+
+  <h2>How the money moves</h2>
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 640 312" width="640" role="img" aria-label="Overview. Money reaches your vault three ways: a share of salary from an employer's Payroll treasury, buys from your own wallet, and gift boxes. The rest of the salary goes to any wallet you choose. From the vault you can lock assets in a Morpho market and borrow USDC back to your wallet.">
+        <text class="d-cap" x="20" y="18">Ways in</text>
+        <rect class="d-box" x="20" y="30" width="186" height="62" rx="10"/>
+        <text class="d-t" x="113" y="56" text-anchor="middle">Employer treasury</text>
+        <text class="d-s" x="113" y="75" text-anchor="middle">Payroll contract</text>
+        <rect class="d-box" x="20" y="134" width="186" height="62" rx="10"/>
+        <text class="d-t" x="113" y="160" text-anchor="middle">Your own wallet</text>
+        <text class="d-s" x="113" y="179" text-anchor="middle">no employer needed</text>
+        <rect class="d-box" x="20" y="236" width="186" height="62" rx="10"/>
+        <text class="d-t" x="113" y="262" text-anchor="middle">A gift box</text>
+        <text class="d-s" x="113" y="281" text-anchor="middle">GiftBox contract</text>
+
+        <rect class="d-box accent" x="292" y="118" width="150" height="94" rx="12"/>
+        <text class="d-t acc" x="367" y="150" text-anchor="middle">Your vault</text>
+        <text class="d-s" x="367" y="170" text-anchor="middle">one per person</text>
+        <text class="d-s" x="367" y="187" text-anchor="middle">only you can move it</text>
+
+        <rect class="d-box" x="470" y="30" width="154" height="62" rx="10"/>
+        <text class="d-t" x="547" y="56" text-anchor="middle">Your wallet</text>
+        <text class="d-s" x="547" y="75" text-anchor="middle">any one you choose</text>
+        <rect class="d-box soft" x="494" y="134" width="130" height="62" rx="10"/>
+        <text class="d-t" x="559" y="160" text-anchor="middle">Morpho market</text>
+        <text class="d-s" x="559" y="179" text-anchor="middle">existing lender</text>
+
+        <path class="d-e" d="M208 50H466" marker-end="url(#ah)"/>
+        <text class="d-l" x="336" y="42" text-anchor="middle">rest of the salary</text>
+        <path class="d-e acc" d="M208 76H250V140H288" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="256" y="100">share buys assets</text>
+        <path class="d-e acc" d="M208 165H288" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="248" y="158" text-anchor="middle">buys</text>
+        <path class="d-e acc" d="M208 267H250V196H288" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="256" y="240">opens into</text>
+        <path class="d-e" d="M444 165H490" marker-end="url(#ah)"/>
+        <text class="d-l" x="467" y="158" text-anchor="middle">lock</text>
+        <path class="d-e" d="M559 132V96" marker-end="url(#ah)"/>
+        <text class="d-l" x="566" y="118">borrow USDC</text>
+      </svg>
+    </div>
+    <figcaption><b>Three ways in, one vault.</b> Salary shares, your own buys and gifts all land in the same personal vault. Borrowing goes out to an existing Morpho market and the loan comes back to your wallet.</figcaption>
+  </figure>
+
+  <h2>What you can do</h2>
+  <div class="cards">
+    <a class="card" href="#payday"><b>Invest from payday</b><span>Send 10%, 20% or your own share of each salary into assets.</span></a>
+    <a class="card" href="#vault"><b>Keep it in your vault</b><span>One vault per person, no admin, no pooled money.</span></a>
+    <a class="card" href="#invest"><b>Buy once or every week</b><span>From your own wallet, with themes to suggest a split.</span></a>
+    <a class="card" href="#borrow"><b>Borrow instead of selling</b><span>Lock assets and borrow USDC on Morpho.</span></a>
+    <a class="card" href="#research"><b>Read the research</b><span>A weekly report on six assets, with every number sourced.</span></a>
+    <a class="card" href="#gifts"><b>Send a gift box</b><span>A box of stocks that opens into a friend's vault.</span></a>
+    <a class="card" href="#chat"><b>Ask the assistant</b><span>Plain questions in, cards you check and sign out.</span></a>
+    <a class="card" href="#security"><b>Know the risks</b><span>What is real, what is mocked, what can go wrong.</span></a>
+  </div>
+
+  <h2>How to read these docs</h2>
+  <p>Every feature page starts with a short <strong>In plain words</strong> box with no jargon. Then <strong>How it works</strong> goes into detail, with a flow diagram, and each page ends with <strong>edge cases and limits</strong>. The status of each part uses the project's own words:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Label</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill live">Live on testnet</span></td><td>Built, tested and working on Base Sepolia.</td></tr>
+      <tr><td><span class="pill mock">Mocked</span></td><td>A stand-in, because the real thing does not exist on the test network. Labelled in the app too.</td></tr>
+      <tr><td><span class="pill live">Built and merged</span></td><td>On main and in the app, checked on a copy of the test network; not every part confirmed on the live site yet.</td></tr>
+      <tr><td><span class="pill review">In review</span></td><td>Built on a branch, waiting for the founder's review.</td></tr>
+      <tr><td><span class="pill plan">Not built</span></td><td>Planned or out of scope for the hackathon.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Status at a glance</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Part</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Accounts: Personal or Business, a profile with a unique Stackday ID</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Payroll: fund a treasury, pay once or on a schedule, claim to any wallet</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>A share of salary into assets, once or every payday</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Tokenized stocks, Bitcoin, Ether, gold</td><td><span class="pill mock">Mock tokens on testnet</span> real AAPLc tested on a copy of Base mainnet</td></tr>
+      <tr><td>One vault per person</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Recurring buys from your own wallet, run by a trigger bot once its keys are set</td><td><span class="pill live">Live on testnet</span></td></tr>
+      <tr><td>Interest on idle USDC</td><td><span class="pill mock">Mock venue on testnet</span> Aave not built</td></tr>
+      <tr><td>Borrowing on Morpho, collateral basket, emergency rule</td><td><span class="pill live">Live on testnet</span> Aave not built</td></tr>
+      <tr><td>Themes and the weekly research report</td><td><span class="pill live">Partly built</span> beta, free preview</td></tr>
+      <tr><td>Chat assistant with signed action cards</td><td><span class="pill live">Built and merged</span> checked on a copy of the testnet</td></tr>
+      <tr><td>Gift boxes</td><td><span class="pill live">Built and merged</span> contract deployed on Base Sepolia</td></tr>
+      <tr><td>Private (confidential) pay with Fairblock</td><td><span class="pill live">Phase 1 on testnet</span> runs beside Payroll</td></tr>
+      <tr><td>Selling on mainnet, automatic rebalancing</td><td><span class="pill plan">Not built</span> after the deadline</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>About the project</h2>
+  <p>Stackday is an entry in the Base "Stocks Maxxing" hackathon, Track 3 (programmable stock markets), aimed at stock-backed loans. The deadline is December 5, 2026. It is built by the founder, Cloakie47, with growthmindsetgg contributing. The code is public at <a href="{{REPO}}" rel="noopener" target="_blank">github.com/Cloakie47/stackday</a>, and the demo runs at <a href="{{APP}}" rel="noopener" target="_blank">stackday-rho.vercel.app</a>.</p>
+  <p>What Stackday is not: it runs no lending pool and no pooled fund, it holds nobody's money (each vault belongs to its owner), and it launches no token. Tokenized stocks are meant for eligible people outside the United States and carry no voting rights.</p>
+</article>

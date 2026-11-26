@@ -1,0 +1,107 @@
+<article class="page" id="research-engine" data-title="Research engine" data-section="For developers" data-keywords="research engine daily weekly models haiku sonnet opus cost cap reviewers approve slots facts untrusted injection reproducible flags">
+  <p class="crumb">For developers</p>
+  <h1>Research engine</h1>
+  <p class="lead">How the daily note and the Monday report are produced: which models run, how a weekly report fits into Vercel's time limits, how reviewers approve it, and what stops a bad run.</p>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>A computer program collects market data and works out every number. AI models then write about those numbers, other passes check their work, and a person signs off before it is published. If anything goes wrong or gets too expensive, the run stops and publishes nothing.</p>
+  </div>
+
+  <h2>Models and switches</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Job</th><th>Model</th></tr></thead>
+    <tbody>
+      <tr><td>Daily note, first pass</td><td><code>claude-haiku-5-5</code></td></tr>
+      <tr><td>Daily note, big movers and answers that fail checks</td><td><code>claude-sonnet-5-5</code></td></tr>
+      <tr><td>Monday report, every step for every asset</td><td><code>claude-opus-5-5</code></td></tr>
+      <tr><td>Chat assistant (for comparison)</td><td><code>claude-sonnet-5-5</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>Switches in <code>web/lib/research/flags.ts</code>, all defaulting to the safe value: <code>RESEARCH_ENGINE_ENABLED</code> plus <code>ANTHROPIC_API_KEY</code> to run with real model calls (otherwise the routes serve the labelled sample), <code>RESEARCH_PAYWALL_ENABLED</code> (off), and spend caps <code>RESEARCH_MAX_RUN_COST_USD</code> ($2), <code>RESEARCH_MAX_WEEKLY_RUN_COST_USD</code> ($4) and <code>RESEARCH_MAX_DAY_COST_USD</code> ($6). Reviewers are the wallets in <code>RESEARCH_REVIEWERS</code>, signed in with the normal wallet sign-in.</p>
+
+  <h2>The Monday run, step by step</h2>
+  <p>A full weekly report is too long for one serverless call (Vercel Hobby stops a function at 300 seconds), so the cron calls the weekly route once an hour and each call does one step.</p>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 470" width="480" role="img" aria-label="The Monday weekly run. Ten cron calls, hourly from 12:00 to 21:00 UTC. Each early call researches one asset with every step on the strongest model; a failed asset is tried once more. When all six assets are done, one call writes the report, unapproved, to research_weekly. Later calls that week do nothing. A reviewer reads it on the review page and approves it with its run id. Only then does GET /api/research/weekly serve it to everyone, the chat and gift research picks.">
+        <text class="d-cap" x="20" y="20">Monday, one cron call an hour (UTC)</text>
+        <g>
+          <rect class="d-box accent" x="20" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="40" y="54" text-anchor="middle">12</text>
+          <rect class="d-box accent" x="64" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="84" y="54" text-anchor="middle">13</text>
+          <rect class="d-box accent" x="108" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="128" y="54" text-anchor="middle">14</text>
+          <rect class="d-box accent" x="152" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="172" y="54" text-anchor="middle">15</text>
+          <rect class="d-box accent" x="196" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="216" y="54" text-anchor="middle">16</text>
+          <rect class="d-box accent" x="240" y="32" width="40" height="34" rx="6"/><text class="d-l acc" x="260" y="54" text-anchor="middle">17</text>
+          <rect class="d-box soft" x="284" y="32" width="40" height="34" rx="6"/><text class="d-l" x="304" y="54" text-anchor="middle">18</text>
+          <rect class="d-box soft" x="328" y="32" width="40" height="34" rx="6"/><text class="d-l" x="348" y="54" text-anchor="middle">19</text>
+          <rect class="d-box soft" x="372" y="32" width="40" height="34" rx="6"/><text class="d-l" x="392" y="54" text-anchor="middle">20</text>
+          <rect class="d-box soft" x="416" y="32" width="44" height="34" rx="6"/><text class="d-l" x="438" y="54" text-anchor="middle">21</text>
+        </g>
+        <path class="d-e" d="M20 78H280"/>
+        <text class="d-s" x="150" y="94" text-anchor="middle">one asset per call (example: all succeed)</text>
+        <path class="d-e" d="M284 78H460"/>
+        <text class="d-s" x="372" y="94" text-anchor="middle">retries, then write, then idle</text>
+        <path class="d-e" d="M150 100V122" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="126" width="260" height="92" rx="10"/>
+        <text class="d-t" x="36" y="148">Per asset, on claude-opus-5-5</text>
+        <text class="d-s" x="36" y="168">gather facts in code, 4 analysts,</text>
+        <text class="d-s" x="36" y="184">bull and bear with a rebuttal,</text>
+        <text class="d-s" x="36" y="200">editor draft, risk reviewer</text>
+        <rect class="d-box warn" x="300" y="126" width="160" height="92" rx="10"/>
+        <text class="d-t" x="380" y="150" text-anchor="middle">A failed asset</text>
+        <text class="d-s" x="380" y="170" text-anchor="middle">is tried once more;</text>
+        <text class="d-s" x="380" y="186" text-anchor="middle">a cap hit stops the</text>
+        <text class="d-s" x="380" y="202" text-anchor="middle">run, writing nothing</text>
+        <path class="d-e" d="M150 218V242" marker-end="url(#ah)"/>
+        <rect class="d-box" x="20" y="246" width="440" height="50" rx="10"/>
+        <text class="d-t" x="240" y="268" text-anchor="middle">All six done: one call writes the report</text>
+        <text class="d-s" x="240" y="285" text-anchor="middle">to research_weekly, unapproved; later calls do nothing</text>
+        <path class="d-e" d="M240 296V318" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="20" y="322" width="440" height="50" rx="10"/>
+        <text class="d-t acc" x="240" y="344" text-anchor="middle">Reviewer reads it and approves it</text>
+        <text class="d-s" x="240" y="361" text-anchor="middle">POST /api/research/weekly/approve with that version's run id</text>
+        <path class="d-e acc" d="M240 372V394" marker-end="url(#ah-acc)"/>
+        <rect class="d-box good" x="20" y="398" width="440" height="60" rx="10"/>
+        <text class="d-t good" x="240" y="420" text-anchor="middle">Published</text>
+        <text class="d-s" x="240" y="440" text-anchor="middle">GET /api/research/weekly, the chat's weekly view, gift research picks</text>
+      </svg>
+    </div>
+    <figcaption><b>Approval is tied to a version.</b> The reviewer approves by run id, so only the exact report they read is published. Until a report is approved, readers see the previous approved one or the labelled sample.</figcaption>
+  </figure>
+
+  <h2>The daily run</h2>
+  <ol>
+    <li>If the market was closed, carry the last note forward.</li>
+    <li>Gather data in code, then a triage pass on the cheaper model.</li>
+    <li>Big movers and answers that fail checks get a second pass on the stronger model.</li>
+    <li>A risk check in code removes unsupported claims and caps conviction. Buy zone and invalidation levels are computed in code.</li>
+    <li>If more than two assets end with no reading, nothing is written.</li>
+  </ol>
+  <p>The score job at 23:00 UTC grades notes after 1 and 5 trading days (direction, levels, facts share) and keeps calibration per conviction level. Reviewers add a 1 to 5 grade.</p>
+
+  <h2>Safety and honesty rules in code</h2>
+  <ul>
+    <li><strong>Facts first.</strong> Every number is a fact with an id, a source, a link and a time (<code>web/lib/research/data</code>). The model never calculates a price, an indicator or a level, and a claim without a fact id is removed.</li>
+    <li><strong>Untrusted text.</strong> Headlines, filings and web text go inside an <code>&lt;untrusted_news&gt;</code> block and through an injection screen; anything that reads like instructions to an AI is dropped and logged. Headline links are checked against a whitelist of outlet host names.</li>
+    <li><strong>No money powers.</strong> The engine has no wallet, no keys and no tool that sends transactions.</li>
+    <li><strong>Strict JSON.</strong> Output is parsed and validated against a schema before rendering.</li>
+    <li><strong>No look-ahead.</strong> Bars are cut at the run time and macro series are used only from their real release day, so a report and any backtest only use data that existed then.</li>
+    <li><strong>Reproducible.</strong> Model ids, prompt version and a hash of the data are logged per run.</li>
+    <li><strong>Fail closed.</strong> A run that fails or hits a cap writes nothing, and can send an alert to <code>RESEARCH_ALERT_WEBHOOK_URL</code>.</li>
+    <li><strong>Labels.</strong> Every page and report carries the research disclaimer; the weekly report carries the Beta label until the quality bar holds.</li>
+  </ul>
+
+  <h2>Code map</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Folder</th><th>What lives there</th></tr></thead>
+    <tbody>
+      <tr><td><code>web/lib/research/universe.ts</code></td><td>The six assets; refuses any asset that is not borrowable</td></tr>
+      <tr><td><code>web/lib/research/data/</code></td><td>Prices, on-chain bars, indicators, patterns, macro, calendars, headlines, filings, flows; <code>SOURCES.md</code> lists every source and its terms</td></tr>
+      <tr><td><code>web/lib/research/engine/</code></td><td><code>daily.ts</code>, <code>weekly.ts</code>, prompts, review, validation, budget, scores, store</td></tr>
+      <tr><td><code>web/lib/research/portfolio/</code></td><td>The factual portfolio check</td></tr>
+      <tr><td><code>web/lib/research/access/</code></td><td>Paywall and payments (paywall off)</td></tr>
+      <tr><td><code>web/app/(app)/research/</code>, <code>web/components/research/</code></td><td>Weekly report, asset pages, portfolio check, plans, reviewer page</td></tr>
+    </tbody>
+  </table></div>
+</article>

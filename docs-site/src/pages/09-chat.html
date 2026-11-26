@@ -1,0 +1,136 @@
+<article class="page" id="chat" data-title="Chat assistant" data-section="Features" data-keywords="chat assistant ai claude intent card pre-check simulate sign guardrails untrusted receipts activity chips refresh">
+  <p class="crumb">Features</p>
+  <h1>Chat assistant</h1>
+  <p class="lead">Ask about your own balances, loans, prices, fees and the weekly research in plain words. When you want to act, the assistant prepares a card with the exact amounts, Stackday checks it, and you sign it in your own wallet.</p>
+  <div class="status-row"><span class="pill live">Built and merged</span><span class="pill mock">Mock sell desk for selling</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>There is an Ask button on every app page. Type things like "how is my loan?" or "buy $20 of Apple". The assistant can explain and suggest, but it cannot spend anything.</p>
+    <p>For actions it shows you a card: what will happen, how much, the fee, and that it goes to your own wallet. Stackday tests the card on the network first. Nothing moves until you press Confirm and approve it in your wallet.</p>
+  </div>
+
+  <h2>What it can read</h2>
+  <ul>
+    <li><strong>Your portfolio</strong>: wallet USDC, each asset in your vault (free and locked) with its value, loans, the fee owed, health and running plans. The server reads this from the chain for your signed-in wallet.</li>
+    <li><strong>A loan</strong>: amount owed, Stackday fee, health, the price fall it survives, share of the limit used and the liquidation price.</li>
+    <li><strong>Prices</strong>: the testnet price feeds, with their update time.</li>
+    <li><strong>The weekly research</strong>: the latest approved report only, with its date and the disclaimer.</li>
+    <li><strong>Explanations</strong> of fees, borrowing, selling, recurring buys, the vault, the testnet and gifts, from fixed text.</li>
+  </ul>
+
+  <h2>What it can prepare</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Card</th><th>What you sign</th></tr></thead>
+    <tbody>
+      <tr><td>Buy</td><td>A one-time buy into your vault. No fee.</td></tr>
+      <tr><td>Recurring buy</td><td>An approval and a plan (weekly, every 2 or 4 weeks, for 4, 12, 26 or 52 weeks). The 0.15% fee is shown per buy and in total.</td></tr>
+      <tr><td>Stop a plan</td><td>Cancels that asset's recurring buy.</td></tr>
+      <tr><td>Sell</td><td>Withdraws from your vault, then sells to the testnet mock sell desk for test USDC. The card says "You could borrow against it instead".</td></tr>
+      <tr><td>Withdraw</td><td>Assets from your vault to your connected wallet.</td></tr>
+      <tr><td>Lock, unlock</td><td>Moves a borrowable asset between free and locked. An unlock that would push a loan over the safety cap is refused.</td></tr>
+      <tr><td>Borrow</td><td>Locks collateral and borrows at the risk level you choose (Mid by default), showing health after and the liquidation price. Refused, not just warned, below that level.</td></tr>
+      <tr><td>Repay</td><td>Repays one loan or every loan, fee first.</td></tr>
+      <tr><td>Gift</td><td>Not signed in chat: it opens the Gifts page with the amount and box type filled in.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>How one turn works</h2>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 730" width="480" role="img" aria-label="One chat turn. In your browser you type a message. On the Stackday server the chat route checks your wallet sign-in and the rate limit, reads your portfolio from the chain, and calls the model with a fixed list of tools for up to five steps. The model answers with text, or with one action intent, which must pass a strict schema with no address or receiver field, and is refused if the turn included untrusted text. Back in your browser, code builds the card from the intent with the same helpers as the Invest and Borrow pages: receiver is your wallet, at most 500 test USDC, allowlisted contracts only, two minute expiry. Every call on the card is simulated on Base Sepolia: it passes, is blocked with the reason, or could not be checked. You press Confirm and sign in your own wallet. A receipt with transaction links is saved to Activity on your device.">
+        <rect class="d-zone" x="8" y="8" width="464" height="84" rx="12"/>
+        <text class="d-cap" x="22" y="28">Your browser</text>
+        <rect class="d-box" x="120" y="38" width="240" height="40" rx="10"/>
+        <text class="d-t" x="240" y="63" text-anchor="middle">You type a message</text>
+        <path class="d-e" d="M240 78V116" marker-end="url(#ah)"/>
+
+        <rect class="d-zone accent" x="8" y="104" width="464" height="320" rx="12"/>
+        <text class="d-cap" x="22" y="124">Stackday server, POST /api/chat</text>
+        <rect class="d-box" x="70" y="134" width="340" height="44" rx="10"/>
+        <text class="d-t" x="240" y="154" text-anchor="middle">Signed-in wallet? Within the rate limit?</text>
+        <text class="d-s" x="240" y="170" text-anchor="middle">10 a minute, 150 a day per wallet</text>
+        <path class="d-e" d="M240 178V196" marker-end="url(#ah)"/>
+        <rect class="d-box" x="70" y="200" width="340" height="44" rx="10"/>
+        <text class="d-t" x="240" y="220" text-anchor="middle">Reads your portfolio from the chain</text>
+        <text class="d-s" x="240" y="236" text-anchor="middle">addresses and long hex removed from the text</text>
+        <path class="d-e" d="M240 244V262" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="70" y="266" width="340" height="44" rx="10"/>
+        <text class="d-t acc" x="240" y="286" text-anchor="middle">Model with a fixed list of tools</text>
+        <text class="d-s" x="240" y="302" text-anchor="middle">claude-sonnet-5-5, up to 5 steps</text>
+        <path class="d-e" d="M150 310V330H90V346" marker-end="url(#ah)"/>
+        <path class="d-e acc" d="M330 310V330H340V346" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="20" y="350" width="140" height="62" rx="10"/>
+        <text class="d-t" x="90" y="376" text-anchor="middle">Text answer</text>
+        <text class="d-s" x="90" y="394" text-anchor="middle">shown as is</text>
+        <rect class="d-box warn" x="196" y="350" width="268" height="62" rx="10"/>
+        <text class="d-t" x="330" y="372" text-anchor="middle">One action intent, checked</text>
+        <text class="d-s" x="330" y="389" text-anchor="middle">strict schema, no address field;</text>
+        <text class="d-s" x="330" y="404" text-anchor="middle">refused if the turn had untrusted text</text>
+        <path class="d-e acc" d="M330 412V452" marker-end="url(#ah-acc)"/>
+
+        <rect class="d-zone" x="8" y="440" width="464" height="216" rx="12"/>
+        <text class="d-cap" x="22" y="460">Your browser</text>
+        <rect class="d-box" x="70" y="470" width="340" height="62" rx="10"/>
+        <text class="d-t" x="240" y="492" text-anchor="middle">Code builds the card from the intent</text>
+        <text class="d-s" x="240" y="509" text-anchor="middle">same helpers as Invest and Borrow; to: your wallet;</text>
+        <text class="d-s" x="240" y="524" text-anchor="middle">max 500 test USDC; allowlist; 2 minute expiry</text>
+        <path class="d-e" d="M240 532V550" marker-end="url(#ah)"/>
+        <rect class="d-box" x="70" y="554" width="340" height="44" rx="10"/>
+        <text class="d-t" x="240" y="574" text-anchor="middle">Pre-check: every call simulated in order</text>
+        <text class="d-s" x="240" y="590" text-anchor="middle">passes / blocked with the reason / could not check</text>
+        <path class="d-e" d="M240 598V614" marker-end="url(#ah)"/>
+        <rect class="d-box" x="100" y="618" width="280" height="28" rx="8"/>
+        <text class="d-l" x="240" y="636" text-anchor="middle">You read the card and press Confirm</text>
+        <path class="d-e acc" d="M240 656V676" marker-end="url(#ah-acc)"/>
+        <rect class="d-box accent" x="40" y="680" width="190" height="40" rx="10"/>
+        <text class="d-t acc" x="135" y="705" text-anchor="middle">Your wallet signs</text>
+        <path class="d-e" d="M230 700H246" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="250" y="680" width="210" height="40" rx="10"/>
+        <text class="d-t good" x="355" y="705" text-anchor="middle">Receipt saved to Activity</text>
+      </svg>
+    </div>
+    <figcaption><b>The model proposes; code builds; you sign.</b> The model can only return a validated intent such as "buy, Apple, 20 USDC". It never writes an address, an amount on the card, or transaction data. The server holds no keys and never signs.</figcaption>
+  </figure>
+
+  <h2>The card and the pre-check</h2>
+  <p>A card shows the action, the asset, the amounts, the Stackday fee (or None), "to: your wallet" with the full address and a testnet label. Borrow cards add the health after and the liquidation price with the price fall that triggers it. The sentence above a card is written by code from the intent, never by the model.</p>
+  <p>When a card appears, every call on it is simulated in order on Base Sepolia from your connected wallet, in one request. The card then says one of three things:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Result</th><th>What you see</th><th>Confirm</th></tr></thead>
+    <tbody>
+      <tr><td>Passes</td><td>A green line: it passes, prices can still move</td><td>On</td></tr>
+      <tr><td>Blocked</td><td>The failing step and the reason in plain words, a hint and Check again</td><td>Off</td></tr>
+      <tr><td>Could not pre-check</td><td>"Could not pre-check right now"</td><td>On</td></tr>
+    </tbody>
+  </table></div>
+  <p>A card expires after 2 minutes. An expired card offers <strong>Refresh numbers</strong>: the same stored intent is rebuilt through the same builder with fresh chain reads, a fresh expiry and a new pre-check, without asking the model again. Only one card is pending at a time; a new one replaces the old.</p>
+
+  <h2>Guardrails</h2>
+  <ul>
+    <li><strong>No keys, no signing.</strong> The model only outputs intents. Your wallet shows its own prompt for every step.</li>
+    <li><strong>No receiver field.</strong> No intent has an address or "to" field, and an unknown field makes the whole intent fail. Withdrawals and borrows always go to your connected wallet.</li>
+    <li><strong>Caps.</strong> At most 500 test USDC per card. A borrow is refused if health afterwards would be below your chosen risk level.</li>
+    <li><strong>Allowlist.</strong> Cards may only call USDC, Stackday's contracts, the mock sell desk, the listed asset tokens and your own vault.</li>
+    <li><strong>Untrusted text.</strong> Research text reaches the model inside an untrusted block, and no action is accepted in a turn that included it. Later turns see only a stub of that answer.</li>
+    <li><strong>No personal advice.</strong> "What should I buy?" gets the general weekly views with the disclaimer and an explanation of the options.</li>
+    <li><strong>Sign-in and limits.</strong> The chat needs the wallet sign-in. Each wallet gets 10 messages a minute and 150 a day; if the limit store cannot be reached, the chat refuses rather than running unlimited.</li>
+    <li><strong>It never asks</strong> for a private key or recovery phrase.</li>
+  </ul>
+
+  <h2>Receipts and Activity</h2>
+  <p>A finished action leaves a receipt with every transaction link. Receipts are listed under <strong>Activity</strong>, stored on your device only, and are never sent to the model. Chat history is also kept on the device (the last 40 messages, plus up to 100 older receipts); Clear keeps the receipts.</p>
+
+  <h2>The dock</h2>
+  <p>The chat opens as a dialog: focus stays inside it and returns to the Ask button when it closes, Esc closes it (except while a wallet signature is running), and new messages are announced politely to screen readers. On phones it is a bottom sheet with a drag handle and a dimmed backdrop. Suggestion chips come from a fixed list in code: by page when the dock is empty, then by card type or by what was asked. A sell card offers "Or borrow X USDC instead" from its own numbers, worded as an option.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Small testnet pools.</strong> Each Morpho market holds about 4 test USDC to lend and the sell desk holds about 5 test USDC, so larger borrows and sells are refused until the founder tops them up.</li>
+    <li><strong>Selling is testnet only.</strong> On mainnet a sell needs a sell adapter (issue #35), planned after the deadline.</li>
+    <li><strong>Gift cards are not pre-checked</strong>, because they only open the Gifts page.</li>
+    <li><strong>Mistakes happen.</strong> The model can misunderstand. That is why the card, not the chat text, is what you check, and why nothing happens without your signature.</li>
+    <li><strong>How it was checked.</strong> The buy, recurring buy, stop, sell, borrow, repay and withdraw cards were sent and succeeded on a copy of Base Sepolia. The live model was not called from a developer machine.</li>
+    <li><strong>No model key, no chat.</strong> Without the server's model key the chat route answers that it is unavailable; the rest of the app is unaffected.</li>
+  </ul>
+</article>

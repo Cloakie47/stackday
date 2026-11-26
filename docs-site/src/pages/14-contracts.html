@@ -1,0 +1,74 @@
+<article class="page" id="contracts" data-title="Contracts and addresses" data-section="For developers" data-keywords="contracts addresses deployment base sepolia payroll siprouter giftbox vaultfactory employeevault morpho market id lltv mocks sourcify functions">
+  <p class="crumb">For developers</p>
+  <h1>Contracts and addresses</h1>
+  <p class="lead">The thirteenth testnet deployment (November 19, 2026), with GiftBox and the mock sell desk added on November 25. Every address below is generated from <code>deployments/base-sepolia.json</code> when this site is built.</p>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>These are the exact programs Stackday runs on the Base Sepolia test network, and where to find them. Click an address to see it on the block explorer. The source code of the Stackday contracts is verified on Sourcify, so anyone can check that what runs is what is published.</p>
+  </div>
+
+  <h2>Stackday contracts (real, no owner)</h2>
+  <!--@core-->
+  <p>Source verified on Sourcify: <code>https://repo.sourcify.dev/84532/ADDRESS</code>.</p>
+
+  <h2>Existing protocols used as they are</h2>
+  <!--@external-->
+
+  <h2>Morpho markets</h2>
+  <p>Created by the Stackday deploy script, each lending USDC against one asset. The liquidation limits match the main real markets on Base for each kind of asset.</p>
+  <!--@markets-->
+
+  <h2>Main functions</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Contract</th><th>Function</th><th>Who may call</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="6">Payroll</td><td><code>deposit</code>, <code>withdrawUnallocated</code>, <code>createRun</code>, <code>depositAndCreateRun</code></td><td>Employer (own treasury)</td></tr>
+      <tr><td><code>createSchedule</code>, <code>setScheduleActive</code></td><td>Employer</td></tr>
+      <tr><td><code>runSchedule</code></td><td>Anyone, once a payday is due</td></tr>
+      <tr><td><code>setSipPlan</code>, <code>setSipPlanMany</code>, <code>setEmergencyRule</code></td><td>Employee</td></tr>
+      <tr><td><code>claim</code>, <code>claimMany</code> (standing plan), <code>claimWithSip</code>, <code>claimWithSipMany</code> (one time, free)</td><td>Employee, to any recipient</td></tr>
+      <tr><td><code>reclaim</code></td><td>Employer, 180 days after the run</td></tr>
+      <tr><td rowspan="3">EmployeeVault</td><td><code>depositStock</code>, <code>depositStockAsCollateral</code>, <code>repay</code></td><td>Anyone (adds value)</td></tr>
+      <tr><td><code>addCollateral</code>, <code>removeCollateral</code>, <code>borrow</code>, <code>withdraw</code>, <code>earn</code>, <code>stopEarning</code>, <code>setBorrowCapBps</code></td><td>Vault owner only</td></tr>
+      <tr><td><code>initialize</code></td><td>Factory only, once</td></tr>
+      <tr><td>VaultFactory</td><td><code>createVault</code>, <code>predictVault</code>, <code>allStocks</code></td><td>Anyone; the vault always belongs to the given wallet</td></tr>
+      <tr><td rowspan="2">SipRouter</td><td><code>invest</code> (free), <code>setPlan</code>, <code>cancelPlan</code></td><td>The user</td></tr>
+      <tr><td><code>executePlan(user, asset)</code></td><td>Anyone, once a buy is due</td></tr>
+      <tr><td rowspan="4">GiftBox</td><td><code>create</code></td><td>Sender</td></tr>
+      <tr><td><code>open</code>, <code>decline</code></td><td>Recipient only (open before expiry)</td></tr>
+      <tr><td><code>revoke</code></td><td>Sender, while pending</td></tr>
+      <tr><td><code>refundExpired</code></td><td>Anyone, after expiry; pays the sender</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Key limits in code</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Limit</th><th>Value</th><th>Contract</th></tr></thead>
+    <tbody>
+      <tr><td>Fee cap</td><td>20 bps for every fee</td><td>Payroll, SipRouter, VaultFactory</td></tr>
+      <tr><td>Assets per payday plan</td><td>6</td><td>Payroll</td></tr>
+      <tr><td>People per schedule</td><td>200</td><td>Payroll</td></tr>
+      <tr><td>Unclaimed salary take-back</td><td>after 180 days, back to the treasury</td><td>Payroll</td></tr>
+      <tr><td>Emergency rule health level</td><td>above 1.0, at most 10.0; borrowable asset only</td><td>Payroll</td></tr>
+      <tr><td>Vault safety cap</td><td>50% of the limit by default, at most 85%</td><td>EmployeeVault</td></tr>
+      <tr><td>Recurring buy interval</td><td>at least 1 day; first buy within 31 days</td><td>SipRouter</td></tr>
+      <tr><td>Recurring buy slippage</td><td>at most 10%</td><td>SipRouter</td></tr>
+      <tr><td>Gift legs, slippage, length</td><td>up to 6 legs, weights total 10,000, slippage at most 3%, 1 to 365 days, at least 1 USDC</td><td>GiftBox</td></tr>
+      <tr><td>Sell desk spread (mock)</td><td>50 bps on testnet, at most 500</td><td>MockSellDesk</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Assets</h2>
+  <!--@assets-->
+
+  <h2>Mocks (testnet only)</h2>
+  <p>Owned by the demo wallet so stress scenarios can be shown: it can set prices, freeze and reopen the market, pause transfers and mint. Not part of the real design.</p>
+  <!--@mocks-->
+
+  <h2>Fixed settings</h2>
+  <!--@fees-->
+
+  <h2>Deploying your own copy</h2>
+  <p>Never overwrite the official <code>deployments/base-sepolia.json</code>. To deploy a copy for testing, set <code>DEPLOYMENTS_FILE=deployments/local-yourname.json</code> and run <code>forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --slow --gas-estimate-multiplier 150</code> with a test-only wallet. It needs about 36 test USDC to fund the markets and a little test ETH. Scripts that touch Morpho need a gas margin, because simulations see no interest accrual.</p>
+</article>

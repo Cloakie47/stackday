@@ -1,0 +1,80 @@
+<article class="page" id="vault" data-title="Your vault" data-section="Features" data-keywords="vault self custody owner factory free locked withdraw earn interest idle usdc dividends total invested">
+  <p class="crumb">Features</p>
+  <h1>Your vault</h1>
+  <p class="lead">Every person gets their own vault contract. Anyone can put value in; only your wallet can take value out. There is no admin, no pooled money and no upgrade switch.</p>
+  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock interest venue</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Your vault is like a personal safe-deposit box that lives on the blockchain. Your payday shares, your buys and gifts from friends all go into it. Only the wallet you signed up with has the key.</p>
+    <p>Not even the Stackday team can open it or move what is inside. The flip side: if you lose access to your wallet, nobody can recover the vault for you.</p>
+  </div>
+
+  <h2>How it works</h2>
+  <p>The <strong>VaultFactory</strong> contract makes one small vault per wallet. The address is worked out in advance from your wallet, so Payroll, SipRouter and GiftBox can all send to the same vault, and the vault is created the first time something needs it. Anyone may trigger that creation, which is harmless: the vault always belongs to the wallet it was made for, its owner is set once and can never change, and it cannot be set up again or taken over.</p>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 420" width="480" role="img" aria-label="Who can do what with your vault. Anyone can put value in: payday shares and buys, gift boxes, and loan repayments. Only your wallet can take value out or change risk: withdraw, borrow, lock and unlock, earn interest and stop earning. No admin or Stackday team key can move funds.">
+        <text class="d-cap" x="240" y="18" text-anchor="middle">Anyone can put value in</text>
+        <rect class="d-box" x="16" y="30" width="140" height="50" rx="10"/>
+        <text class="d-t" x="86" y="52" text-anchor="middle">Payday shares</text>
+        <text class="d-s" x="86" y="69" text-anchor="middle">and your buys</text>
+        <rect class="d-box" x="170" y="30" width="140" height="50" rx="10"/>
+        <text class="d-t" x="240" y="52" text-anchor="middle">Gift boxes</text>
+        <text class="d-s" x="240" y="69" text-anchor="middle">opened by you</text>
+        <rect class="d-box" x="324" y="30" width="140" height="50" rx="10"/>
+        <text class="d-t" x="394" y="52" text-anchor="middle">Repayments</text>
+        <text class="d-s" x="394" y="69" text-anchor="middle">from any wallet</text>
+        <path class="d-e acc" d="M86 80V110H200V134" marker-end="url(#ah-acc)"/>
+        <path class="d-e acc" d="M240 80V134" marker-end="url(#ah-acc)"/>
+        <path class="d-e acc" d="M394 80V110H280V134" marker-end="url(#ah-acc)"/>
+
+        <rect class="d-box accent" x="120" y="138" width="240" height="96" rx="12"/>
+        <text class="d-t acc" x="240" y="164" text-anchor="middle">Your vault</text>
+        <rect class="d-box" x="136" y="176" width="100" height="44" rx="8"/>
+        <text class="d-t" x="186" y="196" text-anchor="middle">Free</text>
+        <text class="d-s" x="186" y="212" text-anchor="middle">in the vault</text>
+        <rect class="d-box soft" x="244" y="176" width="100" height="44" rx="8"/>
+        <text class="d-t" x="294" y="196" text-anchor="middle">Locked</text>
+        <text class="d-s" x="294" y="212" text-anchor="middle">at Morpho</text>
+
+        <path class="d-e" d="M240 234V270" marker-end="url(#ah)"/>
+        <text class="d-cap" x="240" y="290" text-anchor="middle">Only your wallet can</text>
+        <rect class="d-box" x="16" y="302" width="140" height="50" rx="10"/>
+        <text class="d-t" x="86" y="324" text-anchor="middle">Withdraw</text>
+        <text class="d-s" x="86" y="341" text-anchor="middle">to any address</text>
+        <rect class="d-box" x="170" y="302" width="140" height="50" rx="10"/>
+        <text class="d-t" x="240" y="324" text-anchor="middle">Borrow, lock</text>
+        <text class="d-s" x="240" y="341" text-anchor="middle">unlock, safety cap</text>
+        <rect class="d-box" x="324" y="302" width="140" height="50" rx="10"/>
+        <text class="d-t" x="394" y="324" text-anchor="middle">Earn interest</text>
+        <text class="d-s" x="394" y="341" text-anchor="middle">and stop earning</text>
+
+        <rect class="d-box bad" x="120" y="372" width="240" height="38" rx="10"/>
+        <text class="d-t bad" x="240" y="396" text-anchor="middle">No admin or team key can move funds</text>
+      </svg>
+    </div>
+    <figcaption><b>A one-way door for everyone but you.</b> Payroll, SipRouter, GiftBox and anyone repaying a loan can add value. Every function that takes value out, or adds risk, checks that the caller is the vault's owner.</figcaption>
+  </figure>
+
+  <h3>Free and locked</h3>
+  <p><strong>Free</strong> assets are tokens sitting in the vault. <strong>Locked</strong> assets have been posted to a Morpho market as collateral for a loan. New buys always land free; you lock them yourself on the Borrow page (or the emergency rule locks a payday share if you turned it on).</p>
+
+  <h3>Withdraw</h3>
+  <p>You can withdraw to any address at any time. If the free balance is not enough, the vault unlocks collateral automatically, as far as the loan allows. Once a loan is repaid, everything can come out.</p>
+
+  <h3>Earn interest on idle USDC</h3>
+  <p>USDC sitting in your vault can be put to work in an interest vault (a standard ERC-4626 vault, such as a Morpho vault). <em>Earn</em> uses USDC already in the vault first, then takes the rest from your wallet. <em>Stop earning</em> brings it back. Stackday's earn fee is 0.1% a year of the amount earning, taken only out of the interest, never the deposit. On testnet the interest venue is a mock and is labelled as such; a real Morpho vault was tested on a copy of Base mainnet.</p>
+
+  <h3>What the Portfolio page shows</h3>
+  <p>Holdings (free and locked, with their value), your plans, loans and their health, and <strong>Total invested</strong>: the lifetime USDC you put in through buys and payday shares, kept on chain by SipRouter and Payroll, next to what it is worth now and the change.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>No recovery.</strong> A vault has one owner key. Losing the wallet loses access to the vault.</li>
+    <li><strong>Issuer powers.</strong> The real stock tokens have an issuer who can pause, block or seize tokens. No contract can protect against that.</li>
+    <li><strong>Dividends.</strong> Real Coinbase tokens reinvest dividends by raising an on-chain multiplier, so each token is worth more over time, locked collateral included. The Borrow page estimates them after the issuer's 5% fee and up to 30% US withholding tax. The testnet mocks pay none.</li>
+    <li><strong>Invest-only assets</strong> can be held and withdrawn but not locked.</li>
+  </ul>
+</article>

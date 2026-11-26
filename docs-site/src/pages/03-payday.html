@@ -1,0 +1,94 @@
+<article class="page" id="payday" data-title="Payday and salary investing" data-section="Features" data-keywords="payroll salary employer treasury schedule claim split share sip payday plan team attendance">
+  <p class="crumb">Features</p>
+  <h1>Payday and salary investing</h1>
+  <p class="lead">A business funds a USDC treasury and pays its team once or on a schedule. Each person claims to any wallet and can send a share of that payday into assets held in their own vault.</p>
+  <div class="status-row"><span class="pill live">Live on testnet</span><span class="pill mock">Mock asset tokens</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Your employer puts money into a payroll account on the blockchain and sets your pay. When payday comes, you collect it. Before you do, you can say "invest 10% of this", pick what it buys, and that part goes into your own vault. The rest comes to you as normal.</p>
+    <p>You can do it just for this payday, or save it as a plan for every payday. If a purchase cannot go through, you simply get that part as cash.</p>
+  </div>
+
+  <h2>How it works for a business</h2>
+  <ol class="steps">
+    <li><div><h4>Fund the treasury</h4><p>The owner deposits test USDC into the Payroll contract once. Each employer's treasury is kept separate: a payday can only spend its own employer's balance.</p></div></li>
+    <li><div><h4>Add the team</h4><p>Find people by Stackday ID, name or wallet address. They accept the invite. Salaries typed into the team list are stored in the optional account database, not on chain.</p></div></li>
+    <li><div><h4>Pay once, or start a schedule</h4><p>Pay everyone now, or start a schedule: daily, weekly, every 2 weeks or monthly (30 days). A schedule pays from the treasury while it has money. It can be paused and resumed; resuming gives no back pay for the paused time.</p></div></li>
+  </ol>
+  <p>A schedule does not pay itself. When a payday is due, someone has to press the button. Anyone may do it (the contract only lets it pay the amounts the employer set), and Stackday's <a href="#keeper-api">trigger bot</a> presses it on weekdays at 16:00 UTC once its keys are set on the hosting side. Each press pays one payday. If the treasury is short, the payday waits until it is topped up.</p>
+
+  <h2>How it works for a team member</h2>
+  <p>On the Payday page you see salary waiting to be claimed. Claiming sends it to <strong>any wallet you choose</strong>. Before you claim, one split picker asks how much to invest:</p>
+  <ul>
+    <li><strong>None, 10%, 20% or a custom share</strong> of this payday.</li>
+    <li>Spread across <strong>up to 6 assets</strong>, evenly or adjusted per asset.</li>
+    <li><strong>Just this time</strong> (free) or <strong>as a plan for every payday</strong> (the recurring fee of 0.15% applies to the invested part only; salary paid out is never charged).</li>
+  </ul>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 520" width="480" role="img" aria-label="Payday flow. The employer funds the treasury. A payday is released, once or when a schedule is due, by the employer, the trigger bot or anyone. You claim and choose a share. The rest of the salary goes to any wallet you choose. The share is split across up to six assets and each asset is bought. A bought asset lands free in your vault. If one buy fails, that part is paid to you in USDC instead.">
+        <rect class="d-box" x="130" y="12" width="220" height="44" rx="10"/>
+        <text class="d-t" x="240" y="39" text-anchor="middle">Employer funds the treasury</text>
+        <path class="d-e" d="M240 56V80" marker-end="url(#ah)"/>
+        <rect class="d-box" x="100" y="80" width="280" height="72" rx="10"/>
+        <text class="d-t" x="240" y="102" text-anchor="middle">Payday released</text>
+        <text class="d-s" x="240" y="121" text-anchor="middle">pay now, or a schedule when it is due,</text>
+        <text class="d-s" x="240" y="138" text-anchor="middle">pressed by the employer, the bot or anyone</text>
+        <path class="d-e" d="M240 152V166" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="110" y="170" width="260" height="58" rx="10"/>
+        <text class="d-t acc" x="240" y="194" text-anchor="middle">You claim</text>
+        <text class="d-s" x="240" y="213" text-anchor="middle">share: none, 10%, 20% or custom</text>
+        <path class="d-e" d="M170 228V262" marker-end="url(#ah)"/>
+        <path class="d-e acc" d="M310 228V262" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="20" y="266" width="200" height="58" rx="10"/>
+        <text class="d-t" x="120" y="290" text-anchor="middle">Rest of the salary</text>
+        <text class="d-s" x="120" y="309" text-anchor="middle">to any wallet you choose</text>
+        <rect class="d-box accent" x="260" y="266" width="200" height="58" rx="10"/>
+        <text class="d-t acc" x="360" y="290" text-anchor="middle">Your share</text>
+        <text class="d-s" x="360" y="309" text-anchor="middle">split across up to 6 assets</text>
+        <path class="d-e acc" d="M360 324V348" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="260" y="352" width="200" height="58" rx="10"/>
+        <text class="d-t" x="360" y="376" text-anchor="middle">Buy each asset</text>
+        <text class="d-s" x="360" y="395" text-anchor="middle">at the feed price, price-protected</text>
+        <path class="d-e good" d="M330 410V448" marker-end="url(#ah-good)"/>
+        <text class="d-l good" x="324" y="434" text-anchor="end">bought</text>
+        <path class="d-e bad dash" d="M420 410V448" marker-end="url(#ah-bad)"/>
+        <text class="d-l bad" x="428" y="434">fails</text>
+        <rect class="d-box good" x="150" y="452" width="200" height="56" rx="10"/>
+        <text class="d-t good" x="250" y="476" text-anchor="middle">Lands free in your vault</text>
+        <text class="d-s" x="250" y="494" text-anchor="middle">created on your first buy</text>
+        <rect class="d-box warn" x="360" y="452" width="110" height="56" rx="10"/>
+        <text class="d-t" x="415" y="476" text-anchor="middle">That part</text>
+        <text class="d-s" x="415" y="494" text-anchor="middle">paid in USDC</text>
+      </svg>
+    </div>
+    <figcaption><b>A failed purchase never blocks a salary.</b> Each asset in the split is bought on its own. If one cannot be bought, only that part is undone and paid to you in USDC, and the rest of the claim goes through.</figcaption>
+  </figure>
+
+  <h3>What the contract does when you claim</h3>
+  <ul>
+    <li>The Payroll contract creates your vault the first time you invest (the address is fixed in advance for every wallet).</li>
+    <li>For each asset it buys <em>share x salary</em> worth at the price feed, with price protection, and puts the result into your vault as <strong>free</strong> (not locked) assets.</li>
+    <li>It records Total invested on chain, which the Portfolio page shows next to what your holdings are worth now.</li>
+    <li>If your <a href="#borrow-the-emergency-rule">emergency rule</a> is on and your loan is close to its limit, the whole share goes into the rule's asset and is locked instead.</li>
+  </ul>
+
+  <h2>Other payroll features</h2>
+  <ul>
+    <li><strong>Attendance.</strong> A simple daily check-in that the owner can look at for the last 14 days. It is a record only and never changes anyone's pay.</li>
+    <li><strong>Past paydays</strong> and the treasury balance are on the Payroll page. The owner can withdraw money that is not set aside for a payday.</li>
+    <li><strong>Private pay.</strong> Team members can be paid with encrypted amounts through Fairblock. See <a href="#private-pay">Private pay</a>.</li>
+  </ul>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Unclaimed pay.</strong> An employer can take back a salary that was never claimed, but only 180 days after that payday. It returns to the treasury.</li>
+    <li><strong>Nothing is locked in advance.</strong> Future paydays are not guaranteed. If the treasury is short, a due payday waits.</li>
+    <li><strong>Testnet rhythm.</strong> On testnet the shortest schedule interval is 60 seconds, so a schedule can be shown in a demo. On mainnet it would be one day.</li>
+    <li><strong>Up to 200 people per schedule</strong>, and up to 6 assets per payday plan.</li>
+    <li><strong>Payday spam.</strong> A stranger can send tiny paydays to an address. They cannot take or block anything, but the app lists the latest 60 entries, so heavy spam could hide an older unclaimed salary from the screen (it stays claimable).</li>
+    <li><strong>No cancel button on chain.</strong> A schedule is stopped by pausing it.</li>
+  </ul>
+</article>

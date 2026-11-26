@@ -1,0 +1,73 @@
+<article class="page" id="private-pay" data-title="Private pay" data-section="Features" data-keywords="confidential private salary fairblock stabletrust encrypted payday collect csv">
+  <p class="crumb">Features</p>
+  <h1>Private pay</h1>
+  <p class="lead">Salaries on a public blockchain are visible to anyone. Private pay uses Fairblock confidential transfers so that payday amounts are encrypted on chain, while the rest of Stackday works as before.</p>
+  <div class="status-row"><span class="pill live">Phase 1 live on testnet (real, not mocked)</span><span class="pill plan">Inside Payroll: not built</span></div>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>Normally anyone can look up how much a wallet was paid. With private pay, the amount is scrambled so that only you and your employer can read it. People can still see that a payment happened, just not how much.</p>
+    <p>You collect it with the same split as normal pay: invest a share, keep the rest, and you can leave the rest private.</p>
+  </div>
+
+  <h2>How it works</h2>
+  <p>Private pay runs <strong>beside</strong> the Payroll contract, through Fairblock's StableTrust contract on Base Sepolia (<span class="addr">0xb6cdAE7ccfEE03e351694c63436D5c5c073aEF84</span>, also live on Base mainnet). Amounts are encrypted; wallet addresses stay visible. The keys come from one wallet signature per visit and stay in your browser.</p>
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 480 400" width="480" role="img" aria-label="A private payday. The owner presses Pay all. People not set up for private pay are paid the normal way from the Payroll treasury. People who turned on private pay get an encrypted transfer from the owner's private balance through Fairblock into their own private balance. A team member collects: their browser decrypts and withdraws to USDC, then they can invest a share with one-time buys into their vault, and the rest can stay private.">
+        <rect class="d-box" x="140" y="12" width="200" height="44" rx="10"/>
+        <text class="d-t" x="240" y="32" text-anchor="middle">Owner presses Pay all</text>
+        <text class="d-s" x="240" y="48" text-anchor="middle">one list, a Private tick per person</text>
+        <path class="d-e" d="M190 56V76H100V98" marker-end="url(#ah)"/>
+        <path class="d-e acc" d="M290 56V76H370V98" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="16" y="102" width="176" height="62" rx="10"/>
+        <text class="d-t" x="104" y="126" text-anchor="middle">Normal pay</text>
+        <text class="d-s" x="104" y="145" text-anchor="middle">from the Payroll treasury</text>
+        <rect class="d-box accent" x="272" y="102" width="196" height="62" rx="10"/>
+        <text class="d-t acc" x="370" y="126" text-anchor="middle">Encrypted transfer</text>
+        <text class="d-s" x="370" y="145" text-anchor="middle">Fairblock, one signature each</text>
+        <path class="d-e" d="M104 164V190" marker-end="url(#ah)"/>
+        <rect class="d-box" x="16" y="194" width="176" height="50" rx="10"/>
+        <text class="d-t" x="104" y="216" text-anchor="middle">Claim on Payday</text>
+        <text class="d-s" x="104" y="233" text-anchor="middle">see Payday page</text>
+        <path class="d-e acc" d="M370 164V190" marker-end="url(#ah-acc)"/>
+        <rect class="d-box" x="272" y="194" width="196" height="50" rx="10"/>
+        <text class="d-t" x="370" y="216" text-anchor="middle">Member's private balance</text>
+        <text class="d-s" x="370" y="233" text-anchor="middle">amount hidden on chain</text>
+        <path class="d-e" d="M370 244V270" marker-end="url(#ah)"/>
+        <rect class="d-box" x="232" y="274" width="236" height="50" rx="10"/>
+        <text class="d-t" x="350" y="296" text-anchor="middle">Collect on My pay</text>
+        <text class="d-s" x="350" y="313" text-anchor="middle">browser decrypts, withdraws to USDC</text>
+        <path class="d-e acc" d="M300 324V350" marker-end="url(#ah-acc)"/>
+        <path class="d-e" d="M420 324V350" marker-end="url(#ah)"/>
+        <rect class="d-box good" x="200" y="354" width="160" height="38" rx="10"/>
+        <text class="d-t good" x="280" y="378" text-anchor="middle">Share into your vault</text>
+        <rect class="d-box soft" x="368" y="354" width="100" height="38" rx="10"/>
+        <text class="d-t" x="418" y="378" text-anchor="middle">Rest stays</text>
+      </svg>
+    </div>
+    <figcaption><b>Normal and private pay in one button.</b> Anyone not set up for private pay is paid the normal way. Private payments go one signed transfer at a time, so a payday needs one signature per private payee.</figcaption>
+  </figure>
+
+  <h3>For the owner</h3>
+  <ul>
+    <li>Team members turn on private pay from the team invite. On Payroll, Pay the team (Once, now) lists everyone with a <strong>Private</strong> tick box: ticked for people who are ready, locked to normal pay for anyone not set up.</li>
+    <li>A private payroll balance with Unlock, Top up and Withdraw leftover, so it can be funded before payday, and an estimate of how many signatures a payday needs.</li>
+    <li>A payday log on the device: one entry per payday that opens to show every payment, private or normal, with its transaction, and a CSV export for an accountant or auditor.</li>
+  </ul>
+  <h3>For a team member</h3>
+  <ul>
+    <li>On My pay, collect and invest 0, 10, 20% or a custom share in one flow. The invested part goes in as one-time buys.</li>
+    <li>A saved split for every private payday (percentages only, kept on the device). You still press Collect, because only your browser holds the keys.</li>
+    <li>A reminder on Home and My pay when new private pay has arrived, read from the encrypted balance with no signature and no amount shown.</li>
+  </ul>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>Slow steps.</strong> Amounts move in whole cents, and Fairblock steps can take minutes. An end-to-end private payday script took 57 seconds.</li>
+    <li><strong>No one-click payday yet.</strong> That needs Fairblock's Fairycloak relay (access on request from Fairblock).</li>
+    <li><strong>Not built:</strong> confidential salaries inside the Payroll contract itself, and unlinkable withdrawals.</li>
+    <li><strong>Disclosure.</strong> Fairblock's SDK has no auditor keys; scoped disclosure is Fairblock's separate Compliance Dashboard.</li>
+    <li><strong>Device-bound.</strong> Logs and saved splits live in the browser that made them.</li>
+  </ul>
+</article>

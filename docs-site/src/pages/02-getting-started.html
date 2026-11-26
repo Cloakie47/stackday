@@ -1,0 +1,86 @@
+<article class="page" id="getting-started" data-title="Getting started" data-section="Overview" data-keywords="connect wallet base sepolia faucet test usdc eth sign in start personal business stackday id demo vault view testnet tools">
+  <p class="crumb">Overview</p>
+  <h1>Getting started</h1>
+  <p class="lead">Connect a browser wallet on Base Sepolia, get free test money, prove the wallet is yours with a free signature, and pick Personal or Business. Or look around first with the demo vault, no wallet needed.</p>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>You need a crypto wallet in your browser, set to the Base Sepolia test network. Test dollars and test gas are free from public faucets.</p>
+    <p>When you sign in, your wallet asks you to sign a short message. That signature is free, sends nothing and moves no money. It just proves the wallet is yours. Then you tell Stackday whether you are using it for yourself or for a business.</p>
+  </div>
+
+  <h2>Look first, without a wallet</h2>
+  <p>Open the <a href="{{APP}}/dashboard?view=0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df" rel="noopener" target="_blank">demo vault</a>. It is the founder's test wallet shown in read-only mode. Adding <code>?view=0x...</code> with any address to an app page shows that address's vault, plans and loans with every action turned off.</p>
+
+  <h2>Set up in five steps</h2>
+  <ol class="steps">
+    <li><div><h4>Get a browser wallet</h4><p>Any wallet that runs in your browser works (the app connects to the wallet your browser offers). Use a wallet just for testing. Stackday never asks for a private key or recovery phrase.</p></div></li>
+    <li><div><h4>Get test money</h4><p>Get test USDC from the <a href="https://faucet.circle.com" rel="noopener" target="_blank">Circle faucet</a> (choose Base Sepolia), and a little Base Sepolia test ETH from any Base Sepolia faucet to pay network fees.</p></div></li>
+    <li><div><h4>Press Start and connect</h4><p>On the app's landing page, press Start and connect your wallet. If it is on another network, the app shows Switch to Base Sepolia.</p></div></li>
+    <li><div><h4>Prove it is yours</h4><p>Sign the message "Sign in to Stackday. This proves you own this wallet. It costs nothing and sends no transaction." This keeps you signed in for 7 days.</p></div></li>
+    <li><div><h4>Choose Personal or Business</h4><p>Personal is for investing on your own. Business asks one more thing: "I run the business" (owner) or "I get paid by a business" (team member). An owner adds a business name and an optional description.</p></div></li>
+  </ol>
+
+  <figure class="diagram">
+    <div class="diagram-frame">
+      <svg viewBox="0 0 460 420" width="460" role="img" aria-label="The start flow. Landing page, then Start and connect a wallet, then a free sign-in signature that creates your profile and Stackday ID, then a choice of Personal or Business. Personal lands on Portfolio. A Business owner lands on Payroll. A team member lands on Portfolio and also gets the Payday page.">
+        <rect class="d-box" x="140" y="12" width="180" height="40" rx="10"/>
+        <text class="d-t" x="230" y="37" text-anchor="middle">Landing page</text>
+        <path class="d-e" d="M230 52V74" marker-end="url(#ah)"/>
+        <rect class="d-box" x="140" y="78" width="180" height="40" rx="10"/>
+        <text class="d-t" x="230" y="103" text-anchor="middle">Start: connect wallet</text>
+        <path class="d-e" d="M230 118V140" marker-end="url(#ah)"/>
+        <rect class="d-box accent" x="110" y="144" width="240" height="56" rx="10"/>
+        <text class="d-t acc" x="230" y="168" text-anchor="middle">Free sign-in signature</text>
+        <text class="d-s" x="230" y="187" text-anchor="middle">creates your profile and Stackday ID</text>
+        <path class="d-e" d="M230 200V222" marker-end="url(#ah)"/>
+        <path class="d-box warn" d="M230 226 L320 256 L230 286 L140 256 Z"/>
+        <text class="d-t" x="230" y="261" text-anchor="middle">Account type?</text>
+        <path class="d-e" d="M140 256H70V320" marker-end="url(#ah)"/>
+        <text class="d-l" x="98" y="248" text-anchor="middle">Personal</text>
+        <path class="d-e" d="M320 256H390V286" marker-end="url(#ah)"/>
+        <text class="d-l" x="362" y="248" text-anchor="middle">Business</text>
+        <rect class="d-box" x="300" y="290" width="150" height="34" rx="10"/>
+        <text class="d-t" x="375" y="312" text-anchor="middle">Owner or member?</text>
+        <path class="d-e" d="M340 324V352" marker-end="url(#ah)"/>
+        <path class="d-e" d="M420 324V352" marker-end="url(#ah)"/>
+        <rect class="d-box" x="10" y="324" width="122" height="84" rx="10"/>
+        <text class="d-t" x="71" y="348" text-anchor="middle">Portfolio</text>
+        <text class="d-s" x="71" y="368" text-anchor="middle">Invest, Borrow,</text>
+        <text class="d-s" x="71" y="384" text-anchor="middle">Research, Gifts</text>
+        <rect class="d-box" x="262" y="356" width="94" height="52" rx="10"/>
+        <text class="d-t" x="309" y="378" text-anchor="middle">Payroll</text>
+        <text class="d-s" x="309" y="396" text-anchor="middle">owner</text>
+        <rect class="d-box" x="364" y="356" width="90" height="52" rx="10"/>
+        <text class="d-t" x="409" y="378" text-anchor="middle">Portfolio</text>
+        <text class="d-s" x="409" y="396" text-anchor="middle">+ Payday</text>
+      </svg>
+    </div>
+    <figcaption><b>One start, three homes.</b> The account type decides which pages are in the top bar and where you land. A connected wallet that has not chosen yet is sent back to Start.</figcaption>
+  </figure>
+
+  <h2>Your profile and Stackday ID</h2>
+  <p>Your first sign-in creates a profile with a unique ID such as <code>SD-7K3F9Q2M</code> (SD, then 8 characters that leave out 0, 1, I and O so they are easy to read aloud). A name is optional. Businesses find team members by this ID, by name or by wallet address, and the person accepts the invite before the business can see their attendance. Friends can send you a gift box with it.</p>
+
+  <h2>What is in the top bar</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Account</th><th>Top bar</th></tr></thead>
+    <tbody>
+      <tr><td>Personal</td><td>Portfolio, Invest, Borrow, Research, Gifts</td></tr>
+      <tr><td>Business owner</td><td>Payroll, Portfolio, Invest, Borrow, Gifts</td></tr>
+      <tr><td>Business team member</td><td>Portfolio, Payday, Invest, Borrow, Research, Gifts</td></tr>
+    </tbody>
+  </table></div>
+  <p>The account menu adds Risk, Docs, Testnet tools and Account, plus the Personal and Business switch, copy buttons for your wallet address and Stackday ID, the theme and Disconnect. Themes lives as the "My themes" tab inside Research. A "Base Sepolia, Testnet" chip shows on every page.</p>
+
+  <h2>Testnet tools</h2>
+  <p>The Testnet tools page lets anyone pay themselves a quick payday from their own test USDC and pay interest into the mock interest venue. Its market switches (drop the price 10, 20 or 30%, close and reopen the market, pause transfers, recover the price) only work for the demo wallet that owns the mock price feeds. To use them yourself you would deploy your own copy of the contracts.</p>
+
+  <h2>Edge cases and limits</h2>
+  <ul>
+    <li><strong>One wallet, two hats.</strong> One wallet can be both Personal and Business. The choice sets your default pages and can be switched from the menu.</li>
+    <li><strong>No database, still works.</strong> Names, team lists, attendance and gift messages live in an optional account database. Money never depends on it. Without it, your account choice is saved on the device only and those extras switch off.</li>
+    <li><strong>No test stock faucet.</strong> You get test stock tokens by buying them with test USDC in the app, not from a faucet.</li>
+    <li><strong>Wallet support.</strong> The app connects to the wallet extension your browser offers. The earlier Smart wallet option was removed on November 26, 2026.</li>
+  </ul>
+</article>

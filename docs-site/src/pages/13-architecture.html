@@ -1,0 +1,122 @@
+<article class="page" id="architecture" data-title="Architecture" data-section="For developers" data-keywords="architecture stack nextjs wagmi viem vercel supabase foundry solidity adapters overview code map repo">
+  <p class="crumb">For developers</p>
+  <h1>Architecture</h1>
+  <p class="lead">Solidity contracts on Base Sepolia hold and move all money. A Next.js app on Vercel reads the chain, asks your wallet to sign, and runs a few server routes for accounts, chat, research and the trigger bot.</p>
+
+  <div class="plain">
+    {{PLAIN}}
+    <p>There are two halves. The blockchain half is a set of small programs (smart contracts) that hold the money and follow fixed rules. The website half shows you what is going on and prepares transactions, but it can never move your money by itself: your wallet has to sign.</p>
+  </div>
+
+  <h2>The pieces and how they talk</h2>
+  <figure class="diagram">
+    <div class="diagram-frame wide">
+      <svg viewBox="0 0 680 440" width="680" role="img" aria-label="Architecture. Your browser runs the Next.js app, which talks to Vercel server routes over HTTPS and asks your wallet extension to sign. The wallet sends transactions to the Stackday contracts on Base Sepolia. Server routes use Supabase with the service role key, the Anthropic API for chat and research models, and public market data sources. The trigger bot runs on a Vercel cron and sends due paydays, recurring buys and gift refunds to the contracts, paying gas only. Contracts reach Morpho, USDC and the testnet mocks through adapters.">
+        <rect class="d-box accent" x="16" y="40" width="180" height="80" rx="10"/>
+        <text class="d-t acc" x="106" y="72" text-anchor="middle">Your browser</text>
+        <text class="d-s" x="106" y="91" text-anchor="middle">Next.js app, wagmi, viem</text>
+        <text class="d-s" x="106" y="107" text-anchor="middle">reads the chain directly</text>
+        <rect class="d-box" x="16" y="170" width="180" height="56" rx="10"/>
+        <text class="d-t" x="106" y="194" text-anchor="middle">Wallet extension</text>
+        <text class="d-s" x="106" y="212" text-anchor="middle">holds your key, signs</text>
+
+        <rect class="d-zone" x="246" y="16" width="238" height="236" rx="12"/>
+        <text class="d-cap" x="262" y="36">Vercel server</text>
+        <rect class="d-box" x="262" y="46" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="63" text-anchor="middle">API routes</text>
+        <text class="d-s" x="365" y="78" text-anchor="middle">sign-in, accounts, people, gifts</text>
+        <rect class="d-box" x="262" y="96" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="113" text-anchor="middle">Chat route</text>
+        <text class="d-s" x="365" y="128" text-anchor="middle">model, intents, no keys</text>
+        <rect class="d-box" x="262" y="146" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="163" text-anchor="middle">Research engine</text>
+        <text class="d-s" x="365" y="178" text-anchor="middle">crons: daily and Monday</text>
+        <rect class="d-box" x="262" y="196" width="206" height="40" rx="8"/>
+        <text class="d-t" x="365" y="213" text-anchor="middle">Trigger bot</text>
+        <text class="d-s" x="365" y="228" text-anchor="middle">cron, weekdays 16:00 UTC</text>
+
+        <rect class="d-box" x="530" y="40" width="134" height="64" rx="10"/>
+        <text class="d-t" x="597" y="66" text-anchor="middle">Supabase</text>
+        <text class="d-s" x="597" y="85" text-anchor="middle">optional database</text>
+        <rect class="d-box" x="530" y="118" width="134" height="56" rx="10"/>
+        <text class="d-t" x="597" y="142" text-anchor="middle">Anthropic API</text>
+        <text class="d-s" x="597" y="160" text-anchor="middle">Claude models</text>
+        <rect class="d-box" x="530" y="188" width="134" height="56" rx="10"/>
+        <text class="d-t" x="597" y="212" text-anchor="middle">Market data</text>
+        <text class="d-s" x="597" y="230" text-anchor="middle">Coinbase, FRED, GDELT</text>
+
+        <rect class="d-zone accent" x="16" y="290" width="648" height="140" rx="12"/>
+        <text class="d-cap" x="32" y="310">Base Sepolia, chain 84532</text>
+        <rect class="d-box good" x="32" y="320" width="200" height="94" rx="10"/>
+        <text class="d-t good" x="132" y="348" text-anchor="middle">Stackday contracts</text>
+        <text class="d-s" x="132" y="368" text-anchor="middle">Payroll, SipRouter, GiftBox,</text>
+        <text class="d-s" x="132" y="384" text-anchor="middle">VaultFactory, one vault</text>
+        <text class="d-s" x="132" y="400" text-anchor="middle">per person</text>
+        <rect class="d-box" x="256" y="320" width="150" height="94" rx="10"/>
+        <text class="d-t" x="331" y="352" text-anchor="middle">Adapters</text>
+        <text class="d-s" x="331" y="372" text-anchor="middle">lending, price,</text>
+        <text class="d-s" x="331" y="388" text-anchor="middle">interest, swap</text>
+        <rect class="d-box good" x="430" y="320" width="104" height="42" rx="8"/>
+        <text class="d-t good" x="482" y="346" text-anchor="middle">Morpho</text>
+        <rect class="d-box good" x="430" y="372" width="104" height="42" rx="8"/>
+        <text class="d-t good" x="482" y="398" text-anchor="middle">USDC</text>
+        <rect class="d-box warn" x="550" y="320" width="100" height="94" rx="10"/>
+        <text class="d-t warn" x="600" y="352" text-anchor="middle">Mocks</text>
+        <text class="d-s" x="600" y="372" text-anchor="middle">tokens, feeds,</text>
+        <text class="d-s" x="600" y="388" text-anchor="middle">exchange, desk</text>
+
+        <path class="d-e" d="M106 120V166" marker-end="url(#ah)"/>
+        <text class="d-l" x="112" y="148">asks to sign</text>
+        <path class="d-e acc" d="M106 226V316" marker-end="url(#ah-acc)"/>
+        <text class="d-l acc" x="112" y="272">transactions</text>
+        <path class="d-e" d="M198 66H258" marker-end="url(#ah)"/>
+        <text class="d-l" x="228" y="58" text-anchor="middle">HTTPS</text>
+        <path class="d-e" d="M470 66H526" marker-end="url(#ah)"/>
+        <text class="d-l" x="498" y="58" text-anchor="middle">server</text>
+        <path class="d-e" d="M470 116H500V146H526" marker-end="url(#ah)"/>
+        <path class="d-e" d="M470 166H500V146"/>
+        <path class="d-e" d="M470 172H512V216H526" marker-end="url(#ah)"/>
+        <path class="d-e dash" d="M365 236V270H200V316" marker-end="url(#ah)"/>
+        <text class="d-l" x="282" y="264" text-anchor="middle">runs due items, gas only</text>
+        <path class="d-e" d="M234 367H252" marker-end="url(#ah)"/>
+        <path class="d-e" d="M408 341H426" marker-end="url(#ah)"/>
+        <path class="d-e" d="M408 393H426" marker-end="url(#ah)"/>
+        <path class="d-e" d="M331 414V424H600V418" marker-end="url(#ah)"/>
+      </svg>
+    </div>
+    <figcaption><b>Only the bottom band holds money.</b> The server never has a key that can move user funds. The trigger bot's key only pays gas to press buttons the contracts already allow anyone to press. The browser reads balances straight from the chain.</figcaption>
+  </figure>
+
+  <h2>Stack</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Part</th><th>Tools</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Contracts</td><td>Solidity, OpenZeppelin v5, Foundry</td><td><code>src/</code>, tests in <code>test/</code>, scripts in <code>script/</code></td></tr>
+      <tr><td>Web app</td><td>Next.js, TypeScript, wagmi, viem, Tailwind, hosted on Vercel</td><td><code>web/</code></td></tr>
+      <tr><td>Account database (optional)</td><td>Supabase with row level security, server access only</td><td><code>supabase/schema.sql</code>, <code>web/lib/server/backend.ts</code></td></tr>
+      <tr><td>Chat</td><td>Claude via the Anthropic API, zod schemas</td><td><code>web/app/api/chat</code>, <code>web/lib/chat</code>, <code>web/components/chat</code></td></tr>
+      <tr><td>Research</td><td>Claude via the Anthropic API, public data sources</td><td><code>web/lib/research</code>, <code>web/app/api/research</code></td></tr>
+      <tr><td>Private pay</td><td>Fairblock StableTrust SDK</td><td><code>web/lib/confidential.ts</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Design principles</h2>
+  <ul>
+    <li><strong>Adapters everywhere.</strong> Swaps, lending, prices and interest go through adapter interfaces, so moving from a mock to the real thing is a configuration change. Testnet uses the mock exchange; mainnet uses <code>SlipstreamSwapAdapter</code> on Aerodrome. Lending uses <code>MorphoLendingAdapter</code>, one per market.</li>
+    <li><strong>No lending pool of our own.</strong> Loans come from existing Morpho markets.</li>
+    <li><strong>Ownerless core.</strong> Payroll, SipRouter, GiftBox, VaultFactory, the vaults and the adapters have no owner. Only the testnet mocks have one, on purpose.</li>
+    <li><strong>The site works without servers.</strong> With no database or model keys, money features keep working; names, teams, chat and live research switch off or show labelled samples.</li>
+    <li><strong>Simulate before signing.</strong> <code>web/lib/useTx.ts</code> simulates each transaction and adds a 60% gas margin, because Morpho interest accrual makes real gas use higher than estimates.</li>
+    <li><strong>Mock to real, proven by fork tests.</strong> <code>test/fork/</code> runs the same code against real AAPLc, a real Aerodrome pool, the real Morpho markets (including deSPXA) and a real Morpho interest vault on a copy of Base mainnet.</li>
+  </ul>
+
+  <h2>Run it locally</h2>
+  <pre><code>git clone --recurse-submodules https://github.com/Cloakie47/stackday.git
+cd stackday
+forge test                      # local contract tests
+cd web
+npm install
+npm run dev                     # http://localhost:3000, reads the testnet deployment
+npm test                        # web unit tests (Node 22.18 or later)</code></pre>
+  <p>Fork tests: <code>$env:FOUNDRY_PROFILE="fork"; forge test</code> (Foundry 1.8.4 or later). After a redeploy: <code>forge build</code>, then <code>python web/scripts/gen-abis.py</code>. Read <code>web/AGENTS.md</code> before changing Next.js structure: this Next.js version differs from older ones.</p>
+</article>
