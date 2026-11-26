@@ -51,8 +51,7 @@ const P = {
   portfolio: { href: "/dashboard", label: "Portfolio" },
   pay: { href: "/pay", label: "Payday" },
   invest: { href: "/invest", label: "Invest" },
-  borrow: { href: "/borrow", label: "Borrow", short: "Loan" },
-  themes: { href: "/themes", label: "Themes" },
+  borrow: { href: "/borrow", label: "Borrow" },
   research: { href: "/research", label: "Research" },
   gifts: { href: "/gifts", label: "Gifts" },
   risk: { href: "/risk", label: "Risk" },
@@ -63,24 +62,26 @@ const P = {
  * Personal and Business are two separate interfaces, each with its own pages.
  * Business splits again: the owner runs payroll, a team member gets paid.
  * Before a choice every page is listed. Risk lives under Borrow (its tab bar and the menu).
+ * Themes is a tab inside Research ("My themes"), so it has no bar item of its own.
  */
 const NAVS: Record<Role | "all", NavItem[]> = {
-  individual: [P.portfolio, P.invest, P.borrow, P.themes, P.research, P.gifts],
-  owner: [P.payroll, P.risk],
+  individual: [P.portfolio, P.invest, P.borrow, P.research, P.gifts],
+  // An owner runs payroll and can still invest and borrow for themselves.
+  owner: [P.payroll, P.portfolio, P.invest, P.borrow, P.gifts],
   // In the order of the journey: overview, get paid, invest, borrow.
-  employee: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research, P.gifts],
-  all: [P.portfolio, P.pay, P.invest, P.borrow, P.themes, P.research, P.gifts, P.payroll],
+  employee: [P.portfolio, P.pay, P.invest, P.borrow, P.research, P.gifts],
+  all: [P.portfolio, P.pay, P.invest, P.borrow, P.research, P.gifts, P.payroll],
 };
 /** The phone's section switch: the mode's two or three main pages. Everything else is in the menu. */
 const SEGMENTS: Record<Role | "all", NavItem[]> = {
   individual: [P.portfolio, P.invest, P.borrow],
-  owner: [P.payroll, P.risk],
+  owner: [P.payroll, P.portfolio, P.borrow],
   employee: [P.portfolio, P.borrow, P.pay],
   all: [P.portfolio, P.invest, P.borrow],
 };
 /** Pages that belong to both interfaces. */
-const SHARED = ["/risk", "/demo", "/docs", "/start", "/gifts"];
-/** Pages that only live in the menu (Gifts too for a business owner, whose bar does not list it). */
+const SHARED = ["/risk", "/demo", "/docs", "/start", "/gifts", "/research", "/themes"];
+/** Pages that only live in the menu (each is left out when the bar already shows it). */
 const EXTRA: NavItem[] = [
   { href: "/gifts", label: "Gifts" },
   { href: "/docs", label: "Docs" },
@@ -97,7 +98,8 @@ const ROLE_LABEL: Record<Role, string> = {
 
 function useIsActive() {
   const pathname = usePathname();
-  return (href: string) => pathname === href || pathname.startsWith(href + "/");
+  // My themes (/themes) is a tab inside Research, so Research stays lit there.
+  return (href: string) => pathname === href || pathname.startsWith(href + "/") || (href === "/research" && pathname.startsWith("/themes"));
 }
 
 /** Switch between the Personal and Business interfaces. */
@@ -231,7 +233,7 @@ function MenuIcon() {
 }
 
 /** Account, pages, theme. The same list in the desktop menu and the phone sheet. */
-function MenuBody({ pages, onNavigate }: { pages: NavItem[]; onNavigate?: () => void }) {
+function MenuBody({ pages, bar = [], onNavigate }: { pages: NavItem[]; bar?: NavItem[]; onNavigate?: () => void }) {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const account = useAccountState();
@@ -289,7 +291,7 @@ function MenuBody({ pages, onNavigate }: { pages: NavItem[]; onNavigate?: () => 
 
       <div className="my-1 border-t border-line-soft" />
       <nav aria-label="More pages" className="grid gap-0.5">
-        {[...pages, ...EXTRA.filter((e) => !pages.some((p) => p.href === e.href))].map((item) => (
+        {[...pages, ...EXTRA.filter((e) => ![...pages, ...bar].some((p) => p.href === e.href))].map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -332,7 +334,7 @@ function MenuBody({ pages, onNavigate }: { pages: NavItem[]; onNavigate?: () => 
 }
 
 /** Desktop account menu: a popover under the account chip (or a menu button when no wallet is connected). */
-function AccountMenu({ pages, trigger }: { pages: NavItem[]; trigger: "chip" | "icon" }) {
+function AccountMenu({ pages, bar, trigger }: { pages: NavItem[]; bar?: NavItem[]; trigger: "chip" | "icon" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -397,7 +399,7 @@ function AccountMenu({ pages, trigger }: { pages: NavItem[]; trigger: "chip" | "
           id={panelId}
           className="absolute right-0 z-50 mt-2 w-80 animate-[var(--animate-pop)] rounded-[14px] border border-line bg-popover p-1.5 shadow-pop"
         >
-          <MenuBody pages={pages} onNavigate={() => setOpen(false)} />
+          <MenuBody pages={pages} bar={bar} onNavigate={() => setOpen(false)} />
         </div>
       )}
     </div>
@@ -656,12 +658,12 @@ export function Shell({ children }: { children: ReactNode }) {
             {isConnected ? (
               <>
                 <ChainSwitch />
-                <AccountMenu pages={deskMore} trigger="chip" />
+                <AccountMenu pages={deskMore} bar={items} trigger="chip" />
               </>
             ) : (
               <>
                 <WalletButton />
-                <AccountMenu pages={deskMore} trigger="icon" />
+                <AccountMenu pages={deskMore} bar={items} trigger="icon" />
               </>
             )}
           </div>

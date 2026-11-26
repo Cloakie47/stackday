@@ -86,6 +86,7 @@ export const useWeekly = () => useLoad(() => getWeekly(), "weekly");
 
 const TABS = [
   { href: "/research", label: "Weekly report" },
+  { href: "/themes", label: "My themes" },
   { href: "/research/portfolio", label: "Portfolio check" },
   { href: "/research/plans", label: "Plans" },
 ];

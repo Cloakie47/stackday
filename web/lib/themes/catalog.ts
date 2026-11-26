@@ -35,6 +35,9 @@ export const CATALOG: CatalogAsset[] = [
   { ticker: "SPCXc", name: "SpaceX", kind: "stock", riskOnly: true },
   { ticker: "MSTRc", name: "Strategy", kind: "stock", cryptoLike: true, riskOnly: true },
   { ticker: "CRCLc", name: "Circle", kind: "stock", cryptoLike: true },
+  // A fund and a gold token. They sit in the stock part of a plan and keep the same per-asset target.
+  { ticker: "deSPXA", name: "S&P 500", kind: "stock" },
+  { ticker: "PAXG", name: "Gold", kind: "stock" },
   { ticker: "cbBTC", name: "cbBTC", kind: "crypto" },
   { ticker: "WETH", name: "Ether", kind: "crypto" },
 ];
@@ -67,6 +70,12 @@ export const THEMES: Theme[] = [
     tickers: ["TSLAc", "SPCXc"],
   },
   {
+    id: "steady-core",
+    name: "Steady core",
+    thesis: "The whole US market in one fund, plus gold. Broad and slower moving.",
+    tickers: ["deSPXA", "PAXG"],
+  },
+  {
     id: "crypto-native",
     name: "Crypto native",
     thesis: "Bitcoin and Ether, plus companies whose business is crypto.",
@@ -88,6 +97,8 @@ export const MOCK_FOR: Record<string, string> = {
   MSFTc: "mMSFT",
   AMZNc: "mAMZN",
   MSTRc: "mMSTR",
+  deSPXA: "mSPX",
+  PAXG: "mPAXG",
   cbBTC: "mcbBTC",
   WETH: "mWETH",
 };

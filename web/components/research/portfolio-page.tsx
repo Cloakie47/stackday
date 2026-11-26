@@ -86,7 +86,6 @@ export function PortfolioPage() {
       <PageHeader title="Portfolio check" lead="Facts about your holdings: allocation, overlap, concentration and loan health, with a link to the general view for each asset." />
       <ResearchTabs />
       <BetaBanner />
-      <Disclaimer />
       <Notice>
         This check states facts and links to the weekly research, which is the same for every reader. It never gives a personal buy or sell order, and
         nothing is saved.

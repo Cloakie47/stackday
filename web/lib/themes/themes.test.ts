@@ -21,7 +21,7 @@ const bpsOf = (plan: ReturnType<typeof buildPlan>, t: string) => plan.holdings.f
 test("the testnet mocks match the deployment list", () => {
   assert.deepEqual(
     Object.values(MOCK_FOR).sort(),
-    ["mAAPL", "mAMZN", "mGOOGL", "mMETA", "mMSFT", "mMSTR", "mNVDA", "mSPCX", "mTSLA", "mWETH", "mcbBTC"].sort(),
+    ["mAAPL", "mAMZN", "mGOOGL", "mMETA", "mMSFT", "mMSTR", "mNVDA", "mPAXG", "mSPCX", "mSPX", "mTSLA", "mWETH", "mcbBTC"].sort(),
   );
 });
 

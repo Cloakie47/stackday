@@ -323,11 +323,10 @@ export function WeeklyReportPage() {
     <>
       <PageHeader
         title="Research"
-        lead="The Monday report on the six borrowable assets: chart read, scenarios, this week's view and last week's scorecard."
+        lead="The Monday report on six assets you can borrow against: Bitcoin, Ether, Gold, NVIDIA, Apple and the S&P 500. Open one for its chart read and scenarios."
         aside={r ? <Badge tone="neutral">Week of {fmtDate(r.weekOf)}</Badge> : undefined}
       />
       <ResearchTabs />
-      <Disclaimer />
       <BetaBanner show={!r || r.beta} />
       {w.status === "error" && <LoadError error={w.error} />}
       <SampleBanner show={r?.kind === "sample"} what="report" why={ready && w.from === "sample" ? w.why : undefined} />

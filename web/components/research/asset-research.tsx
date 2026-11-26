@@ -454,7 +454,6 @@ export function AssetResearch({ assetId }: { assetId: string }) {
         aside={ok ? <ViewChip view={s.view.view} conviction={s.view.conviction} withTip /> : undefined}
       />
       <ResearchTabs />
-      <Disclaimer />
       <BetaBanner show={!r || r.beta} />
       {w.status === "error" && <LoadError error={w.error} />}
       <SampleBanner show={r?.kind === "sample"} what="report" why={w.status === "ready" && w.from === "sample" ? w.why : undefined} />

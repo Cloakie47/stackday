@@ -321,7 +321,10 @@ test("the shipped snapshot validates with nothing dropped", () => {
   assert.equal(snap.kind, "snapshot");
   assert.match(snap.label, /Not live data/);
   assert.match(snap.label, /not investment advice/);
-  assert.deepEqual(Object.keys(snap.assets).sort(), CATALOG.map((a) => a.ticker).sort());
+  // The S&P 500 fund and gold joined the catalog (Steady core) after the November 15 snapshot was built,
+  // so they have no entry: the page says "Not in this snapshot" for them.
+  const after = ["deSPXA", "PAXG"];
+  assert.deepEqual(Object.keys(snap.assets).sort(), CATALOG.map((a) => a.ticker).filter((t) => !after.includes(t)).sort());
   for (const [t, a] of Object.entries(snap.assets)) {
     assert.equal(a.items.length, shippedRaw.assets[t].items.length, `${t}: an item was dropped`);
     assert.deepEqual(a.items, shippedRaw.assets[t].items, `${t}: an item changed when cleaned`);

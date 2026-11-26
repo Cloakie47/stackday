@@ -9,10 +9,10 @@ import { BRAND } from "@/lib/brand";
 /** Public demo wallet from the README, opened read-only so anyone can look around without a wallet. */
 const DEMO_VIEW = "/dashboard?view=0xC0F2c3CDd7D11FC9eC388ff2B2F57d81A38190df";
 
-const STEPS = [
+const STEPS: { title: string; text: string; soon?: boolean }[] = [
   { title: "Payday", text: "Salary arrives in USDC. Claim it to any wallet." },
   { title: "Your vault", text: "A share you pick buys stocks, cbBTC or Ether into a vault only you control." },
-  { title: "Themes", text: "Pick themes and get a suggested split for your next buy. You confirm every change.", soon: true },
+  { title: "Research", text: "A weekly research report, plus your own themes with a suggested split for your next buy. You confirm every change." },
   { title: "Borrow", text: "Borrow USDC against your holdings on Morpho instead of selling." },
 ];
 
