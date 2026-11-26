@@ -306,6 +306,13 @@ function MenuBody({ pages, bar = [], onNavigate }: { pages: NavItem[]; bar?: Nav
             </span>
           </Link>
         ))}
+        {/* The full guide is a static site in public/guide (built from docs-site/), so a plain link. */}
+        <a href="/guide/index.html" onClick={onNavigate} className={row}>
+          Full guide
+          <span className="text-faint" aria-hidden>
+            ›
+          </span>
+        </a>
       </nav>
 
       <div className="my-1 border-t border-line-soft" />

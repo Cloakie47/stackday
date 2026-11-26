@@ -16,7 +16,7 @@ The pages live in `docs-site/src/pages/`, one file per page, in sidebar order by
 
     node docs-site/build.mjs
 
-That writes `docs-site/index.html`. Commit both the page source and the rebuilt `index.html`.
+That writes `docs-site/index.html` and the copy the web app serves at `/guide` (`web/public/guide/`). Commit the page source and both rebuilt copies.
 
 What the build does:
 
@@ -24,6 +24,7 @@ What the build does:
 - Fills the address, market, asset and fee tables from `deployments/base-sepolia.json` (read only), so they always match the official testnet deployment. Placeholders look like `<!--@markets-->`.
 - Fails if any page contains an em dash or an en dash.
 - Writes CRLF line endings.
+- For the app copy, links assets from `/guide/assets/`, points "Open app" at the same site, and leaves out Google Fonts (the app's security headers only allow fonts from its own origin, so the guide uses the fallback fonts there).
 
 `node docs-site/build.mjs --fragment <folder>` also writes a body-only copy plus the assets into that folder, for hosts that add their own document skeleton.
 

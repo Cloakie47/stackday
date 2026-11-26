@@ -22,7 +22,11 @@ const nextConfig: NextConfig = {
   },
   // Addresses from the first version of the site keep working.
   async redirects() {
-    return [{ source: "/employee", destination: "/pay", permanent: false }];
+    return [
+      { source: "/employee", destination: "/pay", permanent: false },
+      // The full guide is a static site in public/guide (built by docs-site/build.mjs).
+      { source: "/guide", destination: "/guide/index.html", permanent: false },
+    ];
   },
 };
 

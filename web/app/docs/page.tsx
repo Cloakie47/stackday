@@ -237,6 +237,9 @@ export default function DocsPage() {
             <div className="hidden sm:block">
               <ThemeToggle />
             </div>
+            <a href="/guide/index.html" className={buttonClass("secondary", "sm", "max-sm:hidden")}>
+              Full guide
+            </a>
             <Link href="/dashboard" className={buttonClass("secondary", "sm")}>
               Open app
             </Link>
@@ -258,6 +261,18 @@ export default function DocsPage() {
               <p className="mt-3 text-sm text-muted">
                 Everything the app leaves out to stay simple. Short sections, plain words.
               </p>
+              <a
+                href="/guide/index.html"
+                className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm hover:border-line-strong"
+              >
+                <span>
+                  <span className="block font-medium text-ink">The full {BRAND.name} guide</span>
+                  <span className="block text-muted">Every feature in plain words first, then in depth, with flow diagrams.</span>
+                </span>
+                <span className="shrink-0 text-brand-ink" aria-hidden>
+                  Open ›
+                </span>
+              </a>
             </header>
 
             <Section id="what" title={`What ${BRAND.name} is`}>

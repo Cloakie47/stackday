@@ -1,6 +1,7 @@
 // Builds the Stackday docs site from src/pages/*.html into one static index.html.
 //
-//   node docs-site/build.mjs                     writes docs-site/index.html
+//   node docs-site/build.mjs                     writes docs-site/index.html and the copy the web app
+//                                                serves at /guide (web/public/guide)
 //   node docs-site/build.mjs --fragment <dir>     also writes a body-only copy (no doctype, html,
 //                                                head or body tags) plus assets into <dir>, for
 //                                                hosts that add their own document skeleton
@@ -143,7 +144,7 @@ const pages = files.map((f) => {
     if (!(key in generated)) throw new Error(`${f}: unknown placeholder ${m}`);
     return generated[key];
   });
-  html = html.replace(/\{\{REPO\}\}/g, REPO_URL).replace(/\{\{APP\}\}/g, APP_URL);
+  html = html.replace(/\{\{REPO\}\}/g, REPO_URL); // {{APP}} is filled per output below
   html = html.replace(/\{\{(PLAIN|INFO|WARN)\}\}/g, (m, k) => snippets[k]);
   const open = html.match(/<article\b[^>]*>/);
   if (!open) throw new Error(`${f}: no <article>`);
@@ -200,7 +201,7 @@ ${defs}
     <span class="net-badge" title="Everything here runs on the Base Sepolia test network">Base Sepolia testnet</span>
     <a class="icon-btn gh-link" href="${REPO_URL}" rel="noopener" target="_blank" aria-label="Source code on GitHub" title="Source code on GitHub">${icon.code}</a>
     <button class="icon-btn theme-btn" id="theme-btn" type="button" aria-label="Switch theme">${icon.sun}${icon.moon}</button>
-    <a class="app-link" href="${APP_URL}" rel="noopener" target="_blank">Open app</a>
+    <a class="app-link" href="{{APP}}/dashboard">Open app</a>
   </div>
 </header>
 <div class="layout">
@@ -230,7 +231,10 @@ const ver = createHash("sha256")
 const title = "Stackday Docs";
 const description = "How Stackday works, in plain words first and then in depth: payday investing, your own vault, borrowing instead of selling, research, gift boxes and the chat assistant, on Base Sepolia.";
 
-const full = `<!doctype html>
+// A full document. `base` is where the assets live, `app` the app's address ("" when the guide is
+// served by the app itself), `withFonts` whether to load Google Fonts (the app's security headers
+// allow fonts from its own origin only, so its copy uses the fallback fonts).
+const page = ({ base, app, withFonts, cacheBust }) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -238,28 +242,30 @@ const full = `<!doctype html>
 <title>${title}</title>
 <meta name="description" content="${description}">
 <meta name="color-scheme" content="light dark">
-<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-${fonts}
-<link rel="stylesheet" href="assets/site.css?v=${ver}">
+<link rel="icon" href="${base}favicon.svg" type="image/svg+xml">
+${withFonts ? fonts : ""}
+<link rel="stylesheet" href="${base}site.css${cacheBust}">
 </head>
 <body>
-${body}
-<script src="assets/site.js?v=${ver}"></script>
+${body.replace(/\{\{APP\}\}/g, app)}
+<script src="${base}site.js${cacheBust}"></script>
 </body>
 </html>
 `;
+const full = page({ base: "assets/", app: APP_URL, withFonts: true, cacheBust: `?v=${ver}` });
+const inApp = page({ base: "/guide/assets/", app: "", withFonts: false, cacheBust: `?v=${ver}` });
 
 const fragment = `<title>${title}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 ${fonts}
 <link rel="stylesheet" href="assets/site.css">
-${body}
+${body.replace(/\{\{APP\}\}/g, APP_URL)}
 <script src="assets/site.js"></script>
 `;
 
 // ---------- Checks ----------
 const banned = [new RegExp("\u2014"), new RegExp("\u2013"), new RegExp("&" + "mdash;"), new RegExp("&" + "ndash;")];
-const toCheck = [["index.html", full], ...["site.css", "site.js"].map((f) => [f, readFileSync(join(here, "assets", f), "utf8")])];
+const toCheck = [["index.html", full], ["web/public/guide/index.html", inApp], ...["site.css", "site.js"].map((f) => [f, readFileSync(join(here, "assets", f), "utf8")])];
 for (const [name, text] of toCheck) {
   for (const re of banned) {
     const m = text.match(re);
@@ -278,6 +284,12 @@ for (const p of pages) {
 
 const crlf = (s) => s.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
 writeFileSync(join(here, "index.html"), crlf(full));
+
+// The copy the web app serves at /guide (web/public/guide), so the guide ships with the site.
+const pub = join(repo, "web", "public", "guide");
+mkdirSync(join(pub, "assets"), { recursive: true });
+writeFileSync(join(pub, "index.html"), crlf(inApp));
+for (const f of ["site.css", "site.js", "favicon.svg"]) copyFileSync(join(here, "assets", f), join(pub, "assets", f));
 console.log(`docs-site/index.html: ${pages.length} pages, ${(full.length / 1024).toFixed(0)} KB, ${generated.counts}`);
 
 const fi = process.argv.indexOf("--fragment");
