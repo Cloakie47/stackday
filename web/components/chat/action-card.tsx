@@ -221,9 +221,6 @@ export function ActionCard({
               ))}
             </ol>
           )}
-          {plan.calls.length > 1 && oneSignature === false && (
-            <div className="mt-1 text-muted">A smart wallet (for example Coinbase Smart Wallet) signs all of them at once.</div>
-          )}
           <div className="mt-1 text-muted">Once confirmed on chain, it cannot be undone.</div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import { createConfig, http } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
-import { coinbaseWallet, injected, mock } from "wagmi/connectors";
+import { injected, mock } from "wagmi/connectors";
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://sepolia.base.org";
 
@@ -16,12 +16,7 @@ const chain = devAccount ? { ...baseSepolia, rpcUrls: { default: { http: [rpcUrl
 
 export const config = createConfig({
   chains: [chain],
-  // A browser wallet first (MetaMask, Rabby, the Coinbase extension), then Coinbase Smart Wallet:
-  // a passkey wallet in the browser that signs every step of an action at once (EIP-5792), so a
-  // sell or a borrow is one popup instead of several.
-  connectors: devAccount
-    ? [mock({ accounts: [devAccount] }), injected()]
-    : [injected(), coinbaseWallet({ appName: "Stackday", preference: { options: "smartWalletOnly" } })],
+  connectors: devAccount ? [mock({ accounts: [devAccount] }), injected()] : [injected()],
   transports: { [baseSepolia.id]: http(rpcUrl) },
   ssr: true,
 });
