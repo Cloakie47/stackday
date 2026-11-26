@@ -490,24 +490,11 @@ export function WalletButton({ light = false, block = false }: { light?: boolean
     );
   }
   const connector = connectors[0];
-  const smart = connectors.find((c) => c.id === "coinbaseWalletSDK");
   return (
-    <div className={cx(block ? "" : "text-right", "flex flex-wrap items-center gap-1.5", block ? "" : "justify-end")}>
+    <div className={block ? "" : "text-right"}>
       <Button size="sm" className={block ? "w-full" : ""} disabled={isPending || !connector} onClick={() => connector && connect({ connector })}>
         {isPending ? "Connecting…" : "Connect wallet"}
       </Button>
-      {smart && (
-        <Button
-          size="sm"
-          variant="secondary"
-          className={block ? "w-full" : ""}
-          disabled={isPending}
-          onClick={() => connect({ connector: smart })}
-          title="Coinbase Smart Wallet: a passkey wallet that signs every step of an action at once"
-        >
-          Smart wallet
-        </Button>
-      )}
       {error && (
         <p className="mt-1 max-w-48 text-xs text-danger" role="alert">
           No wallet found. Install a browser wallet.
