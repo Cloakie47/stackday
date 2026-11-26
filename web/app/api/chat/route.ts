@@ -3,7 +3,7 @@ import { runChat, type ChatTurn } from "@/lib/chat/agent";
 import { readSnapshot } from "@/lib/chat/chain";
 import { chatError, createMessage } from "@/lib/chat/model";
 import { loanText, portfolioText, pricesText, weeklyAnswer, type Snapshot } from "@/lib/chat/summary";
-import { EXPLANATIONS } from "@/lib/chat/tools";
+import { EXPLANATIONS, READ_TOOL_NAMES } from "@/lib/chat/tools";
 import type { Address } from "@/lib/contracts";
 import { researchFlags } from "@/lib/research/flags";
 import { supabaseStore } from "@/lib/research/engine/store";
@@ -12,7 +12,7 @@ import { limitWallet } from "@/lib/server/rate-limit";
 import { dbRateLimitStore } from "@/lib/server/rate-limit-store";
 
 /**
- * POST /api/chat { messages: [{ role, text, untrusted? }] } -> { text, intent?, untrusted, research, wallet }
+ * POST /api/chat { messages: [{ role, text, untrusted? }] } -> { text, intent?, untrusted, research, tools, wallet }
  *
  * The chat assistant (docs/features/CHAT-AND-GIFTS.md, section 1). Needs the wallet sign-in session
  * and is limited per wallet. The model gets read tools for the signed-in wallet's own data and can
@@ -76,7 +76,9 @@ export async function POST(request: Request) {
     });
     // Log: tool calls and the intent only. No wallet, no message text, no keys.
     console.info("chat turn", JSON.stringify({ tools: result.log, intent: result.intent ?? null, untrusted: result.untrusted }));
-    return json({ text: result.text, intent: result.intent ?? null, untrusted: result.untrusted, research: result.research, wallet });
+    // Names of the read tools that ran (fixed list only), so the dock can pick follow-up chips in code.
+    const tools = [...new Set(result.log.filter((l) => l.ok && (READ_TOOL_NAMES as readonly string[]).includes(l.tool)).map((l) => l.tool))];
+    return json({ text: result.text, intent: result.intent ?? null, untrusted: result.untrusted, research: result.research, tools, wallet });
   } catch (e) {
     const { status, message } = chatError(e);
     console.error("chat model call failed:", status, e instanceof Error ? e.name : "error");
