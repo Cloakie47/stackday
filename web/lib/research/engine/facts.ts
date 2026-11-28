@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { sanitizeText } from "../../themes/mood.ts";
-import type { AssetResearchInput, CalendarEvent, ChartInterval, ChartRead, Fact, FactKind } from "../types.ts";
-import { CHART_INTERVALS, isDisplayable } from "../types.ts";
+import type { AssetResearchInput, CalendarEvent, Certainty, ChartInterval, ChartRead, Fact, FactKind } from "../types.ts";
+import { CERTAINTIES, CHART_INTERVALS, isDisplayable, lowerCertainty, newsCertainty } from "../types.ts";
 
 /**
  * Facts as the model sees them. Facts are made by code (web/lib/research/data) with a source and a
@@ -63,9 +63,109 @@ export function prepareFacts(facts: Fact[]): { facts: Fact[]; screened: string[]
       screened.push(f.id);
       continue;
     }
-    kept.push({ ...f, label, value, ...(quote === undefined ? {} : { quote }) });
+    const certainty = codeCertainty(f, label);
+    kept.push({ ...f, label, value, ...(quote === undefined ? {} : { quote }), ...(certainty ? { certainty } : {}) });
   }
   return { facts: kept, screened, restricted };
+}
+
+/**
+ * The catalyst label of a fact, set in code (backstop for facts the data layer did not label):
+ * filings and calendar facts are confirmed (SEC EDGAR, official calendars and published schedules);
+ * news keeps its label, or gets one from its source tag and wording (`newsCertainty`, never
+ * "confirmed" without an official or press-release tag). Other kinds have no label.
+ */
+export function codeCertainty(f: Fact, label = f.label): Certainty | undefined {
+  if (f.certainty && (CERTAINTIES as readonly string[]).includes(f.certainty)) return f.certainty;
+  if (f.kind === "filing" || f.kind === "calendar") return "confirmed";
+  if (f.kind === "news") return newsCertainty(f.tags, label);
+  return undefined;
+}
+
+/**
+ * Applies the news analyst's label proposals: a proposal only counts when it LOWERS the label
+ * (confirmed > reported > speculation). An upgrade, a repeat of the current label, an unknown fact
+ * id, a fact without a label or a value outside the list is ignored. Returns the new facts and what
+ * changed or was ignored, for the review notes.
+ */
+export function applyCertaintyProposals(facts: Fact[], proposals: { factId: string; certainty: string }[]): { facts: Fact[]; lowered: string[]; ignored: string[] } {
+  const want = new Map<string, Certainty>();
+  const ignored: string[] = [];
+  const byId = new Map(facts.map((f) => [f.id, f]));
+  for (const p of proposals) {
+    const f = byId.get(p.factId);
+    if (!f || !f.certainty || !(CERTAINTIES as readonly string[]).includes(p.certainty)) {
+      ignored.push(`${p.factId}: not a labelled fact or not a known label`);
+      continue;
+    }
+    const current = want.get(f.id) ?? f.certainty;
+    const next = lowerCertainty(current, p.certainty as Certainty);
+    if (next === current) ignored.push(`${f.id}: ${p.certainty} is not lower than ${current}`);
+    else want.set(f.id, next);
+  }
+  const lowered: string[] = [];
+  const out = facts.map((f) => {
+    const next = want.get(f.id);
+    if (!next || !f.certainty) return f;
+    lowered.push(`${f.id} ${f.certainty} to ${next}`);
+    return { ...f, certainty: next };
+  });
+  return { facts: out, lowered, ignored };
+}
+
+/**
+ * "Already priced in?" check for the risk reviewer, computed in code, never by the model: how far
+ * the price moved over the last PRICED_IN.bars daily bars, measured in daily ATR14 (from the
+ * existing `changePct.bar5`, `last` and `atr14` readings). It FIRES when the move is
+ * PRICED_IN.atrMultiple ATR or more either way. Why 3: measured on the recorded Coinbase daily
+ * candles in data/fixtures/run.json (BTC and ETH since late 2021, PAXG), the median 5-bar move is
+ * about 0.8 ATR and the 90th percentile about 2.4 ATR; 3 ATR or more happens on about 4 to 6
+ * percent of days, so it marks a large move only. When it fires, a view reason must say how
+ * much of the move may already be in the price and cite this fact (codeIssues in review.ts).
+ */
+export const PRICED_IN = { bars: 5, atrMultiple: 3, factId: "ind.1d.move5atr" } as const;
+
+export type PricedIn = { fact: Fact; moveAtr: number; fired: boolean };
+
+const round1 = (x: number) => Math.round(x * 10) / 10;
+const fmtNum = (x: number) => String(Math.abs(x) >= 1000 ? Math.round(x) : Math.round(x * 100) / 100);
+
+/** The priced-in reading for one input, or null when the 5-bar change, the close or the ATR is missing. */
+export function pricedInCheck(input: AssetResearchInput): PricedIn | null {
+  const d = input.indicators?.["1d"];
+  const ch = d?.changePct?.bar5;
+  const last = d?.last;
+  const atr = d?.atr14;
+  const ok = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+  if (!ok(ch) || !ok(last) || !ok(atr) || last <= 0 || atr <= 0 || ch <= -1) return null;
+  const move = last - last / (1 + ch);
+  const moveAtr = round1(move / atr);
+  const series = input.series?.["1d"];
+  const px = (input.facts ?? []).find((f) => f.id === "px.1d.last" || f.id === "px.last");
+  const asOf = series?.bars?.at(-1)?.t ?? px?.asOf ?? series?.fetchedAt;
+  if (!asOf || !Number.isFinite(Date.parse(asOf))) return null;
+  const fired = Math.abs(moveAtr) >= PRICED_IN.atrMultiple;
+  const dir = move >= 0 ? "up" : "down";
+  const fact: Fact = {
+    id: PRICED_IN.factId,
+    kind: "indicator",
+    label: `Move over the last ${PRICED_IN.bars} daily bars in ATR14 units: ${dir} ${fmtNum(Math.abs(move))} USD against a daily ATR14 of ${fmtNum(atr)} (code; priced-in check fires at ${PRICED_IN.atrMultiple} ATR or more)`,
+    value: moveAtr,
+    unit: "ATR",
+    source: series?.source ?? px?.source ?? { name: "Stackday code, from the daily price readings" },
+    asOf,
+    ...(series?.source?.display === false ? { display: false } : {}),
+  };
+  return { fact, moveAtr, fired };
+}
+
+/** The line the editor, the reviewer and the revision see about the priced-in check. */
+export function pricedInLine(p: PricedIn | null): string {
+  const head = "PRICED-IN CHECK (computed in code):";
+  if (!p) return `${head} no reading (no ${PRICED_IN.bars}-bar change or ATR).`;
+  const dir = p.moveAtr >= 0 ? "up" : "down";
+  if (!p.fired) return `${head} not fired. The price moved ${dir} ${Math.abs(p.moveAtr)} ATR over the last ${PRICED_IN.bars} daily bars [${p.fact.id}], under the ${PRICED_IN.atrMultiple} ATR threshold.`;
+  return `${head} FIRED. The price already moved ${dir} ${Math.abs(p.moveAtr)} ATR over the last ${PRICED_IN.bars} daily bars [${p.fact.id}], at or above the ${PRICED_IN.atrMultiple} ATR threshold. At least one view reason must say how much of this move may already be in the price, and cite [${p.fact.id}].`;
 }
 
 /** Facts that may be shown (published reports and public API answers). */
@@ -112,6 +212,8 @@ export function calendarFacts(events: CalendarEvent[]): Fact[] {
     value: e.kind,
     source: e.source,
     asOf: `${e.date}T00:00:00Z`,
+    // Events come from official calendars or a published schedule only (CalendarEvent).
+    certainty: e.certainty ?? ("confirmed" as const),
   }));
 }
 
@@ -171,7 +273,8 @@ export const factLine = (f: Fact) => {
   const unit = f.unit ? ` ${sanitizeText(f.unit, 16)}` : "";
   const quote = f.quote ? ` | quote: "${f.quote}"` : "";
   const tags = f.tags?.length ? ` | tags: ${f.tags.map((t) => sanitizeText(t, 24)).join(",")}` : "";
-  return `[${f.id}] ${f.kind} | ${f.label}: ${f.value}${unit} | source: ${sanitizeText(f.source?.name ?? "unknown", 80)} | as of ${f.asOf}${tags}${quote}`;
+  const certainty = f.certainty && (CERTAINTIES as readonly string[]).includes(f.certainty) ? ` | certainty: ${f.certainty}` : "";
+  return `[${f.id}] ${f.kind} | ${f.label}: ${f.value}${unit} | source: ${sanitizeText(f.source?.name ?? "unknown", 80)} | as of ${f.asOf}${certainty}${tags}${quote}`;
 };
 
 /** Trusted facts first, then untrusted text inside the marked block. Newest untrusted first when cut. */

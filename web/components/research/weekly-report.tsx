@@ -40,8 +40,11 @@ const REFUSAL: Record<string, string> = {
  * and the market facts are also listed under that qualified id.
  */
 export function allFacts(r: WeeklyReport): Fact[] {
-  const qualified = r.assets.flatMap((a) => [...a.facts, ...r.market.facts].map((f) => ({ ...f, id: `${a.assetId}:${f.id}` })));
-  return [...r.market.facts, ...r.assets.flatMap((a) => a.facts), ...qualified];
+  // Asset and market news are both numbered news.0, news.1, ... and CitedFacts keeps the last fact
+  // with an id: a qualified id ("mPAXG:news.1") means the section's own fact, and a plain id (market
+  // text) means the market fact, so each one is listed last where it must win.
+  const qualified = r.assets.flatMap((a) => [...r.market.facts, ...a.facts].map((f) => ({ ...f, id: `${a.assetId}:${f.id}` })));
+  return [...r.assets.flatMap((a) => a.facts), ...r.market.facts, ...qualified];
 }
 
 function AssetCard({ assetId, s, at }: { assetId: string; s?: WeeklyAssetSection; at: string }) {
@@ -285,6 +288,40 @@ function Report({ r, sample }: { r: WeeklyReport; sample: boolean }) {
           </div>
         )}
       </Card>
+
+      {/* Reports approved before this section existed have no list: the card is left out. */}
+      {r.wrongAbout && r.wrongAbout.length > 0 && (
+        <Card
+          title="What could we be wrong about?"
+          badge={<AiLabel />}
+          tip="The things most likely to make this week's views wrong, written after the views were final. Each one cites its facts and names the assets it affects."
+        >
+          <ol className="divide-y divide-line-soft">
+            {r.wrongAbout.map((w, i) => (
+              <li key={i} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex items-start gap-2.5">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-press text-xs font-semibold tabular-nums">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] leading-relaxed text-ink">{w.text}</p>
+                    {w.assetIds.length > 0 && (
+                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                        <span>Affects</span>
+                        {w.assetIds.map((id) => (
+                          <Link key={id} href={`/research/${id}`} className="inline-flex items-center gap-1 text-ink-soft hover:text-ink hover:underline">
+                            <ResearchAssetIcon assetId={id} size={16} />
+                            {assetName(id)}
+                          </Link>
+                        ))}
+                      </p>
+                    )}
+                    <CitedFacts ids={w.factIds} facts={facts} />
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
 
       <Card
         title={r.scorecard ? `Last week's scorecard, week of ${fmtDate(r.scorecard.weekOf)}` : "Last week's scorecard"}

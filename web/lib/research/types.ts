@@ -202,7 +202,63 @@ export type Fact = {
   tags?: string[];
   /** False when the source's terms do not allow showing this value to users (internal use only). */
   display?: boolean;
+  /**
+   * How sure the item is, for news, filings and calendar events (see `Certainty`). Set by code from
+   * the source; the model may only lower it. Missing on facts stored before this field existed.
+   */
+  certainty?: Certainty;
 };
+
+/**
+ * Catalyst labels, most certain first. Set in code from the source:
+ * - "confirmed": official sources (Fed, SEC, Treasury), company press releases, SEC filings and
+ *   scheduled calendar events (Fed meetings, published data releases, options expiry);
+ * - "reported": a reputable news outlet reporting it, not the primary source;
+ * - "speculation": outlet headlines worded as a rumour, an expectation or an opinion
+ *   (`speculativeWording`).
+ * The model may only move a label down this list, never up (`lowerCertainty`).
+ */
+export const CERTAINTIES = ["confirmed", "reported", "speculation"] as const;
+export type Certainty = (typeof CERTAINTIES)[number];
+
+export const CERTAINTY_LABEL: Record<Certainty, string> = { confirmed: "Confirmed", reported: "Reported", speculation: "Speculation" };
+
+/**
+ * Headline wording that makes an outlet item speculation rather than a report: rumours, "could",
+ * "may" (the verb, not the month), expectations, unnamed sources, analysts' views, opinion pieces
+ * and question headlines. Kept small on purpose and tested (headlines.test.ts).
+ */
+export const SPECULATION_WORDS: RegExp[] = [
+  /\breportedly\b/i,
+  /\brumou?r(s|ed)?\b/i,
+  /\b(could|might)\b/i,
+  // "may" the verb: not the month ("in May", "May 2026", "May 5").
+  /(?<!\b(in|since|until|from|through|of|last|next|early|mid|late|end of)\s)\bmay\b(?!\s+\d)/i,
+  /\b(likely|unlikely|poised to|expected to|set to)\b/i,
+  /\banalysts?\s+(say|says|said|expect|expects|see|sees|predict|predicts|forecast|forecasts|warn|warns|estimate|estimates)\b/i,
+  /\b(sources?|insiders?)\s+(say|says|said)\b|\bpeople familiar\b|\baccording to (people|sources|a person)\b/i,
+  /^\s*(opinion|analysis|column|commentary|breakingviews|editorial|view)\s*[:|-]/i,
+  /\bop-ed\b/i,
+  /\?\s*$/,
+];
+
+export const speculativeWording = (text: string): boolean => SPECULATION_WORDS.some((re) => re.test(text));
+
+/**
+ * Label for a headline from its source tags (set by our code in data/headlines.ts) and its text:
+ * official and press-release items are confirmed; anything else (outlets) is reported, or
+ * speculation when the wording says so. An item with no source tag is never confirmed.
+ */
+export function newsCertainty(tags: string[] | undefined, text: string): Certainty {
+  const t = tags ?? [];
+  if (t.includes("official") || t.includes("press-release")) return "confirmed";
+  return speculativeWording(text) ? "speculation" : "reported";
+}
+
+/** The label after a model proposal: the proposal only counts when it is less certain (a downgrade). */
+export function lowerCertainty(current: Certainty, proposed: Certainty): Certainty {
+  return CERTAINTIES.indexOf(proposed) > CERTAINTIES.indexOf(current) ? proposed : current;
+}
 
 export type CalendarEventKind = "fomc" | "fed-speech" | "cpi" | "jobs" | "pce" | "gdp" | "earnings" | "token-unlock" | "options-expiry" | "other";
 
@@ -218,6 +274,8 @@ export type CalendarEvent = {
   /** Assets this event matters for; empty means all. */
   assetIds: string[];
   source: Source;
+  /** "confirmed" for scheduled official events, set in code. Missing on events stored before this field existed. */
+  certainty?: Certainty;
 };
 
 /**
@@ -417,6 +475,9 @@ export type ExampleSplit = {
   why: Reasoned;
 };
 
+/** One thing that could make this week's views wrong, tied to facts and to the assets it affects. */
+export type WrongAboutItem = { text: string; factIds: string[]; assetIds: string[] };
+
 export type WeeklyReport = {
   kind: "live" | "sample";
   /** Monday the report is for. */
@@ -429,6 +490,14 @@ export type WeeklyReport = {
   market: MarketOverview;
   assets: WeeklyAssetSection[];
   ideas: { ranked: InvestmentIdea[]; exampleSplits: ExampleSplit[] };
+  /**
+   * "What could we be wrong about?": the 2 or 3 things most likely to make this week's views wrong,
+   * each citing report fact ids (asset facts as "assetId:factId", market facts as is) and the asset
+   * ids it affects. Written last, by the summary step after every view is final, or built in code
+   * from the sections' opposing scenarios when that step fails. Optional: reports approved before
+   * this field existed do not have it, and every reader must work without it.
+   */
+  wrongAbout?: WrongAboutItem[];
   /** Last week's views and what happened. Wrong calls stay visible. */
   scorecard: Scorecard | null;
   /** Result of the risk reviewer pass. */

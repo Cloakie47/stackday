@@ -156,6 +156,8 @@ export function fomcEvent(x: FomcMeeting): CalendarEvent {
     name,
     assetIds: [],
     source: x.source,
+    // Scheduled by the Fed (the name says when projections are only expected).
+    certainty: "confirmed",
   };
 }
 
@@ -268,7 +270,7 @@ export function parseBeaSchedule(html: string): Release[] {
 }
 
 export function releaseEvent(r: Release): CalendarEvent {
-  return { id: `cal.${r.date}.${r.kind}`, date: r.date, timeUtc: hhmm(newYorkTimeToUtc(r.date, 8, 30)), kind: r.kind, name: r.name, assetIds: [], source: r.source };
+  return { id: `cal.${r.date}.${r.kind}`, date: r.date, timeUtc: hhmm(newYorkTimeToUtc(r.date, 8, 30)), kind: r.kind, name: r.name, assetIds: [], source: r.source, certainty: "confirmed" };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -304,6 +306,7 @@ export function expiryEvents(from: IsoDate, to: IsoDate): CalendarEvent[] {
       name: "Monthly US equity and index options expiry (third Friday)",
       assetIds: STOCK_IDS,
       source: { name: "Computed by Stackday: third Friday of the month, the standard monthly listed options expiration, moved earlier on an NYSE holiday" },
+      certainty: "confirmed",
     });
     const cr = cryptoOptionsExpiry(y, mo);
     out.push({
@@ -314,6 +317,7 @@ export function expiryEvents(from: IsoDate, to: IsoDate): CalendarEvent[] {
       name: "Monthly Bitcoin and Ether options expiry on Deribit (last Friday, 08:00 UTC)",
       assetIds: CRYPTO_OPTION_IDS,
       source: { name: "Computed by Stackday: last Friday of the month at 08:00 UTC, Deribit's monthly expiry" },
+      certainty: "confirmed",
     });
   }
   return out.filter((e) => e.date >= from && e.date <= to);

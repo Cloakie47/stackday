@@ -11,6 +11,7 @@ import {
   AiLabel,
   AsOf,
   BetaBanner,
+  CertaintyBadge,
   ConvictionMeter,
   DataLabel,
   Disclaimer,
@@ -276,7 +277,9 @@ function ScoreCell({ change, right }: { change?: number; right?: boolean }) {
 function Section({ s, r }: { s: WeeklyAssetSection; r: WeeklyReport }) {
   const [tf, setTf] = useState<ChartInterval>("1d");
   // Facts marked not for display (licence) are never shown or cited on the page.
-  const facts = [...s.facts, ...r.market.facts].filter(isDisplayable);
+  // The section's own facts come last so they win over a market fact with the same id (both
+  // number their news news.0, news.1, ...; section claims mean the section's own fact).
+  const facts = [...r.market.facts, ...s.facts].filter(isDisplayable);
   const shownFacts = s.facts.filter(isDisplayable);
   const c = s.chart[tf];
   const v = s.view;
@@ -313,10 +316,13 @@ function Section({ s, r }: { s: WeeklyAssetSection; r: WeeklyReport }) {
               .sort((a, b) => a.date.localeCompare(b.date))
               .map((e) => (
                 <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5 first:pt-0 last:pb-0">
-                  <span className="text-[13px]">
-                    <span className="font-medium tabular-nums">{fmtDate(e.date)}</span>
-                    {e.timeUtc && <span className="text-muted"> {e.timeUtc} UTC</span>}
-                    <span className="text-ink"> · {e.name}</span>
+                  <span className="inline-flex flex-wrap items-baseline gap-x-1.5 text-[13px]">
+                    <CertaintyBadge certainty={e.certainty} />
+                    <span>
+                      <span className="font-medium tabular-nums">{fmtDate(e.date)}</span>
+                      {e.timeUtc && <span className="text-muted"> {e.timeUtc} UTC</span>}
+                      <span className="text-ink"> · {e.name}</span>
+                    </span>
                   </span>
                   <span className="text-xs text-muted">
                     {httpsUrl(e.source.url) ? (

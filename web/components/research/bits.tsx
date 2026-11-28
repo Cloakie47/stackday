@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AssetIcon, Badge, InfoTip, Notice, cx } from "@/components/ui";
 import { ASSETS } from "@/lib/contracts";
 import type {
+  Certainty,
   Confidence,
   Fact,
   Levels,
@@ -14,6 +15,7 @@ import type {
 } from "@/lib/research/types";
 import {
   BETA_LABEL,
+  CERTAINTY_LABEL,
   RESEARCH_DISCLAIMER,
   VIEW_LABEL,
   isDisplayable,
@@ -411,10 +413,42 @@ function factValue(f: Fact) {
   return `${f.value}${f.unit ? ` ${f.unit}` : ""}`;
 }
 
+const CERTAINTY_TONE: Record<Certainty, "grow" | "neutral" | "warn"> = {
+  confirmed: "grow",
+  reported: "neutral",
+  speculation: "warn",
+};
+const CERTAINTY_TIP: Record<Certainty, string> = {
+  confirmed:
+    "Confirmed: from an official source, a company release, a filing or a scheduled calendar event.",
+  reported:
+    "Reported: a news outlet reports it; it is not the primary source.",
+  speculation:
+    "Speculation: a rumour, an expectation or an opinion, not a confirmed fact.",
+};
+
+/**
+ * Catalyst label of a news item, filing or calendar event, set in code from the source. Renders
+ * nothing for a missing or unknown value (reports stored before labels existed).
+ */
+export function CertaintyBadge({ certainty }: { certainty?: string }) {
+  const c = certainty as Certainty | undefined;
+  if (!c || !Object.hasOwn(CERTAINTY_LABEL, c)) return null;
+  return (
+    <span title={CERTAINTY_TIP[c]} className="inline-flex">
+      <Badge tone={CERTAINTY_TONE[c]}>
+        <span className="sr-only">Catalyst label: </span>
+        {CERTAINTY_LABEL[c]}
+      </Badge>
+    </span>
+  );
+}
+
 /** One fact with its value, source (linked when there is a link) and time. */
 export function FactLine({ fact }: { fact: Fact }) {
   return (
     <li className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted">
+      <CertaintyBadge certainty={fact.certainty} />
       <span className="text-ink-soft">{fact.label}:</span>
       <span className="font-medium tabular-nums text-ink">
         {factValue(fact)}

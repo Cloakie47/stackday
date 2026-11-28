@@ -241,6 +241,8 @@ export function filingFact(f: Filing, i: number): Fact {
     source: { name: EDGAR_SOURCE_NAME, url: f.url },
     asOf: accepted,
     quote: quoteWords(sanitizeText(quoteSrc, 2000)),
+    // A filing on SEC EDGAR is the primary source.
+    certainty: "confirmed",
   };
 }
 

@@ -75,6 +75,7 @@ Then one page for the whole report:
   - A short ranked list across the six assets (for example "Accumulate gold and Bitcoin, hold Apple, avoid new NVIDIA buys before earnings").
   - Each idea comes with its reasons, how much it depends on past and current market conditions, and the main risk.
   - It is written as general allocation ideas, such as an example split for a cautious and for a growth-minded investor, not as orders for a specific person.
+- **What could we be wrong about?** (added November 28, 2026) The 2 or 3 things most likely to make this week's views wrong, each citing fact ids of the report and naming the assets it affects. The summary step writes it last, after every view is final. Code checks it (2 to 3 items, every fact id and asset id in the report, no promise or advice wording); invalid items are dropped, and when fewer than 2 remain, or the summary step fails, code builds the list from the sections' scenarios against each view and their debate, and the review notes say so. The whole-report check then requires 2 to 3 valid items on a new report with a researched section. Only if code cannot build 2 items either (not expected: every researched section has scenarios and a debate) is the report written without the section, marked not approved, with a note, so a run never produces nothing because of it. A report with no researched section has no list. Reports approved before this date do not have it and still show.
 - **Last week's scorecard.** Every view from last week's report, what happened, and whether it was right. Wrong calls stay visible.
 
 ## 4. How the engine works (multi-step research desk)
@@ -102,6 +103,8 @@ For each asset:
    - Probabilities add up.
    - The view matches the evidence.
    - No promises and no personal advice.
+   - **Already priced in?** (added November 28, 2026) Code, not the model, measures how far the price moved over the last 5 daily bars in units of the daily ATR14 (from the existing 5-bar change, last close and ATR readings) and gives it as a fact (`ind.1d.move5atr`). The check fires at 3 ATR or more either way, whatever the view. On the recorded Coinbase daily candles in the repo (Bitcoin and Ether since late 2021, gold token PAXG), the median 5-bar move is about 0.8 ATR and 3 ATR or more happens on about 4 to 6 percent of days. When it fires, at least one view reason must say how much of the move may already be in the price and cite that fact; otherwise the view is sent back, even if the model reviewer approved. If the view still does not say so after the send-back, the section stays published with a note and is not auto-approved.
+   - **Real or reward driven?** (added November 28, 2026) Crypto only. The engine has no token emission, reward or yield data, so the reviewer answers "reward driven" only when a fact in the report shows it (and must cite it), "real demand" only when a fact shows that, and otherwise "no data". Code turns a claim without a valid cited fact into "no data", and answers "not crypto" for the other assets. The reviewer never writes emission or yield figures. The answer is in the review notes.
    - It can send a section back once.
 5. **Editor.** Writes the final text from the approved pieces, in plain language. Output is strict JSON first (as in #70), then rendered.
 
@@ -133,6 +136,7 @@ Each source has a fallback, or the item shows "no reading". Missing data is neve
 - Every number comes from code with a source and a time. The model only interprets.
 - Every claim in the report links to a fact id. A claim without a fact is removed by the risk reviewer.
 - No invented news, quotes, dates or figures. If unsure, the report says so.
+- Catalyst labels (added November 28, 2026): every news item, filing and calendar event carries one of three labels, set in code from the source. **Confirmed**: official sources (Fed, SEC, Treasury), company press releases, SEC filings and scheduled calendar events. **Reported**: a reputable outlet reports it, not the primary source. **Speculation**: outlet headlines worded as a rumour, an expectation or an opinion (a small keyword rule in code: "reportedly", "rumor", "could", "may" the verb, "might", "likely", "expected to", "set to", "poised to", "analysts say or expect", "sources say", "people familiar", opinion or analysis headlines, question headlines). The news analyst may lower a label, never raise it; code ignores a raise. The label shows as a badge next to each cited fact and on the week-ahead calendar.
 - No look-ahead: a report and any backtest only use data that existed at its timestamp.
 
 **Safety of the system**
@@ -175,6 +179,14 @@ A weekly report becomes paid only when, for **four Mondays in a row**:
 - calibration is not clearly off.
 
 Until then the weekly report is a free preview labelled "beta".
+
+Risk reviewer checklist for every weekly section (the step in section 4.4, run by code checks plus the model reviewer):
+- every claim cites a valid fact id;
+- scenario probabilities add up to 100 and fit the evidence;
+- the view matches the evidence and the scenarios;
+- no promises and no personal advice;
+- already priced in: when the code check fires (a move of 3 daily ATR or more over 5 daily bars), the view says how much of the move may already be in the price, or the view is sent back;
+- real or reward driven (crypto): flagged only when a fact in the report shows reward-driven activity, otherwise "no data"; no invented emission or yield figures.
 
 ## 8. Pricing (to decide)
 

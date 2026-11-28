@@ -153,7 +153,16 @@ function section(assetId: string): WeeklyAssetSection {
     ...CHART_INTERVALS.flatMap((iv) =>
       chart[iv]!.patterns.map((x) => ({ id: x.id, kind: "pattern" as const, label: `Demo pattern: ${x.kind}`, value: x.detail, source: DEMO_SOURCE, asOf: DATA_AT })),
     ),
-    { id: "news.demo.1", kind: "news", label: "Demo headline (not a real article)", value: `Sample headline about ${u.name}`, source: DEMO_SOURCE, asOf: "2026-11-13T15:00:00Z" },
+    {
+      id: "news.demo.1",
+      kind: "news",
+      label: "Demo headline (not a real article)",
+      value: `Sample headline about ${u.name}`,
+      source: DEMO_SOURCE,
+      asOf: "2026-11-13T15:00:00Z",
+      // Demo labels, so both news badges show in the sample.
+      certainty: assetId === "mcbBTC" || assetId === "mNVDA" ? "speculation" : "reported",
+    },
     ...MARKET_FACTS,
   ];
   const levels: Levels = {
@@ -165,9 +174,9 @@ function section(assetId: string): WeeklyAssetSection {
   };
   const cite = ["px.1d.last"];
   const weekAhead: CalendarEvent[] = [
-    { id: "cal.demo.pce", date: "2026-11-20", kind: "pce", name: "Sample event: inflation release (demo date)", assetIds: [], source: DEMO_SOURCE },
+    { id: "cal.demo.pce", date: "2026-11-20", kind: "pce", name: "Sample event: inflation release (demo date)", assetIds: [], source: DEMO_SOURCE, certainty: "confirmed" },
     ...(assetId === "mNVDA"
-      ? [{ id: "cal.demo.earn", date: "2026-11-18", kind: "earnings" as const, name: "Sample event: quarterly results (demo date)", assetIds: ["mNVDA"], source: DEMO_SOURCE }]
+      ? [{ id: "cal.demo.earn", date: "2026-11-18", kind: "earnings" as const, name: "Sample event: quarterly results (demo date)", assetIds: ["mNVDA"], source: DEMO_SOURCE, certainty: "confirmed" as const }]
       : []),
   ];
   const [bull, base, bear] = s.probs;
@@ -266,6 +275,11 @@ export const SAMPLE_WEEKLY: WeeklyReport = {
   },
   assets: UNIVERSE.map((u) => section(u.assetId)),
   ideas: { ranked: IDEAS, exampleSplits: SPLITS },
+  wrongAbout: [
+    { text: "Sample: a jump in the demo rates reading would weigh on the S&P 500 and gold views at the same time.", factIds: ["macro.demo.rates"], assetIds: ["mSPX", "mPAXG"] },
+    { text: "Sample: the demo inflation release could break the range the Bitcoin and Apple hold views rest on.", factIds: ["mcbBTC:px.1d.last", "mAAPL:px.1d.last"], assetIds: ["mcbBTC", "mAAPL"] },
+    { text: "Sample: the cautious NVIDIA view leans on one demo headline labelled speculation, not on a filed or scheduled fact.", factIds: ["mNVDA:news.demo.1"], assetIds: ["mNVDA"] },
+  ],
   scorecard: SCORECARD,
   review: { approved: true, sentBack: 0, removedClaims: 0, notes: ["Sample fixture, not reviewed by the risk pass."] },
   model: { analysts: "none (sample fixture)", editor: "none (sample fixture)" },

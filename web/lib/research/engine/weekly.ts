@@ -16,6 +16,7 @@ import type {
   WeeklyAssetSection,
   WeeklyReport,
   WeeklyScenario,
+  WrongAboutItem,
 } from "../types.ts";
 import { CHART_INTERVALS, RESEARCH_DISCLAIMER } from "../types.ts";
 import type { UniverseAsset } from "../universe.ts";
@@ -23,6 +24,7 @@ import { defaultAlert, type AlertFn } from "./alert.ts";
 import { callErrors, costBudget, CostAbort, guardedCall, settleAll, type Budget } from "./budget.ts";
 import { assetNumbers, defaultAssets, MAX_NO_READINGS, newRunId, readSpend, RUN_TIME_LIMIT_MS, type GatherFn, type RunOutcome } from "./daily.ts";
 import {
+  applyCertaintyProposals,
   calendarFacts,
   chartBlock,
   chartLevels,
@@ -36,6 +38,8 @@ import {
   patternFacts,
   prepareFacts,
   priceProblem,
+  pricedInCheck,
+  pricedInLine,
   sentFacts,
   untrustedNotes,
 } from "./facts.ts";
@@ -50,6 +54,7 @@ import {
   EDITOR_ROLE,
   EDITOR_SCHEMA,
   LIMITS,
+  NEWS_SCHEMA,
   PROMPT_VERSION,
   REBUTTAL_ROLE,
   REVIEW_ROLE,
@@ -61,10 +66,10 @@ import {
   WEEKLY_SYSTEM,
   type SectionKey,
 } from "./prompts.ts";
-import { blocking, codeIssues, editorJson, finalizeDraft, parseDraft, parseReview, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
+import { blocking, codeIssues, editorJson, finalizeDraft, parseDraft, parseReview, PRICED_IN_ISSUE, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
 import { qualityBar, weeklyScorecard } from "./scores.ts";
 import { LEASE_TTL_MS, type LeaseResult, type NoReadingCause, type ResearchStore, type StoredSection } from "./store.ts";
-import { citableIds, ideaProblems, sectionProblems, weeklyProblems } from "./validate.ts";
+import { citableIds, ideaProblems, sectionProblems, weeklyProblems, WRONG_ABOUT_ITEMS, wrongAboutProblems } from "./validate.ts";
 
 /**
  * The Monday weekly report (founder spec sections 3 and 4), every step on RESEARCH_MODELS.weekly.
@@ -78,9 +83,15 @@ import { citableIds, ideaProblems, sectionProblems, weeklyProblems } from "./val
  *    levels from code, probabilities add up to 100, view matches the evidence) plus a model review
  *    that may send ONE section back once. What still fails is fixed in code and recorded; a section
  *    that still cannot pass (a scenario or the view without a valid fact) becomes "no reading".
+ *    The reviewer also gets the "already priced in?" check computed in code (facts.ts
+ *    pricedInCheck): when it fired and no view reason cites it, the view is sent back. It answers
+ *    the "real or reward driven" question for crypto (coerced in code to "no data" unless facts
+ *    show it). The news analyst may lower, never raise, the code catalyst labels of news items.
  * 5. Week-ahead calendar, buy zone, invalidation and borrowing note are added by code.
  * Then one summary call (market mood, ranked ideas, example split explanations; split shares are
- * computed in code) and the scorecard of last week's views, computed in code.
+ * computed in code; last, "What could we be wrong about?", 2 to 3 items, built in code from the
+ * sections when the call fails or gives too few valid items) and the scorecard of last week's
+ * views, computed in code.
  *
  * Model text written after reading news (analyst notes, debate, draft, reviewer notes, our own
  * earlier notes) reaches later steps only inside an <untrusted_notes> block.
@@ -191,8 +202,33 @@ async function step<T>(s: StepCtx, req: Omit<ModelRequest, "model" | "system">, 
   }
 }
 
-function parseAnalyst(role: Role, text: string, facts: Fact[], extra: number[]): { note: AnalystNote; flagged: string[] } {
-  const keys = role === "technical" ? ["stance", "points", "chart", "injectionFactIds"] : ["stance", "points", "injectionFactIds"];
+type CertaintyProposal = { factId: string; certainty: string };
+
+/**
+ * The news analyst's label proposals ("certainty" in NEWS_SCHEMA). Malformed entries and ids the
+ * analyst was not shown are dropped, never a reason to reject the step; code later applies only
+ * downgrades (applyCertaintyProposals).
+ */
+function certaintyProposals(raw: unknown, facts: Fact[]): CertaintyProposal[] {
+  if (!Array.isArray(raw)) return [];
+  const ids = new Set(facts.map((f) => f.id));
+  return raw
+    .filter((x): x is CertaintyProposal => typeof x === "object" && x !== null && typeof (x as CertaintyProposal).factId === "string" && typeof (x as CertaintyProposal).certainty === "string" && ids.has((x as CertaintyProposal).factId))
+    .slice(0, LIMITS.certaintyProposals);
+}
+
+function parseAnalyst(role: Role, text: string, facts: Fact[], extra: number[]): { note: AnalystNote; flagged: string[]; certainty: CertaintyProposal[] } {
+  const base = role === "technical" ? ["stance", "points", "chart", "injectionFactIds"] : ["stance", "points", "injectionFactIds"];
+  // The news analyst may add label proposals; an answer without them still parses.
+  let keys = base;
+  if (role === "news") {
+    try {
+      const probe: unknown = JSON.parse(text);
+      if (typeof probe === "object" && probe !== null && "certainty" in probe) keys = [...base, "certainty"];
+    } catch {
+      // parseJsonObject below rejects it
+    }
+  }
   const raw = parseJsonObject(text, keys);
   if (!oneOf(["bullish", "neutral", "bearish"] as const, raw.stance)) throw new StepRejected("bad stance");
   const flagged = stringList(raw.injectionFactIds, "injectionFactIds");
@@ -204,7 +240,7 @@ function parseAnalyst(role: Role, text: string, facts: Fact[], extra: number[]):
     if (typeof c !== "object" || c === null || Array.isArray(c)) throw new StepRejected("bad chart");
     note.chart = Object.fromEntries(CHART_INTERVALS.map((i) => [i, ctx.list((c as Record<string, unknown>)[i] ?? [], LIMITS.text, 3)]));
   }
-  return { note, flagged };
+  return { note, flagged, certainty: role === "news" ? certaintyProposals(raw.certainty, facts) : [] };
 }
 
 function parsePoints(text: string, facts: Fact[], extra: number[], cap: number): Reasoned[] {
@@ -266,8 +302,13 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const view = shown.input;
   const weekAhead = [...(view.calendar ?? []), ...marketCal].filter((e, i, a) => a.findIndex((x) => x.id === e.id) === i).sort((a, b) => a.date.localeCompare(b.date));
   const chart = view.chart ?? {};
-  const own = ensurePriceFacts(view);
-  const { facts: prepared, screened, restricted } = prepareFacts([...own, ...patternFacts(chart, own, view.series), ...calendarFacts(weekAhead), ...(market?.facts ?? [])]);
+  const priced = ensurePriceFacts(view);
+  // "Already priced in?" is measured in code from the daily readings (facts.ts pricedInCheck). Its
+  // fact goes first so it is always among the facts sent to the model.
+  const pricedInRaw = pricedInCheck({ ...view, facts: priced });
+  const own = pricedInRaw ? [pricedInRaw.fact, ...priced] : priced;
+  const { facts: preparedRaw, screened, restricted } = prepareFacts([...own, ...patternFacts(chart, own, view.series), ...calendarFacts(weekAhead), ...(market?.facts ?? [])]);
+  let prepared = preparedRaw;
   const levelsFromChart = chartLevels(chart);
   const extra = [...levelsFromChart, ...assetNumbers(asset)];
   const header = `Asset: ${asset.assetId} (${asset.name}, underlying ${asset.underlying}), class ${asset.assetClass}, sector ${asset.sector}, risk bucket ${asset.risk}.${asset.note ? ` Note: ${asset.note}` : ""}\nWeek of ${weekOf}, data as of ${view.date}.`;
@@ -284,7 +325,8 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const analystReqs = ROLES.map((role) => {
     const roleFacts = sentFacts(factsFor(role, prepared));
     const context = [header, role === "technical" ? chartBlock(chart) : "", factBlock(roleFacts)].filter(Boolean).join("\n\n");
-    const req = { step: `weekly.analyst.${role}`, context, user: ANALYST_ROLE[role], schema: role === "technical" ? TECHNICAL_SCHEMA : ANALYST_SCHEMA, maxTokens: MAX_TOKENS.analyst, effort: "low" as const };
+    const schema = role === "technical" ? TECHNICAL_SCHEMA : role === "news" ? NEWS_SCHEMA : ANALYST_SCHEMA;
+    const req = { step: `weekly.analyst.${role}`, context, user: ANALYST_ROLE[role], schema, maxTokens: MAX_TOKENS.analyst, effort: "low" as const };
     return { role, roleFacts, req };
   });
   s.budget.ensure(groupCost(s, analystReqs.map((a) => a.req)), `the four analysts of ${asset.assetId}`);
@@ -299,7 +341,19 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const okAnalysts = analysts.filter((a): a is NonNullable<typeof a> => a !== null);
   if (okAnalysts.length < 3) return fail(`${4 - okAnalysts.length} analyst steps failed`);
   const flagged = new Set(okAnalysts.flatMap((a) => a.flagged));
+  // Catalyst labels: the news analyst may only lower a code label, never raise it (enforced here).
+  const proposals = okAnalysts.flatMap((a) => a.certainty);
+  if (proposals.length) {
+    const labelled = applyCertaintyProposals(prepared, proposals);
+    prepared = labelled.facts;
+    if (labelled.lowered.length) notes.push(`${asset.assetId}: news analyst lowered ${labelled.lowered.length} catalyst labels (${labelled.lowered.slice(0, 4).join("; ")})`);
+    if (labelled.ignored.length) notes.push(`${asset.assetId}: ${labelled.ignored.length} catalyst label proposals ignored, a label can only be lowered (${labelled.ignored.slice(0, 3).join("; ")})`);
+  }
   const citable = sentFacts(prepared.filter((f) => !flagged.has(f.id)));
+  // The priced-in check only counts when its fact can be cited.
+  const pricedIn = pricedInRaw && citable.some((f) => f.id === pricedInRaw.fact.id) ? pricedInRaw : null;
+  const pricedInArg = pricedIn ? { factId: pricedIn.fact.id, moveAtr: pricedIn.moveAtr, fired: pricedIn.fired } : null;
+  const pricedInText = pricedInLine(pricedIn);
   // Written by the analysts after reading news: passed on only as untrusted notes.
   const analystText = okAnalysts.map((a) => `${a.note.role.toUpperCase()} ANALYST (${a.note.stance}):\n${reasonedLines(a.note.points)}`).join("\n\n");
   // Shared, cached context for every later step on this asset.
@@ -336,13 +390,13 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
     `BEAR CASE AND REBUTTAL:\n${reasonedLines(debate.bear)}`,
     `LAST WEEK'S DAILY NOTES (our own earlier research, context only, not citable):\n${pastText}`,
   ].join("\n\n");
-  const editorInputs = `${levelsLine}\n\n${untrustedNotes(deskNotes)}`;
+  const editorInputs = `${levelsLine}\n${pricedInText}\n\n${untrustedNotes(deskNotes)}`;
   const ctx = new Ctx(citable, allowedNumbers);
   const draft = await step(s, { step: "weekly.editor", context, user: `${EDITOR_ROLE}\n\n${editorInputs}`, schema: EDITOR_SCHEMA, maxTokens: MAX_TOKENS.editor, effort: "medium", timeoutMs: LONG_CALL_TIMEOUT_MS }, (t) => parseDraft(t, ctx, allowedLevels));
   if (!draft) return fail("editor step failed");
 
   const hasNews = citable.some(isUntrusted);
-  const issues = codeIssues(draft, hasNews);
+  const issues = codeIssues(draft, hasNews, pricedInArg);
   const reviewCtx = new Ctx(citable);
   const draftJson = editorJson(stripEvidence(draft.draft));
   // Code check lines quote removed model text, so they travel with the draft as untrusted notes.
@@ -352,12 +406,12 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
     {
       step: "weekly.review",
       context,
-      user: `${REVIEW_ROLE}\n\n${untrustedNotes(`CODE CHECKS:\n${checkLines}\n\nDRAFT:\n${draftJson}`)}`,
+      user: `${REVIEW_ROLE}\n\n${pricedInText}\n\n${untrustedNotes(`CODE CHECKS:\n${checkLines}\n\nDRAFT:\n${draftJson}`)}`,
       schema: REVIEW_SCHEMA,
       maxTokens: MAX_TOKENS.review,
       effort: "medium",
     },
-    (t) => parseReview(t, reviewCtx),
+    (t) => parseReview(t, reviewCtx, asset.assetClass === "crypto"),
   );
   const firstBlocking = blocking(issues)[0]?.section ?? (issues[0]?.section as SectionKey | undefined);
   const sendBack: SectionKey | null = review?.sendBack ?? firstBlocking ?? null;
@@ -372,7 +426,7 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
       {
         step: "weekly.revise",
         context,
-        user: `${REVISE_ROLE}\n\nSEND BACK: ${sendBack}\n${levelsLine}\n\n${untrustedNotes(`REVIEWER NOTES:\n${reviewerNotes}\nCODE CHECKS:\n${sectionChecks}\n\n${deskNotes}\n\nDRAFT:\n${draftJson}`)}`,
+        user: `${REVISE_ROLE}\n\nSEND BACK: ${sendBack}\n${levelsLine}\n${pricedInText}\n\n${untrustedNotes(`REVIEWER NOTES:\n${reviewerNotes}\nCODE CHECKS:\n${sectionChecks}\n\n${deskNotes}\n\nDRAFT:\n${draftJson}`)}`,
         schema: EDITOR_SCHEMA,
         maxTokens: MAX_TOKENS.revise,
         timeoutMs: LONG_CALL_TIMEOUT_MS,
@@ -383,7 +437,10 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
     if (revised) final = replaceSection(draft, revised, sendBack);
     else notes.push(`${asset.assetId}: revision step failed, the first draft was kept`);
   }
-  const remaining = blocking(codeIssues(final, hasNews));
+  const remaining = blocking(codeIssues(final, hasNews, pricedInArg));
+  // Still not saying so after the one send-back: kept as a note and the section is not
+  // auto-approved, never a no-reading.
+  const pricedInOpen = remaining.some((i) => i.issue.startsWith(PRICED_IN_ISSUE));
   const { draft: fixed, corrections } = finalizeDraft(final.draft);
   // What code cannot fix makes this one section "no reading" (the rest of the report still goes out).
   const unbacked = (["bull", "base", "bear"] as const).filter((k) => !fixed.scenarios[k].evidence || fixed.scenarios[k].factIds.length === 0);
@@ -422,8 +479,10 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
     ...(sendBack ? [`${asset.assetId}: ${sendBack} sent back once`] : []),
     ...remaining.map((i) => `${asset.assetId}: still failing after send-back: ${i.section}: ${i.issue}`),
     ...corrections.map((c) => `${asset.assetId}: corrected in code: ${c}`),
+    ...(pricedIn?.fired ? [`${asset.assetId}: priced-in check fired (moved ${Math.abs(pricedIn.moveAtr)} ATR over the last daily bars)${pricedInOpen ? ", the view still does not say so" : ", the view says so"}`] : []),
+    ...(review && asset.assetClass === "crypto" ? [`${asset.assetId} reviewer: real or reward driven: ${review.rewardCheck.replace("-", " ")}${review.rewardFactIds.length ? ` (${review.rewardFactIds.join(", ")})` : ""}`] : []),
   ];
-  return { section, failed: false, approved: approved && corrections.length === 0, sentBack, removed: removed + corrections.length, notes: reviewNotes, input };
+  return { section, failed: false, approved: approved && corrections.length === 0 && !pricedInOpen, sentBack, removed: removed + corrections.length, notes: reviewNotes, input };
 }
 
 const stripOne = (sc: Draft["scenarios"]["bull"]): WeeklyScenario => ({ text: sc.text, factIds: sc.factIds, probability: sc.probability, levels: sc.levels, trigger: sc.trigger });
@@ -460,7 +519,11 @@ export function exampleSplit(profile: ExampleSplit["profile"], items: { asset: U
 
 const prefixed = (assetId: string, r: Reasoned): Reasoned => ({ text: r.text, factIds: r.factIds.map((id) => `${assetId}:${id}`) });
 
-type Summary = { market: MarketOverview; ranked: InvestmentIdea[]; splitWhy: Record<ExampleSplit["profile"], Reasoned> | null; ok: boolean };
+/**
+ * `wrongAbout` holds the summary step's "What could we be wrong about?" items that passed the text,
+ * fact id and asset checks (null when the step failed or did not answer it).
+ */
+type Summary = { market: MarketOverview; ranked: InvestmentIdea[]; splitWhy: Record<ExampleSplit["profile"], Reasoned> | null; wrongAbout: WrongAboutItem[] | null; ok: boolean };
 
 function fallbackSummary(weekOf: IsoDate, marketFacts: Fact[], okSections: WeeklyAssetSection[]): Summary {
   const sorted = [...okSections].sort((a, b) => VIEW_ORDER.indexOf(a.view.view) - VIEW_ORDER.indexOf(b.view.view));
@@ -468,8 +531,41 @@ function fallbackSummary(weekOf: IsoDate, marketFacts: Fact[], okSections: Weekl
     market: { date: weekOf, summary: `Views this week across ${okSections.length} assets, written from the approved asset sections. General research only, not advice.`, developments: [], facts: marketFacts },
     ranked: sorted.map((a, i) => ideaFromSection(a, i + 1)).filter((x): x is InvestmentIdea => x !== null),
     splitWhy: null,
+    wrongAbout: null,
     ok: false,
   };
+}
+
+/**
+ * "What could we be wrong about?" built in code, used when the summary step failed, ran out of
+ * budget or gave fewer than 2 valid items. It reuses text the sections already passed through the
+ * checks: for each researched section, in ranking order, the scenario that goes against its view
+ * (the bear case for accumulate, the bull case for reduce and avoid new buys, both for hold), then
+ * the strongest debate point against the view. Round robin across sections, at most 3 items, each
+ * citing that text's own facts as "assetId:factId".
+ */
+export function wrongAboutFromSections(sections: WeeklyAssetSection[]): WrongAboutItem[] {
+  const pools = sections.map((a) => {
+    const v = a.view.view;
+    const against: Reasoned[] =
+      v === "accumulate" ? [a.scenarios.bear] : v === "hold" ? [a.scenarios.bear, a.scenarios.bull] : [a.scenarios.bull];
+    const debate = v === "accumulate" ? a.debate?.bear : v === "hold" ? a.debate?.bear : a.debate?.bull;
+    return [...against, ...(debate ?? []).slice(0, 1)]
+      .filter((r) => r.text.trim() && r.factIds.length > 0)
+      .map((r) => ({ text: r.text, factIds: r.factIds.map((id) => `${a.assetId}:${id}`), assetIds: [a.assetId] }));
+  });
+  const out: WrongAboutItem[] = [];
+  const seen = new Set<string>();
+  for (let round = 0; out.length < WRONG_ABOUT_ITEMS.max && pools.some((p) => p.length > round); round++)
+    for (const p of pools) {
+      const item = p[round];
+      if (!item || out.length >= WRONG_ABOUT_ITEMS.max) continue;
+      const key = `${item.assetIds[0]}|${item.text}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+  return out;
 }
 
 /** An idea built from a section's own cited claims; null when the section has none to rest on. */
@@ -510,7 +606,15 @@ async function summarize(weekOf: IsoDate, market: MarketResearchInput | null, ok
     // The sections were written by models after reading news: untrusted notes.
     { step: "weekly.summary", context: factBlock(marketFacts), user: `${SUMMARY_ROLE}\n\n${untrustedNotes(digest)}`, schema: summarySchema(ids), maxTokens: MAX_TOKENS.summary, effort: "medium", timeoutMs: LONG_CALL_TIMEOUT_MS },
     (t) => {
-      const raw = parseJsonObject(t, ["marketSummaryLines", "developments", "ranking", "ideas", "splitWhy"]);
+      // "wrongAbout" is asked for last; an answer without it still parses (code builds the list).
+      let withWrong = false;
+      try {
+        const probe: unknown = JSON.parse(t);
+        withWrong = typeof probe === "object" && probe !== null && "wrongAbout" in probe;
+      } catch {
+        // parseJsonObject below rejects it
+      }
+      const raw = parseJsonObject(t, ["marketSummaryLines", "developments", "ranking", "ideas", "splitWhy", ...(withWrong ? ["wrongAbout"] : [])]);
       const lines = stringList(raw.marketSummaryLines, "marketSummaryLines").slice(0, 3).map((l) => ctx.text(l, LIMITS.summaryLine)).filter((l): l is string => l !== null);
       if (!lines.length) throw new StepRejected("no clean market summary");
       const marketIds = new Set(marketFacts.map((f) => f.id));
@@ -531,12 +635,27 @@ async function summarize(weekOf: IsoDate, market: MarketResearchInput | null, ok
       if (typeof w !== "object" || w === null) throw new StepRejected("bad splitWhy");
       const cautious = ctx.reasoned(w.cautious, LIMITS.text);
       const growth = ctx.reasoned(w.growth, LIMITS.text);
-      return { lines, developments, ranking, byAsset, splitWhy: cautious && growth ? { cautious, growth } : null };
+      // Each item: clean text (no link, injection, banned phrase or unbacked number), at least one
+      // known fact id and at least one asset of this report; others are dropped (and counted later).
+      let wrongAbout: WrongAboutItem[] | null = null;
+      if (withWrong) {
+        if (!Array.isArray(raw.wrongAbout)) throw new StepRejected("bad wrongAbout");
+        wrongAbout = [];
+        for (const it of raw.wrongAbout) {
+          if (typeof it !== "object" || it === null) throw new StepRejected("bad wrongAbout item");
+          const x = it as Record<string, unknown>;
+          if (Object.keys(x).some((k) => !["text", "factIds", "assetIds"].includes(k))) throw new StepRejected("bad wrongAbout keys");
+          const item = ctx.reasoned({ text: x.text, factIds: x.factIds }, LIMITS.text);
+          const assetIds = Array.isArray(x.assetIds) ? [...new Set(x.assetIds.filter((a): a is string => typeof a === "string" && ids.includes(a)))] : [];
+          if (item && assetIds.length) wrongAbout.push({ ...item, assetIds });
+        }
+      }
+      return { lines, developments, ranking, byAsset, splitWhy: cautious && growth ? { cautious, growth } : null, wrongAbout };
     },
   );
   if (!parsed) return fallbackSummary(weekOf, marketFacts, okSections);
   const ranked = parsed.ranking.map((id, i) => ideaFromSection(okSections.find((a) => a.assetId === id)!, i + 1, parsed.byAsset.get(id))).filter((x): x is InvestmentIdea => x !== null);
-  return { market: { date: weekOf, summary: parsed.lines.join("\n"), developments: parsed.developments, facts: marketFacts }, ranked, splitWhy: parsed.splitWhy, ok: true };
+  return { market: { date: weekOf, summary: parsed.lines.join("\n"), developments: parsed.developments, facts: marketFacts }, ranked, splitWhy: parsed.splitWhy, wrongAbout: parsed.wrongAbout, ok: true };
 }
 
 const SPLIT_WHY: Record<ExampleSplit["profile"], string> = {
@@ -842,6 +961,40 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
     const ranked = summary.ranked.filter((i) => ideaProblems([i], ids).length === 0).map((i, n) => ({ ...i, rank: n + 1 }));
     if (ranked.length < summary.ranked.length) problems.push(`${summary.ranked.length - ranked.length} ideas dropped: they did not cite facts of the report`);
 
+    // "What could we be wrong about?": the summary step's list when it has 2 to 3 valid items,
+    // otherwise built in code from the sections (wrongAboutFromSections), always with a note. The
+    // whole-report check below then requires 2 to 3 valid items on any report with a researched
+    // section. A report with no researched section has nothing to be wrong about: no list.
+    let wrongAbout: WrongAboutItem[] | undefined;
+    let wrongAboutMissing = false;
+    if (okSections.length > 0) {
+      const okIds = new Set(okSections.map((a) => a.assetId));
+      const valid = (i: WrongAboutItem) => wrongAboutProblems([i], ids, okIds, false).length === 0;
+      const fromModel = (summary.wrongAbout ?? []).filter(valid).slice(0, WRONG_ABOUT_ITEMS.max);
+      if (fromModel.length >= WRONG_ABOUT_ITEMS.min) {
+        wrongAbout = fromModel;
+        const dropped = (summary.wrongAbout?.length ?? 0) - fromModel.length;
+        if (dropped > 0) problems.push(`what could we be wrong about: ${dropped} items dropped, they did not pass the checks`);
+      } else {
+        const order = [...ranked.map((i) => i.assetId), ...okSections.map((a) => a.assetId)].filter((id, i, a) => a.indexOf(id) === i);
+        const built = wrongAboutFromSections(order.map((id) => okSections.find((a) => a.assetId === id)!)).filter(valid);
+        const why = !summary.ok
+          ? "the summary step did not run or failed"
+          : summary.wrongAbout === null
+            ? "the summary step did not give the list"
+            : `the summary step gave ${fromModel.length} valid items (needs ${WRONG_ABOUT_ITEMS.min} to ${WRONG_ABOUT_ITEMS.max})`;
+        if (built.length >= WRONG_ABOUT_ITEMS.min) {
+          wrongAbout = built;
+          problems.push(`what could we be wrong about: ${why}, built in code from the sections' opposing scenarios and debate`);
+        } else {
+          // Not expected (every researched section has scenarios and a debate): never block the
+          // report for it, but say so and keep it unapproved.
+          wrongAboutMissing = true;
+          problems.push(`what could we be wrong about: ${why}, and code could not build 2 items from the sections: left out, review before approving`);
+        }
+      }
+    }
+
     const [previous, scores] = await Promise.all([deps.store.weekliesBefore(weekOf, 4).catch(() => []), deps.store.scores(null, addDays(weekOf, -120)).catch(() => [])]);
     // Only a report readers saw (approved) is graded: an unapproved draft or test run never is.
     const lastWeek = previous.find((w) => w.approved)?.report ?? null;
@@ -863,12 +1016,13 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
       market: { ...summary.market, facts: displayableFacts(summary.market.facts) },
       assets: results.map((r) => r.section),
       ideas: { ranked, exampleSplits },
+      ...(wrongAbout ? { wrongAbout } : {}),
       scorecard: weeklyScorecard(lastWeek, later, scores),
       review: {
-        approved: !belowBar && results.every((r) => r.section.status !== "ok" || r.approved),
+        approved: !belowBar && !wrongAboutMissing && results.every((r) => r.section.status !== "ok" || r.approved),
         sentBack: counts.sentBack,
         removedClaims: counts.removedClaims,
-        notes: [...noReadingLines, ...problems, ...(summary.ok ? [] : ["summary step failed: ideas built in code from the approved sections"]), ...results.flatMap((r) => r.notes)].slice(0, 60),
+        notes: [...noReadingLines, ...problems, ...(summary.ok ? [] : ["summary step failed: ideas and what could we be wrong about built in code from the approved sections"]), ...results.flatMap((r) => r.notes)].slice(0, 60),
       },
       model: { analysts: model, editor: model },
       // All spend of the week: every weekly run row (overwritten and killed attempts included, at
@@ -877,7 +1031,7 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
       disclaimer: RESEARCH_DISCLAIMER,
     };
     const inputs = { market, sections: [...byAsset.values()].map((x) => ({ assetId: x.assetId, runId: x.runId })) };
-    const shape = weeklyProblems(report);
+    const shape = weeklyProblems(report, { requireWrongAbout: okSections.length > 0 && !wrongAboutMissing });
     if (shape.length) return finish("failed", ["whole-report check failed: nothing written", ...shape.slice(0, 20), ...problems], { counts, inputs });
     let wrote: boolean;
     try {
