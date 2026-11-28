@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildPlan, type Plan } from "./buildCalls.ts";
-import { borrowInsteadChip, CHIP_CATALOGUE, errorStep, followUpChips, starterChips, type Chip, type ChipId } from "./chips.ts";
+import { borrowInsteadChip, CHIP_CATALOGUE, commandChip, errorStep, followUpChips, starterChips, TEMPLATE_CHIPS, tickerResearchChip, type Chip, type ChipId } from "./chips.ts";
 import { ACTION_NAMES } from "./intent.ts";
 import { READ_TOOL_NAMES } from "./tools.ts";
 import { ctx, positions, tokens, usd } from "./test-fixtures.ts";
@@ -11,7 +11,7 @@ import { ctx, positions, tokens, usd } from "./test-fixtures.ts";
 const IDS = Object.keys(CHIP_CATALOGUE) as ChipId[];
 const fromCatalogue = (c: Chip) => {
   assert.ok(IDS.includes(c.id), `unknown chip ${c.id}`);
-  if (c.id === "borrow_instead") return; // template with a code-computed amount, checked below
+  if (TEMPLATE_CHIPS.includes(c.id)) return; // templates with code-computed text, checked below
   assert.deepEqual({ label: c.label, text: c.text, kind: c.kind }, CHIP_CATALOGUE[c.id]);
 };
 
@@ -37,7 +37,7 @@ test("follow-ups: 2 or 3 catalogue chips for every intent type and tool mix, nev
       assert.ok(chips.length >= 2 && chips.length <= 3, JSON.stringify(turn));
       assert.equal(new Set(chips.map((c) => c.id)).size, chips.length);
       chips.forEach(fromCatalogue);
-      assert.ok(!chips.some((c) => c.id === "borrow_instead"));
+      assert.ok(!chips.some((c) => TEMPLATE_CHIPS.includes(c.id)));
     }
   }
 });
@@ -117,4 +117,17 @@ test("error ladder: the second failure is worded differently and offers question
     fromCatalogue(c);
     assert.equal(c.kind, "question");
   }
+});
+
+test("command chips: text is always a slash command, info commands are questions, research chip goes to the model", () => {
+  const c = commandChip("$20", "/buy $NVDA 20$");
+  assert.deepEqual(c, { id: "command", kind: "action", label: "$20", text: "/buy $NVDA 20$" });
+  assert.equal(commandChip("How much can I borrow?", "/borrow $NVDA", "question").kind, "question");
+  assert.throws(() => commandChip("x", "buy $NVDA 20$"));
+  const r = tickerResearchChip("NVIDIA");
+  assert.equal(r.kind, "question");
+  assert.equal(r.label, "This week's research on NVIDIA");
+  assert.ok(!r.text.startsWith("/"));
+  // Templates are never offered as follow-ups.
+  for (const id of TEMPLATE_CHIPS) assert.ok(id in CHIP_CATALOGUE);
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { useViewer } from "@/components/providers";
 import { cx } from "@/components/ui";
 import type { ChatTurn, ResearchNote } from "@/lib/chat/agent";
@@ -11,7 +11,11 @@ import { usePlan } from "@/lib/chat/usePlan";
 import { useSession } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { ActionCard, ActionCardSkeleton } from "./action-card";
-import { ChipRow } from "./chips";
+import { ChipRow, type StarterChip } from "./chips";
+import { completeDraft, parseCommand, type CommandResult, type Draft, type InfoView } from "@/lib/chat/commands";
+import { heldSymbols, infoContext } from "@/lib/chat/info";
+import { Composer } from "./composer";
+import { InfoCard } from "./info-cards";
 import { EmptyState, type EmptyMode } from "./empty-state";
 import { ActivityList, ReceiptCard, type ChatReceipt } from "./receipt-card";
 
@@ -21,8 +25,21 @@ import { ActivityList, ReceiptCard, type ChatReceipt } from "./receipt-card";
  * prepares one card at a time; nothing is signed or sent without the person confirming in their wallet.
  */
 
-/** A chat message. A `receipt` is a finished action kept on this device only, never sent to the model. */
-type Msg = ChatTurn & { research?: ResearchNote[]; receipt?: ChatReceipt };
+/**
+ * A chat message. A `receipt` is a finished action kept on this device only, never sent to the model.
+ * A `local` message is a command answered in code (an info card, a question, an error) and the command
+ * that asked for it: never sent to the model, and not kept after the panel closes (its numbers go stale).
+ */
+type Msg = ChatTurn & {
+  research?: ResearchNote[];
+  receipt?: ChatReceipt;
+  local?: boolean;
+  info?: InfoView;
+  /** Chips under a local question or error (a draft's answers, or /help). */
+  chips?: StarterChip[];
+  /** A command error, drawn in the neutral refusal style. */
+  failed?: boolean;
+};
 /**
  * The card on screen. `anchor` is the index of the message it sits under (the sentence written for it,
  * right after the person's own message). `userText` is what the person typed for it, for the engine.
@@ -58,11 +75,15 @@ function loadHistory(address: string): Msg[] {
 
 function saveHistory(address: string, msgs: Msg[]) {
   try {
-    localStorage.setItem(storeKey(address), JSON.stringify(trimmed(msgs)));
+    localStorage.setItem(storeKey(address), JSON.stringify(trimmed(msgs.filter((m) => !m.local))));
   } catch {
     // private window or storage blocked: the chat still works, it just is not kept
   }
 }
+
+/** The /help chip under a command error. */
+const HELP_CHIP: StarterChip = { label: "/help", text: "/help", kind: "question" };
+
 
 export function ChatDock() {
   const [open, setOpen] = useState(false);
@@ -171,6 +192,8 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
   const failures = useRef(0);
+  // A command that asked one question ("Which asset?"): the next message answers it.
+  const draft = useRef<Draft | null>(null);
 
   // History belongs to one wallet on this device.
   if (me && loadedFor !== me) {
@@ -291,19 +314,48 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   const send = useCallback(
     async (text: string) => {
       const clean = text.trim();
-      if (!clean || sending || signing || !me) return;
+      if (!clean || sending || signing || !me || !session.signedIn) return;
       const userText = clean.slice(0, 2000);
-      const next: Msg[] = [...msgs, { role: "user", text: userText }];
-      setMsgs(next);
       setInput("");
       setError(undefined);
       setChips([]);
+
+      // Commands are answered in code first: no network call, no model.
+      const ctx = { held: heldSymbols(p.positions), info: me && !p.loading ? infoContext(p, me) : undefined };
+      const open = draft.current;
+      draft.current = null;
+      let r: CommandResult = open ? completeDraft(open, userText, ctx) : null;
+      if (r === null) r = parseCommand(userText, ctx);
+      if (r) {
+        const result = r;
+        if (result.kind === "intent") {
+          // Exactly what a card turn from the server does, without the server.
+          const anchor = msgs.length + 1;
+          setMsgs((m) => [...m, { role: "user", text: userText }, { role: "assistant", text: leadIn(result.intent) }]);
+          setChips(followUpChips({ action: result.intent.action, tools: [] }, clean));
+          fold(pendingRef.current, "Replaced by a newer card");
+          setPending({ intent: result.intent, id: nextId.current++, anchor, userText: result.text ?? userText });
+          return;
+        }
+        const ask: Msg = { role: "user", text: userText, local: true };
+        let reply: Msg;
+        if (result.kind === "info") reply = { role: "assistant", text: "", local: true, info: result.view };
+        else if (result.kind === "ask") {
+          draft.current = result.draft;
+          reply = { role: "assistant", text: result.question, local: true, chips: result.chips };
+        } else reply = { role: "assistant", text: result.message, local: true, failed: true, chips: [HELP_CHIP] };
+        setMsgs((m) => [...m, ask, reply]);
+        return;
+      }
+
+      const next: Msg[] = [...msgs, { role: "user", text: userText }];
+      setMsgs(next);
       setSending(true);
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ messages: next.filter((m) => !m.receipt).slice(-20).map(({ role, text, untrusted }) => ({ role, text: text.slice(0, 4000), ...(untrusted ? { untrusted } : {}) })) }),
+          body: JSON.stringify({ messages: next.filter((m) => !m.receipt && !m.local).slice(-20).map(({ role, text, untrusted }) => ({ role, text: text.slice(0, 4000), ...(untrusted ? { untrusted } : {}) })) }),
         });
         const body = (await res.json().catch(() => ({}))) as { text?: string; intent?: unknown; untrusted?: boolean; research?: ResearchNote[]; tools?: unknown; wallet?: string; error?: string };
         if (!res.ok) throw new Error(body.error ?? "The assistant could not answer.");
@@ -339,12 +391,18 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         setSending(false);
       }
     },
-    [msgs, sending, signing, me, fold],
+    [msgs, sending, signing, me, fold, session.signedIn, p],
   );
 
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    void send(input);
+  /** Puts text in the message box (a help example, a starter that still needs a Stackday ID). */
+  function insert(text: string) {
+    setInput(text);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(text.length, text.length);
+    });
   }
 
   /**
@@ -375,6 +433,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     setClosed([]);
     setError(undefined);
     setChips([]);
+    draft.current = null;
     failures.current = 0;
   }
 
@@ -489,7 +548,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
           {canChat && view === "activity" ? (
             <ActivityList receipts={msgs.filter((m) => m.receipt).map((m) => m.receipt!)} />
           ) : !canChat || msgs.length === 0 ? (
-            <EmptyState mode={emptyMode} disabled={sending || signing} onPick={pickChip} />
+            <EmptyState mode={emptyMode} disabled={sending || signing} onPick={pickChip} onInsert={insert} />
           ) : (
             <>
               {/* The conversation is a log: new messages are announced politely. */}
@@ -500,6 +559,13 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
                       {m.receipt ? (
                         <div className="w-full">
                           <ReceiptCard r={m.receipt} />
+                        </div>
+                      ) : m.info ? (
+                        <InfoCard view={m.info} disabled={sending || signing} onPick={pickChip} onInsert={insert} />
+                      ) : m.failed ? (
+                        <div className="max-w-[92%] rounded-2xl rounded-bl-md border border-line-soft bg-sunken px-3 py-2 text-[13px] leading-relaxed text-ink">
+                          <div className="font-semibold">I can&apos;t do that here.</div>
+                          <div className="mt-0.5 text-ink-soft">{m.text}</div>
                         </div>
                       ) : (
                         <div
@@ -524,6 +590,9 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
                         </div>
                       )}
                     </div>
+                    {m.chips && m.chips.length > 0 && i === msgs.length - 1 && (
+                      <ChipRow label={m.failed ? "Help" : "Answers"} chips={m.chips} disabled={sending || signing} onPick={pickChip} />
+                    )}
                     {cardAt(i)}
                   </div>
                 ))}
@@ -547,37 +616,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         {canChat && view === "chat" && (
-          <form onSubmit={onSubmit} className="flex items-end gap-2 border-t border-line-soft px-3 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-            <label htmlFor="chat-input" className="sr-only">
-              Message the assistant
-            </label>
-            <textarea
-              id="chat-input"
-              ref={inputRef}
-              rows={1}
-              value={input}
-              maxLength={2000}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void send(input);
-                }
-              }}
-              placeholder="Ask or say: buy $20 of Apple"
-              className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-line bg-popover px-3 py-2.5 text-base text-ink placeholder:text-muted focus:border-[var(--focus)] focus:outline-none sm:min-h-10 sm:py-2 sm:text-sm"
-            />
-            <button
-              type="submit"
-              disabled={sending || signing || !input.trim()}
-              aria-label="Send"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand text-white transition-colors hover:bg-brand-strong disabled:bg-sunken disabled:text-muted sm:h-10 sm:w-10"
-            >
-              <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 19V5M6 11l6-6 6 6" />
-              </svg>
-            </button>
-          </form>
+          <Composer value={input} onChange={setInput} onSubmit={(t) => void send(t)} busy={sending || signing} positions={p.positions} inputRef={inputRef} />
         )}
       </div>
     </>

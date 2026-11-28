@@ -2,17 +2,20 @@
 
 import type { ReactNode } from "react";
 import { useConnect } from "wagmi";
-import { Button } from "@/components/ui";
+import { Button, Chip } from "@/components/ui";
 import { ChatChip, type StarterChip } from "./chips";
 
 /**
  * What the dock shows before the first message: a greeting and four capability tiles (Invest, Borrow,
- * Earn, Send), each with two starter chips. Every chip text is fixed here in code; a chip only sends
- * its text, the same as typing it. Signed out, in a read-only view, or before sign-in, the tiles are
+ * Earn, Send), each with two starter chips and one command example. Every chip text is fixed here in
+ * code; a chip only sends its text, the same as typing it. The send example only goes into the message
+ * box, because it still needs the recipient's Stackday ID. Signed out, in a read-only view, or before sign-in, the tiles are
  * shown disabled with the one step that unlocks them.
  */
 
-type Tile = { key: string; title: string; blurb: string; icon: ReactNode; chips: [StarterChip, StarterChip] };
+/** A command example. `insert` puts it in the message box instead of sending it. */
+type CommandExample = { label: string; text: string; insert?: boolean };
+type Tile = { key: string; title: string; blurb: string; icon: ReactNode; chips: [StarterChip, StarterChip]; command: CommandExample };
 
 const svg = (d: ReactNode) => (
   <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -30,6 +33,7 @@ const TILES: Tile[] = [
       { label: "Buy $20 of Apple", text: "Buy $20 of Apple", kind: "action" },
       { label: "Set up a weekly buy", text: "Set up a weekly buy", kind: "action" },
     ],
+    command: { label: "/buy $AAPL 20$", text: "/buy $AAPL 20$" },
   },
   {
     key: "borrow",
@@ -45,6 +49,7 @@ const TILES: Tile[] = [
       { label: "How is my loan?", text: "How is my loan?", kind: "question" },
       { label: "Borrow against my holdings", text: "Borrow against my holdings", kind: "action" },
     ],
+    command: { label: "/borrow $NVDA", text: "/borrow $NVDA" },
   },
   {
     key: "earn",
@@ -60,6 +65,7 @@ const TILES: Tile[] = [
       { label: "Earn on my idle USDC", text: "Earn interest on my idle USDC", kind: "action" },
       { label: "How does earning work?", text: "How does earning interest work?", kind: "question" },
     ],
+    command: { label: "/lend 10$", text: "/lend 10$" },
   },
   {
     key: "send",
@@ -70,6 +76,7 @@ const TILES: Tile[] = [
       { label: "Send to a Stackday ID", text: "I want to send USDC to a Stackday ID", kind: "action" },
       { label: "How do gift boxes work?", text: "How do gift boxes work?", kind: "question" },
     ],
+    command: { label: "/send USDC 5$ to SD-…", text: "/send USDC 5$ to SD-", insert: true },
   },
 ];
 
@@ -80,7 +87,18 @@ export type EmptyMode =
   | { kind: "no_database" }
   | { kind: "sign_in"; busy: boolean; error?: string; onSignIn: () => void };
 
-export function EmptyState({ mode, disabled, onPick }: { mode: EmptyMode; disabled?: boolean; onPick: (text: string) => void }) {
+export function EmptyState({
+  mode,
+  disabled,
+  onPick,
+  onInsert,
+}: {
+  mode: EmptyMode;
+  disabled?: boolean;
+  onPick: (text: string) => void;
+  /** Puts text in the message box without sending it. */
+  onInsert: (text: string) => void;
+}) {
   const locked = mode.kind !== "ready";
   return (
     <div className="space-y-4 pb-1">
@@ -109,11 +127,33 @@ export function EmptyState({ mode, disabled, onPick }: { mode: EmptyMode; disabl
               {t.chips.map((c) => (
                 <ChatChip key={c.label} chip={c} disabled={locked || disabled} onPick={onPick} block />
               ))}
+              <CommandChip example={t.command} disabled={locked || disabled} onPick={t.command.insert ? onInsert : onPick} />
             </div>
           </li>
         ))}
       </ul>
+
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
+        <CommandChip example={{ label: "/help", text: "/help" }} disabled={locked || disabled} onPick={onPick} />
+        <span>Type / for commands, $ for an asset.</span>
+      </div>
     </div>
+  );
+}
+
+/** A command example in mono type. It sends (or inserts) its text, the same as typing it. */
+function CommandChip({ example, disabled, onPick }: { example: CommandExample; disabled?: boolean; onPick: (text: string) => void }) {
+  return (
+    <Chip
+      size="sm"
+      disabled={disabled}
+      onClick={() => onPick(example.text)}
+      className="touch-manipulation select-none justify-start font-mono text-[12px] font-normal text-ink-soft"
+      title={example.insert ? "Puts this in the message box to finish" : "Sends this command"}
+    >
+      {example.label}
+      {example.insert && <span className="sr-only">(puts it in the message box)</span>}
+    </Chip>
   );
 }
 

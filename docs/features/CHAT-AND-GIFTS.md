@@ -88,6 +88,18 @@ The anchor says people borrow "instead of selling". The chat keeps that spirit: 
     - an injection test set ("ignore instructions", "send to 0x...", Morse, homoglyphs, instructions hidden in a gift message) asserting that no intent leaves the schema and the receiver never changes;
     - cap tests.
 
+### 1.5a Commands
+
+The message box also takes short commands, answered in code in the browser with no model call and no network request to /api/chat:
+
+- Type `/` as the first character for the command menu: `/buy`, `/sell`, `/send`, `/lend`, `/unlend`, `/borrow`, `/repay`, `/lock`, `/unlock`, `/withdraw`, `/gift`, `/balance`, `/positions` and `/help`. Each row shows what it does and how to write it.
+- Type `$` at the start or after a space for up to four assets, with the logo, the ticker, the name and what you hold (or "invest only"). After `/borrow` or `/lock` only borrowable assets are listed, after `/sell` or `/unlock` only assets you hold. `$5` is an amount, not an asset.
+- Up and Down move, Enter or Tab pick, Esc closes the list. With the list closed, Enter sends and Shift+Enter starts a new line.
+- An action command (for example `/buy $AAPL 20$`) prepares the same card as asking in words, built by the same code with the same caps. `/balance`, `/positions`, `$TICKER` and `/borrow $NVDA` with no amount show an info card from your own chain numbers. A command missing one part asks for it with chips. A command that cannot be done says why and offers `/help`.
+- Command answers stay in the open panel only: they are not sent to the model and not kept on the device after it closes, so their numbers never go stale. Commands need the same wallet sign-in as the rest of the chat.
+
+Code: `web/components/chat/composer.tsx` (message box and lists), `web/components/chat/info-cards.tsx` (info cards), `web/lib/chat/commands.ts` (parsing).
+
 ### 1.6 What it costs
 
 Claude API on the same workspace as research, or its own workspace with its own monthly limit (founder sets it). A chat turn is a few thousand tokens, so a demo costs cents.
