@@ -162,8 +162,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   const close = useCallback(() => {
     if (!walletBusy) onClose();
   }, [walletBusy, onClose]);
-  // ENGINE: pass pending?.userText as 5th arg
-  const { result: plan, check } = usePlan(pending?.intent ?? null, pending?.id ?? 0, p, me);
+  const { result: plan, check } = usePlan(pending?.intent ?? null, pending?.id ?? 0, p, me, pending?.userText);
   // Follow-up chips for the last answer (from code, see lib/chat/chips.ts), and the card that finished.
   const [chips, setChips] = useState<Chip[]>([]);
   const [doneCard, setDoneCard] = useState<number | null>(null);
@@ -315,7 +314,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         const checked = body.intent ? (body.untrusted ? ({ ok: false } as const) : parseIntent(body.intent)) : null;
         // Follow-up chips are picked in code from the fixed catalogue (lib/chat/chips.ts), never from the reply.
         const tools = Array.isArray(body.tools) ? body.tools.filter((t): t is string => typeof t === "string") : [];
-        setChips(followUpChips({ action: checked?.ok ? checked.intent.action : undefined, tools, untrusted: !!body.untrusted }, clean));
+        setChips(followUpChips({ action: checked?.ok ? checked.intent.action : undefined, tools, untrusted: !!body.untrusted, research: body.research }, clean));
         if (checked?.ok) {
           // A card turn: the model's own text is not shown. Code writes the sentence above the card, so
           // only the card (built in code) carries numbers. The card sits right under that sentence.

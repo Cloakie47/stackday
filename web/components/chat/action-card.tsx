@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient } from "wagmi";
 import { BeforeAfter, Button, HealthMeter, Notice, Row, Skeleton, Spinner, TxStatus } from "@/components/ui";
 import type { Address } from "@/lib/contracts";
-import type { BuildResult, Plan } from "@/lib/chat/buildCalls";
+import type { BuildResult, Destination } from "@/lib/chat/buildCalls";
 import { confirmAllowed, precheckLine, type PrecheckState } from "@/lib/chat/precheck";
 import { recipientName } from "@/lib/chat/recipient";
 import { searchPeople } from "@/lib/useAccount";
@@ -15,34 +15,7 @@ import { TxLinks, type ChatReceipt } from "./receipt-card";
 
 export { TxLinks, type ChatReceipt } from "./receipt-card";
 
-/**
- * Fields the chat engine adds to a Plan (headline, destination, health). Read defensively so this card
- * works with plans that do not have them yet: headline falls back to the title, destination to the
- * plan's receiver, and the health block is left out.
- */
-export type Destination = {
-  kind: "own_vault" | "own_wallet" | "recipient" | "none";
-  address?: Address;
-  name?: string;
-  id?: string;
-  /** The last characters of the address the person types to confirm (a send to an address they typed). */
-  confirmSuffix?: string;
-};
-type PlanExtras = {
-  headline?: string;
-  destination?: Destination;
-  health?: { before: number | null; after: number | null };
-};
-type CardPlan = Plan & PlanExtras;
-
 const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-2)}`;
-
-/** The destination of a plan, from the engine's field or, until it lands, from the plan's receiver. */
-export function destinationOf(plan: CardPlan, me: Address): Destination {
-  if (plan.destination) return plan.destination;
-  if (plan.handoff || !plan.receiver) return { kind: "none" };
-  return { kind: plan.receiver.toLowerCase() === me.toLowerCase() ? "own_wallet" : "own_vault", address: plan.receiver };
-}
 
 /** The pre-check line: checking, passes, blocked (with reason, hint and "Check again") or could not check. */
 function PrecheckNote({ check, onRefresh }: { check: PrecheckState; onRefresh?: () => void }) {
@@ -265,9 +238,9 @@ export function ActionCard({
     );
   }
 
-  const plan = result as CardPlan;
+  const plan = result;
   const headline = plan.headline || plan.title;
-  const dest = destinationOf(plan, me);
+  const dest = plan.destination;
   const suffix = dest.confirmSuffix?.trim();
   const suffixOk = !suffix || typed.trim().toLowerCase() === suffix.toLowerCase();
   const left = Math.max(0, plan.expiresAt - now);
