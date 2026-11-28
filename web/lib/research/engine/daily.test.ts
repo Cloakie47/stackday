@@ -39,7 +39,7 @@ test("a weekday run writes six notes on the cheaper model with levels from code"
   // Reproducibility fields and a first score per note.
   const run = [...runs.values()][0];
   assert.equal(run.kind, "daily");
-  assert.match(run.promptVersion, /^research-v4/);
+  assert.match(run.promptVersion, /^research-v5/);
   assert.ok(run.dataHash && run.dataHash.length === 32);
   // Input data and raw model output are kept with the run.
   assert.equal((run.inputs as unknown[]).length, 6);

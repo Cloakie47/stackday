@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GDELT_TOPICS, MAX_GDELT_QUERY, fetchOfficialNews, fetchPressNews, fetchWireNews, gdeltQuery, gdeltUrl, isReputable, linkHost, newsFacts, parseGdelt, tagTopics } from "./headlines.ts";
 import { universeAsset } from "../universe.ts";
+import { speculativeWording } from "../types.ts";
 import type { DataDeps } from "./deps.ts";
 
 const NOW = new Date("2026-11-20T12:00:00Z");
@@ -123,4 +124,49 @@ test("company releases are tagged as one side and capped; facts are numbered new
   assert.equal(facts[1].source.name, "NVIDIA Newsroom");
   for (const f of facts) assert.ok(f.kind === "news" && f.tags && f.tags.length > 0 && Number.isFinite(Date.parse(f.asOf)));
   assert.deepEqual(await fetchPressNews(universeAsset("mPAXG")!, "2026-11-20", deps({})), { items: [], problems: [] });
+});
+
+test("catalyst labels: official and press releases are confirmed, outlet headlines reported or speculation by wording", () => {
+  const item = (title: string, tag: string) => ({ title, url: `https://x.test/${encodeURIComponent(title)}`, publishedAt: "2026-11-19T12:00:00.000Z", quote: title, sourceName: "Test", tags: [tag] });
+  const facts = newsFacts([
+    item("Federal Reserve issues FOMC statement", "official"),
+    item("NVIDIA announces quarterly results", "press-release"),
+    item("Nvidia shares fall after export rule takes effect", "reputable-outlet"),
+    item("Apple reportedly in talks to buy a chip startup", "reputable-outlet"),
+  ]);
+  const by = new Map(facts.map((f) => [f.label, f.certainty]));
+  assert.equal(by.get("Federal Reserve issues FOMC statement"), "confirmed");
+  assert.equal(by.get("NVIDIA announces quarterly results"), "confirmed");
+  assert.equal(by.get("Nvidia shares fall after export rule takes effect"), "reported");
+  assert.equal(by.get("Apple reportedly in talks to buy a chip startup"), "speculation");
+});
+
+test("catalyst labels: the speculation keyword rule", () => {
+  const spec = [
+    "Apple reportedly weighs a new plant",
+    "Rumor of a Bitcoin ETF delay",
+    "Gold rally could stall as yields rise",
+    "Fed May Cut Rates Again",
+    "Nvidia might face new curbs",
+    "Fed expected to hold rates",
+    "Ether likely to test support",
+    "Analysts expect Apple to beat estimates",
+    "Analyst says Nvidia is overvalued",
+    "Sources say Treasury weighs new sanctions",
+    "People familiar with the matter say talks stalled",
+    "Opinion: the gold trade is crowded",
+    "Breakingviews - Nvidia's run looks stretched",
+    "Is the Bitcoin rally over?",
+  ];
+  const plain = [
+    "Fed holds rates steady",
+    "Apple sales rose in May",
+    "Nvidia results due May 20",
+    "US adds export controls on chips",
+    "Gold hits record as dollar falls",
+    "SEC approves Ether ETF listing",
+    "Mayor of New York speaks on markets",
+  ];
+  for (const t of spec) assert.equal(speculativeWording(t), true, t);
+  for (const t of plain) assert.equal(speculativeWording(t), false, t);
 });

@@ -1,4 +1,5 @@
 import type { Fact, IsoDate } from "../types.ts";
+import { newsCertainty } from "../types.ts";
 import type { UniverseAsset } from "../universe.ts";
 import { LIMITS, safeUrl, sanitizeText } from "../../themes/mood.ts";
 import { GENERIC_USER_AGENT, RateLimiter, getJson, getText, type DataDeps } from "./deps.ts";
@@ -283,7 +284,11 @@ export async function fetchOfficialNews(key: string, date: IsoDate, deps: DataDe
   return { items: all.slice(0, MAX_OFFICIAL), problems };
 }
 
-/** Turns headlines into facts "news.0", "news.1", ... newest first, dropping repeated links. */
+/**
+ * Turns headlines into facts "news.0", "news.1", ... newest first, dropping repeated links. Each
+ * gets its catalyst label from the source tag and the headline wording (`newsCertainty`): official
+ * and press-release items are "confirmed", outlet headlines "reported" or "speculation".
+ */
 export function newsFacts(items: NewsItem[]): Fact[] {
   const seen = new Set<string>();
   return [...items]
@@ -298,5 +303,6 @@ export function newsFacts(items: NewsItem[]): Fact[] {
       asOf: it.publishedAt,
       quote: it.quote,
       tags: [...new Set(it.tags)],
+      certainty: newsCertainty(it.tags, it.title),
     }));
 }

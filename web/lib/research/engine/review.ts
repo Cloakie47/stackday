@@ -1,7 +1,7 @@
 import type { ChartInterval, Confidence, Reasoned, View, WeeklyScenario } from "../types.ts";
 import { CHART_INTERVALS, VIEWS } from "../types.ts";
 import { Ctx, isObject, oneOf, parseJsonObject, StepRejected, stringList } from "./parse.ts";
-import { EDITOR_SCHEMA, LIMITS, PROBABILITIES, SECTION_KEYS, type SectionKey } from "./prompts.ts";
+import { EDITOR_SCHEMA, LIMITS, PROBABILITIES, REWARD_CHECK, SECTION_KEYS, type SectionKey } from "./prompts.ts";
 
 /**
  * The editor's draft of one asset section and the risk reviewer's code checks (founder spec
@@ -117,8 +117,16 @@ export function viewConsistent(d: Draft): boolean {
   return true;
 }
 
-/** Code checks of the risk reviewer. `hasNews` says whether any news or filing fact was available. */
-export function codeIssues(p: DraftParse, hasNews: boolean): Issue[] {
+/** Text of the code issue raised when the priced-in check fired and the view does not say so. */
+export const PRICED_IN_ISSUE = "priced-in check fired";
+
+/**
+ * Code checks of the risk reviewer. `hasNews` says whether any news or filing fact was available.
+ * `pricedIn` is the priced-in check computed in code (facts.ts pricedInCheck): when it fired, at
+ * least one view reason must cite its fact (the view says how much of the move is already in the
+ * price), otherwise the view is a blocking issue and is sent back.
+ */
+export function codeIssues(p: DraftParse, hasNews: boolean, pricedIn: { factId: string; moveAtr: number; fired: boolean } | null = null): Issue[] {
   const { draft: d, removed } = p;
   const out: Issue[] = [];
   for (const k of SECTION_KEYS) for (const r of removed[k]) out.push({ section: k, issue: `removed: ${r}` });
@@ -129,6 +137,11 @@ export function codeIssues(p: DraftParse, hasNews: boolean): Issue[] {
   for (const k of ["bull", "base", "bear"] as const) if (!d.scenarios[k].evidence) out.push({ section: "scenarios", issue: `${k} scenario cites no valid fact` });
   if (d.view.reasons.length === 0) out.push({ section: "view", issue: "view has no reason with a valid fact" });
   if (!viewConsistent(d)) out.push({ section: "view", issue: `view ${d.view.view} does not match the scenario probabilities` });
+  if (pricedIn?.fired && !d.view.reasons.some((r) => r.factIds.includes(pricedIn.factId)))
+    out.push({
+      section: "view",
+      issue: `${PRICED_IN_ISSUE}: the price already moved ${Math.abs(pricedIn.moveAtr)} ATR in the last daily bars, and no view reason says how much of it may be in the price or cites ${pricedIn.factId}`,
+    });
   return out;
 }
 
@@ -166,17 +179,45 @@ export function finalizeDraft(d: Draft): { draft: Draft; corrections: string[] }
   return { draft: out, corrections };
 }
 
-export type Review = { approve: boolean; sendBack: SectionKey | null; notes: string[] };
+export type RewardCheck = (typeof REWARD_CHECK)[number];
+export type Review = { approve: boolean; sendBack: SectionKey | null; notes: string[]; rewardCheck: RewardCheck; rewardFactIds: string[] };
 
-export function parseReview(text: string, ctx: Ctx): Review {
-  const raw = parseJsonObject(text, ["approve", "sendBack", "notes"]);
+const REVIEW_KEYS = ["approve", "sendBack", "notes"];
+const REWARD_KEYS = ["rewardCheck", "rewardFactIds"];
+
+/**
+ * Strict parse of the reviewer's answer. The reward check fields are read when present (the schema
+ * asks for them); an answer without them still parses, as "no-data". The reward answer is then
+ * coerced in code: "not-crypto" for any non-crypto asset, "no-data" for a crypto asset answered
+ * "not-crypto", and "reward-driven" or "real-demand" without a valid cited fact id becomes
+ * "no-data" (the engine has no emission or reward data of its own, so the claim needs a fact).
+ */
+export function parseReview(text: string, ctx: Ctx, crypto = false): Review {
+  let probe: unknown;
+  try {
+    probe = JSON.parse(text);
+  } catch {
+    throw new StepRejected("answer is not JSON");
+  }
+  const withReward = isObject(probe) && REWARD_KEYS.some((k) => k in probe);
+  const raw = parseJsonObject(text, withReward ? [...REVIEW_KEYS, ...REWARD_KEYS] : REVIEW_KEYS);
   if (typeof raw.approve !== "boolean") throw new StepRejected("bad approve");
   if (raw.sendBack !== "none" && !oneOf(SECTION_KEYS, raw.sendBack)) throw new StepRejected("bad sendBack");
   const notes = stringList(raw.notes, "notes")
     .slice(0, 4)
     .map((n) => ctx.text(n, LIMITS.note, "note"))
     .filter((n): n is string => n !== null);
-  return { approve: raw.approve, sendBack: raw.sendBack === "none" ? null : (raw.sendBack as SectionKey), notes };
+  let rewardCheck: RewardCheck = "no-data";
+  let rewardFactIds: string[] = [];
+  if (withReward) {
+    if (!oneOf(REWARD_CHECK, raw.rewardCheck)) throw new StepRejected("bad rewardCheck");
+    rewardCheck = raw.rewardCheck;
+    rewardFactIds = [...new Set(stringList(raw.rewardFactIds, "rewardFactIds").filter((id) => ctx.ids.has(id)))];
+  }
+  if (!crypto) rewardCheck = "not-crypto";
+  else if (rewardCheck === "not-crypto" || (rewardCheck !== "no-data" && rewardFactIds.length === 0)) rewardCheck = "no-data";
+  if (rewardCheck === "no-data" || rewardCheck === "not-crypto") rewardFactIds = [];
+  return { approve: raw.approve, sendBack: raw.sendBack === "none" ? null : (raw.sendBack as SectionKey), notes, rewardCheck, rewardFactIds };
 }
 
 /** Takes one section from the revised draft. */

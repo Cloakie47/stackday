@@ -220,7 +220,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -231,7 +232,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         }
       ],
       "scenarios": {
@@ -400,7 +402,8 @@
           "asOf": "2026-11-20T21:00:00Z",
           "tags": [
             "markets"
-          ]
+          ],
+          "certainty": "speculation"
         },
         {
           "id": "pat.1d.range",
@@ -473,7 +476,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -483,7 +487,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         }
       ]
     },
@@ -629,7 +634,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -640,7 +646,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         }
       ],
       "scenarios": {
@@ -809,7 +816,8 @@
           "asOf": "2026-11-20T21:00:00Z",
           "tags": [
             "markets"
-          ]
+          ],
+          "certainty": "reported"
         },
         {
           "id": "pat.1d.bear-flag",
@@ -882,7 +890,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -892,7 +901,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         }
       ]
     },
@@ -1038,7 +1048,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -1049,7 +1060,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         }
       ],
       "scenarios": {
@@ -1221,7 +1233,8 @@
           "asOf": "2026-11-20T21:00:00Z",
           "tags": [
             "markets"
-          ]
+          ],
+          "certainty": "reported"
         },
         {
           "id": "pat.1d.breakout",
@@ -1294,7 +1307,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -1304,7 +1318,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         }
       ]
     },
@@ -1440,7 +1455,8 @@
           ],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-25.gdp",
@@ -1451,7 +1467,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -1462,7 +1479,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         }
       ],
       "scenarios": {
@@ -1632,7 +1650,8 @@
           "tags": [
             "export-controls",
             "geopolitics"
-          ]
+          ],
+          "certainty": "reported"
         },
         {
           "id": "macro.dgs2",
@@ -1695,7 +1714,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -1705,7 +1725,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         }
       ]
     },
@@ -1840,7 +1861,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -1851,7 +1873,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         }
       ],
       "scenarios": {
@@ -2020,7 +2043,8 @@
           "asOf": "2026-11-20T21:00:00Z",
           "tags": [
             "markets"
-          ]
+          ],
+          "certainty": "reported"
         },
         {
           "id": "macro.dgs2",
@@ -2083,7 +2107,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -2093,7 +2118,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         }
       ]
     },
@@ -2239,7 +2265,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -2250,7 +2277,8 @@
           "assetIds": [],
           "source": {
             "name": "Sample data (not real market data)"
-          }
+          },
+          "certainty": "confirmed"
         }
       ],
       "scenarios": {
@@ -2422,7 +2450,8 @@
           "asOf": "2026-11-20T21:00:00Z",
           "tags": [
             "markets"
-          ]
+          ],
+          "certainty": "reported"
         },
         {
           "id": "pat.1d.golden-cross",
@@ -2495,7 +2524,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         },
         {
           "id": "cal.2026-11-26.pce",
@@ -2505,7 +2535,8 @@
           "source": {
             "name": "Sample data (not real market data)"
           },
-          "asOf": "2026-11-20T21:00:00Z"
+          "asOf": "2026-11-20T21:00:00Z",
+          "certainty": "confirmed"
         }
       ]
     }
@@ -2736,6 +2767,38 @@
       }
     ]
   },
+  "wrongAbout": [
+    {
+      "text": "Sample: a jump in yields would weigh on the gold and S&P 500 views at the same time.",
+      "factIds": [
+        "macro.dgs10"
+      ],
+      "assetIds": [
+        "mPAXG",
+        "mSPX"
+      ]
+    },
+    {
+      "text": "Sample: the inflation release this week could break the range that the Bitcoin and Apple hold views rest on.",
+      "factIds": [
+        "mcbBTC:cal.2026-11-26.pce",
+        "mAAPL:cal.2026-11-26.pce"
+      ],
+      "assetIds": [
+        "mcbBTC",
+        "mAAPL"
+      ]
+    },
+    {
+      "text": "Sample: the export control headline on NVIDIA is one outlet report, not a filed rule, so the cautious view leans on it more than it should.",
+      "factIds": [
+        "mNVDA:news.1"
+      ],
+      "assetIds": [
+        "mNVDA"
+      ]
+    }
+  ],
   "scorecard": {
     "weekOf": "2026-11-09",
     "rows": [

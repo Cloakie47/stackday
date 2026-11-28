@@ -1,5 +1,6 @@
 import { CHART_INTERVALS, VIEWS, type ResearchNote, type ResearchSnapshot, type WeeklyReport } from "../types.ts";
 import { universeAsset } from "../universe.ts";
+import { bannedPhrase } from "./parse.ts";
 
 /**
  * Shape checks for finished notes, snapshots and weekly reports: the whole-run check before
@@ -184,7 +185,41 @@ export function ideaProblems(ranked: unknown[], ids: Set<string>): string[] {
   return out;
 }
 
-export function weeklyProblems(r: unknown): string[] {
+/** Least and most items in "What could we be wrong about?" on a new weekly report. */
+export const WRONG_ABOUT_ITEMS = { min: 2, max: 3 } as const;
+
+/**
+ * Checks "What could we be wrong about?". Every item cites at least one fact id of the report
+ * (`citableIds`: market ids, and asset ids as "assetId:factId"), names at least one of the report's
+ * assets, and has no promise or personal-advice wording (the same banned phrases the risk reviewer
+ * removes elsewhere). `required` (a new report with at least one researched section) also needs
+ * 2 to 3 items; without it a missing list is fine (reports stored before this field existed).
+ */
+export function wrongAboutProblems(list: unknown, ids: Set<string>, assetIds: Set<string>, required: boolean): string[] {
+  if (list === undefined) return required ? ["wrongAbout missing"] : [];
+  if (!Array.isArray(list)) return ["wrongAbout is not a list"];
+  const out: string[] = [];
+  if (list.length > WRONG_ABOUT_ITEMS.max || (required && list.length < WRONG_ABOUT_ITEMS.min))
+    out.push(`wrongAbout has ${list.length} items, needs ${WRONG_ABOUT_ITEMS.min} to ${WRONG_ABOUT_ITEMS.max}`);
+  list.forEach((x, i) => {
+    const w = `wrongAbout[${i}]`;
+    out.push(...reasonedProblems(x, w, ids));
+    if (!isObject(x)) return;
+    if (!Array.isArray(x.assetIds) || x.assetIds.length === 0) out.push(`${w}: names no asset`);
+    else for (const a of x.assetIds) if (typeof a !== "string" || !assetIds.has(a)) out.push(`${w}: names an asset not in the report: ${String(a)}`);
+    const banned = typeof x.text === "string" ? bannedPhrase(x.text) : null;
+    if (banned) out.push(`${w}: promise or personal advice wording "${banned}"`);
+  });
+  return out;
+}
+
+/**
+ * Whole-report check. `requireWrongAbout` is set only by the weekly run's final write check on a
+ * report with at least one researched section: there "What could we be wrong about?" must have 2
+ * to 3 valid items. Reads from the database and the sample files use the default, where the list is
+ * checked when present and may be missing (already-approved reports do not have it).
+ */
+export function weeklyProblems(r: unknown, opts: { requireWrongAbout?: boolean } = {}): string[] {
   if (!isObject(r)) return ["report is not an object"];
   const out: string[] = [];
   if (r.kind !== "live" && r.kind !== "sample") out.push("bad kind");
@@ -215,6 +250,8 @@ export function weeklyProblems(r: unknown): string[] {
       if (sp.slices.length && Math.abs(total - 1) > 1e-6) out.push(`example split ${String(sp.profile)} adds up to ${total}, not 1`);
     }
   }
+  const reportAssets = new Set((r.assets as unknown[]).map((a) => (isObject(a) ? String(a.assetId) : "?")));
+  out.push(...wrongAboutProblems(r.wrongAbout, citableIds(r), reportAssets, opts.requireWrongAbout === true));
   if (r.scorecard !== null && (!isObject(r.scorecard) || !Array.isArray(r.scorecard.rows) || !Array.isArray(r.scorecard.calibration))) out.push("bad scorecard");
   if (!isObject(r.review) || typeof r.review.approved !== "boolean" || typeof r.review.sentBack !== "number" || typeof r.review.removedClaims !== "number")
     out.push("bad review");

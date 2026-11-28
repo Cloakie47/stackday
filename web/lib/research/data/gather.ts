@@ -138,7 +138,8 @@ function calendarFacts(asset: UniverseAsset, date: IsoDate, open: boolean, at: I
 
 /** Calendar events as facts, so claims about the week ahead can cite them. */
 export function eventFacts(events: CalendarEvent[], at: IsoDateTime): Fact[] {
-  return events.map((e) => ({ id: e.id, kind: "calendar" as const, label: e.name, value: e.timeUtc ? `${e.date} ${e.timeUtc} UTC` : e.date, source: e.source, asOf: at }));
+  // Events come from official calendars or a published schedule only: confirmed.
+  return events.map((e) => ({ id: e.id, kind: "calendar" as const, label: e.name, value: e.timeUtc ? `${e.date} ${e.timeUtc} UTC` : e.date, source: e.source, asOf: at, certainty: e.certainty ?? ("confirmed" as const) }));
 }
 
 /** The weekly report runs on Monday at 12:00 UTC; a backfill for an earlier date sees only what that run would have seen. */

@@ -52,14 +52,15 @@ export function makeFacts(last = 100, priceAsOf = asOf): Fact[] {
   ];
 }
 
-export function makeInput(assetId: string, date: string, opts: { last?: number; bar1?: number; marketOpenToday?: boolean; facts?: Fact[]; chart?: AssetResearchInput["chart"] } = {}): AssetResearchInput {
+/** `bar5` (change over 5 daily bars, 0.08 = +8%) feeds the priced-in check; missing by default (no reading). */
+export function makeInput(assetId: string, date: string, opts: { last?: number; bar1?: number; bar5?: number; marketOpenToday?: boolean; facts?: Fact[]; chart?: AssetResearchInput["chart"] } = {}): AssetResearchInput {
   const last = opts.last ?? 100;
   return {
     assetId,
     date,
     marketOpenToday: opts.marketOpenToday ?? true,
     series: {},
-    indicators: { "1d": { last, changePct: { bar1: opts.bar1 ?? 0.005 }, atr14: last * 0.02, rsi14: 58.2 } },
+    indicators: { "1d": { last, changePct: { bar1: opts.bar1 ?? 0.005, ...(opts.bar5 === undefined ? {} : { bar5: opts.bar5 }) }, atr14: last * 0.02, rsi14: 58.2 } },
     chart: opts.chart ?? { "1d": chartRead("1d", last), "1w": chartRead("1w", last), "1mo": chartRead("1mo", last) },
     // The last close is the evening before the run date, so it counts as a fresh price.
     facts: opts.facts ?? makeFacts(last, new Date(Date.parse(`${date}T21:00:00Z`) - 86_400_000).toISOString()),
@@ -110,6 +111,7 @@ export function goodDaily(over: Record<string, unknown> = {}) {
 export const analystAnswer = (role: string) => {
   const cite: Record<string, string> = { technical: "px.1d.last", macro: "macro.dgs10", news: "news.1", fundamentals: "fund.pe" };
   const base = { stance: "neutral", points: [r(`The ${role} picture is mixed.`, cite[role])], injectionFactIds: [] };
+  if (role === "news") return { ...base, certainty: [] };
   return role === "technical" ? { ...base, chart: { "1d": [r("Daily bars show a range.", "px.1d.last")], "1w": [], "1mo": [] } } : base;
 };
 
@@ -137,6 +139,10 @@ export function goodSummary(ids: string[]) {
     ranking: [...ids].reverse(),
     ideas: ids.map((id) => ({ assetId: id, reasons: [r("Support held this week.", `${id}:px.1d.last`)], dependsOn: r("Depends on calm yields.", `${id}:macro.dgs10`), mainRisk: r("A weak data print.", `${id}:news.1`) })),
     splitWhy: { cautious: r("Leans on core assets while yields are calm.", "macro.dgs10"), growth: r("Gives more room to growth assets.", "macro.vix") },
+    wrongAbout: [
+      { text: "A jump in yields would hurt every constructive view at once.", factIds: ["macro.dgs10"], assetIds: ids },
+      { text: "Results news could reverse the recent move.", factIds: [`${ids[0]}:news.1`], assetIds: [ids[0]] },
+    ],
   };
 }
 
@@ -148,7 +154,7 @@ export function weeklyAnswers(over: Record<string, (req: ModelRequest) => unknow
     if (req.step === "weekly.bull" || req.step === "weekly.bull.rebuttal") return { points: [r("Results were firm.", "news.1")] };
     if (req.step === "weekly.bear" || req.step === "weekly.bear.rebuttal") return { points: [r("Yields could rise.", "macro.dgs10")] };
     if (req.step === "weekly.editor" || req.step === "weekly.revise") return goodDraft();
-    if (req.step === "weekly.review") return { approve: true, sendBack: "none", notes: [] };
+    if (req.step === "weekly.review") return { approve: true, sendBack: "none", notes: [], rewardCheck: "no-data", rewardFactIds: [] };
     if (req.step === "weekly.summary") {
       const ids = ((req.schema as { properties: { ranking: { items: { enum: string[] } } } }).properties.ranking.items.enum);
       return goodSummary(ids);

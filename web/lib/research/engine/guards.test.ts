@@ -116,7 +116,7 @@ test("the alert posts to the webhook when set and never throws", async () => {
 });
 
 test("the prompt version hashes every prompt and schema", () => {
-  assert.match(PROMPT_VERSION, /^research-v4-\d{4}-\d{2}-\d{2}\+[0-9a-f]{12}$/);
+  assert.match(PROMPT_VERSION, /^research-v5-\d{4}-\d{2}-\d{2}\+[0-9a-f]{12}$/);
 });
 
 test("a published idea without fact ids fails the whole-report check", () => {
