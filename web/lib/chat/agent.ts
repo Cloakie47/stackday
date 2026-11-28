@@ -1,6 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { CARD_CAP_USDC, parseAction, SEND_CAP_USDC, type Intent, type SafeIssue } from "./intent.ts";
-import { hasTypedAddress, recipientInText } from "./recipient.ts";
+import { recipientProblem } from "./recipient.ts";
+
+export { recipientProblem };
 import { ALL_TOOLS, ASSET_LIST, EXPLAIN_TOPICS, isActionTool, READ_TOOL_NAMES, type ExplainTopic } from "./tools.ts";
 
 /**
@@ -110,20 +112,6 @@ export const MAX_ACTION_RETRIES = 1;
 
 /** The person's latest message as they typed it (addresses included), used only for the recipient checks. */
 const latestUserText = (history: ChatTurn[]) => [...history].reverse().find((t) => t.role === "user")?.text.slice(0, MAX_TURN_CHARS) ?? "";
-
-/**
- * A gift or send must name a recipient the person typed in their latest message: the same ID or
- * username, or (typed_address) an address. Null when the intent passes, or has no recipient.
- */
-export function recipientProblem(intent: Intent, latest: string): string | null {
-  if (intent.action === "gift") return recipientInText(intent.params.recipient_id, latest) ? null : "gift recipient not in the latest user message";
-  if (intent.action === "send") {
-    const to = intent.params.to;
-    if (to.kind === "id") return recipientInText(to.id, latest) ? null : "send recipient not in the latest user message";
-    return hasTypedAddress(latest) ? null : "typed_address send without an address in the latest user message";
-  }
-  return null;
-}
 
 /** Every string redacted, at any depth: what goes back to the model of its own refused tool input. */
 function deepRedact(v: unknown): unknown {

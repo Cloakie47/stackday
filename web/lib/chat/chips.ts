@@ -41,10 +41,37 @@ export const CHIP_CATALOGUE = {
   borrow_instead: a("Borrow instead"),
   /** Template: researchChips writes "Buy $20 of <asset>" for an asset in the turn's research notes. */
   research_buy: a("Buy $20"),
+  /**
+   * Template for a slash-command chip (lib/chat/commands.ts): its text is a command such as
+   * "/buy $NVDA 20$", built in code from the fixed command grammar, and its label is built in code too.
+   * Picking it is the same as typing the command. Kind "action" when the command prepares a card,
+   * "question" when it only shows information (see commandChip).
+   */
+  command: a("/help"),
+  /** Template: tickerView writes "This week's research on <asset>", a question sent to the model. */
+  ticker_research: q("This week's research"),
 } as const;
 export type ChipId = keyof typeof CHIP_CATALOGUE;
 
 export const chip = (id: ChipId): Chip => ({ id, ...CHIP_CATALOGUE[id] });
+
+/** Templates whose label and text are computed in code; never offered as they are. */
+export const TEMPLATE_CHIPS: readonly ChipId[] = ["borrow_instead", "research_buy", "command", "ticker_research"];
+
+/**
+ * A chip whose text is a slash command (lib/chat/commands.ts). The command is built in code from the
+ * command grammar, never from model output or research text. An info command (for example
+ * "/borrow $NVDA") is a question chip; a command that prepares a card is an action chip.
+ */
+export function commandChip(label: string, command: string, kind: ChipKind = "action"): Chip {
+  if (!command.startsWith("/")) throw new Error("a command chip's text is a slash command");
+  return { id: "command", kind, label, text: command };
+}
+
+/** "This week's research on NVIDIA": a question to the model about one listed asset, built in code. */
+export function tickerResearchChip(assetName: string): Chip {
+  return { id: "ticker_research", kind: "question", label: `This week's research on ${assetName}`, text: `What does Stackday's research say about ${assetName} this week?` };
+}
 const pick = (ids: ChipId[]) => ids.map(chip);
 
 /** Starter chips for the empty dock, by the page it was opened on. */
@@ -130,7 +157,7 @@ export function followUpChips(turn: TurnFacts, lastUserText = ""): Chip[] {
   const asked = lastUserText.trim().toLowerCase();
   const research = turn.action ? [] : researchChips(turn.research).filter((c) => c.text.toLowerCase() !== asked);
   const keep = (id: ChipId) =>
-    CHIP_CATALOGUE[id].text.toLowerCase() !== asked && id !== "borrow_instead" && id !== "research_buy" && (!turn.untrusted || CHIP_CATALOGUE[id].kind === "question");
+    CHIP_CATALOGUE[id].text.toLowerCase() !== asked && !TEMPLATE_CHIPS.includes(id) && (!turn.untrusted || CHIP_CATALOGUE[id].kind === "question");
   const out: ChipId[] = [];
   for (const id of [...ids, ...QUESTION_FALLBACK]) {
     if (out.length + research.length === 3) break;
