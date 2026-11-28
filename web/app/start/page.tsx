@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { refreshAll } from "@/lib/refresh";
 import { useConnect } from "wagmi";
 import { Logo, NetworkChip, SiteNotices, WalletButton } from "@/components/shell";
 import { Button, Field, LabelTip, Notice, Spinner, cx } from "@/components/ui";
@@ -121,7 +122,7 @@ export default function StartPage() {
         else await saveAccountType(mode === "personal" ? "individual" : "business");
       }
       rememberMode(account.address, mode, mode === "business" ? businessRole : undefined);
-      await queryClient.invalidateQueries();
+      await refreshAll(queryClient);
       router.push(homeFor(mode, mode === "personal" ? "individual" : businessRole));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save. Try again.");

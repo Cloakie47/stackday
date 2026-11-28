@@ -3,8 +3,10 @@
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, type Abi, type WalletClient } from "viem";
+import { baseSepolia } from "viem/chains";
 import { useAccount, usePublicClient, useWalletClient, useWriteContract } from "wagmi";
 import { CHAIN_ID, type Address } from "./contracts";
+import { refreshAll } from "./refresh";
 import { explainTxError } from "./txError";
 
 export type Call = {
@@ -49,7 +51,7 @@ export async function canBatchAtomically(
 }
 
 export function useTx() {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const { data: walletClient } = useWalletClient();
@@ -64,6 +66,12 @@ export function useTx() {
         setState({ busy: false, error: "Connect your wallet first." });
         return false;
       }
+      // The pre-checks read Base Sepolia, so a wallet on any other network must not sign: it would
+      // send to the wrong chain (with real gas on mainnet) while the receipt wait polls Base Sepolia.
+      if (chainId !== CHAIN_ID) {
+        setState({ busy: false, error: "Your wallet is on another network. Switch it to Base Sepolia, then try again." });
+        return false;
+      }
       let hash: `0x${string}` | undefined;
       const hashes: `0x${string}`[] = [];
       lastHashes.current = hashes;
@@ -72,6 +80,7 @@ export function useTx() {
           setState({ busy: true, step: `${calls.length} steps in one signature` });
           const { id } = await walletClient.sendCalls({
             account: address,
+            chain: baseSepolia,
             forceAtomic: true,
             calls: calls.map((c) => ({ to: c.address, abi: c.abi as Abi, functionName: c.functionName, args: c.args ?? [] })),
           });
@@ -79,7 +88,7 @@ export function useTx() {
           hash = result.receipts?.at(-1)?.transactionHash;
           for (const r of result.receipts ?? []) if (r.transactionHash && !hashes.includes(r.transactionHash)) hashes.push(r.transactionHash);
           if (result.status !== "success") throw new Error("The batch failed on-chain. Nothing in it was applied.");
-          await queryClient.invalidateQueries();
+          await refreshAll(queryClient);
           setState({ busy: false, hash, hashes, done: doneMessage });
           return hash ?? true;
         }
@@ -99,13 +108,14 @@ export function useTx() {
             abi: request.abi,
             functionName: request.functionName,
             args: request.args,
+            chainId: CHAIN_ID,
             gas: (gas * 16n) / 10n,
           });
           hashes.push(hash);
           const receipt = await publicClient.waitForTransactionReceipt({ hash });
           if (receipt.status !== "success") throw new Error(`"${call.label}" failed on-chain.`);
         }
-        await queryClient.invalidateQueries();
+        await refreshAll(queryClient);
         setState({ busy: false, hash, hashes, done: doneMessage });
         return hash ?? true;
       } catch (e) {
@@ -113,7 +123,7 @@ export function useTx() {
         return false;
       }
     },
-    [address, publicClient, writeContractAsync, walletClient, queryClient],
+    [address, chainId, publicClient, writeContractAsync, walletClient, queryClient],
   );
 
   /** Adds a USDC or token approval step only when the current allowance is too small. */

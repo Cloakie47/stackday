@@ -4,6 +4,7 @@ import { PaydayLog, PayNow, PrivateBalancePanel } from "@/components/private-pay
 import { addPrivateRecord, fmt6 } from "@/lib/confidential";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { refreshAll } from "@/lib/refresh";
 import { isAddress, type ContractFunctionParameters } from "viem";
 import { useReadContracts } from "wagmi";
 import { useViewer } from "@/components/providers";
@@ -96,7 +97,7 @@ function BusinessProfile() {
     setError(undefined);
     try {
       await saveBusiness(name, description);
-      await queryClient.invalidateQueries();
+      await refreshAll(queryClient);
       setEditing(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save.");
