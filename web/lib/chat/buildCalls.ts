@@ -681,7 +681,8 @@ function badDestination(dest: Address, ctx: BuildContext): string | null {
   return null;
 }
 
-const BOX_TEXT = { one_stock: "one stock", my_mix: "my mix", surprise: "surprise", research_pick: "research pick" } as const;
+const BOX_TEXT = { one_stock: "one stock", my_mix: "your mix", surprise: "surprise", research_pick: "research pick" } as const;
+const BOX_HEADLINE = { one_stock: "a one-stock gift box", my_mix: "a gift box of your mix", surprise: "a surprise gift box", research_pick: "a research pick gift box" } as const;
 
 /** The person's own holdings by value (top 6), as a gift mix. */
 function myMix(ctx: BuildContext): MixLeg[] | string {
@@ -739,10 +740,10 @@ function gift(params: { recipient_id: string; usdc: string; box: keyof typeof BO
     {
       action: "gift",
       title: "Send a gift box",
-      headline: `You send a ${BOX_TEXT[params.box]} gift box of ${usd(amount)} to ${who}`,
+      headline: `You send ${BOX_HEADLINE[params.box]} of ${usd(amount)} to ${who}`,
       destination: { kind: "recipient", address: r.wallet, ...(r.username ? { name: `@${r.username}` } : {}), ...(r.uid ? { id: r.uid } : {}) },
       rows: [
-        { label: "To", value: params.recipient_id },
+        { label: "To", value: who },
         { label: "Amount", value: `${usd(amount)} from your wallet` },
         { label: "Box", value: BOX_TEXT[params.box] },
         { label: "Holds", value: what },
@@ -790,7 +791,8 @@ function send(
     units = parseUsdc(params.amount);
     if (units <= 0n) return refuse("Enter an amount above zero.");
     const have = params.from === "wallet" ? ctx.walletUsdc : (ctx.vaultUsdc ?? 0n);
-    if (units > have) return refuse(`Your ${params.from} has ${usd(have)} of USDC${params.from === "vault" ? " idle" : ""}.`);
+    if (units > SEND_CAP_UNITS) return refuse(`A send from chat can move at most ${SEND_CAP_LABEL}. Use a smaller amount.`);
+    if (units > have) return refuse(`Your ${params.from} has ${usd(have)}${params.from === "vault" ? " idle" : ""}.`);
     value = units;
     what = usd(units);
     call =
@@ -809,6 +811,7 @@ function send(
       if (units > 0n && assetValue(units, pos.price, asset.decimals) < want) units += 1n;
     }
     if (units <= 0n) return refuse("Enter an amount above zero.");
+    if (assetValue(units, pos.price, asset.decimals) > SEND_CAP_UNITS) return refuse(`A send from chat can move at most ${SEND_CAP_LABEL}. Use a smaller amount.`);
     const have = params.from === "wallet" ? pos.wallet : freeInVault(pos);
     if (units > have)
       return refuse(

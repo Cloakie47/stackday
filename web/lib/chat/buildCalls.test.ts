@@ -392,7 +392,9 @@ test("send by ID: USDC to their wallet (from wallet or vault), an asset into the
   refused(buildPlan(intent({}), ctx({ recipient: { ...maria, wallet: ME } })), /your own/);
   refused(buildPlan(intent({}), ctx({ recipient: { ...maria, wallet: ADDR.router } })), /contract, not a person/);
   refused(buildPlan(intent({}), ctx({ recipient: { ...maria, typed: true } })), /changed/);
-  refused(buildPlan(intent({ amount: "2000" }), ctx({ recipient: maria, walletUsdc: usd(1) })), /wallet has/);
+  // The send limit is named first, before the balance, so the person learns the limit.
+  refused(buildPlan(intent({ amount: "2000" }), ctx({ recipient: maria, walletUsdc: usd(1) })), /at most 100/);
+  refused(buildPlan(intent({ amount: "50" }), ctx({ recipient: maria, walletUsdc: usd(1) })), /wallet has 1\.00 USDC\./);
 });
 
 test("send to a typed address: the token goes straight there, with the confirm suffix and the leaves-Stackday note", () => {
