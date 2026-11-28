@@ -1,5 +1,6 @@
 import { getAddress, isAddress } from "viem";
 import type { Address } from "../contracts.ts";
+import type { Intent } from "./intent.ts";
 
 /**
  * Who a gift or a send goes to (docs/features/CHAT-AND-GIFTS.md, 1.3). Pure helpers shared by the
@@ -40,6 +41,20 @@ const ADDRESS_IN_TEXT = /(?<![0-9A-Za-z])0x[0-9a-fA-F]{40}(?![0-9A-Za-z])/g;
 export const addressesIn = (text: string): string[] => text.match(ADDRESS_IN_TEXT) ?? [];
 /** The server's check for a typed_address send: the latest message has at least one address. */
 export const hasTypedAddress = (text: string) => addressesIn(text).length > 0;
+
+/**
+ * A gift or send must name a recipient the person typed in their latest message: the same ID or
+ * username, or (typed_address) an address. Null when the intent passes, or has no recipient.
+ */
+export function recipientProblem(intent: Intent, latest: string): string | null {
+  if (intent.action === "gift") return recipientInText(intent.params.recipient_id, latest) ? null : "gift recipient not in the latest user message";
+  if (intent.action === "send") {
+    const to = intent.params.to;
+    if (to.kind === "id") return recipientInText(to.id, latest) ? null : "send recipient not in the latest user message";
+    return hasTypedAddress(latest) ? null : "typed_address send without an address in the latest user message";
+  }
+  return null;
+}
 
 export type Resolved = { ok: true; address: Address } | { ok: false; reason: string };
 

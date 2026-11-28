@@ -389,15 +389,17 @@ export function usdcText(units: bigint): string {
 }
 
 /**
- * For the "Borrow instead" chip on a sell card: the largest amount, to the cent and at most one card,
- * that a Mid risk borrow card against this asset accepts right now (the same borrow() below decides,
- * with its 1% buffer, the vault cap and what the market can lend). 0 when none does.
+ * The largest USDC amount, to the cent and at most one card, that a borrow card against this asset at
+ * `risk` accepts right now: the level's share of the liquidation limit (capped by the vault's own cap;
+ * High raises the cap to 65% as borrow() does), a 1% buffer for interest, what the market can lend, and
+ * the card cap. The same borrow() below decides. 0 when none does (no price, nothing held, invest only).
  */
-function midRiskOffer(pos: PositionLike, ctx: BuildContext): bigint {
+export function maxBorrowAt(pos: PositionLike, ctx: BuildContext, risk: "low" | "mid" | "high"): bigint {
   const a = pos.asset;
   if (!a.borrowable || !pos.price) return 0n;
-  const midBps = LEVELS.find((l) => l.key === "mid")!.pct * 100n;
-  const limitBps = midBps < ctx.borrowCapBps ? midBps : ctx.borrowCapBps;
+  const levelBps = LEVELS.find((l) => l.key === risk)!.pct * 100n;
+  let limitBps = levelBps < ctx.borrowCapBps ? levelBps : ctx.borrowCapBps;
+  if (risk === "high" && ctx.borrowCapBps < HIGH_CAP_BPS) limitBps = HIGH_CAP_BPS;
   const held = pos.collateral + (pos.transfersPaused ? 0n : pos.idle + pos.wallet);
   const maxDebt = (((assetValue(held, pos.price, a.decimals) * a.lltv) / WAD) * limitBps) / 10_000n;
   const room = (maxDebt * 100n) / 101n;
@@ -407,11 +409,14 @@ function midRiskOffer(pos: PositionLike, ctx: BuildContext): bigint {
   usdc = (usdc / 10_000n) * 10_000n;
   // Rounding of the collateral can make the estimate a hair too high: step down until borrow() accepts it.
   for (let i = 0; i < 8 && usdc >= 10_000n; i++) {
-    if (borrow({ asset: a.symbol, usdc: usdcText(usdc), risk: "mid" }, ctx).ok) return usdc;
+    if (borrow({ asset: a.symbol, usdc: usdcText(usdc), risk }, ctx).ok) return usdc;
     usdc = ((usdc * 98n) / 100n / 10_000n) * 10_000n;
   }
   return 0n;
 }
+
+/** For the "Borrow instead" chip on a sell card: the most a Mid risk borrow card accepts right now. */
+const midRiskOffer = (pos: PositionLike, ctx: BuildContext) => maxBorrowAt(pos, ctx, "mid");
 
 /** Idle USDC in the vault to the connected wallet. Not capped: it is the person's own money coming home. */
 function withdrawUsdc(params: { amount: string; unit: "percent" | "tokens" | "usdc" }, ctx: BuildContext): BuildResult {
