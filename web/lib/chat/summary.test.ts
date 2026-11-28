@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ASSETS } from "../contracts.ts";
 import sampleWeekly from "../research/sample-weekly.json" with { type: "json" };
 import type { WeeklyReport } from "../research/types.ts";
-import { loanText, portfolioText, pricesText, weeklyAnswer, type Snapshot } from "./summary.ts";
+import { earningText, loanText, portfolioText, pricesText, weeklyAnswer, type Snapshot } from "./summary.ts";
 import { tokens, usd } from "./test-fixtures.ts";
 
 const ADDRESS = /0x[0-9a-fA-F]{40}/;
@@ -29,6 +29,15 @@ function snap(): Snapshot {
     })),
   };
 }
+
+test("earning: the model can answer how much is earning, the interest so far and the fee", () => {
+  const s = { ...snap(), earnAvailable: true, earning: { balance: usd(10.5), principal: usd(10), feeOwed: usd(0.01) } };
+  const text = portfolioText(s);
+  assert.match(text, /Earning interest \(MOCK venue on testnet\): 10\.50 USDC now, of which 10\.00 USDC put in and 0\.50 USDC interest so far\. Stackday earn fee owed: 0\.01 USDC/);
+  assert.match(earningText({ ...snap(), earnAvailable: false }), /not available/);
+  assert.match(earningText({ ...snap(), earnAvailable: true }), /nothing earning/);
+  assert.ok(!ADDRESS.test(text));
+});
 
 test("portfolio text uses each asset's own decimals and never contains an address", () => {
   const t = portfolioText(snap());

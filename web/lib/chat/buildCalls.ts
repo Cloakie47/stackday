@@ -1,3 +1,4 @@
+import { erc20Abi } from "viem";
 import { mockSellDeskAbi, vaultAbi } from "../abis.ts";
 import {
   HIGH_CAP_BPS,
@@ -22,19 +23,24 @@ import {
 import { splitRepay } from "../basket.ts";
 import { vaultBatch } from "../batch.ts";
 import { BRAND } from "../brand.ts";
-import { ADDR, ASSETS, BORROW_FEE_BPS, SIP_FEE_BPS, type Address, type Asset } from "../contracts.ts";
-import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtPct, fmtPrice, fmtUsdc, parseAmount, parseUsdc, WAD } from "../format.ts";
+import { ADDR, ASSETS, BORROW_FEE_BPS, EARN_FEE_BPS, GIFT_BOX, MAX_UINT, SIP_FEE_BPS, ZERO, type Address, type Asset } from "../contracts.ts";
+import { assetForUsdc, assetValue, fmtAsset, fmtHealth, fmtPct, fmtPrice, fmtUsdc, parseAmount, parseUsdc, shortAddr, WAD } from "../format.ts";
+import { buildCreateCalls } from "../gifts/calls.ts";
+import { amountProblem, expiryFrom, oneStockMix, ratiosToBps, type MixLeg } from "../gifts/mix.ts";
 import { DEFAULT_SLOT, nextSlot, slotLabel } from "../slots.ts";
 import type { Position } from "../usePortfolio.ts";
 import type { Call } from "../useTx.ts";
-import { CARD_CAP_UNITS, type Intent } from "./intent.ts";
+import { CARD_CAP_UNITS, SEND_CAP_UNITS, type Intent } from "./intent.ts";
+import { confirmSuffixOf } from "./recipient.ts";
 
 /**
  * Turns a validated intent into the exact calls the Invest and Borrow pages make (shared helpers in
  * lib/actions.ts), plus the card that shows them. Pure: every input is passed in, nothing is read here.
  *
  * - The card rows and the calls come from the same numbers in one function, so they cannot disagree.
- * - The receiver is always `ctx.me`, the connected wallet. No intent carries an address.
+ * - The receiver is the connected wallet (`ctx.me`) or its own vault, except for a gift or a send,
+ *   whose one recipient address was resolved in the browser (usePlan: a Stackday ID with exactly one
+ *   match, or the one address the person typed) and is the only extra address the allowlist accepts.
  * - minOut comes from the on-chain oracle quote and the slippage setting, never from the model.
  * - Each asset's own decimals are used everywhere; nothing assumes 8.
  * - checkCalls() refuses any call to, or address argument for, anything outside the allowlist.
@@ -42,11 +48,26 @@ import { CARD_CAP_UNITS, type Intent } from "./intent.ts";
 
 export const CARD_TTL_SEC = 120;
 export const CARD_CAP_LABEL = `${fmtUsdc(CARD_CAP_UNITS, 0)} test USDC`;
+export const SEND_CAP_LABEL = `${fmtUsdc(SEND_CAP_UNITS, 0)} test USDC`;
 
 export type PositionLike = Pick<Position, "asset" | "price" | "idle" | "wallet" | "collateral" | "debt" | "fee" | "liquidity" | "transfersPaused" | "recurring">;
 
+/** Who a gift or send goes to, resolved in the browser (lib/chat/usePlan.ts). */
+export type RecipientInfo =
+  | {
+      ok: true;
+      /** True for a raw address the person typed; false for a Stackday ID or username. */
+      typed: boolean;
+      wallet: Address;
+      uid?: string | null;
+      username?: string | null;
+      /** The recipient's own Stackday vault (factory.vaultOf), if they have one. */
+      vault?: Address;
+    }
+  | { ok: false; reason: string };
+
 export type BuildContext = {
-  /** The connected wallet. The only receiver any call may name. */
+  /** The connected wallet. The only receiver most calls may name. */
   me: Address;
   vault?: Address;
   /** The vault's address before it exists (factory.predictVault). */
@@ -56,25 +77,51 @@ export type BuildContext = {
   walletUsdc: bigint;
   /** USDC the person allowed the SipRouter to take. */
   routerAllowance: bigint;
-  /** USDC the person allowed their vault to take (repayments). */
+  /** USDC the person allowed their vault to take (repayments, earning). */
   vaultUsdcAllowance: bigint;
   /** Allowances of the intent's asset: to the vault (lock from wallet) and to the sell desk. */
   assetAllowance: { toVault: bigint; toDesk: bigint };
   /** On-chain reads: SipRouter.quoteAtOracle for a buy, the sell desk's spread and USDC reserve for a sell. */
   quotes: { oracleOut?: bigint; deskSpreadBps?: bigint; deskReserve?: bigint };
   nowSec: number;
+  /** Idle USDC in the vault (not earning). */
+  vaultUsdc?: bigint;
+  /** USDC earning interest: balance with interest, principal put in, Stackday earn fee owed now. */
+  earning?: { balance: bigint; principal: bigint; feeOwed: bigint };
+  /** factory.yieldAdapter(). Zero or unknown means earning is not available. */
+  yieldAdapter?: Address;
+  /** Gift or send recipient, resolved in the browser. */
+  recipient?: RecipientInfo;
+  /** Gift reads: USDC allowance to the GiftBox, the surprise mix picked in the browser, research ready. */
+  gift?: { allowance: bigint; surprise?: MixLeg[]; researchReady?: boolean };
 };
 
 export type Row = { label: string; value: string };
+
+/** Where the money on a card ends up. */
+export type Destination = {
+  kind: "own_vault" | "own_wallet" | "recipient" | "none";
+  address?: Address;
+  name?: string;
+  id?: string;
+  /** Raw-address sends only: the last 6 hex chars the person must type before Confirm is enabled (compare without case). */
+  confirmSuffix?: string;
+};
 
 export type Plan = {
   ok: true;
   action: Intent["action"];
   title: string;
+  /** One plain sentence, for example "You buy $5.00 of NVIDIA at $182.40 each". */
+  headline: string;
+  /** Where the money ends up. */
+  destination: Destination;
+  /** Loan health factor before and after, for borrow, repay, lock and unlock (null = no loan). */
+  health?: { before: number | null; after: number | null };
   rows: Row[];
   /** Stackday fee line, always shown. */
   fee: string;
-  /** Where the money ends up: always the connected wallet (or its own vault). */
+  /** The connected wallet (kept for compatibility; see destination for where money goes). */
   receiver: Address;
   receiverLabel: string;
   notes: string[];
@@ -109,11 +156,29 @@ const dollars = (v: bigint) => "$" + fmtUsdc(v);
 /** Price of one whole token in USDC units, from a USDC amount and the tokens it buys or sells for. */
 const perToken = (usdcUnits: bigint, tokenUnits: bigint, a: Asset) => (tokenUnits > 0n ? (usdcUnits * 10n ** BigInt(a.decimals)) / tokenUnits : 0n);
 const RISK_LABEL = { low: "Low", mid: "Mid", high: "High" } as const;
+const ownVault = (ctx: BuildContext): Destination => ({ kind: "own_vault", address: ctx.vault ?? ctx.predictedVault });
+const ownWallet = (ctx: BuildContext): Destination => ({ kind: "own_wallet", address: ctx.me });
 
 export const assetBySymbol = (symbol: string) => ASSETS.find((a) => a.symbol === symbol);
 
 /** Health (WAD) a level keeps: borrowing pct% of the liquidation limit leaves health 100 / pct. */
 export const minHealthFor = (risk: keyof typeof RISK_LABEL) => (100n * WAD) / LEVELS.find((l) => l.key === risk)!.pct;
+
+/** Health factor as a number (2 decimals of precision kept), or null when there is no loan. */
+export function healthNumber(pos: Pick<PositionLike, "asset" | "price">, collateral: bigint, debt: bigint): number | null {
+  if (debt <= 0n || !pos.price) return null;
+  const maxDebt = (assetValue(collateral, pos.price, pos.asset.decimals) * pos.asset.lltv) / WAD;
+  return Number((maxDebt * 10_000n) / debt) / 10_000;
+}
+
+/**
+ * Earn fee owed right now: the stored amount plus what built up since it was last updated, the same
+ * maths as EmployeeVault._accrueEarnFee.
+ */
+export function earnFeeNow(owed: bigint, principal: bigint, updatedAt: bigint, bps: bigint, nowSec: number): bigint {
+  if (bps === 0n || principal === 0n || updatedAt === 0n || BigInt(nowSec) <= updatedAt) return owed;
+  return owed + (principal * bps * (BigInt(nowSec) - updatedAt)) / (10_000n * 365n * 86_400n);
+}
 
 /** Assets free to sell or withdraw from the vault: idle, plus locked only when there is no loan on it. */
 const freeInVault = (p: PositionLike) => (p.debt > 0n ? p.idle : p.idle + p.collateral);
@@ -145,7 +210,7 @@ function resolveAmount(params: { amount: string; unit: "percent" | "tokens" | "u
 
 /** Every address a chat card may call, and every address argument it may contain besides the wallet. */
 function allowlist(ctx: BuildContext) {
-  const contracts = new Set([ADDR.usdc, ADDR.router, ADDR.factory, ADDR.sellDesk, ...ASSETS.map((a) => a.token)].map((x) => x.toLowerCase()));
+  const contracts = new Set([ADDR.usdc, ADDR.router, ADDR.factory, ADDR.sellDesk, ...(GIFT_BOX ? [GIFT_BOX] : []), ...ASSETS.map((a) => a.token)].map((x) => x.toLowerCase()));
   if (ctx.vault) contracts.add(ctx.vault.toLowerCase());
   if (ctx.predictedVault) contracts.add(ctx.predictedVault.toLowerCase());
   return contracts;
@@ -155,13 +220,18 @@ const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 /**
  * Last check before a card is shown: each call goes to an allowlisted contract, and every address in
- * its arguments is an allowlisted contract or the connected wallet. Returns the first problem found.
+ * its arguments is an allowlisted contract, the connected wallet, or one of `extra` (the one resolved
+ * recipient of a gift or send). Returns the first problem found.
  */
-export function checkCalls(calls: Call[], ctx: BuildContext): string | null {
+export function checkCalls(calls: Call[], ctx: BuildContext, extra: readonly Address[] = []): string | null {
   const ok = allowlist(ctx);
   const me = ctx.me.toLowerCase();
+  const others = new Set(extra.map((x) => x.toLowerCase()));
   const walk = (v: unknown): string | null => {
-    if (typeof v === "string" && ADDRESS_RE.test(v)) return ok.has(v.toLowerCase()) || v.toLowerCase() === me ? null : v;
+    if (typeof v === "string" && ADDRESS_RE.test(v)) {
+      const l = v.toLowerCase();
+      return ok.has(l) || l === me || others.has(l) ? null : v;
+    }
     if (Array.isArray(v)) {
       for (const x of v) {
         const bad = walk(x);
@@ -178,9 +248,17 @@ export function checkCalls(calls: Call[], ctx: BuildContext): string | null {
   return null;
 }
 
-function finish(plan: Omit<Plan, "ok" | "expiresAt" | "receiver">, ctx: BuildContext): BuildResult {
-  if (plan.usdcValue > CARD_CAP_UNITS) return refuse(`A chat card can move at most ${CARD_CAP_LABEL}. Use a smaller amount, or the page itself.`);
-  const problem = checkCalls(plan.calls, ctx);
+/** Actions with no card limit: they only lower risk or bring money back to the person's own wallet. */
+const UNCAPPED: ReadonlySet<Intent["action"]> = new Set(["repay", "unlock", "withdraw", "stop_earning", "cancel_plan"]);
+
+/** The most a card of this action may move, or undefined for no limit. */
+export const capFor = (action: Intent["action"]): bigint | undefined => (action === "send" ? SEND_CAP_UNITS : UNCAPPED.has(action) ? undefined : CARD_CAP_UNITS);
+
+function finish(plan: Omit<Plan, "ok" | "expiresAt" | "receiver">, ctx: BuildContext, extra: readonly Address[] = []): BuildResult {
+  const cap = capFor(plan.action);
+  if (cap !== undefined && plan.usdcValue > cap)
+    return refuse(plan.action === "send" ? `A send from chat can move at most ${SEND_CAP_LABEL}. Use a smaller amount.` : `A chat card can move at most ${CARD_CAP_LABEL}. Use a smaller amount, or the page itself.`);
+  const problem = checkCalls(plan.calls, ctx, extra);
   if (problem) return refuse(`Stopped for safety: ${problem}.`);
   return { ok: true, receiver: ctx.me, expiresAt: ctx.nowSec + CARD_TTL_SEC, ...plan };
 }
@@ -194,20 +272,32 @@ function buy(params: { asset: string; usdc: string }, ctx: BuildContext): BuildR
   const quote = ctx.quotes.oracleOut;
   if (!quote || quote <= 0n) return refuse(`There is no oracle price for ${a.name} right now. Try again later.`);
   const minOut = minOutAfterSlippage(quote, MAX_BUY_SLIPPAGE_BPS);
-  const calls = [...approvalIfNeeded(ADDR.usdc, ADDR.router, usdc, ctx.routerAllowance, `Allow ${BRAND.name} to take the USDC`), investCall(a, usdc, minOut)];
+  // Recurring plans spend the same router allowance, so a one-time buy adds its amount on top instead
+  // of setting the allowance to the buy amount (which would cut the plans short).
+  const hasPlans = ctx.positions.some((p) => p.recurring);
+  const unlimited = ctx.routerAllowance > 2n ** 200n;
+  const label = `Allow ${BRAND.name} to take the USDC`;
+  const approve = unlimited ? [] : hasPlans ? [approveMoreCall(ctx.routerAllowance, usdc, label)] : approvalIfNeeded(ADDR.usdc, ADDR.router, usdc, ctx.routerAllowance, label);
+  const calls = [...approve, investCall(a, usdc, minOut)];
+  const price = perToken(usdc, quote, a);
   return finish(
     {
       action: "buy",
       title: `Buy ${a.name}`,
+      headline: `You buy ${dollars(usdc)} of ${a.name} at ${dollars(price)} each`,
+      destination: ownVault(ctx),
       rows: [
-        { label: "You buy", value: `${dollars(usdc)} of ${a.name} at ${dollars(perToken(usdc, quote, a))} each` },
+        { label: "You buy", value: `${dollars(usdc)} of ${a.name} at ${dollars(price)} each` },
         { label: "You get about", value: amt(quote, a) },
         { label: "At least", value: `${amt(minOut, a)} (${fmtPct(MAX_BUY_SLIPPAGE_BPS)} slippage floor)` },
         { label: "Paid from", value: `${usd(usdc)} in your wallet` },
       ],
       fee: "None: one-time buys are free.",
       receiverLabel: "Goes into your own vault, controlled only by your wallet",
-      notes: ["Bought assets land in your vault as free, not locked."],
+      notes: [
+        "Bought assets land in your vault as free, not locked.",
+        ...(hasPlans && !unlimited ? ["The approval adds this buy on top of what your recurring buys may still take, so your plans keep running."] : []),
+      ],
       calls,
       usdcValue: usdc,
       doneMessage: `Bought. The ${a.name} is in your vault.`,
@@ -238,6 +328,8 @@ function recurring(params: { asset: string; usdc: string; every: keyof typeof IN
     {
       action: "recurring_buy",
       title: `Recurring buy: ${a.name}`,
+      headline: `You buy ${dollars(perBuy)} of ${a.name} ${INTERVAL_LABEL[params.every]}, ${count} times`,
+      destination: ownVault(ctx),
       rows: [
         { label: "Each buy", value: `${usd(perBuy)} from your wallet, ${INTERVAL_LABEL[params.every]}` },
         { label: "Buys", value: `${count}, ${usd(total)} in total, then it stops` },
@@ -268,6 +360,8 @@ function cancel(params: { asset: string }, ctx: BuildContext): BuildResult {
     {
       action: "cancel_plan",
       title: `Stop the ${a.name} plan`,
+      headline: `You stop the ${a.name} recurring buy`,
+      destination: { kind: "none" },
       rows: [{ label: "Plan", value: `${usd(pos.recurring.usdcPerBuy)} per buy into ${a.name}` }],
       fee: "None.",
       receiverLabel: "Nothing is sent anywhere",
@@ -319,7 +413,42 @@ function midRiskOffer(pos: PositionLike, ctx: BuildContext): bigint {
   return 0n;
 }
 
+/** Idle USDC in the vault to the connected wallet. Not capped: it is the person's own money coming home. */
+function withdrawUsdc(params: { amount: string; unit: "percent" | "tokens" | "usdc" }, ctx: BuildContext): BuildResult {
+  if (!ctx.vault) return refuse("You have no vault yet, so there is no USDC in it to take out.");
+  const idle = ctx.vaultUsdc ?? 0n;
+  if (idle <= 0n) return refuse("There is no idle USDC in your vault. USDC that is earning interest comes back with stop earning.");
+  let amount: bigint;
+  if (params.unit === "percent") {
+    const bps = parseAmount(params.amount, 2);
+    if (bps <= 0n || bps > 10_000n) return refuse("The percent must be between 0 and 100.");
+    amount = (idle * bps) / 10_000n;
+  } else amount = parseUsdc(params.amount);
+  if (amount <= 0n) return refuse("Enter an amount above zero.");
+  if (amount > idle) return refuse(`Your vault has ${usd(idle)} idle.`);
+  return finish(
+    {
+      action: "withdraw",
+      title: "Withdraw USDC",
+      headline: `You take ${usd(amount)} out of your vault to your wallet`,
+      destination: ownWallet(ctx),
+      rows: [
+        { label: "Take out", value: usd(amount) },
+        { label: "Idle in your vault after", value: usd(idle - amount) },
+      ],
+      fee: "None.",
+      receiverLabel: "Goes to your wallet",
+      notes: [],
+      calls: [{ label: "Withdraw USDC to your wallet", address: ctx.vault, abi: vaultAbi, functionName: "withdraw", args: [ADDR.usdc, amount, ctx.me] }],
+      usdcValue: amount,
+      doneMessage: "USDC sent to your wallet.",
+    },
+    ctx,
+  );
+}
+
 function withdrawOrSell(kind: "sell" | "withdraw", params: { asset: string; amount: string; unit: "percent" | "tokens" | "usdc" }, ctx: BuildContext): BuildResult {
+  if (kind === "withdraw" && params.asset === "USDC") return withdrawUsdc(params, ctx);
   const a = assetBySymbol(params.asset);
   if (!a) return refuse("That asset is not available.");
   if (!ctx.vault) return refuse("You have no vault yet, so there is nothing to take out.");
@@ -337,6 +466,8 @@ function withdrawOrSell(kind: "sell" | "withdraw", params: { asset: string; amou
       {
         action: "withdraw",
         title: `Withdraw ${a.name}`,
+        headline: `You take ${amt(amount, a)} (${a.name}) out of your vault to your wallet`,
+        destination: ownWallet(ctx),
         rows: [
           { label: "Take out", value: amt(amount, a) },
           { label: "Worth about", value: `${usd(value)} at the test price` },
@@ -370,6 +501,8 @@ function withdrawOrSell(kind: "sell" | "withdraw", params: { asset: string; amou
     {
       action: "sell",
       title: `Sell ${a.name}`,
+      headline: `You sell ${amt(amount, a)} (${a.name}) for about ${dollars(expected)}`,
+      destination: ownWallet(ctx),
       rows: [
         { label: "You sell", value: `${amt(amount, a)} (${a.name}) at ${dollars(perToken(value, amount, a))} each` },
         { label: "You get about", value: `${dollars(expected)} (${usd(expected)} to your wallet)` },
@@ -448,6 +581,9 @@ function borrow(params: { asset: string; usdc: string; risk: "low" | "mid" | "hi
     {
       action: "borrow",
       title: `Borrow against ${a.name}`,
+      headline: `You borrow ${dollars(usdc)} USDC against ${a.name}`,
+      destination: ownWallet(ctx),
+      health: { before: healthNumber(pos, pos.collateral, pos.debt), after: healthNumber(pos, collateralAfter, debtAfter) },
       rows: [
         { label: "Borrow", value: usd(usdc) },
         ...(extra > 0n ? [{ label: "Lock first", value: `${amt(extra, a)}${fromWallet > 0n ? ` (${amt(fromWallet, a)} from your wallet)` : ""}` }] : []),
@@ -467,12 +603,19 @@ function borrow(params: { asset: string; usdc: string; risk: "low" | "mid" | "hi
   );
 }
 
+/** The lowest health across some loans (null when none of them has debt). */
+function lowestHealth(items: { pos: PositionLike; debt: bigint }[]): number | null {
+  const hs = items.map((x) => healthNumber(x.pos, x.pos.collateral, x.debt)).filter((h): h is number => h !== null);
+  return hs.length ? Math.min(...hs) : null;
+}
+
 function repay(params: { asset: string; usdc: string; all: boolean }, ctx: BuildContext): BuildResult {
   if (!ctx.vault) return refuse("You have no loan to repay.");
   const loans = ctx.positions.filter((p) => p.asset.borrowable && p.debt > 0n);
   const scope = params.asset === "every_loan" ? loans : loans.filter((p) => p.asset.symbol === params.asset);
   if (!scope.length) return refuse(params.asset === "every_loan" ? "You have no loan to repay." : `You have no loan against ${assetBySymbol(params.asset)?.name ?? params.asset}.`);
   const owed = scope.reduce((s, p) => s + p.debt + p.fee, 0n);
+  if (owed === 0n) return refuse("You owe nothing on that loan, so there is nothing to repay.");
   const wanted = params.all ? owed : parseUsdc(params.usdc);
   if (wanted <= 0n) return refuse("Enter an amount above zero.");
   const all = params.all || wanted >= owed;
@@ -491,10 +634,20 @@ function repay(params: { asset: string; usdc: string; all: boolean }, ctx: Build
   const problem = checkCalls(steps, ctx);
   if (problem) return refuse(`Stopped for safety: ${problem}.`);
   const fees = scope.reduce((s, p) => s + p.fee, 0n);
+  // Health after: the fee is paid first, then the rest lowers the loan.
+  const after = scope.map((p) => {
+    const paid = parts.find((x) => x.asset.symbol === p.asset.symbol)?.usdc ?? 0n;
+    const toLoan = paid > p.fee ? paid - p.fee : 0n;
+    return { pos: p, debt: all || toLoan >= p.debt ? 0n : p.debt - toLoan };
+  });
+  const name = params.asset === "every_loan" ? "your loans" : `your ${scope[0].asset.name} loan`;
   return finish(
     {
       action: "repay",
       title: all ? "Repay in full" : "Repay part of your loan",
+      headline: all ? `You repay ${name} in full, about ${dollars(total)} USDC` : `You repay ${dollars(total)} USDC of ${name}`,
+      destination: ownVault(ctx),
+      health: { before: lowestHealth(scope.map((p) => ({ pos: p, debt: p.debt }))), after: lowestHealth(after) },
       rows: [
         { label: "You pay", value: `${all ? "about " : ""}${usd(total)} from your wallet` },
         { label: "Owed now", value: usd(owed) },
@@ -512,26 +665,276 @@ function repay(params: { asset: string; usdc: string; all: boolean }, ctx: Build
   );
 }
 
-function gift(params: { recipient_id: string; usdc: string; box: string }, ctx: BuildContext): BuildResult {
+/** "@maria (SD-7KQ2M9XA)", "SD-7KQ2M9XA", or a short address with a name if the address has a profile. */
+function whoLabel(r: Extract<RecipientInfo, { ok: true }>): string {
+  const name = r.username ? `@${r.username}` : null;
+  if (!r.typed) return name && r.uid ? `${name} (${r.uid})` : (name ?? r.uid ?? shortAddr(r.wallet));
+  return name ? `${shortAddr(r.wallet)} (${name})` : shortAddr(r.wallet);
+}
+
+/** Gifts and sends never go to the person themselves or to a Stackday contract. */
+function badDestination(dest: Address, ctx: BuildContext): string | null {
+  const l = dest.toLowerCase();
+  if (l === ZERO.toLowerCase()) return "That is the zero address. Nothing can be sent there.";
+  if (l === ctx.me.toLowerCase() || l === ctx.vault?.toLowerCase() || l === ctx.predictedVault?.toLowerCase()) return "That is your own wallet or vault. Sends go to someone else.";
+  if (allowlist(ctx).has(l)) return `That is a ${BRAND.name} contract, not a person. Sends go to a person's wallet.`;
+  return null;
+}
+
+const BOX_TEXT = { one_stock: "one stock", my_mix: "your mix", surprise: "surprise", research_pick: "research pick" } as const;
+const BOX_HEADLINE = { one_stock: "a one-stock gift box", my_mix: "a gift box of your mix", surprise: "a surprise gift box", research_pick: "a research pick gift box" } as const;
+
+/** The person's own holdings by value (top 6), as a gift mix. */
+function myMix(ctx: BuildContext): MixLeg[] | string {
+  const held = ctx.positions
+    .filter((p) => p.price && p.idle + p.collateral > 0n)
+    .map((p) => ({ token: p.asset.token, value: assetValue(p.idle + p.collateral, p.price!, p.asset.decimals) }))
+    .filter((x) => x.value > 0n)
+    .sort((a, b) => (b.value > a.value ? 1 : b.value < a.value ? -1 : 0))
+    .slice(0, 6);
+  if (!held.length) return "You hold nothing yet to copy as your mix. Ask for one stock, a surprise or a research pick instead.";
+  const r = ratiosToBps(held.map((x) => ({ token: x.token, ratio: Number(x.value) })));
+  return r.ok ? r.value : r.error;
+}
+
+function gift(params: { recipient_id: string; usdc: string; box: keyof typeof BOX_TEXT; asset?: string }, ctx: BuildContext): BuildResult {
+  if (!GIFT_BOX) return refuse("Gift boxes are not deployed on this network.");
+  const r = ctx.recipient;
+  if (!r) return refuse("Could not look up who the gift is for. Try again.");
+  if (!r.ok) return refuse(r.reason);
+  if (r.typed) return refuse("A gift box goes to a Stackday ID or username.");
+  const bad = badDestination(r.wallet, ctx);
+  if (bad) return refuse(bad);
+  const amount = parseUsdc(params.usdc);
+  const problem = amountProblem(amount, ctx.walletUsdc);
+  if (problem) return refuse(problem);
+  let mix: MixLeg[] | "research";
+  let what: string;
+  if (params.box === "one_stock") {
+    const a = params.asset ? assetBySymbol(params.asset) : undefined;
+    if (!a) return refuse("Which stock should the box hold? Say the asset too.");
+    mix = oneStockMix(a.token);
+    what = a.name;
+  } else if (params.box === "my_mix") {
+    const m = myMix(ctx);
+    if (typeof m === "string") return refuse(m);
+    mix = m;
+    what = m.map((l) => `${ASSETS.find((a) => a.token.toLowerCase() === l.token.toLowerCase())?.name ?? "?"} ${l.weightBps / 100}%`).join(", ");
+  } else if (params.box === "surprise") {
+    if (!ctx.gift?.surprise?.length) return refuse("Could not pick a surprise mix right now. Try again.");
+    mix = ctx.gift.surprise;
+    what = "A surprise mix of 2 to 4 assets, picked in your browser";
+  } else {
+    if (!ctx.gift?.researchReady) return refuse("There is no approved research to pick from yet. Ask for another box.");
+    mix = "research";
+    what = `Picked from the newest approved ${BRAND.name} research when they open it`;
+  }
+  let calls: Call[];
+  try {
+    calls = buildCreateCalls({ giftBox: GIFT_BOX, usdc: ADDR.usdc, sender: ctx.me, recipient: r.wallet, amount, expiresAt: expiryFrom(ctx.nowSec, 30), mix, allowance: ctx.gift?.allowance ?? 0n }) as Call[];
+  } catch (e) {
+    return refuse(e instanceof Error ? e.message : "Could not prepare the gift.");
+  }
+  const who = whoLabel(r);
   return finish(
     {
       action: "gift",
       title: "Send a gift box",
+      headline: `You send ${BOX_HEADLINE[params.box]} of ${usd(amount)} to ${who}`,
+      destination: { kind: "recipient", address: r.wallet, ...(r.username ? { name: `@${r.username}` } : {}), ...(r.uid ? { id: r.uid } : {}) },
       rows: [
-        { label: "To", value: params.recipient_id },
-        { label: "Amount", value: usd(parseUsdc(params.usdc)) },
-        { label: "Box", value: params.box.replace(/_/g, " ") },
+        { label: "To", value: who },
+        { label: "Amount", value: `${usd(amount)} from your wallet` },
+        { label: "Box", value: BOX_TEXT[params.box] },
+        { label: "Holds", value: what },
+        { label: "Expires", value: "In 30 days, then it goes back to you" },
       ],
       fee: "None: gifts have no fee.",
-      receiverLabel: "The recipient's own vault, found by their Stackday ID",
-      notes: [],
-      calls: [],
-      usdcValue: parseUsdc(params.usdc),
-      doneMessage: "",
-      handoff: "Open the Gifts page to send. Sending a gift from chat is not connected yet.",
+      receiverLabel: "Waits in the gift box until they open it, then buys into their own vault",
+      notes: ["You can take the gift back until it is opened. Add a message from the Gifts page if you like."],
+      calls,
+      usdcValue: amount,
+      doneMessage: "Gift sent. It waits in the gift box until they open it.",
       giftRecipient: params.recipient_id,
-      // Amount and box only: the recipient's ID is not put in the address bar.
-      link: { href: `/gifts?usdc=${encodeURIComponent(params.usdc)}&box=${encodeURIComponent(params.box)}`, label: "Open the Gifts page" },
+    },
+    ctx,
+    [r.wallet],
+  );
+}
+
+function send(
+  params: { to: { kind: "id"; id: string } | { kind: "typed_address" }; asset: string; amount: string; unit: "tokens" | "usdc"; from: "wallet" | "vault" },
+  ctx: BuildContext,
+): BuildResult {
+  const r = ctx.recipient;
+  if (!r) return refuse("Could not look up who this is for. Try again.");
+  if (!r.ok) return refuse(r.reason);
+  if ((params.to.kind === "typed_address") !== r.typed) return refuse("Who this is for changed. Ask again.");
+  const who = whoLabel(r);
+  const isUsdc = params.asset === "USDC";
+  const a = isUsdc ? undefined : assetBySymbol(params.asset);
+  if (!isUsdc && !a) return refuse("That asset is not available.");
+  // USDC goes to the person's wallet; an asset goes into their own Stackday vault, or straight to a typed address.
+  let dest: Address;
+  if (isUsdc || r.typed) dest = r.wallet;
+  else if (r.vault && r.vault !== ZERO) dest = r.vault;
+  else return refuse(`${who} has no ${BRAND.name} vault yet, so an asset cannot be sent to them. You can send USDC or a gift box instead.`);
+  const bad = badDestination(dest, ctx);
+  if (bad) return refuse(bad);
+  if (params.from === "vault" && !ctx.vault) return refuse("You have no vault yet. Send from your wallet instead.");
+
+  let units: bigint;
+  let value: bigint;
+  let call: Call;
+  let what: string;
+  if (isUsdc) {
+    units = parseUsdc(params.amount);
+    if (units <= 0n) return refuse("Enter an amount above zero.");
+    const have = params.from === "wallet" ? ctx.walletUsdc : (ctx.vaultUsdc ?? 0n);
+    if (units > SEND_CAP_UNITS) return refuse(`A send from chat can move at most ${SEND_CAP_LABEL}. Use a smaller amount.`);
+    if (units > have) return refuse(`Your ${params.from} has ${usd(have)}${params.from === "vault" ? " idle" : ""}.`);
+    value = units;
+    what = usd(units);
+    call =
+      params.from === "wallet"
+        ? { label: `Send USDC to ${who}`, address: ADDR.usdc, abi: erc20Abi, functionName: "transfer", args: [dest, units] }
+        : { label: `Send USDC from your vault to ${who}`, address: ctx.vault!, abi: vaultAbi, functionName: "withdraw", args: [ADDR.usdc, units, dest] };
+  } else {
+    const asset = a!;
+    const pos = ctx.positions.find((p) => p.asset.symbol === asset.symbol);
+    if (!pos?.price) return refuse(`There is no price for ${asset.name} right now.`);
+    if (pos.transfersPaused) return refuse(`Transfers of ${asset.name} are paused right now.`);
+    if (params.unit === "tokens") units = parseAmount(params.amount, asset.decimals);
+    else {
+      const want = parseUsdc(params.amount);
+      units = assetForUsdc(want, pos.price, asset.decimals);
+      if (units > 0n && assetValue(units, pos.price, asset.decimals) < want) units += 1n;
+    }
+    if (units <= 0n) return refuse("Enter an amount above zero.");
+    if (assetValue(units, pos.price, asset.decimals) > SEND_CAP_UNITS) return refuse(`A send from chat can move at most ${SEND_CAP_LABEL}. Use a smaller amount.`);
+    const have = params.from === "wallet" ? pos.wallet : freeInVault(pos);
+    if (units > have)
+      return refuse(
+        params.from === "vault" && pos.debt > 0n && pos.collateral > 0n
+          ? `Only ${amt(have, asset)} is free. The rest is locked for your loan.`
+          : `Your ${params.from} has ${amt(have, asset)}.`,
+      );
+    value = assetValue(units, pos.price, asset.decimals);
+    what = `${amt(units, asset)} (${asset.name})`;
+    call =
+      params.from === "wallet"
+        ? { label: `Send ${asset.name} to ${who}`, address: asset.token, abi: erc20Abi, functionName: "transfer", args: [dest, units] }
+        : { label: `Send ${asset.name} from your vault to ${who}`, address: ctx.vault!, abi: vaultAbi, functionName: "withdraw", args: [asset.token, units, dest] };
+  }
+  const notes = r.typed
+    ? [
+        "Sends cannot be undone. Check the full address.",
+        ...(isUsdc ? [] : [`The tokens go straight to that address and leave ${BRAND.name}: they do not land in a ${BRAND.name} vault.`]),
+      ]
+    : ["Sends cannot be undone.", ...(isUsdc ? [] : ["It lands in their own vault as free, not locked."])];
+  return finish(
+    {
+      action: "send",
+      title: isUsdc ? "Send USDC" : `Send ${a!.name}`,
+      headline: `You send ${what} to ${who}`,
+      destination: {
+        kind: "recipient",
+        address: dest,
+        ...(r.username ? { name: `@${r.username}` } : {}),
+        ...(r.uid ? { id: r.uid } : {}),
+        ...(r.typed ? { confirmSuffix: confirmSuffixOf(dest) } : {}),
+      },
+      rows: [
+        { label: "To", value: r.typed ? dest : who },
+        { label: "Amount", value: what },
+        ...(isUsdc ? [] : [{ label: "Worth about", value: `${usd(value)} at the test price` }]),
+        { label: "From", value: params.from === "wallet" ? "Your wallet" : "Your vault" },
+      ],
+      fee: "None.",
+      receiverLabel: r.typed ? "Goes to the address you typed" : isUsdc ? `Goes to ${who}'s wallet` : `Goes into ${who}'s own vault`,
+      notes,
+      calls: [call],
+      usdcValue: value,
+      doneMessage: `Sent to ${who}.`,
+    },
+    ctx,
+    [dest],
+  );
+}
+
+function earn(params: { usdc: string }, ctx: BuildContext): BuildResult {
+  if (!ctx.yieldAdapter || ctx.yieldAdapter.toLowerCase() === ZERO.toLowerCase()) return refuse("Earning interest is not available on this network right now.");
+  const vault = ctx.vault ?? ctx.predictedVault;
+  if (!vault) return refuse("Could not find your vault address. Try again.");
+  const amount = parseUsdc(params.usdc);
+  if (amount <= 0n) return refuse("Enter an amount above zero.");
+  const idle = ctx.vault ? (ctx.vaultUsdc ?? 0n) : 0n;
+  const fromVault = amount < idle ? amount : idle;
+  const fromWallet = amount - fromVault;
+  if (fromWallet > ctx.walletUsdc) return refuse(`That needs ${usd(fromWallet)} from your wallet, which has ${usd(ctx.walletUsdc)}.`);
+  const calls: Call[] = [];
+  if (!ctx.vault) calls.push(createVaultCall(ctx.me));
+  calls.push(...approvalIfNeeded(ADDR.usdc, vault, fromWallet, ctx.vaultUsdcAllowance, "Allow your vault to take the USDC"));
+  calls.push({ label: "Start earning interest", address: vault, abi: vaultAbi, functionName: "earn", args: [amount] });
+  const now = ctx.earning?.balance ?? 0n;
+  return finish(
+    {
+      action: "earn",
+      title: "Earn interest on USDC",
+      headline: `You put ${usd(amount)} to work earning interest`,
+      destination: ownVault(ctx),
+      rows: [
+        { label: "Put to work", value: usd(amount) },
+        ...(fromVault > 0n ? [{ label: "From your vault", value: usd(fromVault) }] : []),
+        ...(fromWallet > 0n ? [{ label: "From your wallet", value: usd(fromWallet) }] : []),
+        { label: "Earning after", value: `about ${usd(now + amount)}` },
+      ],
+      fee: `${fmtPct(EARN_FEE_BPS)} a year of the amount earning, taken only out of the interest.`,
+      receiverLabel: "Stays in your own vault's name, controlled only by your wallet",
+      notes: ["Testnet: a MOCK interest venue stands in for a Morpho vault.", "Interest is variable and not guaranteed. You can take it back any time."],
+      calls,
+      usdcValue: amount,
+      doneMessage: "Your USDC is now earning interest.",
+    },
+    ctx,
+  );
+}
+
+function stopEarning(params: { usdc: string }, ctx: BuildContext): BuildResult {
+  if (!ctx.vault) return refuse("You have nothing earning interest.");
+  if (!ctx.yieldAdapter || ctx.yieldAdapter.toLowerCase() === ZERO.toLowerCase()) return refuse("Earning interest is not available on this network right now.");
+  const e = ctx.earning;
+  if (!e || e.balance === 0n) return refuse("You have nothing earning interest.");
+  const interest = e.balance > e.principal ? e.balance - e.principal : 0n;
+  const fee = e.feeOwed < interest ? e.feeOwed : interest;
+  const available = e.balance - fee;
+  const all = params.usdc === "all";
+  let amount: bigint;
+  if (all) amount = available;
+  else {
+    amount = parseUsdc(params.usdc);
+    if (amount <= 0n) return refuse("Enter an amount above zero.");
+    if (amount > available) return refuse(`You can take back up to ${usd(available)} right now (after the ${BRAND.name} fee on the interest). Say "all" to take everything.`);
+  }
+  return finish(
+    {
+      action: "stop_earning",
+      title: all ? "Take all earning USDC back" : "Take earning USDC back",
+      headline: all ? `You take all your earning USDC back to your wallet, about ${usd(available)} with its interest` : `You take ${usd(amount)} back from earning to your wallet`,
+      destination: ownWallet(ctx),
+      rows: [
+        { label: "You get", value: `${all ? "about " : ""}${usd(amount)} to your wallet` },
+        { label: "Earning now", value: usd(e.balance) },
+        { label: "Interest so far", value: usd(interest) },
+        { label: `${BRAND.name} fee`, value: `${usd(fee)}, only out of the interest` },
+        ...(all ? [] : [{ label: "Still earning after", value: `about ${usd(available - amount)}` }]),
+      ],
+      fee: `${fmtPct(EARN_FEE_BPS)} a year of the amount earning, taken only out of the interest. Included above.`,
+      receiverLabel: "Goes to your wallet",
+      notes: all ? ["Interest keeps building until the transaction lands, so you may get a little more."] : [],
+      calls: [{ label: all ? "Take all earning USDC back" : "Take earning USDC back", address: ctx.vault, abi: vaultAbi, functionName: "stopEarning", args: [all ? MAX_UINT : amount, ctx.me] }],
+      usdcValue: amount,
+      doneMessage: "USDC is back in your wallet.",
     },
     ctx,
   );
@@ -588,6 +991,9 @@ function lockOrUnlock(kind: "lock" | "unlock", params: { asset: string; amount: 
     {
       action: kind,
       title: kind === "lock" ? `Lock ${a.name} as collateral` : `Unlock ${a.name}`,
+      headline: `You ${kind} ${amt(amount, a)} (${a.name}), worth about ${dollars(value)}`,
+      destination: ownVault(ctx),
+      health: { before: healthNumber(pos, pos.collateral, pos.debt), after: healthNumber(pos, collateralAfter, pos.debt) },
       rows,
       fee: "None.",
       receiverLabel: "Stays in your own vault, controlled only by your wallet",
@@ -627,5 +1033,11 @@ export function buildPlan(intent: Intent, ctx: BuildContext): BuildResult {
       return lockOrUnlock("unlock", intent.params, ctx);
     case "gift":
       return gift(intent.params, ctx);
+    case "earn":
+      return earn(intent.params, ctx);
+    case "stop_earning":
+      return stopEarning(intent.params, ctx);
+    case "send":
+      return send(intent.params, ctx);
   }
 }

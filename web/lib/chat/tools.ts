@@ -1,6 +1,6 @@
 import { ASSETS, BORROW_FEE_BPS, EARN_FEE_BPS, SIP_FEE_BPS } from "../contracts.ts";
 import { fmtPct } from "../format.ts";
-import { ASSET_SYMBOLS, CARD_CAP_USDC, type ActionName } from "./intent.ts";
+import { ASSET_SYMBOLS, CARD_CAP_USDC, GIFT_BOXES, SEND_CAP_USDC, type ActionName } from "./intent.ts";
 
 /**
  * Tool definitions sent to the model (JSON Schema, strict). They mirror the zod schemas in
@@ -10,27 +10,35 @@ import { ASSET_SYMBOLS, CARD_CAP_USDC, type ActionName } from "./intent.ts";
 type JsonSchema = Record<string, unknown>;
 export type ToolDef = { name: string; description: string; strict: true; input_schema: JsonSchema };
 
-const obj = (properties: Record<string, JsonSchema>): JsonSchema => ({
+/** An object schema. Every property is required unless named in `optional`. */
+const obj = (properties: Record<string, JsonSchema>, optional: string[] = []): JsonSchema => ({
   type: "object",
   properties,
-  required: Object.keys(properties),
+  required: Object.keys(properties).filter((k) => !optional.includes(k)),
   additionalProperties: false,
 });
 const asset = { type: "string", enum: ASSET_SYMBOLS, description: "Asset symbol from the list in the instructions." };
+const assetOrUsdc = { type: "string", enum: ["USDC", ...ASSET_SYMBOLS], description: 'Asset symbol from the list in the instructions, or "USDC".' };
 const usdc = { type: "string", description: `USDC amount as a plain decimal, for example "20" or "12.5". At most ${CARD_CAP_USDC}.` };
-const assetAmount = obj({
+const assetAmountProps = {
   asset,
   amount: { type: "string", description: 'A plain decimal: "50" with unit percent means half of what is free in the vault.' },
   unit: { type: "string", enum: ["percent", "tokens", "usdc"] },
-});
+};
+const assetAmount = obj(assetAmountProps);
 
 export const READ_TOOL_NAMES = ["get_portfolio", "get_loan", "get_prices", "get_weekly_view", "explain"] as const;
 export type ReadToolName = (typeof READ_TOOL_NAMES)[number];
-export const EXPLAIN_TOPICS = ["fees", "borrowing", "selling", "recurring_buys", "vault", "testnet", "gifts"] as const;
+export const EXPLAIN_TOPICS = ["fees", "borrowing", "selling", "recurring_buys", "vault", "testnet", "gifts", "earn", "sending"] as const;
 export type ExplainTopic = (typeof EXPLAIN_TOPICS)[number];
 
 export const READ_TOOLS: ToolDef[] = [
-  { name: "get_portfolio", description: "The person's own balances: wallet USDC, each asset in their vault (free and locked) with its value, loans, health and recurring plans. Read only.", strict: true, input_schema: obj({}) },
+  {
+    name: "get_portfolio",
+    description: "The person's own balances: wallet USDC, idle USDC in the vault, USDC earning interest (with interest and fee so far), each asset in their vault (free and locked) with its value, loans, health and recurring plans. Read only.",
+    strict: true,
+    input_schema: obj({}),
+  },
   { name: "get_loan", description: "One loan: amount owed, Stackday fee owed, health, borrow limit use, the price fall it survives and the liquidation price. Read only.", strict: true, input_schema: obj({ asset }) },
   { name: "get_prices", description: "Current test prices of up to 6 assets (mock price feeds on Base Sepolia). Read only.", strict: true, input_schema: obj({ assets: { type: "array", items: asset } }) },
   {
@@ -39,11 +47,13 @@ export const READ_TOOLS: ToolDef[] = [
     strict: true,
     input_schema: obj({ asset: { type: "string", enum: [...ASSET_SYMBOLS, "all"] } }),
   },
-  { name: "explain", description: "Stackday's own explanation of a topic (fees, how borrowing works, and so on).", strict: true, input_schema: obj({ topic: { type: "string", enum: EXPLAIN_TOPICS } }) },
+  { name: "explain", description: "Stackday's own explanation of a topic (fees, how borrowing works, earning interest, and so on).", strict: true, input_schema: obj({ topic: { type: "string", enum: EXPLAIN_TOPICS } }) },
 ];
 
+const PREPARE = "Only prepares a card: the person checks it and signs in their own wallet. Nothing is sent until then.";
+
 export const ACTION_TOOLS: (ToolDef & { name: ActionName })[] = [
-  { name: "buy", description: "Prepare a one-time buy of an asset with USDC from the person's wallet into their own vault. No fee.", strict: true, input_schema: obj({ asset, usdc }) },
+  { name: "buy", description: `Prepare a one-time buy of an asset with USDC from the person's wallet into their own vault. No fee. ${PREPARE}`, strict: true, input_schema: obj({ asset, usdc }) },
   {
     name: "recurring_buy",
     description: `Prepare a recurring buy plan from the person's wallet. ${fmtPct(SIP_FEE_BPS)} fee on each buy. The whole plan (amount x buys) must be at most ${CARD_CAP_USDC} USDC.`,
@@ -52,7 +62,12 @@ export const ACTION_TOOLS: (ToolDef & { name: ActionName })[] = [
   },
   { name: "cancel_plan", description: "Prepare cancelling the person's recurring plan for one asset.", strict: true, input_schema: obj({ asset }) },
   { name: "sell", description: "Prepare selling an asset from the person's vault for USDC to their own wallet (testnet mock sell desk).", strict: true, input_schema: assetAmount },
-  { name: "withdraw", description: "Prepare taking an asset out of the person's vault to their own connected wallet.", strict: true, input_schema: assetAmount },
+  {
+    name: "withdraw",
+    description: 'Prepare taking an asset, or idle USDC ("USDC"), out of the person\'s vault to their own connected wallet. For USDC, unit tokens and usdc mean the same; percent is of the idle USDC.',
+    strict: true,
+    input_schema: obj({ ...assetAmountProps, asset: assetOrUsdc }),
+  },
   {
     name: "borrow",
     description: "Prepare borrowing USDC against one asset in the person's vault (locking more of it if needed). risk is the person's chosen level: low, mid or high. Use mid only if they did not say.",
@@ -61,7 +76,7 @@ export const ACTION_TOOLS: (ToolDef & { name: ActionName })[] = [
   },
   {
     name: "repay",
-    description: 'Prepare repaying a loan from the person\'s wallet. asset "every_loan" repays across all loans. all=true repays everything owed (then usdc is "0").',
+    description: 'Prepare repaying a loan from the person\'s wallet. asset "every_loan" repays across all loans. all=true repays everything owed (then usdc is "0"). No card limit.',
     strict: true,
     input_schema: obj({ asset: { type: "string", enum: [...ASSET_SYMBOLS, "every_loan"] }, usdc: { type: "string", description: 'USDC to repay, or "0" when all is true.' }, all: { type: "boolean" } }),
   },
@@ -78,10 +93,36 @@ export const ACTION_TOOLS: (ToolDef & { name: ActionName })[] = [
     input_schema: assetAmount,
   },
   {
-    name: "gift",
-    description: "Prepare a stock gift box for another Stackday user, named by their Stackday ID (SD-XXXXXXXX) or username. Never an address.",
+    name: "earn",
+    description: `Prepare putting idle USDC to work earning interest in the person's own vault (USDC already in the vault first, the rest from their wallet). Variable interest, not guaranteed. ${fmtPct(EARN_FEE_BPS)} a year fee, only from interest. ${PREPARE}`,
     strict: true,
-    input_schema: obj({ recipient_id: { type: "string" }, usdc, box: { type: "string", enum: ["one_stock", "my_mix", "surprise", "research_pick"] } }),
+    input_schema: obj({ usdc }),
+  },
+  {
+    name: "stop_earning",
+    description: 'Prepare taking earning USDC back to the person\'s own wallet. usdc "all" takes everything with its interest; otherwise a USDC amount.',
+    strict: true,
+    input_schema: obj({ usdc: { type: "string", description: 'A USDC amount, or "all".' } }),
+  },
+  {
+    name: "gift",
+    description: `Prepare a stock gift box for another Stackday user, named by the Stackday ID (SD-XXXXXXXX) or username the person typed in their message. Never an address. box one_stock needs asset. The USDC waits in the gift box until they open it. ${PREPARE}`,
+    strict: true,
+    input_schema: obj({ recipient_id: { type: "string" }, usdc, box: { type: "string", enum: [...GIFT_BOXES] }, asset }, ["asset"]),
+  },
+  {
+    name: "send",
+    description: `Prepare sending USDC or an asset to someone else, at most ${SEND_CAP_USDC} test USDC in value. to is {kind:"id", id} with the Stackday ID or username the person typed in this message, or {kind:"typed_address"} when the person typed a 0x address in this message (you never write the address; the app reads it from their message). from is "wallet" or "vault" (use "wallet" for USDC unless they said vault; "vault" for assets). Sends cannot be undone. ${PREPARE}`,
+    strict: true,
+    input_schema: obj({
+      to: {
+        anyOf: [obj({ kind: { type: "string", enum: ["id"] }, id: { type: "string" } }), obj({ kind: { type: "string", enum: ["typed_address"] } })],
+      },
+      asset: assetOrUsdc,
+      amount: { type: "string", description: 'A plain decimal, for example "5".' },
+      unit: { type: "string", enum: ["tokens", "usdc"] },
+      from: { type: "string", enum: ["wallet", "vault"] },
+    }),
   },
 ];
 
@@ -113,5 +154,12 @@ export const EXPLANATIONS: Record<ExplainTopic, string> = {
   recurring_buys: `A recurring buy takes the same USDC amount from your wallet on a schedule (weekly, every 2 or 4 weeks, at 11:00 New York time) and buys into your vault. ${fee(SIP_FEE_BPS)} fee on each buy. It stops after the approved number of buys, or when you cancel it.`,
   vault: "Every person has one vault contract that only they control. No admin can move money out of it. Buys land there as free (not locked) assets; you lock them yourself if you want to borrow.",
   testnet: "Stackday runs on Base Sepolia testnet with test USDC and mock tokens that stand in for Coinbase tokenized stocks, gold, Bitcoin and Ether. Prices are mock feeds. Nothing here is real money.",
-  gifts: "A gift box holds the sender's test USDC until the recipient opens it, then buys one stock, a chosen mix, a surprise mix or a research pick into the recipient's own vault. Gifts are sent from the Gifts page.",
+  gifts: "A gift box holds the sender's test USDC until the recipient opens it, then buys one stock, a chosen mix, a surprise mix or a research pick into the recipient's own vault. The sender can take it back until it is opened. You can send one from the Gifts page, or ask the assistant for a card to the person's Stackday ID or username and confirm it in your wallet.",
+  earn: [
+    "Idle USDC in your own vault can earn interest. On testnet the interest venue is a MOCK standing in for a Morpho vault on mainnet.",
+    "Putting USDC to work uses USDC already in your vault first, then takes the rest from your wallet. It stays in your vault's name only.",
+    `Interest is variable and not guaranteed. ${fee(EARN_FEE_BPS)} a year Stackday fee, taken only out of the interest, never from what you put in.`,
+    "You can take it back any time: all of it with its interest, or part of it, to your wallet.",
+  ].join("\n"),
+  sending: `You can send USDC or an asset to another person: to their Stackday ID or username, or to a 0x address you type yourself. At most ${SEND_CAP_USDC} test USDC in value per card. Stock sent to a Stackday user goes into their own vault; stock sent to a plain address leaves Stackday. Sends cannot be undone, so check the name or the full address before you confirm.`,
 };

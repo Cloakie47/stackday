@@ -1,4 +1,4 @@
-import { revertName, revertText } from "../txError.ts";
+import { isArithmeticPanic, revertName, revertText } from "../txError.ts";
 import type { BuildResult, Plan } from "./buildCalls.ts";
 
 /**
@@ -33,9 +33,9 @@ export function needsPrecheck(r: BuildResult | null | undefined): r is Plan {
 }
 
 /** Actions where the amount is what the person can change if the check fails. */
-const AMOUNT_ACTIONS: ReadonlySet<Plan["action"]> = new Set(["buy", "sell", "borrow", "withdraw", "repay", "recurring_buy", "lock", "unlock"]);
+const AMOUNT_ACTIONS: ReadonlySet<Plan["action"]> = new Set(["buy", "sell", "borrow", "withdraw", "repay", "recurring_buy", "lock", "unlock", "earn", "stop_earning", "send", "gift"]);
 /** Contract errors that a smaller amount does not fix. */
-const NOT_ABOUT_AMOUNT = new Set(["StalePrice", "TransfersPaused", "UnsupportedStock", "UnsupportedAsset", "NoPlan", "NotDueYet"]);
+const NOT_ABOUT_AMOUNT = new Set(["StalePrice", "TransfersPaused", "UnsupportedStock", "UnsupportedAsset", "NoPlan", "NotDueYet", "YieldNotAvailable", "SelfGift", "BadMix", "BadExpiry"]);
 
 const UNREADABLE = "The contract would refuse it as it stands.";
 
@@ -57,6 +57,8 @@ export function decidePrecheck(outcome: SimOutcome, plan: Pick<Plan, "action" | 
   const error = outcome.results[i].error;
   const why = revertText(error) ?? UNREADABLE;
   const where = n > 1 ? `Step ${i + 1} of ${n} (${plan.calls[i].label}) would fail.` : "This would fail.";
+  // An underflow means the numbers moved under the card: a smaller amount is not the fix, so no hint.
+  if (isArithmeticPanic(error)) return { status: "blocked", reason: `${where} ${why}` };
   return { status: "blocked", reason: `${where} ${why}`, hint: hintFor(plan.action, revertName(error)) };
 }
 
