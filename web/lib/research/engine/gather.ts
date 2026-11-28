@@ -3,6 +3,7 @@ import type { GatherFn } from "./daily.ts";
 import type { GatherMarketFn } from "./weekly.ts";
 import { gatherAsset, gatherMarket, type OnchainTailState, type OnchainTailStore } from "../data/index.ts";
 import { supabaseOnchainTail } from "./onchain-tail.ts";
+import { dailyCutAt } from "./cutoff.ts";
 
 /**
  * The on-chain history store (research_onchain_tail) when the account database is connected, so
@@ -54,10 +55,8 @@ export const defaultGather: GatherFn | null = async (assetId, date) => {
   return gatherAsset(assetId, date, await tailDeps(), { market });
 };
 
-/** The daily note's cut time: its real run time when the run date is today, otherwise none (12:00 UTC). */
-export function dailyCutAt(date: IsoDate, now: Date = new Date()): string | undefined {
-  return date === now.toISOString().slice(0, 10) ? now.toISOString() : undefined;
-}
+/** The daily note's cut time (engine/cutoff.ts, kept importable from here). */
+export { dailyCutAt };
 
 /**
  * The daily note's gatherer (22:30 UTC on weekdays): when the run date is today it cuts the data at

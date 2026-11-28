@@ -300,6 +300,12 @@ export type AssetResearchInput = {
   calendar: CalendarEvent[];
   /** Sources that failed, in plain words, for the run log. */
   problems: string[];
+  /**
+   * The cut-off the data step applied (12:00 UTC on the run date, or the daily note's real run
+   * time). The engine drops any fact published after it (engine/cutoff.ts). Missing on inputs
+   * logged before this field existed; the engine then works it out from the run date.
+   */
+  cutAt?: IsoDateTime;
 };
 
 /** Market-wide inputs gathered once per run: rates, dollar, VIX, S&P trend, week-ahead calendar. */
@@ -308,7 +314,16 @@ export type MarketResearchInput = {
   facts: Fact[];
   calendar: CalendarEvent[];
   problems: string[];
+  /** The cut-off the data step applied, as on `AssetResearchInput`. */
+  cutAt?: IsoDateTime;
 };
+
+/**
+ * Words in a data problem line that mean the current price could not be read and the bars came
+ * from stored history only (data/onchain.ts, when the Base RPC is down). The daily run treats it as
+ * a stale price feed and may escalate (engine/daily.ts `escalationTriggers`).
+ */
+export const NO_CURRENT_PRICE = "no current price";
 
 // ---------------------------------------------------------------------------------------------
 // Shared building blocks for notes and reports
@@ -549,7 +564,37 @@ export type Scorecard = {
   rows: ScorecardRow[];
   /** Calibration so far: for each conviction, how often it came true. */
   calibration: { conviction: Confidence; calls: number; right: number }[];
+  /**
+   * Brier score of the bull, base and bear probabilities of recent approved weekly reports
+   * (engine/scores.ts `brierFromReports`). Optional: scorecards written before it existed do not
+   * have it, and every reader must work without it. Shown only from BRIER_MIN_CALLS scored calls.
+   */
+  brier?: BrierSummary;
 };
+
+/** One Brier figure: the mean score and how many scored calls it rests on. */
+export type BrierFigure = { score: number; calls: number };
+
+export type BrierSummary = BrierFigure & {
+  /** How many weekly reports the scored calls came from. */
+  weeks: number;
+  /** The same figure for each asset (its own calls only). */
+  byAsset: ({ assetId: string } & BrierFigure)[];
+};
+
+/** A Brier score is shown only once it rests on at least this many scored calls. */
+export const BRIER_MIN_CALLS = 8;
+
+/** The plain-words tip next to the Brier score (three-outcome form, scale 0 to 2). */
+export const BRIER_TIP =
+  "Three-case Brier score: for each weekly call, the squared gaps between our bull, base and bear probabilities and what happened (1 for the case that happened, 0 for the other two), added up and averaged over calls. 0 is perfect and 2 is the worst; one third on each case every week would score 0.67.";
+
+/** True when a Brier figure is complete and rests on enough calls to show. */
+export function showableBrier(b: unknown): b is BrierFigure {
+  if (typeof b !== "object" || b === null) return false;
+  const { score, calls } = b as { score?: unknown; calls?: unknown };
+  return typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 2 && typeof calls === "number" && Number.isInteger(calls) && calls >= BRIER_MIN_CALLS;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Portfolio check (web/lib/research/portfolio): factual, no per-person orders (spec section 6)

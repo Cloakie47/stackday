@@ -34,7 +34,7 @@ The universe in #67 (15 assets) should shrink to this list. Any asset added late
 | Who sees it | internal (founder and growth) while testing | paying users, once the quality bar in section 7 is met |
 | When | every trading day after the US close | every Monday before the US open (about 12:00 UTC) |
 | Depth | short: what changed, levels, one-line view per asset | full report (section 3) |
-| Model | cheaper model, stronger model only for big movers | strongest model for every asset and the summary |
+| Model | cheaper model, stronger model only when it matters (end of section 4) | strongest model for every asset and the summary |
 | Purpose | build a scored track record and find weak spots | the product |
 
 The daily notes feed the weekly report: the Monday report reads the past week's daily notes and their scores.
@@ -116,6 +116,17 @@ Keep from growth's PRs:
 - The cost cap and the failure policy.
 - The track record log.
 
+### Daily note: the stronger model only when it matters (added November 28, 2026)
+
+The daily note runs on the cheaper model (`RESEARCH_MODELS.dailyTriage`) and sends a note to `RESEARCH_MODELS.dailyEscalation` for one more pass when:
+- the cheaper model's answer failed the checks;
+- the asset is a big mover (a one-day move above 2 daily ATR, or a pattern completed that day);
+- **market crisis** (every asset): Bitcoin down more than 7%, or the S&P 500 fund token (its on-chain price, not the index) down more than 3%, in a day. "In a day" is the worse of the last closed daily bar's change and the move from that close to the latest price; for crypto at 22:30 UTC the last closed daily bar is yesterday's, so today's fall shows in the second part. Why 7 and 3: on the recorded Coinbase daily candles in the repo, Bitcoin fell 7% or more on 21 of 1,840 days since November 2021; in the recorded FRED S&P 500 series (288 trading days from September 2025) the index fell 3% or more once. Both mark a rare, broad sell-off. One fall can fire on two runs in a row (today through the latest price, the next day through the closed daily bar), so it fires somewhat more often than those day counts;
+- **stale price feed** (that asset): the data step says it could not read the current price ("no current price", for example when the Base RPC is down and the bars come from stored history only), or for crypto the latest price is more than 3 hours old at the run time;
+- **low conviction near invalidation** (that asset): the checked conviction is low and the latest price is within 1.5 daily ATR of the view's invalidation level. The levels code puts invalidation at least 1 ATR (1.5 for Accumulate) from the daily close, so this fires only when price sits on its nearest level or has already moved toward invalidation since that close.
+
+Hard limits, in code: at most `maxEscalations` (default 3) escalations per run. Failed answers and big movers may use every slot, as before; the three newer triggers leave the last slot for them, so a crisis day that fires for every asset uses at most 2 slots. Every call still goes through the run and day budget (`budget.ts`); an escalation that the budget left cannot cover, together with the cheap first pass of every asset not finished yet, is skipped with a line in the run log instead of stopping the run. Thresholds live in `ESCALATION_TRIGGERS` in `web/lib/research/flags.ts`, model names only in `RESEARCH_MODELS`. Each escalation, and each one skipped, is logged with its reason.
+
 ## 5. Data sources
 
 | Need | Source (proposal) | Note |
@@ -137,7 +148,11 @@ Each source has a fallback, or the item shows "no reading". Missing data is neve
 - Every claim in the report links to a fact id. A claim without a fact is removed by the risk reviewer.
 - No invented news, quotes, dates or figures. If unsure, the report says so.
 - Catalyst labels (added November 28, 2026): every news item, filing and calendar event carries one of three labels, set in code from the source. **Confirmed**: official sources (Fed, SEC, Treasury), company press releases, SEC filings and scheduled calendar events. **Reported**: a reputable outlet reports it, not the primary source. **Speculation**: outlet headlines worded as a rumour, an expectation or an opinion (a small keyword rule in code: "reportedly", "rumor", "could", "may" the verb, "might", "likely", "expected to", "set to", "poised to", "analysts say or expect", "sources say", "people familiar", opinion or analysis headlines, question headlines). The news analyst may lower a label, never raise it; code ignores a raise. The label shows as a badge next to each cited fact and on the week-ahead calendar.
-- No look-ahead: a report and any backtest only use data that existed at its timestamp.
+- No look-ahead: a report and any backtest only use data that existed at its timestamp. Rule (added November 28, 2026), checked in code (`web/lib/research/engine/cutoff.ts`) before any model sees the facts, with a line in the run log for every fact dropped:
+  - Every run has a cut-off, the one the data step already uses: 12:00 UTC on the run date for every slot of the Monday weekly report, the real run time for the daily note.
+  - News: dropped when published after the cut-off (the item's publishedAt). Filings: when accepted by the SEC after it (or filed on a later date). Macro: when its observation is dated after it (the data step only keeps releases out by the cut-off). The headline, filing and funding fetchers already stop at the cut-off, so the engine check is a second line.
+  - Market readings (prices, indicators, patterns, flows): price bars are cut at the cut-off by the data step. A live run also reads current values (on-chain feed and pool price, stablecoin supply) stamped with the time they were read; as decided in PR #82 these are kept up to the moment the run read its data, never later. A run for an earlier date keeps readings up to the cut-off only.
+  - Calendar events are never dropped by their date: a Fed meeting or data release scheduled for next week is the point of the Week ahead calendar. Their time in our data is the moment we read the calendar or the event's own date, not a publication time, and the official calendars publish dates well in advance.
 
 **Safety of the system**
 - The agent has no wallet, no keys, and no tool that can move money or send transactions. It only reads data and writes text.
@@ -169,6 +184,7 @@ Daily notes run from the start, internal only. Each one is scored automatically,
 | Direction | did the price move the way the view said over 1 day and 5 days |
 | Levels | did support and resistance hold or break as described |
 | Calibration | do 70% calls come true about 70% of the time (tracked over weeks) |
+| Brier score (added November 28, 2026) | how well the weekly bull, base and bear probabilities matched what happened, lower is better (below) |
 | Facts | share of claims with a valid source (target 100%) |
 | Usefulness | founder and growth grade 1 to 5: would I pay for this |
 
@@ -179,6 +195,16 @@ A weekly report becomes paid only when, for **four Mondays in a row**:
 - calibration is not clearly off.
 
 Until then the weekly report is a free preview labelled "beta".
+
+**Brier score of the weekly scenarios** (added November 28, 2026). Form: the three-case Brier score. For each scored weekly call, add up (p minus o) squared over bull, base and bear, where p is the published probability as a share and o is 1 for the case that happened and 0 for the other two; then average over calls. 0 is perfect and 2 the worst; one third on each case every week scores 0.67. On this scale a 50/50 guess between two cases scores 0.5: the familiar "0.25 is a coin flip" belongs to the single yes-or-no form, which is half of this one, and the tip on the page says which form is shown. It is computed in code each Monday over the approved live reports of the last 16 weeks (about the 120 days of daily scores the calibration reads), for all assets and for each asset, and shown on the weekly scorecard (all assets) and on the asset page (that asset only) only from 8 scored calls. Scorecards written before this have no Brier score and show no line.
+
+Which case happened (**proposed outcome rule, waiting for the founder's OK**), from the section's own published numbers, never a model:
+- upper line: the lowest level of the bull scenario above the price at the call; without one, the nearest resistance above that price (the view's code levels, else the daily chart read); without one either, the invalidation level when it is above the price;
+- lower line: the mirror for bear (highest bear level below the price, else the nearest support, else the invalidation level when it is below the price);
+- the week's close: the last fresh daily price of that asset from the report's Monday to the day before the next Monday, at least 3 of them;
+- bull happened when that close is above the upper line, bear when it is below the lower line, base otherwise.
+
+A call without both lines, without a price at the call, or with probabilities that do not add up to 100 is not scored.
 
 Risk reviewer checklist for every weekly section (the step in section 4.4, run by code checks plus the model reviewer):
 - every claim cites a valid fact id;

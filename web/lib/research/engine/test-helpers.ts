@@ -38,8 +38,12 @@ export function chartRead(interval: "1d" | "1w" | "1mo", last = 100, over: Parti
   };
 }
 
-/** Fixture facts; the price is dated `priceAsOf` (default the fixed fixture time). */
-export function makeFacts(last = 100, priceAsOf = asOf): Fact[] {
+/**
+ * Fixture facts; the price is dated `priceAsOf` and the others `at` (both default the fixed fixture
+ * time). Runs drop facts dated after their cut-off (cutoff.ts), so inputs date them before the run.
+ */
+export function makeFacts(last = 100, priceAsOf = asOf, at = asOf): Fact[] {
+  const asOf = at;
   return [
     { id: "px.1d.last", kind: "price", label: "Last daily close", value: last, unit: "USD", source: src, asOf: priceAsOf },
     { id: "ind.1d.atr14", kind: "indicator", label: "ATR 14", value: last * 0.02, unit: "USD", source: src, asOf },
@@ -52,6 +56,8 @@ export function makeFacts(last = 100, priceAsOf = asOf): Fact[] {
   ];
 }
 
+const priorEvening = (date: string) => new Date(Date.parse(`${date}T21:00:00Z`) - 86_400_000).toISOString();
+
 /** `bar5` (change over 5 daily bars, 0.08 = +8%) feeds the priced-in check; missing by default (no reading). */
 export function makeInput(assetId: string, date: string, opts: { last?: number; bar1?: number; bar5?: number; marketOpenToday?: boolean; facts?: Fact[]; chart?: AssetResearchInput["chart"] } = {}): AssetResearchInput {
   const last = opts.last ?? 100;
@@ -62,8 +68,9 @@ export function makeInput(assetId: string, date: string, opts: { last?: number; 
     series: {},
     indicators: { "1d": { last, changePct: { bar1: opts.bar1 ?? 0.005, ...(opts.bar5 === undefined ? {} : { bar5: opts.bar5 }) }, atr14: last * 0.02, rsi14: 58.2 } },
     chart: opts.chart ?? { "1d": chartRead("1d", last), "1w": chartRead("1w", last), "1mo": chartRead("1mo", last) },
-    // The last close is the evening before the run date, so it counts as a fresh price.
-    facts: opts.facts ?? makeFacts(last, new Date(Date.parse(`${date}T21:00:00Z`) - 86_400_000).toISOString()),
+    // The last close (and every other fact) is the evening before the run date, so it counts as a
+    // fresh price and nothing is dated after the run's cut-off.
+    facts: opts.facts ?? makeFacts(last, priorEvening(date), priorEvening(date)),
     calendar: [{ id: "cal.2026-11-26.pce", date: "2026-11-26", kind: "pce", name: "PCE inflation", assetIds: [], source: src }],
     problems: [],
   };

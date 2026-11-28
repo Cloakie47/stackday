@@ -40,7 +40,9 @@ import type { Backfill } from "./onchain.ts";
  *   news.0 .., filing.0 ..
  *
  * No look-ahead: bars, observations and headlines after the run date are dropped, and so is any
- * bar whose period has not ended at the run time (see `cutSeries`). The run time is 12:00 UTC on
+ * bar whose period has not ended at the run time (see `cutSeries`). Headlines, filings and funding
+ * readings published after the run time are left out too, and the input records the run time it
+ * used (`cutAt`) so the engine can check every fact again (engine/cutoff.ts). The run time is 12:00 UTC on
  * the run date (the weekly run, and every backfill) unless the caller passes `cutAt`: the daily
  * note passes its real time (22:30 UTC, after the US close), so its prices include the day's
  * closed NYSE session and crypto hours up to the last closed hour.
@@ -343,17 +345,19 @@ export async function gatherAsset(assetId: string, date: IsoDate, deps?: Partial
     out.facts.push(...opts.market.facts.filter((f) => want.has(f.id)));
   }
 
-  // Headlines (company, reputable outlets, official), filings and flows. None of these throw.
-  const press = await fetchPressNews(asset, date, d);
-  const wire = await fetchWireNews(assetId, date, d);
-  const official = await fetchOfficialNews(assetId, date, d);
-  const filings = await fetchFilings(asset, date, d);
-  const flows = await fetchFlows(assetId, date, d);
+  // Headlines (company, reputable outlets, official), filings and flows. None of these throw. Each
+  // keeps only what was published by the run's cut-off (engine/cutoff.ts checks it again).
+  const press = await fetchPressNews(asset, date, d, cutoff);
+  const wire = await fetchWireNews(assetId, date, d, cutoff);
+  const official = await fetchOfficialNews(assetId, date, d, cutoff);
+  const filings = await fetchFilings(asset, date, d, cutoff);
+  const flows = await fetchFlows(assetId, date, d, cutoff);
   out.facts.push(...newsFacts([...press.items, ...wire.items, ...official.items]), ...filings.facts, ...flows.facts);
   out.problems.push(...press.problems, ...wire.problems, ...official.problems, ...filings.problems, ...flows.problems);
   if (press.items.length && !wire.items.length && !official.items.length) {
     out.problems.push(`${assetId}: only company press releases this week, which are one side; no independent headline found`);
   }
+  out.cutAt = new Date(cutoff).toISOString();
   return out;
 }
 
@@ -365,12 +369,14 @@ export async function gatherMarket(date: IsoDate, deps?: Partial<DataDeps>, opts
   assertServer();
   const d: DataDeps = { ...defaultDeps(), ...deps };
   const nowIso = d.now().toISOString();
+  const cutoff = runCutoff(date, d.now(), opts.cutAt);
   const macro = await fetchMacro(date, d, opts.cutAt);
   const week = await fetchWeekAhead(date, d);
-  const wire = await fetchWireNews("market", date, d);
-  const official = await fetchOfficialNews("market", date, d);
+  const wire = await fetchWireNews("market", date, d, cutoff);
+  const official = await fetchOfficialNews("market", date, d, cutoff);
   return {
     date,
+    cutAt: new Date(cutoff).toISOString(),
     facts: [...macro.facts, ...eventFacts(week.events, nowIso), ...newsFacts([...wire.items, ...official.items])],
     calendar: week.events,
     problems: [...macro.problems, FED_FUNDS_EXPECTATIONS_PROBLEM, ...week.problems, ...wire.problems, ...official.problems],

@@ -1,4 +1,5 @@
 import type { Fact, IsoDateTime, PriceBar, Source } from "../types.ts";
+import { NO_CURRENT_PRICE } from "../types.ts";
 import { addDays, isTradingDay, newYorkParts, newYorkTimeToUtc, sessionHours } from "./calendar.ts";
 import type { DataDeps } from "./deps.ts";
 import backfillJson from "./onchain-backfill.json" with { type: "json" };
@@ -764,7 +765,7 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
       return out({});
     }
     const known = knownEnd(cfg, bf);
-    problems.push(`${assetId}: latest Base block not read after a retry (${e instanceof Error ? e.message : "unknown"}); ${known ? `bars from the backfill and stored tail only, up to ${iso(known).slice(0, 16)} UTC, no current price` : "no backfill either, no reading"}`);
+    problems.push(`${assetId}: latest Base block not read after a retry (${e instanceof Error ? e.message : "unknown"}); ${known ? `bars from the backfill and stored tail only, up to ${iso(known).slice(0, 16)} UTC, ${NO_CURRENT_PRICE}` : "no backfill either, no reading"}`);
     if (!known) return out({});
     headTime = known;
   }
@@ -842,7 +843,7 @@ export async function fetchOnchainHistory(assetId: string, deps: DataDeps, backf
         problems.push(`${assetId}: on-chain price read failed (${e.message}), no reading`);
         return out({});
       }
-      problems.push(`${assetId}: current on-chain price not read after a retry (${e instanceof Error ? e.message : "unknown"}); bars from the backfill and the tail, no current price`);
+      problems.push(`${assetId}: current on-chain price not read after a retry (${e instanceof Error ? e.message : "unknown"}); bars from the backfill and the tail, ${NO_CURRENT_PRICE}`);
     }
   }
   // One basis for the chart facts: the bars' own source. Chainlink assets: the feed is both the bars

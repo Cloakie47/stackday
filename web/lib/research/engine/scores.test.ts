@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { DailyScore, ResearchNote, WeeklyReport } from "../types.ts";
-import { calibration, calibrationClearlyOff, directionRight, initialScore, levelsToScore, qualityBar, updateScores, weeklyScorecard } from "./scores.ts";
+import { brier, brierFromReports, calibration, calibrationClearlyOff, directionRight, initialScore, levelsToScore, qualityBar, scenarioCall, scenarioLines, updateScores, weeklyScorecard } from "./scores.ts";
+import { BRIER_MIN_CALLS, showableBrier } from "../types.ts";
+import { weeklyProblems } from "./validate.ts";
 import { computeLevels } from "./levels.ts";
 import { chartRead } from "./test-helpers.ts";
 import { sampleWeekly } from "./snapshot.ts";
@@ -163,4 +165,106 @@ test("levels: zone and invalidation from support, resistance and ATR", () => {
   assert.equal(far.invalidation, 95);
   assert.equal(computeLevels("accumulate", { last: 100, changePct: {} }, chart), null);
   assert.equal(computeLevels("accumulate", undefined, chart), null);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Brier score (founder plan item 4)
+// ---------------------------------------------------------------------------------------------
+
+const bc = (bull: number, base: number, bear: number, outcome: "bull" | "base" | "bear") => ({ probs: { bull, base, bear }, outcome });
+const near = (a: number | null, b: number) => assert.ok(a !== null && Math.abs(a - b) < 1e-9, `${a} is not ${b}`);
+
+test("Brier score: a perfect set is 0, a coin flip and one third each are the reference marks, a badly calibrated set is high", () => {
+  assert.equal(brier([]), null);
+  assert.equal(brier([bc(1, 0, 0, "bull"), bc(0, 1, 0, "base"), bc(0, 0, 1, "bear")]), 0);
+  // Coin flip, 50/50 between bull and bear: this three-case form scores 0.5 per call, which is twice
+  // the 0.25 of the single yes-or-no form ((0.5 - 1)^2). The tip says which form is shown.
+  const coin = brier([bc(0.5, 0, 0.5, "bull"), bc(0.5, 0, 0.5, "bear")]);
+  near(coin, 0.5);
+  near(coin! / 2, 0.25);
+  // One third on each case, whatever happens: 2/3 (the 0.67 no-information mark in the tip).
+  near(brier([bc(1 / 3, 1 / 3, 1 / 3, "bull"), bc(1 / 3, 1 / 3, 1 / 3, "base"), bc(1 / 3, 1 / 3, 1 / 3, "bear")]), 2 / 3);
+  // Badly calibrated: 80% on bull every week while bear keeps happening (0.64 + 0.01 + 0.81).
+  near(brier([...Array(8)].map(() => bc(0.8, 0.1, 0.1, "bear"))), 1.46);
+  // The worst possible is 2.
+  near(brier([bc(1, 0, 0, "bear")]), 2);
+});
+
+const day = (assetId: string, date: string, priceAtNote: number): DailyScore => ({ assetId, date, view: "hold", conviction: "medium", priceAtNote, factsShare: 1 });
+const week = (assetId: string, close: number, days = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"]) => days.map((d, i) => day(assetId, d, i === days.length - 1 ? close : 1));
+const btcSection = () => structuredClone(sampleWeekly().assets.find((a) => a.assetId === "mcbBTC")!);
+
+test("outcome rule: bull above the bull level, bear below the bear level, base between, on the last fresh close of the week", () => {
+  const a = btcSection();
+  // Price at the call 92,000; bull levels 95,500 and 99,000; bear levels 89,500 and 86,000.
+  assert.deepEqual(scenarioLines(a, 92000), { up: 95500, down: 89500 });
+  assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 96000))!.outcome, "bull");
+  assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 93000))!.outcome, "base");
+  assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 89000))!.outcome, "bear");
+  assert.deepEqual(scenarioCall(a, "2026-11-16", week("mcbBTC", 93000))!.probs, { bull: a.scenarios.bull.probability / 100, base: a.scenarios.base.probability / 100, bear: a.scenarios.bear.probability / 100 });
+  // Only the week of that report counts: a price from the next Monday is ignored.
+  const withNext = [...week("mcbBTC", 93000), day("mcbBTC", "2026-11-23", 120000)];
+  assert.equal(scenarioCall(a, "2026-11-16", withNext)!.outcome, "base");
+  // Too few fresh prices in the week: not scored.
+  assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 96000, ["2026-11-16", "2026-11-17"])), null);
+  // No bull level above the price: the nearest code resistance is used instead.
+  const noBull = btcSection();
+  noBull.scenarios.bull.levels = [];
+  noBull.view.levels!.resistance = [97000];
+  assert.deepEqual(scenarioLines(noBull, 92000), { up: 97000, down: 89500 });
+  // Probabilities that do not add up to 100: not scored.
+  const off = btcSection();
+  off.scenarios.base.probability -= 10;
+  assert.equal(scenarioCall(off, "2026-11-16", week("mcbBTC", 93000)), null);
+  // Old or thin data with no levels at all: not scored, never a guess.
+  const bare = btcSection();
+  bare.scenarios.bull.levels = [];
+  bare.scenarios.bear.levels = [];
+  bare.view.levels = null;
+  bare.chart = {};
+  assert.equal(scenarioCall(bare, "2026-11-16", week("mcbBTC", 93000)), null);
+  assert.equal(scenarioCall({ ...btcSection(), status: "no-reading" }, "2026-11-16", week("mcbBTC", 93000)), null);
+});
+
+test("Brier over stored reports: approved live reports only, per asset too, shown from 8 calls", () => {
+  const ids = ["mcbBTC", "mWETH", "mPAXG", "mNVDA"];
+  const report = (weekOf: string): WeeklyReport => ({ ...liveReport(weekOf), assets: liveReport(weekOf).assets.filter((a) => ids.includes(a.assetId)) });
+  const priceOf = (id: string) => sampleWeekly().assets.find((a) => a.assetId === id)!.facts.find((f) => f.id === "px.1d.last")!.value as number;
+  const days = (weekOf: string) => [0, 1, 2, 3, 4].map((i) => new Date(Date.parse(`${weekOf}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10));
+  // Every week closes at the call price: base happened for every call.
+  const scores = ["2026-11-16", "2026-11-09", "2026-11-02"].flatMap((w) => ids.flatMap((id) => days(w).map((d) => day(id, d, priceOf(id)))));
+  const stored = [
+    { report: report("2026-11-16"), approved: true },
+    { report: report("2026-11-09"), approved: true },
+    { report: report("2026-11-02"), approved: false },
+    { report: { ...report("2026-10-26"), kind: "sample" as const }, approved: true },
+  ];
+  const s = brierFromReports(stored, scores)!;
+  assert.equal(s.calls, 8);
+  assert.equal(s.weeks, 2);
+  assert.deepEqual(s.byAsset.map((b) => [b.assetId, b.calls]), [["mNVDA", 2], ["mPAXG", 2], ["mWETH", 2], ["mcbBTC", 2]]);
+  const expected = brier(stored.slice(0, 2).flatMap(({ report: r }) => r.assets.map((a) => ({ probs: { bull: a.scenarios.bull.probability / 100, base: a.scenarios.base.probability / 100, bear: a.scenarios.bear.probability / 100 }, outcome: "base" as const }))))!;
+  assert.equal(s.score, Math.round(expected * 1000) / 1000);
+  assert.equal(BRIER_MIN_CALLS, 8);
+  assert.equal(showableBrier(s), true);
+  assert.equal(showableBrier(s.byAsset[0]), false, "two calls are too few to show");
+  assert.equal(brierFromReports([], scores), null);
+});
+
+test("the scorecard carries the Brier score when it can, and reports without it stay valid and show no line", () => {
+  const prev = liveReport("2026-11-16");
+  const scores = prev.assets.flatMap((a) => week(a.assetId, a.facts.find((f) => f.id === "px.1d.last")!.value as number));
+  const card = weeklyScorecard(prev, [], scores, [{ report: prev, approved: true }])!;
+  assert.equal(card.brier!.calls, 6);
+  assert.equal(showableBrier(card.brier), false, "six calls are too few to show");
+  const r = { ...liveReport("2026-11-23"), scorecard: card };
+  assert.deepEqual(weeklyProblems(r), []);
+  // Without history (and in older stored reports) there is no Brier field at all.
+  assert.equal("brier" in weeklyScorecard(prev, [], scores)!, false);
+  assert.equal(showableBrier(undefined), false);
+  assert.equal(showableBrier({ score: Number.NaN, calls: 12 }), false);
+  assert.equal(showableBrier({ score: 0.41, calls: 12 }), true);
+  assert.equal(showableBrier({ score: 2.5, calls: 12 }), false);
+  // Odd stored history never breaks the scorecard.
+  assert.ok(weeklyScorecard(prev, [], scores, [{ report: { ...prev, assets: null as unknown as WeeklyReport["assets"] }, approved: true }]));
 });

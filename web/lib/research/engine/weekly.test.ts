@@ -6,6 +6,7 @@ import { memoryStore } from "./store.ts";
 import { fakeModel, goodDraft, makeInput, makeMarket, runWeekFully, weeklyAnswers } from "./test-helpers.ts";
 import { isWeeklyReport } from "./validate.ts";
 import { exampleSplit, mondayOf, runWeekly } from "./weekly.ts";
+import { sampleWeekly } from "./snapshot.ts";
 import { rescaleProbabilities } from "./review.ts";
 import { UNIVERSE } from "../universe.ts";
 import type { ModelRequest } from "./model.ts";
@@ -324,4 +325,34 @@ test("probabilities are rescaled to multiples of 5 adding to 100", () => {
   assert.deepEqual(rescaleProbabilities([0, 0, 0]), [30, 40, 30]);
   const r = rescaleProbabilities([10, 10, 10]);
   assert.equal(r[0] + r[1] + r[2], 100);
+});
+
+test("the Monday report's scorecard carries the Brier score of the earlier approved reports, rows as before", async () => {
+  const { store } = memoryStore();
+  const prev = (weekOf: string) => ({ ...structuredClone(sampleWeekly()), kind: "live" as const, weekOf, runId: `prev-${weekOf}` });
+  for (const w of ["2026-11-16", "2026-11-09"]) {
+    await store.writeWeekly(`prev-${w}`, prev(w));
+    await store.approveWeekly(w, `prev-${w}`, "0xreviewer");
+  }
+  // An unapproved report is never scored.
+  await store.writeWeekly("prev-2026-11-02", prev("2026-11-02"));
+  // Each week closes at the call price, so base happened for every call.
+  const price = (id: string) => sampleWeekly().assets.find((a) => a.assetId === id)!.facts.find((f) => f.id === "px.1d.last")!.value as number;
+  const days = (w: string) => [0, 1, 2, 3, 4].map((i) => new Date(Date.parse(`${w}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10));
+  await store.upsertScores(
+    ["2026-11-16", "2026-11-09", "2026-11-02"].flatMap((w) =>
+      sampleWeekly().assets.flatMap((a) => days(w).map((date) => ({ assetId: a.assetId, date, view: "hold" as const, conviction: "medium" as const, priceAtNote: price(a.assetId), factsShare: 1 }))),
+    ),
+  );
+  const { last } = await runWeekFully({ gather, gatherMarket, model: fakeModel(weeklyAnswers()).fn, store, ...caps, now: MONDAY });
+  assert.equal(last.status, "ok", last.problems.join("\n"));
+  const card = last.report!.scorecard!;
+  // Last week's scorecard is still built from last week's report alone.
+  assert.equal(card.weekOf, "2026-11-16");
+  assert.equal(card.rows.length, sampleWeekly().assets.filter((a) => a.status === "ok").length);
+  // The Brier score reads both approved reports: 12 calls from 2 weeks, 2 per asset.
+  assert.equal(card.brier!.calls, 12);
+  assert.equal(card.brier!.weeks, 2);
+  assert.ok(card.brier!.byAsset.every((b) => b.calls === 2));
+  assert.ok(isWeeklyReport(last.report));
 });

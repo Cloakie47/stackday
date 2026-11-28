@@ -43,6 +43,7 @@ import {
   sentFacts,
   untrustedNotes,
 } from "./facts.ts";
+import { cutInput, cutLine, noonCutoff } from "./cutoff.ts";
 import { computeLevels, levelNumbers, roundPrice } from "./levels.ts";
 import { LONG_CALL_TIMEOUT_MS, worstCaseCost, type ModelFn, type ModelRequest } from "./model.ts";
 import { Ctx, oneOf, parseJsonObject, StepRejected, stringList } from "./parse.ts";
@@ -67,7 +68,7 @@ import {
   type SectionKey,
 } from "./prompts.ts";
 import { blocking, codeIssues, editorJson, finalizeDraft, parseDraft, parseReview, PRICED_IN_ISSUE, removedCount, replaceSection, type Draft, type DraftParse, type Review } from "./review.ts";
-import { qualityBar, weeklyScorecard } from "./scores.ts";
+import { BRIER_WEEKS, qualityBar, weeklyScorecard } from "./scores.ts";
 import { LEASE_TTL_MS, type LeaseResult, type NoReadingCause, type ResearchStore, type StoredSection } from "./store.ts";
 import { citableIds, ideaProblems, sectionProblems, weeklyProblems, WRONG_ABOUT_ITEMS, wrongAboutProblems } from "./validate.ts";
 
@@ -95,6 +96,10 @@ import { citableIds, ideaProblems, sectionProblems, weeklyProblems, WRONG_ABOUT_
  *
  * Model text written after reading news (analyst notes, debate, draft, reviewer notes, our own
  * earlier notes) reaches later steps only inside an <untrusted_notes> block.
+ *
+ * No look-ahead: every slot uses the 12:00 UTC cut-off of the run date. News, filings and macro
+ * facts published after it are dropped from the asset and market inputs before any model sees them,
+ * with a note (engine/cutoff.ts); week-ahead calendar events are never dropped by their date.
  *
  * Time limit (Vercel Hobby, 300 s per invocation): ONE ASSET PER INVOCATION. Each call of
  * `runWeekly` does the next step of the week and returns:
@@ -297,8 +302,12 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   } catch (e) {
     return { section: noReadingSection(asset, marketCal, "error"), failed: true, approved: false, sentBack: 0, removed: 0, notes: [`${asset.assetId}: data failed (${e instanceof Error ? e.message.slice(0, 120) : "unknown"})`], cause: "error" };
   }
+  // Nothing from the future: facts published after the 12:00 UTC cut-off are dropped here.
+  const readAt = (s.deps.now ?? (() => new Date()))();
+  const cut = cutInput(input, noonCutoff(date, readAt), readAt);
+  const cutNote = cutLine(asset.assetId, cut.dropped, cut.cutoffMs);
   // Only what may be shown reaches the model and the report (display flag on facts and series).
-  const shown = displayableInput(input);
+  const shown = displayableInput(cut.input);
   const view = shown.input;
   const weekAhead = [...(view.calendar ?? []), ...marketCal].filter((e, i, a) => a.findIndex((x) => x.id === e.id) === i).sort((a, b) => a.date.localeCompare(b.date));
   const chart = view.chart ?? {};
@@ -312,7 +321,7 @@ async function researchSection(asset: UniverseAsset, weekOf: IsoDate, date: IsoD
   const levelsFromChart = chartLevels(chart);
   const extra = [...levelsFromChart, ...assetNumbers(asset)];
   const header = `Asset: ${asset.assetId} (${asset.name}, underlying ${asset.underlying}), class ${asset.assetClass}, sector ${asset.sector}, risk bucket ${asset.risk}.${asset.note ? ` Note: ${asset.note}` : ""}\nWeek of ${weekOf}, data as of ${view.date}.`;
-  const notes: string[] = screened.length ? [`${asset.assetId}: ${screened.length} news items screened as possible injection`] : [];
+  const notes: string[] = [...(cutNote ? [cutNote] : []), ...(screened.length ? [`${asset.assetId}: ${screened.length} news items screened as possible injection`] : [])];
   const withheld = [...new Set([...shown.withheld, ...restricted.map((id) => `fact ${id}`)])];
   if (withheld.length) notes.push(`${asset.assetId}: ${withheld.length} items not for display (source terms) were kept from the model and the report`);
   const fail = (why: string): SectionResult => ({ section: noReadingSection(asset, weekAhead, "error"), failed: true, approved: false, sentBack: 0, removed: 0, notes: [...notes, `${asset.assetId}: ${why}`], input, cause: "error" });
@@ -816,7 +825,15 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
     const loadMarket = async () => {
       if (market) return;
       try {
-        market = await deps.gatherMarket(date);
+        const raw = await deps.gatherMarket(date);
+        if (raw) {
+          // Nothing from the future: market facts published after the 12:00 UTC cut-off are dropped.
+          const readAt = clock();
+          const cut = cutInput(raw, noonCutoff(date, readAt), readAt);
+          const line = cutLine("market", cut.dropped, cut.cutoffMs);
+          if (line) problems.push(line);
+          market = cut.input;
+        }
       } catch (e) {
         problems.push(`market data failed (${msg(e, 120)}): asset facts only`);
       }
@@ -995,7 +1012,9 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
       }
     }
 
-    const [previous, scores] = await Promise.all([deps.store.weekliesBefore(weekOf, 4).catch(() => []), deps.store.scores(null, addDays(weekOf, -120)).catch(() => [])]);
+    // The last BRIER_WEEKS reports feed the Brier score; the scorecard and the quality bar read the last four, as before.
+    const [history, scores] = await Promise.all([deps.store.weekliesBefore(weekOf, BRIER_WEEKS).catch(() => []), deps.store.scores(null, addDays(weekOf, -120)).catch(() => [])]);
+    const previous = history.slice(0, 4);
     // Only a report readers saw (approved) is graded: an unapproved draft or test run never is.
     const lastWeek = previous.find((w) => w.approved)?.report ?? null;
     const later = lastWeek ? await deps.store.notes(null, lastWeek.weekOf, date).catch(() => []) : [];
@@ -1017,7 +1036,7 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
       assets: results.map((r) => r.section),
       ideas: { ranked, exampleSplits },
       ...(wrongAbout ? { wrongAbout } : {}),
-      scorecard: weeklyScorecard(lastWeek, later, scores),
+      scorecard: weeklyScorecard(lastWeek, later, scores, history),
       review: {
         approved: !belowBar && !wrongAboutMissing && results.every((r) => r.section.status !== "ok" || r.approved),
         sentBack: counts.sentBack,
