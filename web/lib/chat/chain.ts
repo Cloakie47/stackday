@@ -1,7 +1,8 @@
 import { createPublicClient, erc20Abi, http, type ContractFunctionParameters } from "viem";
 import { baseSepolia } from "viem/chains";
 import { factoryAbi, lendingAdapterAbi, mockFeedAbi, routerAbi, vaultAbi } from "../abis.ts";
-import { ADDR, ASSETS, ZERO, type Address } from "../contracts.ts";
+import { ADDR, ASSETS, EARN_FEE_BPS, ZERO, type Address } from "../contracts.ts";
+import { earnFeeNow } from "./buildCalls.ts";
 import type { Holding, Snapshot } from "./summary.ts";
 
 /**
@@ -33,6 +34,11 @@ export async function readSnapshot(wallet: Address): Promise<Snapshot> {
     { address: ADDR.usdc, abi: erc20Abi, functionName: "balanceOf", args: [wallet] },
     { address: ADDR.usdc, abi: erc20Abi, functionName: "balanceOf", args: [v] },
     { address: v, abi: vaultAbi, functionName: "borrowCapBps" },
+    { address: v, abi: vaultAbi, functionName: "earningBalance" },
+    { address: v, abi: vaultAbi, functionName: "earnPrincipal" },
+    { address: v, abi: vaultAbi, functionName: "earnFeeOwed" },
+    { address: v, abi: vaultAbi, functionName: "earnFeeUpdatedAt" },
+    { address: ADDR.factory, abi: factoryAbi, functionName: "yieldAdapter" },
   ];
   const res = await client.multicall({ contracts: [...calls, ...tail] as unknown as readonly ContractFunctionParameters[], allowFailure: true });
   const get = <T>(i: number): T | undefined => (res[i]?.status === "success" ? (res[i].result as T) : undefined);
@@ -58,7 +64,15 @@ export async function readSnapshot(wallet: Address): Promise<Snapshot> {
     };
   });
   const t = ASSETS.length * PER;
+  const yieldAdapter = get<Address>(t + 7);
+  const principal = hasVault ? (get<bigint>(t + 4) ?? 0n) : 0n;
   return {
+    earnAvailable: !!yieldAdapter && yieldAdapter !== ZERO,
+    earning: {
+      balance: hasVault ? (get<bigint>(t + 3) ?? 0n) : 0n,
+      principal,
+      feeOwed: hasVault ? earnFeeNow(get<bigint>(t + 5) ?? 0n, principal, BigInt(get<number>(t + 6) ?? 0), EARN_FEE_BPS, Math.floor(Date.now() / 1000)) : 0n,
+    },
     hasVault,
     walletUsdc: get<bigint>(t) ?? 0n,
     vaultUsdc: hasVault ? (get<bigint>(t + 1) ?? 0n) : 0n,

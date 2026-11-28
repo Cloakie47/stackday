@@ -7,7 +7,8 @@ import { READ_TOOL_NAMES, type ReadToolName } from "./tools.ts";
  * Suggestion chips in the chat dock. Every chip comes from the fixed catalogue below, chosen by code
  * from the page, the intent type or the read tools a turn used. Never from model output or research
  * text. A chip only sends a message, the same as typing it; an action still becomes a card the person
- * checks and signs. After a turn that included untrusted research text, only question chips are offered.
+ * checks and signs. After a turn that included untrusted research text, the catalogue offers only
+ * question chips, plus at most two code-built "Buy $20 of <asset>" chips for the researched assets.
  */
 
 export type ChipKind = "question" | "action";
@@ -29,12 +30,17 @@ export const CHIP_CATALOGUE = {
   how_selling: q("How does selling work here?"),
   how_gifts: q("How do gift boxes work?"),
   how_testnet: q("What is real here?", "What is real and what is a test here?"),
+  earning: q("How much am I earning?", "How much interest am I earning on my USDC?"),
+  how_earn: q("How does earning interest work?"),
+  how_send: q("How does sending work?"),
   buy_apple: a("Buy $20 of Apple"),
   weekly_buy: a("Set up a weekly buy"),
   repay: a("Repay my loan"),
   borrow: a("Borrow against my holdings"),
   /** Its label and text carry an amount computed in code (borrowInsteadChip); this entry is the template. */
   borrow_instead: a("Borrow instead"),
+  /** Template: researchChips writes "Buy $20 of <asset>" for an asset in the turn's research notes. */
+  research_buy: a("Buy $20"),
 } as const;
 export type ChipId = keyof typeof CHIP_CATALOGUE;
 
@@ -60,7 +66,32 @@ export type TurnFacts = {
   tools?: readonly string[];
   /** The turn included untrusted research text. */
   untrusted?: boolean;
+  /**
+   * The research notes the server returned for the turn (built in code from the approved report).
+   * Only `assetId` is used, and only when it is exactly a listed asset symbol.
+   */
+  research?: readonly { assetId: string }[];
 };
+
+/** Most research follow-up buy chips after one turn. */
+const MAX_RESEARCH_CHIPS = 2;
+
+/**
+ * After a research turn no action is prepared in that turn (agent.ts refuses it), so the next step is
+ * offered as a code-built chip instead: "Buy $20 of NVIDIA" for each researched asset, in the order the
+ * notes came. The amount and wording are fixed here; only an exact symbol match picks the asset. A chip
+ * only sends that message, which starts a fresh turn and a card the person checks and signs.
+ */
+export function researchChips(research: readonly { assetId: string }[] | undefined): Chip[] {
+  const out: Chip[] = [];
+  for (const n of research ?? []) {
+    const a = ASSETS.find((x) => x.symbol === n.assetId);
+    if (!a || out.some((c) => c.label.endsWith(` of ${a.name}`))) continue;
+    out.push({ id: "research_buy", kind: "action", label: `Buy $20 of ${a.name}`, text: `Buy $20 of ${a.name}` });
+    if (out.length === MAX_RESEARCH_CHIPS) break;
+  }
+  return out;
+}
 
 const BY_ACTION: Record<ActionName, ChipId[]> = {
   buy: ["portfolio", "weekly_buy", "fees"],
@@ -73,6 +104,9 @@ const BY_ACTION: Record<ActionName, ChipId[]> = {
   lock: ["loan", "how_borrowing", "portfolio"],
   unlock: ["portfolio", "loan"],
   gift: ["how_gifts", "portfolio"],
+  earn: ["earning", "how_earn", "fees"],
+  stop_earning: ["portfolio", "earning"],
+  send: ["portfolio", "how_send"],
 };
 
 const BY_TOOL: Record<ReadToolName, ChipId[]> = {
@@ -86,18 +120,23 @@ const BY_TOOL: Record<ReadToolName, ChipId[]> = {
 const DEFAULT_FOLLOW_UPS: ChipId[] = ["portfolio", "fees", "weekly"];
 const QUESTION_FALLBACK: ChipId[] = ["portfolio", "fees", "how_borrowing", "how_testnet"];
 
-/** 2 or 3 follow-up chips for the turn that just ended. Never an action chip after untrusted text. */
+/**
+ * 2 or 3 follow-up chips for the turn that just ended. After untrusted text, the only action chips are
+ * the code-built research buy chips (researchChips); every catalogue chip is then a question.
+ */
 export function followUpChips(turn: TurnFacts, lastUserText = ""): Chip[] {
   const tools = (turn.tools ?? []).filter((t): t is ReadToolName => (READ_TOOL_NAMES as readonly string[]).includes(t));
   const ids: ChipId[] = turn.action ? [...BY_ACTION[turn.action]] : tools.length ? tools.flatMap((t) => BY_TOOL[t]) : [...DEFAULT_FOLLOW_UPS];
   const asked = lastUserText.trim().toLowerCase();
-  const keep = (id: ChipId) => CHIP_CATALOGUE[id].text.toLowerCase() !== asked && id !== "borrow_instead" && (!turn.untrusted || CHIP_CATALOGUE[id].kind === "question");
+  const research = turn.action ? [] : researchChips(turn.research).filter((c) => c.text.toLowerCase() !== asked);
+  const keep = (id: ChipId) =>
+    CHIP_CATALOGUE[id].text.toLowerCase() !== asked && id !== "borrow_instead" && id !== "research_buy" && (!turn.untrusted || CHIP_CATALOGUE[id].kind === "question");
   const out: ChipId[] = [];
   for (const id of [...ids, ...QUESTION_FALLBACK]) {
-    if (out.length === 3) break;
+    if (out.length + research.length === 3) break;
     if (!out.includes(id) && keep(id)) out.push(id);
   }
-  return pick(out);
+  return [...research, ...pick(out)];
 }
 
 /**

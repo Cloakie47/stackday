@@ -73,10 +73,12 @@ export default function InvestPage() {
   const rate = exchangeOut && exchangeOut > 0n ? (amount * 10n ** BigInt(asset.decimals) * 100n) / exchangeOut : undefined; // USDC per token, 8 decimals
 
   async function buyOnce() {
-    const calls: Call[] = [
-      ...(await tx.withApproval(ADDR.usdc, ADDR.router, amount, `Allow ${BRAND.name} to take the USDC`)),
-      investCall(asset, amount, min(amount)),
-    ];
+    const label = `Allow ${BRAND.name} to take the USDC`;
+    // Recurring plans spend the same router allowance: with a plan running, add this buy on top of it
+    // instead of setting the allowance to the buy amount, which would cut the plan short.
+    const unlimited = p.routerAllowance > 2n ** 200n;
+    const approval = unlimited ? [] : plans.length > 0 ? [approveMoreCall(p.routerAllowance, amount, label)] : await tx.withApproval(ADDR.usdc, ADDR.router, amount, label);
+    const calls: Call[] = [...approval, investCall(asset, amount, min(amount))];
     if (await tx.run(calls, `Bought. The ${asset.name} is in your vault.`)) setAmt("");
   }
 

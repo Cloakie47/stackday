@@ -25,7 +25,27 @@ export type Holding = {
   recurring?: { usdcPerBuy: bigint; interval: number; nextBuyAt: number };
 };
 
-export type Snapshot = { hasVault: boolean; walletUsdc: bigint; vaultUsdc: bigint; borrowCapBps: bigint; holdings: Holding[] };
+export type Snapshot = {
+  hasVault: boolean;
+  walletUsdc: bigint;
+  vaultUsdc: bigint;
+  borrowCapBps: bigint;
+  holdings: Holding[];
+  /** USDC earning interest in the vault: balance with interest, principal put in, Stackday fee owed now. */
+  earning?: { balance: bigint; principal: bigint; feeOwed: bigint };
+  /** The factory has an interest venue (yield adapter) set. */
+  earnAvailable?: boolean;
+};
+
+/** The earning line for the model: how much is earning, the interest so far and the fee, all in USDC. */
+export function earningText(s: Snapshot): string {
+  if (s.earnAvailable === false) return "Earning interest: not available on this network.";
+  const e = s.earning;
+  if (!s.hasVault || !e || e.balance === 0n) return "Earning interest: nothing earning right now.";
+  const interest = e.balance > e.principal ? e.balance - e.principal : 0n;
+  const fee = e.feeOwed < interest ? e.feeOwed : interest;
+  return `Earning interest (MOCK venue on testnet): ${usd(e.balance)} now, of which ${usd(e.principal)} put in and ${usd(interest)} interest so far. Stackday earn fee owed: ${usd(fee)}, taken only from the interest. Taking it all back now gives about ${usd(e.balance - fee)}.`;
+}
 
 const usd = (v: bigint) => `${fmtUsdc(v)} USDC`;
 
@@ -37,6 +57,7 @@ export function portfolioText(s: Snapshot): string {
     "Network: Base Sepolia testnet, test USDC and mock tokens.",
     `Wallet USDC: ${usd(s.walletUsdc)}.`,
     s.hasVault ? `Vault: yes. Idle USDC in vault: ${usd(s.vaultUsdc)}. Vault safety cap: ${Number(s.borrowCapBps) / 100}% of the liquidation limit.` : "Vault: not created yet (the first buy creates it).",
+    earningText(s),
   ];
   let total = 0n;
   let owed = 0n;
@@ -52,7 +73,7 @@ export function portfolioText(s: Snapshot): string {
     if (h.recurring) parts.push(`recurring buy ${usd(h.recurring.usdcPerBuy)} ${intervalLabel(h.recurring.interval).toLowerCase()}`);
     lines.push(`- ${parts.join("; ")}.`);
   }
-  if (lines.length === 3) lines.push("No assets yet.");
+  if (lines.length === 4) lines.push("No assets yet.");
   lines.push(`Total in the vault: ${usd(total)}. Total owed: ${usd(owed)}.`);
   return lines.join("\n");
 }

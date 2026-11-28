@@ -22,6 +22,7 @@ const KNOWN: Record<string, string> = {
   BadThreshold: "The health threshold must be between 1.0 and 10.",
   UnsupportedStock: "This asset is not supported.",
   ZeroAmount: "Enter an amount above zero.",
+  YieldNotAvailable: "Earning interest is not available on this network right now.",
   // GiftBox
   SelfGift: "You cannot send a gift to yourself.",
   TooSmall: "A gift is at least 1 USDC.",
@@ -51,10 +52,20 @@ export function revertName(e: unknown): string | undefined {
   return name && name !== "Error" && name !== "Panic" ? name : undefined;
 }
 
+/** What an arithmetic underflow or overflow (Panic 0x11) means here: a balance moved after the card was made. */
+export const BALANCES_CHANGED = "Your balances changed since this card was made. Close it and ask again.";
+
+/** True for Solidity's arithmetic underflow or overflow panic (Panic(0x11)). */
+export function isArithmeticPanic(e: unknown): boolean {
+  const data = revertOf(e)?.data;
+  return data?.errorName === "Panic" && data.args?.[0] === 0x11n;
+}
+
 /** Plain words for a contract revert, or undefined when the failure says nothing readable. */
 export function revertText(e: unknown): string | undefined {
   const revert = revertOf(e);
   if (!revert) return undefined;
+  if (isArithmeticPanic(e)) return BALANCES_CHANGED;
   const name = revertName(e);
   if (name && KNOWN[name]) return KNOWN[name];
   if (name) return `The contract refused: ${name}`;

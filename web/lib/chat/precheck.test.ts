@@ -112,3 +112,17 @@ test("Confirm is off while checking; no pre-check (and no 'passes') for refusals
   assert.equal(needsPrecheck(gift), false);
   assert.equal(needsPrecheck(null), false);
 });
+
+test("an arithmetic underflow (Panic 0x11) says the balances changed, with no smaller-amount hint", () => {
+  const PANIC = [{ type: "error", name: "Panic", inputs: [{ name: "code", type: "uint256" }] }] as const satisfies Abi;
+  const panic = (code: bigint) => reverted(encodeErrorResult({ abi: PANIC, errorName: "Panic", args: [code] }));
+  const plan = sellPlan();
+  const s = decidePrecheck({ kind: "results", results: plan.calls.map((_, i) => (i === 0 ? fail(panic(0x11n)) : ok)) }, plan);
+  assert.equal(s.status, "blocked");
+  if (s.status !== "blocked") return;
+  assert.match(s.reason, /Your balances changed since this card was made\. Close it and ask again\.$/);
+  assert.equal(s.hint, undefined);
+  assert.equal(explainTxError(panic(0x11n)), "Your balances changed since this card was made. Close it and ask again.");
+  // Another panic is not reworded that way.
+  assert.notEqual(explainTxError(panic(0x12n)), "Your balances changed since this card was made. Close it and ask again.");
+});

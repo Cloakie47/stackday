@@ -18,6 +18,11 @@ const INTENTS: Intent[] = [
   { action: "repay", params: { asset: "every_loan", usdc: "0", all: true } },
   { action: "repay", params: { asset: "mAAPL", usdc: "41.5", all: false } },
   { action: "gift", params: { recipient_id: "SD-ABCDEFGH", usdc: "9.99", box: "surprise" } },
+  { action: "withdraw", params: { asset: "USDC", amount: "12.5", unit: "usdc" } },
+  { action: "earn", params: { usdc: "10.5" } },
+  { action: "stop_earning", params: { usdc: "all" } },
+  { action: "send", params: { to: { kind: "id", id: "SD-ABCDEFGH" }, asset: "USDC", amount: "5.5", unit: "usdc", from: "wallet" } },
+  { action: "send", params: { to: { kind: "typed_address" }, asset: "mNVDA", amount: "0.01", unit: "tokens", from: "vault" } },
 ];
 
 test("lead-in: one plain sentence per action, from code, with no amounts, IDs or addresses", () => {
@@ -27,8 +32,8 @@ test("lead-in: one plain sentence per action, from code, with no amounts, IDs or
     for (const v of Object.values(intent.params)) if (typeof v === "string" && /\d/.test(v)) assert.ok(!s.includes(v), `${s} repeats ${v}`);
     assert.doesNotMatch(s, /0x|SD-/);
     assert.ok(!s.includes(String.fromCharCode(0x2014)), "no em dash");
-    if (intent.action === "gift") assert.match(s, /Gifts page/);
-    else assert.match(s, /Nothing happens until you confirm in your wallet\.$/);
+    assert.match(s, /Nothing happens until you confirm in your wallet\.$/);
+    if (intent.action === "send") assert.match(s, /cannot be undone/);
   }
   assert.match(leadIn(INTENTS[0]), /^Here is a card to buy Apple\./);
   assert.match(leadIn(INTENTS[5]), /at Low risk/);
