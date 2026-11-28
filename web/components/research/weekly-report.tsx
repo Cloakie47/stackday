@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Badge, Card, Notice, PageHeader, Skeleton, SplitBar, cx, splitColor } from "@/components/ui";
 import type { ExampleSplit, Fact, Scorecard, WeeklyAssetSection, WeeklyReport } from "@/lib/research/types";
-import { VIEW_LABEL } from "@/lib/research/types";
+import { BRIER_TIP, VIEW_LABEL, showableBrier } from "@/lib/research/types";
 import { UNIVERSE, universeAsset } from "@/lib/research/universe";
 import {
   AiLabel,
@@ -146,6 +146,26 @@ export function Calibration({ rows }: { rows: Scorecard["calibration"] }) {
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * "Brier score (lower is better)" with its call count and a short tip. Renders nothing unless the
+ * figure is complete and rests on at least BRIER_MIN_CALLS scored calls (older reports have none).
+ */
+export function BrierLine({ figure, scope }: { figure: unknown; scope: string }) {
+  if (!showableBrier(figure)) return null;
+  return (
+    <div className="mt-4 rounded-xl border border-line-soft bg-popover px-3.5 py-2.5">
+      <div className="flex items-center justify-between gap-2 text-[13px]">
+        <span className="font-medium">Brier score (lower is better)</span>
+        <span className="tabular-nums">{figure.score.toFixed(2)}</span>
+      </div>
+      <p className="mt-1.5 text-xs text-muted">
+        {scope}, {figure.calls} scored weekly calls.
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-muted">{BRIER_TIP}</p>
+    </div>
   );
 }
 
@@ -335,6 +355,7 @@ function Report({ r, sample }: { r: WeeklyReport; sample: boolean }) {
               <h3 className="mb-1 text-[13px] font-semibold text-ink">Calibration so far</h3>
               <p className="mb-3 text-xs text-muted">How often calls at each conviction level came true. Higher conviction should come true more often.</p>
               <Calibration rows={r.scorecard.calibration} />
+              <BrierLine figure={r.scorecard.brier} scope="Bull, base and bear probabilities of recent reports, all assets" />
             </div>
           </>
         ) : (

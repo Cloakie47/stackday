@@ -1,4 +1,4 @@
-import type { Confidence, DailyScore, IsoDate, ResearchNote, Scorecard, ScorecardRow, View, WeeklyReport, WeeklyAssetSection } from "../types.ts";
+import type { BrierFigure, BrierSummary, Confidence, DailyScore, IsoDate, ResearchNote, Scorecard, ScorecardRow, View, WeeklyReport, WeeklyAssetSection } from "../types.ts";
 import type { StoredWeekly } from "./store.ts";
 
 /**
@@ -9,6 +9,7 @@ import type { StoredWeekly } from "./store.ts";
  * - the weekly scorecard: every view of last week's report and what happened since;
  * - the quality bar: four Mondays in a row with every claim sourced, no corrections, an average
  *   human grade of 4 or more and calibration not clearly off. Until then the report stays "beta".
+ * - the Brier score of the weekly bull, base and bear probabilities (`brier`, `brierFromReports`).
  * Wrong calls are always kept and shown.
  */
 
@@ -148,6 +149,136 @@ export function calibrationClearlyOff(cal: Scorecard["calibration"]): boolean {
   return cal.some((c) => c.calls >= CALIBRATION_MIN_CALLS && Math.abs(c.right / c.calls - CALIBRATION_TARGET[c.conviction]) > CALIBRATION_TOLERANCE);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Brier score of the weekly scenarios (founder plan item 4)
+// ---------------------------------------------------------------------------------------------
+
+export type ScenarioCase = "bull" | "base" | "bear";
+const CASES: ScenarioCase[] = ["bull", "base", "bear"];
+
+/** One scored call: the published probabilities as shares (adding up to 1) and the case that happened. */
+export type BrierCall = { probs: Record<ScenarioCase, number>; outcome: ScenarioCase };
+
+/**
+ * Brier score, three-outcome form (Brier 1950): for each call, the sum over bull, base and bear of
+ * (p - o)^2, where p is the published probability as a share and o is 1 for the case that happened
+ * and 0 for the other two; then the mean over calls. 0 is perfect and 2 the worst. Giving one third
+ * to each case every time scores 2/3 (about 0.67), and a 50/50 split between two cases scores 0.5:
+ * the "0.25 is a coin flip" figure belongs to the single yes-or-no form, which is half of this one
+ * for two cases. Null when there is no call.
+ */
+export function brier(calls: BrierCall[]): number | null {
+  if (!calls.length) return null;
+  const total = calls.reduce((t, c) => t + CASES.reduce((s, k) => s + (c.probs[k] - (c.outcome === k ? 1 : 0)) ** 2, 0), 0);
+  return total / calls.length;
+}
+
+/** Weekly reports read for the Brier score: about the same 120 days of daily scores the calibration reads. */
+export const BRIER_WEEKS = 16;
+/** Fewest fresh daily prices in a report's week before its close counts as the week's close. */
+export const BRIER_MIN_PRICES = 3;
+
+/** Levels at least `gap` above `p`. */
+const above = (xs: unknown[] | undefined, p: number, gap: number) => (xs ?? []).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x - p >= gap && x > p);
+/** Levels at least `gap` below `p`. */
+const below = (xs: unknown[] | undefined, p: number, gap: number) => (xs ?? []).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0 && p - x >= gap && x < p);
+
+/**
+ * OUTCOME RULE (agreed by the founder on PR #103). Which of bull, base and bear happened is decided in
+ * code from the section's own published numbers, never by a model. Every level closer to the price at
+ * the call than LEVEL_MIN_DISTANCE_ATR daily ATRs is skipped, the same as the daily level scoring
+ * (levelsToScore), so a level that sits right on the price cannot decide the outcome and "base" can
+ * still happen:
+ * - upper line: the lowest level of the bull scenario above the price at the call; if it has none,
+ *   the nearest resistance above that price (the view's code levels, else the daily chart read);
+ *   if none either, the invalidation level when it is above the price;
+ * - lower line: the mirror for bear (highest bear level below the price, else the nearest support,
+ *   else the invalidation level when it is below the price);
+ * - the week's close: the last fresh daily price of that asset from the report's Monday to the
+ *   day before the next Monday, needing at least BRIER_MIN_PRICES of them;
+ * - bull happened when that close is above the upper line, bear when it is below the lower line,
+ *   base otherwise.
+ * A call without both lines, without a price at the call, or with probabilities that do not add up
+ * to 100 (within 1) is not scored.
+ */
+export function scenarioLines(a: WeeklyAssetSection, price: number): { up: number; down: number } | null {
+  const lv = a.view?.levels ?? null;
+  const d1 = a.chart?.["1d"];
+  const inv = lv?.invalidation;
+  const gap = LEVEL_MIN_DISTANCE_ATR * (noteAtrPct(a, price) ?? 0.02) * price;
+  const upBull = above(a.scenarios?.bull?.levels, price, gap);
+  const upRes = above(lv?.resistance?.length ? lv.resistance : d1?.resistance, price, gap);
+  const upInv = above([inv], price, gap);
+  const downBear = below(a.scenarios?.bear?.levels, price, gap);
+  const downSup = below(lv?.support?.length ? lv.support : d1?.support, price, gap);
+  const downInv = below([inv], price, gap);
+  const up = upBull.length ? Math.min(...upBull) : upRes.length ? Math.min(...upRes) : upInv.length ? upInv[0] : null;
+  const down = downBear.length ? Math.max(...downBear) : downSup.length ? Math.max(...downSup) : downInv.length ? downInv[0] : null;
+  return up === null || down === null ? null : { up, down };
+}
+
+/** The published probabilities as shares, or null when they are missing or do not add up to 100 (within 1). */
+export function scenarioProbs(a: WeeklyAssetSection): Record<ScenarioCase, number> | null {
+  const raw = CASES.map((k) => a.scenarios?.[k]?.probability);
+  if (!raw.every((p): p is number => typeof p === "number" && Number.isFinite(p) && p >= 0)) return null;
+  const sum = raw.reduce((t, p) => t + p, 0);
+  if (Math.abs(sum - 100) > 1) return null;
+  return { bull: raw[0] / sum, base: raw[1] / sum, bear: raw[2] / sum };
+}
+
+/**
+ * One section as a Brier call, against the fresh daily prices (`priceAtNote` of the daily scores,
+ * which is the note price of every fresh note) of its asset in the report's week. Null when it
+ * cannot be scored under the outcome rule.
+ */
+export function scenarioCall(a: WeeklyAssetSection, weekOf: IsoDate, scores: DailyScore[]): BrierCall | null {
+  if (a.status !== "ok") return null;
+  const probs = scenarioProbs(a);
+  const price = notePrice(a);
+  if (!probs || price === null) return null;
+  const lines = scenarioLines(a, price);
+  if (!lines) return null;
+  const end = addDays(weekOf, 7);
+  const week = scores
+    .filter((s) => s.assetId === a.assetId && s.date >= weekOf && s.date < end && typeof s.priceAtNote === "number" && Number.isFinite(s.priceAtNote) && s.priceAtNote > 0)
+    .sort((x, y) => x.date.localeCompare(y.date));
+  if (week.length < BRIER_MIN_PRICES) return null;
+  const close = week.at(-1)!.priceAtNote;
+  const outcome: ScenarioCase = close > lines.up ? "bull" : close < lines.down ? "bear" : "base";
+  return { probs, outcome };
+}
+
+const figure = (calls: BrierCall[]): BrierFigure => ({ score: Math.round((brier(calls) ?? 0) * 1000) / 1000, calls: calls.length });
+
+/**
+ * The Brier score over every ok section of the given reports (only approved live reports count:
+ * the caller passes the stored list) and per asset. Null when no call could be scored. Never throws
+ * on old or odd data: a section without what the rule needs is skipped.
+ */
+export function brierFromReports(reports: { report: WeeklyReport; approved: boolean }[], scores: DailyScore[]): BrierSummary | null {
+  const all: (BrierCall & { assetId: string })[] = [];
+  let weeks = 0;
+  for (const { report, approved } of reports) {
+    if (!approved || report?.kind !== "live" || !Array.isArray(report.assets)) continue;
+    let n = 0;
+    for (const a of report.assets) {
+      try {
+        const call = scenarioCall(a, report.weekOf, scores);
+        if (call) {
+          all.push({ ...call, assetId: a.assetId });
+          n++;
+        }
+      } catch {
+        // Older or malformed section: not scored.
+      }
+    }
+    if (n) weeks++;
+  }
+  if (!all.length) return null;
+  const ids = [...new Set(all.map((c) => c.assetId))].sort();
+  return { ...figure(all), weeks, byAsset: ids.map((assetId) => ({ assetId, ...figure(all.filter((c) => c.assetId === assetId)) })) };
+}
+
 function scoreSection(a: WeeklyAssetSection, later: ResearchNote[]): ScorecardRow {
   const priceAtCall = notePrice(a) ?? 0;
   const prices = later.filter((n) => n.assetId === a.assetId && n.status === "ok").map((n) => notePrice(n)).filter((p): p is number => p !== null);
@@ -167,11 +298,21 @@ function scoreSection(a: WeeklyAssetSection, later: ResearchNote[]): ScorecardRo
   return { ...base, priceAfter, change, invalidated, result, why: `Moved ${pct} over ${prices.length} trading days${small ? ", too small to call" : ""}.` };
 }
 
-/** Last week's views against the daily closes since that report. */
-export function weeklyScorecard(previous: WeeklyReport | null, later: ResearchNote[], scores: DailyScore[]): Scorecard | null {
+/**
+ * Last week's views against the daily closes since that report. `history` (the stored reports
+ * before this week, newest first) adds the Brier score of their scenarios; it is left out, never a
+ * reason to fail, when it cannot be computed.
+ */
+export function weeklyScorecard(previous: WeeklyReport | null, later: ResearchNote[], scores: DailyScore[], history?: { report: WeeklyReport; approved: boolean }[]): Scorecard | null {
   if (!previous || previous.kind !== "live") return null;
   const rows = previous.assets.filter((a) => a.status === "ok").map((a) => scoreSection(a, later.filter((n) => n.date >= previous.weekOf)));
-  return { weekOf: previous.weekOf, rows, calibration: calibration(scores) };
+  let brierSummary: BrierSummary | null = null;
+  try {
+    brierSummary = history ? brierFromReports(history, scores) : null;
+  } catch {
+    brierSummary = null;
+  }
+  return { weekOf: previous.weekOf, rows, calibration: calibration(scores), ...(brierSummary ? { brier: brierSummary } : {}) };
 }
 
 const addDays = (date: IsoDate, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);

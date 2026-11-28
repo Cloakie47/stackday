@@ -120,9 +120,13 @@ export function parseFeed(xml: string): FeedItem[] {
   return out;
 }
 
-/** Newest first, inside [date - window, now], with injection-looking items removed. */
-export function selectNews(items: FeedItem[], date: IsoDate, now: Date, problems: string[], label: string, windowDays = NEWS_WINDOW_DAYS, max = MAX_NEWS): FeedItem[] {
-  const end = Math.min(now.getTime(), Date.parse(`${date}T23:59:59Z`));
+/**
+ * Newest first, inside [date - window, now], with injection-looking items removed. `cutoffMs` (the
+ * run's cut-off, 12:00 UTC for the weekly report or the daily note's run time) also ends the window,
+ * so an item published after it is never kept (engine/cutoff.ts).
+ */
+export function selectNews(items: FeedItem[], date: IsoDate, now: Date, problems: string[], label: string, windowDays = NEWS_WINDOW_DAYS, max = MAX_NEWS, cutoffMs?: number): FeedItem[] {
+  const end = Math.min(now.getTime(), Date.parse(`${date}T23:59:59Z`), cutoffMs ?? Infinity);
   const start = Date.parse(`${date}T00:00:00Z`) - windowDays * DAY;
   const kept: FeedItem[] = [];
   for (const it of items) {
@@ -246,7 +250,11 @@ export function filingFact(f: Filing, i: number): Fact {
   };
 }
 
-export async function fetchFilings(asset: UniverseAsset, date: IsoDate, deps: DataDeps): Promise<{ facts: Fact[]; problems: string[] }> {
+/** When a filing became public: its SEC acceptance time, or the start of its filing date (the fact's `asOf`). */
+export const filingKnownAt = (f: Filing): number => (f.acceptedAt && Number.isFinite(Date.parse(f.acceptedAt)) ? Date.parse(f.acceptedAt) : Date.parse(`${f.filingDate}T00:00:00Z`));
+
+/** `cutoffMs`: the run's cut-off; a filing accepted after it is left out (engine/cutoff.ts). */
+export async function fetchFilings(asset: UniverseAsset, date: IsoDate, deps: DataDeps, cutoffMs?: number): Promise<{ facts: Fact[]; problems: string[] }> {
   if (!asset.cik) return { facts: [], problems: [] };
   const ua = deps.env[SEC_USER_AGENT_ENV]?.trim();
   if (!ua) return { facts: [], problems: [`${asset.assetId}: ${SEC_USER_AGENT_ENV} not set, SEC filings skipped`] };
@@ -258,7 +266,7 @@ export async function fetchFilings(asset: UniverseAsset, date: IsoDate, deps: Da
     const filings = parseSubmissions(raw, asset.cik)
       .filter((f) => {
         const t = Date.parse(`${f.filingDate}T12:00:00Z`);
-        return t >= start && t <= end;
+        return t >= start && t <= end && (cutoffMs === undefined || filingKnownAt(f) <= cutoffMs);
       })
       .slice(0, MAX_FILINGS);
     return { facts: filings.map(filingFact), problems: [] };

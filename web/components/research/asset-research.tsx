@@ -34,7 +34,7 @@ import {
   useLoad,
   useWeekly,
 } from "./bits";
-import { Calibration, ScorecardTable } from "./weekly-report";
+import { BrierLine, Calibration, ScorecardTable } from "./weekly-report";
 
 const TREND: Record<TrendStructure, { label: string; cls: string }> = {
   "higher-highs-higher-lows": { label: "Higher highs and higher lows", cls: "text-grow" },
@@ -187,6 +187,12 @@ function Scenarios({ s, facts }: { s: WeeklyAssetSection["scenarios"]; facts: Fa
   );
 }
 
+/** This asset's own Brier figure from the report's scorecard, if there is one (older reports have none). */
+function ownBrier(report: WeeklyReport, assetId: string): unknown {
+  const list = report.scorecard?.brier?.byAsset;
+  return Array.isArray(list) ? list.find((b) => b?.assetId === assetId) : undefined;
+}
+
 function Scores({ assetId, report }: { assetId: string; report: WeeklyReport }) {
   const sc = useLoad(() => getScores(assetId), `scores-${assetId}`);
   return (
@@ -195,6 +201,7 @@ function Scores({ assetId, report }: { assetId: string; report: WeeklyReport }) 
         <div className="mb-5">
           <h3 className="mb-2 text-[13px] font-semibold text-ink">Last week&apos;s call, week of {fmtDate(report.scorecard.weekOf)}</h3>
           <ScorecardTable card={report.scorecard} only={assetId} />
+          <BrierLine figure={ownBrier(report, assetId)} scope={`Bull, base and bear probabilities of recent reports, ${universeAsset(assetId)?.name ?? assetId} only`} />
         </div>
       )}
       <h3 className="mb-2 text-[13px] font-semibold text-ink">Daily track record</h3>

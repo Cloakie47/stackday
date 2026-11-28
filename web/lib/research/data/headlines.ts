@@ -70,14 +70,15 @@ export const MAX_PRESS = 3;
 
 const FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/xml, text/xml";
 
-export async function fetchPressNews(asset: UniverseAsset, date: IsoDate, deps: DataDeps): Promise<{ items: NewsItem[]; problems: string[] }> {
+/** `cutoffMs` (every fetcher here): the run's cut-off; an item published after it is never kept (`selectNews`). */
+export async function fetchPressNews(asset: UniverseAsset, date: IsoDate, deps: DataDeps, cutoffMs?: number): Promise<{ items: NewsItem[]; problems: string[] }> {
   const feed = PRESS_FEEDS[asset.assetId];
   if (!feed) return { items: [], problems: [] };
   const problems: string[] = [];
   try {
     await feedLimiter.wait(deps);
     const xml = await getText(deps, feed.url, { "User-Agent": GENERIC_USER_AGENT, Accept: FEED_ACCEPT });
-    const items = selectNews(parseFeed(xml), date, deps.now(), problems, `${asset.assetId} ${feed.name}`, NEWS_WINDOW_DAYS, MAX_PRESS);
+    const items = selectNews(parseFeed(xml), date, deps.now(), problems, `${asset.assetId} ${feed.name}`, NEWS_WINDOW_DAYS, MAX_PRESS, cutoffMs);
     return {
       items: items.map((it) => ({ title: it.title, url: it.url, publishedAt: it.publishedAt, quote: quoteWords(it.summary || it.title), sourceName: feed.name, tags: ["press-release", ...tagTopics(`${it.title} ${it.summary}`)] })),
       problems,
@@ -189,7 +190,7 @@ const titleKey = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]/g, "").repla
  * Headlines from reputable outlets for one asset (or "market") over the last 7 days. GDELT
  * answers HTTP 429 when called too fast; we wait and retry once.
  */
-export async function fetchWireNews(key: string, date: IsoDate, deps: DataDeps): Promise<{ items: NewsItem[]; problems: string[] }> {
+export async function fetchWireNews(key: string, date: IsoDate, deps: DataDeps, cutoffMs?: number): Promise<{ items: NewsItem[]; problems: string[] }> {
   if (!GDELT_TOPICS[key]) return { items: [], problems: [] };
   const url = gdeltUrl(key, date);
   const headers = { "User-Agent": GENERIC_USER_AGENT, Accept: "application/json" };
@@ -226,7 +227,7 @@ export async function fetchWireNews(key: string, date: IsoDate, deps: DataDeps):
       domainOf.set(a.url, sanitizeText(host.replace(/^www\./, ""), 60));
       candidates.push({ title: a.title, url: a.url, publishedAt: a.publishedAt, summary: "" });
     }
-    const kept = selectNews(candidates, date, deps.now(), problems, `${key} GDELT`, WIRE_WINDOW_DAYS, MAX_WIRE);
+    const kept = selectNews(candidates, date, deps.now(), problems, `${key} GDELT`, WIRE_WINDOW_DAYS, MAX_WIRE, cutoffMs);
     return {
       items: kept.map((it) => ({ title: it.title, url: it.url, publishedAt: it.publishedAt, quote: quoteWords(it.title), sourceName: `${domainOf.get(it.url)} (found through GDELT)`, tags: ["reputable-outlet", ...tagTopics(it.title)] })),
       problems,
@@ -263,7 +264,7 @@ export const ASSET_KEYWORDS: Record<string, RegExp> = {
  * market (`key` "market": all of them). A failed feed is a problem line on the market input;
  * the asset input reuses the same responses through the run cache.
  */
-export async function fetchOfficialNews(key: string, date: IsoDate, deps: DataDeps): Promise<{ items: NewsItem[]; problems: string[] }> {
+export async function fetchOfficialNews(key: string, date: IsoDate, deps: DataDeps, cutoffMs?: number): Promise<{ items: NewsItem[]; problems: string[] }> {
   const problems: string[] = [];
   const kw = key === "market" ? null : ASSET_KEYWORDS[key];
   if (key !== "market" && !kw) return { items: [], problems };
@@ -273,7 +274,7 @@ export async function fetchOfficialNews(key: string, date: IsoDate, deps: DataDe
       await feedLimiter.wait(deps);
       const xml = await getText(deps, feed.url, { "User-Agent": GENERIC_USER_AGENT, Accept: FEED_ACCEPT });
       const parsed = parseFeed(xml).filter((it) => !kw || kw.test(`${it.title} ${it.summary}`));
-      for (const it of selectNews(parsed, date, deps.now(), problems, `${key} ${feed.name}`, WIRE_WINDOW_DAYS, MAX_OFFICIAL)) {
+      for (const it of selectNews(parsed, date, deps.now(), problems, `${key} ${feed.name}`, WIRE_WINDOW_DAYS, MAX_OFFICIAL, cutoffMs)) {
         all.push({ title: it.title, url: it.url, publishedAt: it.publishedAt, quote: quoteWords(it.summary || it.title), sourceName: feed.name, tags: ["official", ...tagTopics(`${it.title} ${it.summary}`)] });
       }
     } catch (e) {

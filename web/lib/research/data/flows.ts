@@ -27,9 +27,9 @@ export const FLOW_ASSETS: Record<string, { binance: string; deribit: string; nam
 
 export const ETF_FLOWS_PROBLEM = "ETF flows: no free public source with clear terms for automated use, no reading";
 
-/** End of the window: the run date's end, never later than now, floored to the hour. */
-export function windowEnd(date: IsoDate, now: Date): number {
-  const end = Math.min(now.getTime(), Date.parse(`${date}T23:59:59Z`));
+/** End of the window: the run date's end, never later than now or the run's cut-off, floored to the hour. */
+export function windowEnd(date: IsoDate, now: Date, cutoffMs?: number): number {
+  const end = Math.min(now.getTime(), Date.parse(`${date}T23:59:59Z`), cutoffMs ?? Infinity);
   return Math.floor(end / 3_600_000) * 3_600_000;
 }
 
@@ -63,10 +63,10 @@ export function parseDeribitFunding(raw: unknown): { t: number; i8h: number; i1h
  * Latest 8-hour funding rate and the 7-day average, annualised: Binance 8-hour rates times
  * 3 x 365; Deribit hourly rates times 24 x 365. Both as percent.
  */
-export async function fetchFunding(assetId: string, date: IsoDate, deps: DataDeps): Promise<{ reading?: FundingReading; problems: string[] }> {
+export async function fetchFunding(assetId: string, date: IsoDate, deps: DataDeps, cutoffMs?: number): Promise<{ reading?: FundingReading; problems: string[] }> {
   const cfg = FLOW_ASSETS[assetId];
   if (!cfg) return { problems: [] };
-  const end = windowEnd(date, deps.now());
+  const end = windowEnd(date, deps.now(), cutoffMs);
   const headers = { "User-Agent": GENERIC_USER_AGENT, Accept: "application/json" };
   const errors: string[] = [];
   try {
@@ -152,10 +152,14 @@ export async function fetchStablecoins(date: IsoDate, deps: DataDeps): Promise<{
   }
 }
 
-/** All flow facts for one asset. Only crypto assets have flows; gold's drivers come from FRED. */
-export async function fetchFlows(assetId: string, date: IsoDate, deps: DataDeps): Promise<{ facts: Fact[]; problems: string[] }> {
+/**
+ * All flow facts for one asset. Only crypto assets have flows; gold's drivers come from FRED.
+ * `cutoffMs`: the run's cut-off, so the funding window never reaches past it. The stablecoin supply
+ * is a current reading only (see `fetchStablecoins`).
+ */
+export async function fetchFlows(assetId: string, date: IsoDate, deps: DataDeps, cutoffMs?: number): Promise<{ facts: Fact[]; problems: string[] }> {
   if (!FLOW_ASSETS[assetId]) return { facts: [], problems: [] };
-  const funding = await fetchFunding(assetId, date, deps);
+  const funding = await fetchFunding(assetId, date, deps, cutoffMs);
   const stable = await fetchStablecoins(date, deps);
   return {
     facts: [...(funding.reading ? fundingFacts(assetId, funding.reading) : []), ...stable.facts],
