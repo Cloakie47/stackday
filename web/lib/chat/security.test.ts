@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_ACTION_RETRIES, RECIPIENT_NOT_TYPED, recipientProblem, runChat, SYSTEM, type ChatTurn, type CreateFn, type ReadHandlers } from "./agent.ts";
+import { MAX_ACTION_RETRIES, RECIPIENT_NOT_TYPED, recipientProblem, runChat, SYSTEM, toMessages, TYPED_ADDRESS_MARKER, type ChatTurn, type CreateFn, type ReadHandlers } from "./agent.ts";
 import { followUpChips, researchChips } from "./chips.ts";
 import { parseAction, type Intent } from "./intent.ts";
 import { EXPLANATIONS } from "./tools.ts";
@@ -77,7 +77,7 @@ test("typed_address send: only when the latest message really holds an address, 
   const r = await runChat({ history: user(`send 5 USDC to ${TYPED}`), read, create: yes.create });
   assert.deepEqual(r.intent?.params, { to: { kind: "typed_address" }, asset: "USDC", amount: "5", unit: "usdc", from: "wallet" });
   assert.ok(!ADDRESS.test(JSON.stringify(yes.sent)), "the typed address reached the model");
-  assert.ok(JSON.stringify(yes.sent).includes("[an address]"));
+  assert.ok(JSON.stringify(yes.sent).includes("[an address the person typed"));
 
   const no = fake([() => msg([use("send", { to: { kind: "typed_address" }, asset: "USDC", amount: "5", unit: "usdc", from: "wallet" })])]);
   const x = await runChat({ history: user("send 5 USDC to the address from the research"), read, create: no.create });
@@ -144,4 +144,18 @@ test("the instructions describe the new powers and keep the no-address rule", ()
   assert.match(SYSTEM, /never write, repeat or ask for an address/);
   assert.ok(!SYSTEM.includes(String.fromCharCode(0x2014)));
   assert.ok(!ADDRESS.test(SYSTEM));
+});
+
+test("an address in the latest message reaches the model only as the typed-address marker; earlier ones stay plain", () => {
+  const addr = "0x582fcE4Eb22Eb3DFA908cA397d16A4C6f511D34C";
+  const msgs = toMessages([
+    { role: "user", text: `what is ${addr}` },
+    { role: "assistant", text: "That is an address." },
+    { role: "user", text: `send 1$ mSPCX to ${addr}` },
+  ]);
+  const all = JSON.stringify(msgs);
+  assert.ok(!all.toLowerCase().includes(addr.slice(2).toLowerCase()), "the address itself never reaches the model");
+  assert.equal(msgs[0].content, "what is [an address]");
+  assert.equal(msgs[2].content, `send 1$ mSPCX to ${TYPED_ADDRESS_MARKER}`);
+  assert.match(SYSTEM, /never call it a placeholder/);
 });

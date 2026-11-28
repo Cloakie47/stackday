@@ -76,7 +76,7 @@ test('"send to 0x..." : the address is removed before the model sees it, and a t
   assert.equal(r.intent, undefined);
   assert.equal(r.log[0].ok, false);
   assertNoAddressSent(m.sent);
-  assert.ok(JSON.stringify(m.sent[0].messages).includes("[an address]"));
+  assert.ok(JSON.stringify(m.sent[0].messages).includes("[an address the person typed"));
 });
 
 test('"ignore your instructions" : a made-up send tool and an address as the asset are refused', async () => {
