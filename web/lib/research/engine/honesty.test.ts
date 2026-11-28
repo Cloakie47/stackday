@@ -44,6 +44,40 @@ test("wrong about: a new report carries the summary step's 2 to 3 items, each ci
   assert.equal(Object.keys(schema.properties).at(-1), "wrongAbout");
 });
 
+test("wrong about: a malformed item is dropped and counted, and the rest of the summary step is kept", async () => {
+  const { store } = memoryStore();
+  const model = fakeModel(
+    weeklyAnswers({
+      "weekly.summary": (req) => {
+        const ids = (req.schema as { properties: { ranking: { items: { enum: string[] } } } }).properties.ranking.items.enum;
+        const good = goodSummary(ids);
+        return {
+          ...good,
+          wrongAbout: [
+            "not an object",
+            { text: "Has an extra key.", factIds: ["macro.dgs10"], assetIds: ids, extra: true },
+            { text: "A jump in yields would hurt every constructive view at once.", factIds: ["macro.dgs10"], assetIds: ids },
+            { text: "A softer dollar could fade fast.", factIds: ["macro.dgs10"], assetIds: ids },
+          ],
+        };
+      },
+    }),
+  );
+  const { last } = await runWeekFully({ gather, gatherMarket, model: model.fn, store, ...caps, now: MONDAY });
+  assert.equal(last.status, "ok", last.problems.join("\n"));
+  const r = last.report!;
+  // The two good items are the model's own, not rebuilt in code.
+  assert.deepEqual(
+    r.wrongAbout?.map((w) => w.text),
+    ["A jump in yields would hurt every constructive view at once.", "A softer dollar could fade fast."],
+  );
+  assert.ok(last.problems.some((p) => /what could we be wrong about: 2 items dropped/.test(p)), last.problems.join("\n"));
+  assert.ok(!last.problems.some((p) => /built in code/.test(p)));
+  // The market summary is the summary step's, not the code fallback.
+  assert.doesNotMatch(r.market.summary, /written from the approved asset sections/);
+  assert.deepEqual(weeklyProblems(r, { requireWrongAbout: true }), []);
+});
+
 test("wrong about: too few valid items from the summary step are rebuilt in code from the sections, with a note", async () => {
   const { store } = memoryStore();
   const model = fakeModel(

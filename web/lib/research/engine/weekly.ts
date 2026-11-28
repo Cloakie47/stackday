@@ -521,9 +521,10 @@ const prefixed = (assetId: string, r: Reasoned): Reasoned => ({ text: r.text, fa
 
 /**
  * `wrongAbout` holds the summary step's "What could we be wrong about?" items that passed the text,
- * fact id and asset checks (null when the step failed or did not answer it).
+ * fact id and asset checks (null when the step failed or did not answer it). `wrongAboutTotal` is
+ * how many items the model gave, so every dropped one is counted in the report's notes.
  */
-type Summary = { market: MarketOverview; ranked: InvestmentIdea[]; splitWhy: Record<ExampleSplit["profile"], Reasoned> | null; wrongAbout: WrongAboutItem[] | null; ok: boolean };
+type Summary = { market: MarketOverview; ranked: InvestmentIdea[]; splitWhy: Record<ExampleSplit["profile"], Reasoned> | null; wrongAbout: WrongAboutItem[] | null; wrongAboutTotal: number; ok: boolean };
 
 function fallbackSummary(weekOf: IsoDate, marketFacts: Fact[], okSections: WeeklyAssetSection[]): Summary {
   const sorted = [...okSections].sort((a, b) => VIEW_ORDER.indexOf(a.view.view) - VIEW_ORDER.indexOf(b.view.view));
@@ -532,6 +533,7 @@ function fallbackSummary(weekOf: IsoDate, marketFacts: Fact[], okSections: Weekl
     ranked: sorted.map((a, i) => ideaFromSection(a, i + 1)).filter((x): x is InvestmentIdea => x !== null),
     splitWhy: null,
     wrongAbout: null,
+    wrongAboutTotal: 0,
     ok: false,
   };
 }
@@ -635,27 +637,32 @@ async function summarize(weekOf: IsoDate, market: MarketResearchInput | null, ok
       if (typeof w !== "object" || w === null) throw new StepRejected("bad splitWhy");
       const cautious = ctx.reasoned(w.cautious, LIMITS.text);
       const growth = ctx.reasoned(w.growth, LIMITS.text);
-      // Each item: clean text (no link, injection, banned phrase or unbacked number), at least one
-      // known fact id and at least one asset of this report; others are dropped (and counted later).
+      // Each item: an object with only text, factIds and assetIds, clean text (no link, injection,
+      // banned phrase or unbacked number), at least one known fact id and at least one asset of this
+      // report. Anything else is dropped and counted later, never a reason to reject the step: a bad
+      // item must not cost the market summary, ranking and ideas (code rebuilds the list from the
+      // sections when fewer than 2 valid items remain).
       let wrongAbout: WrongAboutItem[] | null = null;
+      let wrongAboutTotal = 0;
       if (withWrong) {
-        if (!Array.isArray(raw.wrongAbout)) throw new StepRejected("bad wrongAbout");
+        const list: unknown[] = Array.isArray(raw.wrongAbout) ? raw.wrongAbout : [raw.wrongAbout];
+        wrongAboutTotal = list.length;
         wrongAbout = [];
-        for (const it of raw.wrongAbout) {
-          if (typeof it !== "object" || it === null) throw new StepRejected("bad wrongAbout item");
+        for (const it of list) {
+          if (typeof it !== "object" || it === null || Array.isArray(it)) continue;
           const x = it as Record<string, unknown>;
-          if (Object.keys(x).some((k) => !["text", "factIds", "assetIds"].includes(k))) throw new StepRejected("bad wrongAbout keys");
+          if (Object.keys(x).some((k) => !["text", "factIds", "assetIds"].includes(k))) continue;
           const item = ctx.reasoned({ text: x.text, factIds: x.factIds }, LIMITS.text);
           const assetIds = Array.isArray(x.assetIds) ? [...new Set(x.assetIds.filter((a): a is string => typeof a === "string" && ids.includes(a)))] : [];
           if (item && assetIds.length) wrongAbout.push({ ...item, assetIds });
         }
       }
-      return { lines, developments, ranking, byAsset, splitWhy: cautious && growth ? { cautious, growth } : null, wrongAbout };
+      return { lines, developments, ranking, byAsset, splitWhy: cautious && growth ? { cautious, growth } : null, wrongAbout, wrongAboutTotal };
     },
   );
   if (!parsed) return fallbackSummary(weekOf, marketFacts, okSections);
   const ranked = parsed.ranking.map((id, i) => ideaFromSection(okSections.find((a) => a.assetId === id)!, i + 1, parsed.byAsset.get(id))).filter((x): x is InvestmentIdea => x !== null);
-  return { market: { date: weekOf, summary: parsed.lines.join("\n"), developments: parsed.developments, facts: marketFacts }, ranked, splitWhy: parsed.splitWhy, wrongAbout: parsed.wrongAbout, ok: true };
+  return { market: { date: weekOf, summary: parsed.lines.join("\n"), developments: parsed.developments, facts: marketFacts }, ranked, splitWhy: parsed.splitWhy, wrongAbout: parsed.wrongAbout, wrongAboutTotal: parsed.wrongAboutTotal, ok: true };
 }
 
 const SPLIT_WHY: Record<ExampleSplit["profile"], string> = {
@@ -973,7 +980,7 @@ export async function runWeekly(deps: WeeklyDeps): Promise<WeeklyOutcome> {
       const fromModel = (summary.wrongAbout ?? []).filter(valid).slice(0, WRONG_ABOUT_ITEMS.max);
       if (fromModel.length >= WRONG_ABOUT_ITEMS.min) {
         wrongAbout = fromModel;
-        const dropped = (summary.wrongAbout?.length ?? 0) - fromModel.length;
+        const dropped = summary.wrongAboutTotal - fromModel.length;
         if (dropped > 0) problems.push(`what could we be wrong about: ${dropped} items dropped, they did not pass the checks`);
       } else {
         const order = [...ranked.map((i) => i.assetId), ...okSections.map((a) => a.assetId)].filter((id, i, a) => a.indexOf(id) === i);
