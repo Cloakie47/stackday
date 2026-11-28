@@ -633,17 +633,21 @@ export function PillTabs<T extends string>({
 
 export function Chip({
   active,
+  size = "md",
+  className = "",
   children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; size?: "sm" | "md" }) {
   return (
     <button
       type="button"
       aria-pressed={active}
       {...props}
       className={cx(
-        "inline-flex min-h-11 items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.98] sm:min-h-9",
-        active ? "border-[color-mix(in_srgb,var(--brand)_45%,transparent)] bg-brand-soft text-brand-ink" : "border-line bg-popover text-ink hover:bg-hover",
+        "inline-flex items-center gap-1.5 rounded-[10px] border font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100",
+        size === "sm" ? "min-h-10 px-2.5 text-[12.5px] sm:min-h-8" : "min-h-11 px-3 text-[13px] sm:min-h-9",
+        active ? "border-[color-mix(in_srgb,var(--brand)_45%,transparent)] bg-brand-soft text-brand-ink" : "border-line bg-popover text-ink hover:bg-hover disabled:hover:bg-popover",
+        className,
       )}
     >
       {children}

@@ -1,17 +1,19 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { useViewer } from "@/components/providers";
-import { Button, Spinner } from "@/components/ui";
+import { cx } from "@/components/ui";
 import type { ChatTurn, ResearchNote } from "@/lib/chat/agent";
 import { parseIntent, type Intent } from "@/lib/chat/intent";
-import { borrowInsteadChip, errorStep, followUpChips, starterChips, type Chip } from "@/lib/chat/chips";
+import { borrowInsteadChip, errorStep, followUpChips, type Chip } from "@/lib/chat/chips";
 import { leadIn } from "@/lib/chat/leadIn";
 import { usePlan } from "@/lib/chat/usePlan";
 import { useSession } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
-import { ActionCard, TxLinks, type ChatReceipt } from "./action-card";
+import { ActionCard, ActionCardSkeleton } from "./action-card";
+import { ChipRow } from "./chips";
+import { EmptyState, type EmptyMode } from "./empty-state";
+import { ActivityList, ReceiptCard, type ChatReceipt } from "./receipt-card";
 
 /**
  * The chat assistant dock on every app page: a floating button that opens a panel (a bottom sheet on
@@ -21,10 +23,17 @@ import { ActionCard, TxLinks, type ChatReceipt } from "./action-card";
 
 /** A chat message. A `receipt` is a finished action kept on this device only, never sent to the model. */
 type Msg = ChatTurn & { research?: ResearchNote[]; receipt?: ChatReceipt };
-type Pending = { intent: Intent; id: number };
+/**
+ * The card on screen. `anchor` is the index of the message it sits under (the sentence written for it,
+ * right after the person's own message). `userText` is what the person typed for it, for the engine.
+ */
+type Pending = { intent: Intent; id: number; anchor: number; userText: string };
+/** A card that left the conversation without a receipt, kept as one quiet line in its place. */
+type ClosedCard = { anchor: number; note: string };
+type ChatError = { text: string; refusal?: boolean };
 
 /** What Tab can land on inside the panel. */
-const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 const storeKey = (address: string) => `stackday-chat:${address.toLowerCase()}`;
 const MAX_KEPT = 40;
@@ -79,7 +88,7 @@ export function ChatDock() {
       ref={launcher}
       type="button"
       onClick={() => setOpen(true)}
-      className="fixed bottom-24 right-4 z-40 flex h-12 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-canvas shadow-[var(--shadow-lg)] hover:opacity-90 lg:bottom-6 lg:right-6"
+      className="chat-launcher fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex h-12 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-canvas shadow-[var(--shadow-lg)] hover:opacity-90 lg:bottom-6 lg:right-6"
       aria-label="Open the Stackday assistant"
     >
       <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -87,6 +96,41 @@ export function ChatDock() {
       </svg>
       Ask
     </button>
+  );
+}
+
+/** A 40px square header button with an icon and a spoken label. */
+function IconButton({ label, onClick, disabled, pressed, children }: { label: string; onClick: () => void; disabled?: boolean; pressed?: boolean; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      className={cx(
+        "grid h-10 w-10 place-items-center rounded-xl text-muted transition-colors hover:bg-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent",
+        pressed && "bg-hover text-ink",
+      )}
+    >
+      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
+    </button>
+  );
+}
+
+/** "The assistant is writing": three dots. Motion stops for people who ask for less of it. */
+function TypingDots() {
+  return (
+    <div className="flex">
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-sunken px-3.5 py-3" role="status" aria-label="The assistant is writing">
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+      </div>
+    </div>
   );
 }
 
@@ -103,24 +147,26 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   const [loadedFor, setLoadedFor] = useState<string>();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<ChatError>();
   const [pending, setPending] = useState<Pending | null>(null);
+  const [closed, setClosed] = useState<ClosedCard[]>([]);
   // While a card's wallet steps run, the panel stays open and no new card can replace it.
   const [signing, setSigning] = useState(false);
   const [view, setView] = useState<"chat" | "activity">("chat");
+  // The receipt takes the card's place: no separate "Done" message, the receipt card says it.
   const addReceipt = useCallback((r: ChatReceipt) => {
-    setMsgs((m) => [...m, { role: "assistant", text: `Done: ${r.title}`, receipt: r }]);
+    setMsgs((m) => [...m, { role: "assistant", text: r.headline ?? r.title, receipt: r }]);
   }, []);
   // A wallet signature in progress (card steps or the sign-in message) keeps the panel open.
   const walletBusy = signing || session.busy;
   const close = useCallback(() => {
     if (!walletBusy) onClose();
   }, [walletBusy, onClose]);
+  // ENGINE: pass pending?.userText as 5th arg
   const { result: plan, check } = usePlan(pending?.intent ?? null, pending?.id ?? 0, p, me);
   // Follow-up chips for the last answer (from code, see lib/chat/chips.ts), and the card that finished.
   const [chips, setChips] = useState<Chip[]>([]);
   const [doneCard, setDoneCard] = useState<number | null>(null);
-  const pathname = usePathname();
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -132,6 +178,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     setLoadedFor(me);
     setMsgs(loadHistory(me));
     setPending(null);
+    setClosed([]);
     setChips([]);
   }
 
@@ -142,7 +189,9 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     if (me && loadedFor === me) saveHistory(me, msgs);
   }, [me, loadedFor, msgs]);
 
+  // Follow the newest message; the empty state stays at its top so the greeting is seen first.
   useEffect(() => {
+    if (msgs.length === 0 && !sending) return;
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [msgs, plan, check, sending]);
 
@@ -157,6 +206,32 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [close]);
+
+  /**
+   * Phones: when the on-screen keyboard opens, the sheet sits on top of it (visualViewport), so the
+   * message box stays in view. Desktop and wide screens keep the stylesheet's placement.
+   */
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const el = panelRef.current;
+    if (!vv || !el) return;
+    const phone = window.matchMedia("(max-width: 639px)");
+    const apply = () => {
+      const covered = phone.matches ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+      el.style.bottom = covered > 0 ? `${covered}px` : "";
+      el.style.maxHeight = covered > 0 ? `${Math.round(vv.height * 0.94)}px` : "";
+      el.style.minHeight = covered > 0 ? "0px" : "";
+    };
+    apply();
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    phone.addEventListener("change", apply);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+      phone.removeEventListener("change", apply);
+    };
+  }, []);
 
   /** Keeps Tab inside the panel while it is open. Stands down while a wallet asks for a signature. */
   function trapTab(e: ReactKeyboardEvent<HTMLDivElement>) {
@@ -198,11 +273,28 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     el.style.transform = "";
   }
 
+  /** The card on screen leaves the conversation without a receipt: one quiet line stays in its place. */
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  });
+  const fold = useCallback((cur: Pending | null, note: string) => {
+    if (cur) setClosed((c) => [...c.filter((x) => x.anchor !== cur.anchor), { anchor: cur.anchor, note }]);
+  }, []);
+  const retire = useCallback(
+    (note: string) => {
+      fold(pendingRef.current, note);
+      setPending(null);
+    },
+    [fold],
+  );
+
   const send = useCallback(
     async (text: string) => {
       const clean = text.trim();
       if (!clean || sending || signing || !me) return;
-      const next: Msg[] = [...msgs, { role: "user", text: clean.slice(0, 2000) }];
+      const userText = clean.slice(0, 2000);
+      const next: Msg[] = [...msgs, { role: "user", text: userText }];
       setMsgs(next);
       setInput("");
       setError(undefined);
@@ -226,12 +318,14 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         setChips(followUpChips({ action: checked?.ok ? checked.intent.action : undefined, tools, untrusted: !!body.untrusted }, clean));
         if (checked?.ok) {
           // A card turn: the model's own text is not shown. Code writes the sentence above the card, so
-          // only the card (built in code) carries numbers.
+          // only the card (built in code) carries numbers. The card sits right under that sentence.
+          const anchor = next.length;
           setMsgs((m) => [...m, { role: "assistant", text: leadIn(checked.intent) }]);
-          // One pending card at a time: a new one replaces the old one.
-          setPending({ intent: checked.intent, id: nextId.current++ });
+          // One pending card at a time: a new one replaces the old one, which folds into one line.
+          fold(pendingRef.current, "Replaced by a newer card");
+          setPending({ intent: checked.intent, id: nextId.current++, anchor, userText });
         } else if (checked) {
-          setError("The assistant proposed something that is not allowed, so it was dropped.");
+          setError({ text: "The assistant suggested an action that is not allowed, so it was dropped.", refusal: true });
         } else {
           const reply: Msg = { role: "assistant", text: body.text || "", untrusted: !!body.untrusted, research: body.research?.length ? body.research : undefined };
           if (reply.text || reply.research) setMsgs((m) => [...m, reply]);
@@ -240,13 +334,13 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         // Error ladder: the second failure in a row is worded differently and offers question chips.
         failures.current += 1;
         const step = errorStep(failures.current, e instanceof Error ? e.message : "The assistant could not answer.");
-        setError(step.text);
+        setError({ text: step.text });
         setChips(step.chips);
       } finally {
         setSending(false);
       }
     },
-    [msgs, sending, signing, me],
+    [msgs, sending, signing, me, fold],
   );
 
   function onSubmit(e: FormEvent) {
@@ -265,7 +359,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     // would open the phone keyboard).
     panelRef.current?.focus();
     const id = nextId.current++;
-    setPending((cur) => (cur ? { intent: cur.intent, id } : cur));
+    setPending((cur) => (cur ? { ...cur, id } : cur));
   }
 
   /** A chip sends its text; the chip row goes away, so focus stays in the panel. */
@@ -279,15 +373,67 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     // Clearing the conversation keeps the receipts: they are the record of what was signed.
     setMsgs((m) => m.filter((x) => x.receipt));
     setPending(null);
+    setClosed([]);
     setError(undefined);
     setChips([]);
     failures.current = 0;
   }
 
+  const canChat = !!me && session.signedIn;
+  const emptyMode: EmptyMode = !me
+    ? viewer.readOnly
+      ? { kind: "view_only" }
+      : { kind: "signed_out" }
+    : !session.loading && !session.configured
+      ? { kind: "no_database" }
+      : !session.signedIn
+        ? { kind: "sign_in", busy: session.busy, error: session.error, onSignIn: () => void session.signIn() }
+        : { kind: "ready" };
+  const tall = !!pending && view === "chat" && canChat;
+
+  /** The card (or its skeleton, or its folded line) under message `i`. */
+  function cardAt(i: number) {
+    if (pending && pending.anchor === i && me) {
+      // Its own live region is off: the countdown is never read out; the card announces its own changes.
+      return (
+        <div aria-live="off" className="animate-[var(--animate-pop)]">
+          {plan ? (
+            <ActionCard
+              key={pending.id}
+              result={plan}
+              check={check}
+              me={me}
+              onRefresh={refreshCard}
+              onBusyChange={setSigning}
+              onReceipt={(r) => {
+                addReceipt(r);
+                setDoneCard(pending.id);
+                setSigning(false);
+                setPending(null);
+              }}
+              onClose={(outcome) => retire(outcome === "expired" ? "Card expired" : outcome === "done" ? "Done" : "Card closed")}
+            />
+          ) : (
+            <ActionCardSkeleton />
+          )}
+        </div>
+      );
+    }
+    const gone = closed.find((c) => c.anchor === i);
+    if (gone)
+      return (
+        <p className="flex items-center gap-2 pl-1 text-[11.5px] text-muted">
+          <span aria-hidden className="h-px w-4 bg-line" />
+          {gone.note}
+        </p>
+      );
+    return null;
+  }
+
   return (
     <>
       {/* Phones: the page behind the sheet is dimmed, and tapping it closes the sheet (not while signing). */}
-      <div aria-hidden className="fixed inset-0 z-50 bg-[rgb(0_0_0/0.4)] sm:hidden" onClick={close} />
+      <div aria-hidden className="chat-backdrop fixed inset-0 z-50 sm:hidden" onClick={close} />
       <div
         ref={panelRef}
         role="dialog"
@@ -295,7 +441,10 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         aria-labelledby="chat-title"
         tabIndex={-1}
         onKeyDown={trapTab}
-        className="fixed inset-x-0 bottom-0 z-50 flex max-h-[88dvh] min-h-[60dvh] flex-col rounded-t-[20px] border border-line bg-surface shadow-[var(--shadow-lg)] outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:h-[640px] sm:max-h-[calc(100dvh-48px)] sm:min-h-0 sm:w-[400px] sm:rounded-[20px]"
+        className={cx(
+          "chat-sheet fixed inset-x-0 bottom-0 z-50 flex max-h-[88dvh] flex-col rounded-t-[20px] border border-line bg-surface shadow-[var(--shadow-lg)] outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:h-[640px] sm:max-h-[calc(100dvh-48px)] sm:min-h-0 sm:w-[400px] sm:rounded-[20px]",
+          tall ? "min-h-[88dvh]" : "min-h-[45dvh]",
+        )}
       >
         {/* Phones: a drag handle; pull it down to close. The Close button does the same for keyboards. */}
         <div
@@ -306,124 +455,99 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
           onPointerUp={onHandleUp}
           onPointerCancel={onHandleUp}
         >
-          <span className="h-1 w-10 rounded-full bg-line" />
+          <span className="h-1 w-10 rounded-full bg-line-strong" />
         </div>
-        <div className="flex items-center justify-between gap-2 border-b border-line-soft px-4 pb-3 pt-1 sm:pt-3">
+        <div className="flex items-center justify-between gap-2 border-b border-line-soft py-1.5 pl-4 pr-2 sm:py-2">
           <div className="min-w-0">
             <h2 id="chat-title" className="text-sm font-semibold text-ink">
-              Assistant
+              {view === "activity" ? "Activity" : "Assistant"}
             </h2>
             <div className="text-[11.5px] text-warn">Base Sepolia testnet, test tokens</div>
           </div>
-          <div className="flex items-center gap-1">
-            {me && session.signedIn && (
-              <button
-                type="button"
+          <div className="flex items-center">
+            {canChat && (
+              <IconButton
+                label={view === "chat" ? "Show activity" : "Back to the chat"}
+                pressed={view === "activity"}
                 onClick={() => setView((v) => (v === "chat" ? "activity" : "chat"))}
-                aria-pressed={view === "activity"}
-                className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink"
               >
-                {view === "chat" ? "Activity" : "Chat"}
-              </button>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </IconButton>
             )}
             {msgs.some((m) => !m.receipt) && view === "chat" && (
-              <button type="button" onClick={clear} disabled={signing} className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink">
-                Clear
-              </button>
+              <IconButton label="Clear the conversation" onClick={clear} disabled={signing}>
+                <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+              </IconButton>
             )}
-            <button type="button" onClick={close} disabled={walletBusy} className="hit rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-ink" aria-label="Close the assistant">
-              Close
-            </button>
+            <IconButton label="Close the assistant" onClick={close} disabled={walletBusy}>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </IconButton>
           </div>
         </div>
 
         <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3">
-          {!me ? (
-            <p className="text-[13px] text-muted">Connect your wallet to chat about your own balances and loans.</p>
-          ) : !session.loading && !session.configured ? (
-            <p className="text-[13px] text-muted">The assistant needs the account database, which is not connected on this site.</p>
-          ) : !session.signedIn ? (
-            <div className="space-y-2 text-[13px] text-muted">
-              <p>Sign in once with your wallet so the assistant can read your own balances. It is a free signature, not a transaction.</p>
-              <Button size="sm" disabled={session.busy} onClick={() => void session.signIn()}>
-                Sign in with your wallet
-              </Button>
-              {session.error && <p className="text-xs text-danger">{session.error}</p>}
-            </div>
-          ) : view === "activity" ? (
+          {canChat && view === "activity" ? (
             <ActivityList receipts={msgs.filter((m) => m.receipt).map((m) => m.receipt!)} />
+          ) : !canChat || msgs.length === 0 ? (
+            <EmptyState mode={emptyMode} disabled={sending || signing} onPick={pickChip} />
           ) : (
             <>
-              {msgs.length === 0 && (
-                <div className="space-y-2">
-                  <p className="text-[13px] text-muted">
-                    Ask about your balances, loans and the weekly research, or ask me to prepare a buy, sell, recurring buy, borrow or repay. You check and sign every action in your own wallet. General information, not financial advice.
-                  </p>
-                  <ChipRow label="Suggestions for this page" chips={starterChips(pathname)} disabled={sending || signing} onPick={pickChip} />
-                </div>
-              )}
-              {/* The conversation is a log: new messages are announced politely. The card sits outside it,
-                  so its countdown is not read out; the card announces its own state changes. */}
+              {/* The conversation is a log: new messages are announced politely. */}
               <div role="log" aria-live="polite" aria-label="Conversation" className="space-y-3">
                 {msgs.map((m, i) => (
-                  <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
-                    <div
-                      className={
-                        m.role === "user"
-                          ? "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-ink px-3 py-2 text-[13px] text-canvas"
-                          : "max-w-[95%] whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink"
-                      }
-                    >
-                      {m.receipt ? <ReceiptCard r={m.receipt} /> : m.text}
-                      {m.research && (
-                        <div className="mt-2 rounded-xl border border-line-soft bg-sunken px-3 py-2 text-xs text-ink-soft">
-                          {m.research.map((r) => (
-                            <div key={r.assetId}>
-                              {r.name}: <b className="font-semibold">{r.view}</b> ({r.conviction} conviction)
+                  <div key={i} className="space-y-2">
+                    <div className={m.role === "user" ? "flex justify-end" : "flex"}>
+                      {m.receipt ? (
+                        <div className="w-full">
+                          <ReceiptCard r={m.receipt} />
+                        </div>
+                      ) : (
+                        <div
+                          className={
+                            m.role === "user"
+                              ? "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-ink px-3 py-2 text-[13px] text-canvas"
+                              : "max-w-[92%] whitespace-pre-wrap break-words rounded-2xl rounded-bl-md bg-sunken px-3 py-2 text-[13px] leading-relaxed text-ink"
+                          }
+                        >
+                          {m.text}
+                          {m.research && (
+                            <div className="mt-2 rounded-xl border border-line-soft bg-popover px-3 py-2 text-xs text-ink-soft">
+                              {m.research.map((r) => (
+                                <div key={r.assetId}>
+                                  {r.name}: <b className="font-semibold">{r.view}</b> ({r.conviction} conviction)
+                                </div>
+                              ))}
+                              <div className="mt-1 text-muted">Approved Stackday weekly report, week of {m.research[0].weekOf}.</div>
+                              <div className="mt-1 text-[11px] leading-snug text-muted">{m.research[0].disclaimer}</div>
                             </div>
-                          ))}
-                          <div className="mt-1 text-muted">Approved Stackday weekly report, week of {m.research[0].weekOf}.</div>
-                          <div className="mt-1 text-[11px] leading-snug text-muted">{m.research[0].disclaimer}</div>
+                          )}
                         </div>
                       )}
                     </div>
+                    {cardAt(i)}
                   </div>
                 ))}
               </div>
-              {pending && me && (plan ? (
-                <ActionCard
-                  key={pending.id}
-                  result={plan}
-                  check={check}
-                  me={me}
-                  onRefresh={refreshCard}
-                  onBusyChange={setSigning}
-                  onReceipt={(r) => {
-                    addReceipt(r);
-                    setDoneCard(pending.id);
-                  }}
-                  onClose={() => setPending(null)}
-                />
-              ) : (
-                <p className="flex items-center gap-2 text-xs text-muted" role="status">
-                  <Spinner /> Preparing the card with live prices...
-                </p>
-              ))}
               {borrowChip && <ChipRow label="Another option" chips={[borrowChip]} disabled={sending || signing} onPick={pickChip} />}
               <div role="status">
-                {sending && (
-                  <p className="flex items-center gap-2 text-xs text-muted">
-                    <Spinner /> Thinking...
-                  </p>
-                )}
-                {error && <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{error}</p>}
+                {sending && <TypingDots />}
+                {error &&
+                  (error.refusal ? (
+                    <div className="rounded-2xl rounded-bl-md bg-warn-soft px-3 py-2 text-[13px] leading-relaxed text-warn">
+                      <div className="font-semibold">I can&apos;t do that here.</div>
+                      <div className="mt-0.5">{error.text}</div>
+                    </div>
+                  ) : (
+                    <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{error.text}</p>
+                  ))}
               </div>
               {!sending && chips.length > 0 && <ChipRow label="Suggestions" chips={chips} disabled={signing} onPick={pickChip} />}
             </>
           )}
         </div>
 
-        {me && session.signedIn && view === "chat" && (
+        {canChat && view === "chat" && (
           <form onSubmit={onSubmit} className="flex items-end gap-2 border-t border-line-soft px-3 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
             <label htmlFor="chat-input" className="sr-only">
               Message the assistant
@@ -442,69 +566,21 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
                 }
               }}
               placeholder="Ask or say: buy $20 of Apple"
-              className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-line bg-popover px-3 py-2 text-base text-ink placeholder:text-faint focus:border-[var(--focus)] focus:outline-none sm:text-sm"
+              className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-line bg-popover px-3 py-2.5 text-base text-ink placeholder:text-muted focus:border-[var(--focus)] focus:outline-none sm:min-h-10 sm:py-2 sm:text-sm"
             />
-            <Button type="submit" size="sm" disabled={sending || signing || !input.trim()}>
-              Send
-            </Button>
+            <button
+              type="submit"
+              disabled={sending || signing || !input.trim()}
+              aria-label="Send"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand text-white transition-colors hover:bg-brand-strong disabled:bg-sunken disabled:text-muted sm:h-10 sm:w-10"
+            >
+              <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19V5M6 11l6-6 6 6" />
+              </svg>
+            </button>
           </form>
         )}
       </div>
     </>
-  );
-}
-
-/** A row of suggestion chips. Each one just sends its text, the same as typing it. */
-function ChipRow({ chips, label, disabled, onPick }: { chips: Chip[]; label: string; disabled?: boolean; onPick: (text: string) => void }) {
-  return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
-      {chips.map((c) => (
-        <button
-          key={`${c.id}-${c.label}`}
-          type="button"
-          disabled={disabled}
-          onClick={() => onPick(c.text)}
-          className="min-h-9 touch-manipulation select-none rounded-full border border-line px-3 py-1.5 text-xs text-ink-soft hover:bg-hover active:bg-hover disabled:opacity-50"
-        >
-          {c.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-const when = (at: number) =>
-  new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-
-/** A finished action in the chat: what was done, when, and its transactions on BaseScan. */
-function ReceiptCard({ r }: { r: ChatReceipt }) {
-  return (
-    <div className="rounded-xl border border-line-soft bg-sunken px-3 py-2 text-xs">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-semibold text-grow">Done: {r.title}</span>
-        <span className="shrink-0 text-muted">{when(r.at)}</span>
-      </div>
-      {r.rows.slice(0, 2).map((row) => (
-        <div key={row.label} className="mt-0.5 text-ink-soft">
-          {row.label}: {row.value}
-        </div>
-      ))}
-      <TxLinks hashes={r.hashes} />
-    </div>
-  );
-}
-
-/** Every action this wallet finished through the chat on this device, newest first. */
-function ActivityList({ receipts }: { receipts: ChatReceipt[] }) {
-  if (receipts.length === 0) {
-    return <p className="text-[13px] text-muted">No buys, sells or loans from the chat yet. When you confirm one, it shows here with its transaction links.</p>;
-  }
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted">Actions you confirmed through the chat, kept on this device. Every transaction links to BaseScan.</p>
-      {[...receipts].reverse().map((r) => (
-        <ReceiptCard key={`${r.at}-${r.title}`} r={r} />
-      ))}
-    </div>
   );
 }
