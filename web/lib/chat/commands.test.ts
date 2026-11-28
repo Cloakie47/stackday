@@ -337,8 +337,10 @@ test("suggestAssets: held by value first, then borrowable, then invest only, max
   assert.ok(suggestAssets("eth", { positions: pos }).some((s) => s.symbol === "mWETH"));
   assert.ok(suggestAssets("soft", { positions: pos }).some((s) => s.symbol === "mMSFT"));
   // Unheld invest-only assets come last.
-  // "m" matches META, MSFT and MSTR by ticker and Amazon, AMD and Treasuries by name (not every "m" symbol).
-  assert.deepEqual(suggestAssets("m", { positions: positions() }).map((s) => s.ticker), ["META", "AMD", "AMZN", "MSFT"]);
+  // One letter matches the start of a ticker or of a word in the name, so "m" gives META, MSFT and MSTR
+  // (not Amazon or AMD), and "n" gives NVDA but not Amazon.
+  assert.deepEqual(suggestAssets("m", { positions: positions() }).map((s) => s.ticker), ["META", "MSFT", "MSTR"]);
+  assert.deepEqual(suggestAssets("n", { positions: positions() }).map((s) => s.ticker), ["NVDA"]);
   assert.deepEqual(suggestAssets("zzz", { positions: pos }), []);
   assert.deepEqual(suggestAssets("Н", { positions: pos }), []);
   assert.equal(all[0].icon, "TSLA");

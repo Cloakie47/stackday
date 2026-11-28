@@ -560,7 +560,7 @@ function rank(query: string, entries: Entry[], filter: "all" | "borrowable" | "h
     .filter(([k]) => q && k.toLowerCase().startsWith(q))
     .map(([, v]) => v);
   const matches = (a: Asset) =>
-    !q || tickerOf(a.symbol).toLowerCase().startsWith(q) || (q.length > 1 && a.symbol.toLowerCase().startsWith(q)) || a.name.toLowerCase().includes(q) || aliasHits.includes(a.symbol);
+    !q || tickerOf(a.symbol).toLowerCase().startsWith(q) || (q.length > 1 && a.symbol.toLowerCase().startsWith(q)) || (q.length > 1 ? a.name.toLowerCase().includes(q) : a.name.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.startsWith(q))) || aliasHits.includes(a.symbol);
   const group = (e: Entry) => (e.units > 0n ? 0 : e.asset.borrowable ? 1 : 2);
   const list = entries
     .filter((e) => matches(e.asset))

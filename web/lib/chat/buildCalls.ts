@@ -822,7 +822,9 @@ function send(
       return refuse(
         params.from === "vault" && pos.debt > 0n && pos.collateral > 0n
           ? `Only ${amt(have, asset)} is free. The rest is locked for your loan.`
-          : `Your ${params.from} has ${amt(have, asset)}.`,
+          : have === 0n
+            ? `Your ${params.from} has no ${asset.name}. Buy some first, for example: /buy $${asset.symbol.replace(/^m/, "")} 5$`
+            : `Your ${params.from} has ${amt(have, asset)}.`,
       );
     value = assetValue(units, pos.price, asset.decimals);
     what = `${amt(units, asset)} (${asset.name})`;
