@@ -196,11 +196,14 @@ const btcSection = () => structuredClone(sampleWeekly().assets.find((a) => a.ass
 
 test("outcome rule: bull above the bull level, bear below the bear level, base between, on the last fresh close of the week", () => {
   const a = btcSection();
-  // Price at the call 92,000; bull levels 95,500 and 99,000; bear levels 89,500 and 86,000.
-  assert.deepEqual(scenarioLines(a, 92000), { up: 95500, down: 89500 });
+  // Price at the call 92,000, daily ATR 2,600; bull levels 95,500 and 99,000; bear levels 89,500
+  // and 86,000. 89,500 is only 2,500 below the price (under 1 ATR), so it is skipped: 86,000.
+  assert.deepEqual(scenarioLines(a, 92000), { up: 95500, down: 86000 });
   assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 96000))!.outcome, "bull");
   assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 93000))!.outcome, "base");
-  assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 89000))!.outcome, "bear");
+  // A close just under the skipped 89,500 level is still base; bear needs a close under 86,000.
+  assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 89000))!.outcome, "base");
+  assert.equal(scenarioCall(a, "2026-11-16", week("mcbBTC", 85000))!.outcome, "bear");
   assert.deepEqual(scenarioCall(a, "2026-11-16", week("mcbBTC", 93000))!.probs, { bull: a.scenarios.bull.probability / 100, base: a.scenarios.base.probability / 100, bear: a.scenarios.bear.probability / 100 });
   // Only the week of that report counts: a price from the next Monday is ignored.
   const withNext = [...week("mcbBTC", 93000), day("mcbBTC", "2026-11-23", 120000)];
@@ -211,7 +214,19 @@ test("outcome rule: bull above the bull level, bear below the bear level, base b
   const noBull = btcSection();
   noBull.scenarios.bull.levels = [];
   noBull.view.levels!.resistance = [97000];
-  assert.deepEqual(scenarioLines(noBull, 92000), { up: 97000, down: 89500 });
+  assert.deepEqual(scenarioLines(noBull, 92000), { up: 97000, down: 86000 });
+  // Every level within 1 ATR is skipped, the same as the daily level scoring: nothing far enough
+  // on one side means the call is not scored, never a line right on the price.
+  const near = btcSection();
+  near.scenarios.bull.levels = [93000];
+  near.view.levels!.resistance = [93500];
+  near.view.levels!.invalidation = 90000;
+  near.chart = {};
+  assert.equal(scenarioLines(near, 92000), null);
+  // Without an ATR fact the daily scoring's 2% default applies (1,840 at 92,000).
+  const noAtr = btcSection();
+  noAtr.facts = noAtr.facts.filter((f) => f.id !== "ind.1d.atr14");
+  assert.deepEqual(scenarioLines(noAtr, 92000), { up: 95500, down: 89500 });
   // Probabilities that do not add up to 100: not scored.
   const off = btcSection();
   off.scenarios.base.probability -= 10;

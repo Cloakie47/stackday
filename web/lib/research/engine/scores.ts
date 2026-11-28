@@ -178,12 +178,17 @@ export const BRIER_WEEKS = 16;
 /** Fewest fresh daily prices in a report's week before its close counts as the week's close. */
 export const BRIER_MIN_PRICES = 3;
 
-const above = (xs: unknown[] | undefined, p: number) => (xs ?? []).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > p);
-const below = (xs: unknown[] | undefined, p: number) => (xs ?? []).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0 && x < p);
+/** Levels at least `gap` above `p`. */
+const above = (xs: unknown[] | undefined, p: number, gap: number) => (xs ?? []).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x - p >= gap && x > p);
+/** Levels at least `gap` below `p`. */
+const below = (xs: unknown[] | undefined, p: number, gap: number) => (xs ?? []).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0 && p - x >= gap && x < p);
 
 /**
- * PROPOSED OUTCOME RULE (needs the founder's OK). Which of bull, base and bear happened is decided in
- * code from the section's own published numbers, never by a model:
+ * OUTCOME RULE (agreed by the founder on PR #103). Which of bull, base and bear happened is decided in
+ * code from the section's own published numbers, never by a model. Every level closer to the price at
+ * the call than LEVEL_MIN_DISTANCE_ATR daily ATRs is skipped, the same as the daily level scoring
+ * (levelsToScore), so a level that sits right on the price cannot decide the outcome and "base" can
+ * still happen:
  * - upper line: the lowest level of the bull scenario above the price at the call; if it has none,
  *   the nearest resistance above that price (the view's code levels, else the daily chart read);
  *   if none either, the invalidation level when it is above the price;
@@ -200,12 +205,15 @@ export function scenarioLines(a: WeeklyAssetSection, price: number): { up: numbe
   const lv = a.view?.levels ?? null;
   const d1 = a.chart?.["1d"];
   const inv = lv?.invalidation;
-  const upBull = above(a.scenarios?.bull?.levels, price);
-  const upRes = above(lv?.resistance?.length ? lv.resistance : d1?.resistance, price);
-  const downBear = below(a.scenarios?.bear?.levels, price);
-  const downSup = below(lv?.support?.length ? lv.support : d1?.support, price);
-  const up = upBull.length ? Math.min(...upBull) : upRes.length ? Math.min(...upRes) : typeof inv === "number" && inv > price ? inv : null;
-  const down = downBear.length ? Math.max(...downBear) : downSup.length ? Math.max(...downSup) : typeof inv === "number" && inv > 0 && inv < price ? inv : null;
+  const gap = LEVEL_MIN_DISTANCE_ATR * (noteAtrPct(a, price) ?? 0.02) * price;
+  const upBull = above(a.scenarios?.bull?.levels, price, gap);
+  const upRes = above(lv?.resistance?.length ? lv.resistance : d1?.resistance, price, gap);
+  const upInv = above([inv], price, gap);
+  const downBear = below(a.scenarios?.bear?.levels, price, gap);
+  const downSup = below(lv?.support?.length ? lv.support : d1?.support, price, gap);
+  const downInv = below([inv], price, gap);
+  const up = upBull.length ? Math.min(...upBull) : upRes.length ? Math.min(...upRes) : upInv.length ? upInv[0] : null;
+  const down = downBear.length ? Math.max(...downBear) : downSup.length ? Math.max(...downSup) : downInv.length ? downInv[0] : null;
   return up === null || down === null ? null : { up, down };
 }
 
