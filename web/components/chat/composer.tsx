@@ -2,7 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { AssetIcon, cx } from "@/components/ui";
-import { COMMANDS, suggestAssets, type AssetSuggestion, type CommandMeta } from "./commands-stub"; // ENGINE: switch to @/lib/chat/commands
+import { COMMANDS, suggestAssets, type AssetSuggestion, type CommandMeta, type PositionLike } from "@/lib/chat/commands";
 
 /**
  * The chat message box with two autocomplete popups, both opening above the box:
@@ -37,7 +37,7 @@ function filterFor(value: string): Filter {
 }
 
 /** The popup for the text before the caret, or null. */
-function popupAt(value: string, caret: number, positions: unknown[]): Popup | null {
+function popupAt(value: string, caret: number, positions: PositionLike[]): Popup | null {
   const before = value.slice(0, caret);
   // Commands: only while the caret is still inside the first word, which starts with "/".
   if (before.startsWith("/") && !/\s/.test(before)) {
@@ -68,7 +68,7 @@ export function Composer({
   /** Sending or signing: typing still works, sending waits. */
   busy?: boolean;
   /** The person's positions, for the asset suggestions (held amounts, held-only filter). */
-  positions: unknown[];
+  positions: PositionLike[];
   inputRef: RefObject<HTMLTextAreaElement | null>;
 }) {
   const listId = useId();

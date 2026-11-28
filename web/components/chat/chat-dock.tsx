@@ -12,8 +12,8 @@ import { useSession } from "@/lib/useAccount";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { ActionCard, ActionCardSkeleton } from "./action-card";
 import { ChipRow, type StarterChip } from "./chips";
-import { completeDraft, parseCommand, type CommandResult, type Draft, type InfoView } from "./commands-stub"; // ENGINE: switch to @/lib/chat/commands
-import { infoContext } from "./commands-stub"; // ENGINE: switch to @/lib/chat/info
+import { completeDraft, parseCommand, type CommandResult, type Draft, type InfoView } from "@/lib/chat/commands";
+import { heldSymbols, infoContext } from "@/lib/chat/info";
 import { Composer } from "./composer";
 import { InfoCard } from "./info-cards";
 import { EmptyState, type EmptyMode } from "./empty-state";
@@ -84,10 +84,6 @@ function saveHistory(address: string, msgs: Msg[]) {
 /** The /help chip under a command error. */
 const HELP_CHIP: StarterChip = { label: "/help", text: "/help", kind: "question" };
 
-/** Symbols the person holds anywhere (wallet, vault or locked), for the command engine. */
-function heldSymbols(positions: readonly { asset: { symbol: string }; wallet: bigint; idle: bigint; collateral: bigint }[]): string[] {
-  return positions.filter((x) => x.wallet + x.idle + x.collateral > 0n).map((x) => x.asset.symbol);
-}
 
 export function ChatDock() {
   const [open, setOpen] = useState(false);
@@ -325,7 +321,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
       setChips([]);
 
       // Commands are answered in code first: no network call, no model.
-      const ctx = { held: heldSymbols(p.positions), info: infoContext(p, me) };
+      const ctx = { held: heldSymbols(p.positions), info: me && !p.loading ? infoContext(p, me) : undefined };
       const open = draft.current;
       draft.current = null;
       let r: CommandResult = open ? completeDraft(open, userText, ctx) : null;
@@ -338,7 +334,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
           setMsgs((m) => [...m, { role: "user", text: userText }, { role: "assistant", text: leadIn(result.intent) }]);
           setChips(followUpChips({ action: result.intent.action, tools: [] }, clean));
           fold(pendingRef.current, "Replaced by a newer card");
-          setPending({ intent: result.intent, id: nextId.current++, anchor, userText });
+          setPending({ intent: result.intent, id: nextId.current++, anchor, userText: result.text ?? userText });
           return;
         }
         const ask: Msg = { role: "user", text: userText, local: true };

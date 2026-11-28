@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { AssetIcon, Badge, HealthMeter, Notice, Row } from "@/components/ui";
 import { ASSETS } from "@/lib/contracts";
 import { ChipRow } from "./chips";
-import type { CommandMeta, InfoView } from "./commands-stub"; // ENGINE: switch to @/lib/chat/commands
+import type { CommandMeta, InfoView } from "@/lib/chat/commands";
 
 /**
  * Answers to look-up commands (/balance, /positions, /$TICKER, /borrow with no amount, /help), drawn
